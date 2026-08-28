@@ -1,0 +1,84 @@
+import 'package:supabase_flutter/supabase_flutter.dart';
+
+import 'supabase_config.dart';
+
+/// Default category plan seeded onto a freshly created demo trip —
+/// mirrors the numbers the UI used to hardcode as mock data.
+const _defaultCategoryPlan = {
+  'Accommodation': 600.0,
+  'Food & Drinks': 350.0,
+  'Transport': 150.0,
+  'Shopping': 300.0,
+  'Activities': 100.0,
+};
+
+/// Resolves "the current trip" for Budget/Group screens. No other
+/// module has real trip creation/selection wired up yet, so this
+/// stands in for that: each signed-in user gets one auto-created
+/// "Penang Adventure" trip (mirroring the old mock data), reused on
+/// every subsequent call. Swap this out once real trip selection
+/// exists elsewhere in the app.
+class TripService {
+  TripService({SupabaseClient? client})
+    : _client = client ?? SupabaseConfig.client;
+
+  final SupabaseClient _client;
+
+  static String? _cachedTripId;
+  static Future<String>? _inFlight;
+
+  String get _uid => _client.auth.currentUser!.id;
+
+  Future<String> ensureDemoTrip() {
+    final cached = _cachedTripId;
+    if (cached != null) return Future.value(cached);
+    return _inFlight ??= _resolve().whenComplete(() => _inFlight = null);
+  }
+
+  Future<String> _resolve() async {
+    final membership = await _client
+        .from('trip_members')
+        .select('trip_id')
+        .eq('user_id', _uid)
+        .limit(1)
+        .maybeSingle();
+    if (membership != null) {
+      final tripId = membership['trip_id'] as String;
+      _cachedTripId = tripId;
+      return tripId;
+    }
+
+    final trip = await _client
+        .from('trips')
+        .insert({
+          'name': 'Penang Adventure',
+          'created_by': _uid,
+          'total_budget': _defaultCategoryPlan.values.fold<double>(
+            0,
+            (sum, v) => sum + v,
+          ),
+        })
+        .select()
+        .single();
+    final tripId = trip['id'] as String;
+
+    await _client.from('budget_categories').insert([
+      for (final entry in _defaultCategoryPlan.entries)
+        {
+          'trip_id': tripId,
+          'label': entry.key,
+          'planned_amount': entry.value,
+        },
+    ]);
+
+    _cachedTripId = tripId;
+    return tripId;
+  }
+
+  /// Call on sign-out so a different account doesn't inherit the
+  /// previous user's cached trip id.
+  static void resetCache() {
+    _cachedTripId = null;
+    _inFlight = null;
+  }
+}
