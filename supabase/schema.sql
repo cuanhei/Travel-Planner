@@ -78,6 +78,9 @@ create trigger on_profiles_updated
 create table public.trips (
   id uuid primary key default gen_random_uuid(),
   name text not null,
+  destination text not null default '',
+  start_date date,
+  end_date date,
   created_by uuid not null references auth.users (id),
   total_budget numeric(12, 2) not null default 0,
   created_at timestamptz not null default now()

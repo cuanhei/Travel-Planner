@@ -1,5 +1,6 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../models/trip.dart';
 import 'supabase_config.dart';
 
 /// Default category plan seeded onto a freshly created demo trip —
@@ -53,10 +54,18 @@ class TripService {
       return tripId;
     }
 
+    final today = DateTime.now();
     final trip = await _client
         .from('trips')
         .insert({
           'name': 'Penang Adventure',
+          'destination': 'Penang, Malaysia',
+          'start_date': today.toIso8601String().split('T').first,
+          'end_date': today
+              .add(const Duration(days: 2))
+              .toIso8601String()
+              .split('T')
+              .first,
           'created_by': _uid,
           'total_budget': _defaultCategoryPlan.values.fold<double>(
             0,
@@ -78,6 +87,18 @@ class TripService {
 
     _cachedTripId = tripId;
     return tripId;
+  }
+
+  /// Live list of every trip the signed-in user belongs to, for the "My
+  /// Trips" tab. No explicit membership filter needed here — the
+  /// `trips_select_members` RLS policy already restricts rows to trips
+  /// the current user is a member of.
+  Stream<List<Trip>> watchMyTrips() {
+    return _client
+        .from('trips')
+        .stream(primaryKey: ['id'])
+        .order('created_at', ascending: false)
+        .map((rows) => rows.map(Trip.fromMap).toList());
   }
 
   /// Call on sign-out so a different account doesn't inherit the
