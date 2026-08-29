@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../services/auth_service.dart';
 import '../../services/trip_service.dart';
@@ -12,80 +13,111 @@ import 'settings_screen.dart';
 import 'travel_history_screen.dart';
 
 /// "Profile" bottom-nav tab: identity header, stats, and a menu into the
-/// rest of the profile-related modules.
+/// rest of the profile-related modules. The identity header (name,
+/// email, avatar) reads the signed-in user's real `profiles` row; the
+/// stats below it are still mock data pending other modules' backends.
 class ProfileTab extends StatelessWidget {
   const ProfileTab({super.key});
+
+  Future<Map<String, dynamic>?> _loadProfile() async {
+    final uid = Supabase.instance.client.auth.currentUser?.id;
+    if (uid == null) return null;
+    return Supabase.instance.client
+        .from('profiles')
+        .select('display_name, full_name, email, avatar_color')
+        .eq('id', uid)
+        .maybeSingle();
+  }
 
   @override
   Widget build(BuildContext context) {
     return SafeArea(
-      child: ListView(
-        padding: EdgeInsets.fromLTRB(24, 24, 24, 24),
-        children: [
-          Row(
+      child: FutureBuilder<Map<String, dynamic>?>(
+        future: _loadProfile(),
+        builder: (context, snapshot) {
+          final profile = snapshot.data;
+          final name =
+              (profile?['full_name'] as String?)?.trim().isNotEmpty == true
+              ? profile!['full_name'] as String
+              : (profile?['display_name'] as String? ?? 'Traveler');
+          final email = (profile?['email'] as String?) ??
+              Supabase.instance.client.auth.currentUser?.email ??
+              '';
+          final avatarColor = profile?['avatar_color'] as int?;
+
+          return ListView(
+            padding: EdgeInsets.fromLTRB(24, 24, 24, 24),
             children: [
-              Container(
-                width: 64,
-                height: 64,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  gradient: LinearGradient(
-                    colors: AppColors.sunset,
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                  ),
-                  border: Border.all(color: Colors.white, width: 3),
-                  boxShadow: [
-                    BoxShadow(
-                      color: context.colors.ink.withValues(alpha: 0.12),
-                      blurRadius: 14,
-                      offset: Offset(0, 6),
+              Row(
+                children: [
+                  Container(
+                    width: 64,
+                    height: 64,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      gradient: avatarColor == null
+                          ? LinearGradient(
+                              colors: AppColors.sunset,
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                            )
+                          : null,
+                      color: avatarColor == null ? null : Color(avatarColor),
+                      border: Border.all(color: Colors.white, width: 3),
+                      boxShadow: [
+                        BoxShadow(
+                          color: context.colors.ink.withValues(alpha: 0.12),
+                          blurRadius: 14,
+                          offset: Offset(0, 6),
+                        ),
+                      ],
                     ),
-                  ],
-                ),
-                alignment: Alignment.center,
-                child: Text(
-                  'A',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 26,
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-              ),
-              SizedBox(width: 16),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Alex Tan',
+                    alignment: Alignment.center,
+                    child: Text(
+                      name.isNotEmpty ? name[0].toUpperCase() : '?',
                       style: TextStyle(
-                        color: context.colors.ink,
-                        fontSize: 19,
+                        color: Colors.white,
+                        fontSize: 26,
                         fontWeight: FontWeight.w800,
                       ),
                     ),
-                    SizedBox(height: 3),
-                    Text(
-                      'alex.tan@email.com',
-                      style: TextStyle(
-                        color: context.colors.muted,
-                        fontSize: 12.5,
-                      ),
+                  ),
+                  SizedBox(width: 16),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          name,
+                          style: TextStyle(
+                            color: context.colors.ink,
+                            fontSize: 19,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                        SizedBox(height: 3),
+                        Text(
+                          email,
+                          style: TextStyle(
+                            color: context.colors.muted,
+                            fontSize: 12.5,
+                          ),
+                        ),
+                      ],
                     ),
-                  ],
-                ),
+                  ),
+                  IconButton(
+                    onPressed: () => Navigator.of(context).push(
+                      MaterialPageRoute(builder: (_) => SettingsScreen()),
+                    ),
+                    icon: Icon(
+                      Icons.settings_outlined,
+                      color: context.colors.ink,
+                    ),
+                  ),
+                ],
               ),
-              IconButton(
-                onPressed: () => Navigator.of(
-                  context,
-                ).push(MaterialPageRoute(builder: (_) => SettingsScreen())),
-                icon: Icon(Icons.settings_outlined, color: context.colors.ink),
-              ),
-            ],
-          ),
-          SizedBox(height: 24),
+              SizedBox(height: 24),
           Row(
             children: [
               _StatTile(label: 'Trips', value: '5'),
@@ -157,7 +189,9 @@ class ProfileTab extends StatelessWidget {
               );
             },
           ),
-        ],
+            ],
+          );
+        },
       ),
     );
   }

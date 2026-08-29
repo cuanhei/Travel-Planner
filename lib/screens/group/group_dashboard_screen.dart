@@ -44,9 +44,13 @@ class _GroupDashboardScreenState extends State<GroupDashboardScreen> {
                   const DetailHeader(title: 'Group Travel'),
                   Expanded(
                     child: Center(
-                      child: Text(
-                        'Sign in to view your group.',
-                        style: TextStyle(color: context.colors.muted),
+                      child: Padding(
+                        padding: const EdgeInsets.all(24),
+                        child: Text(
+                          '${tripSnap.error}',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(color: context.colors.muted),
+                        ),
                       ),
                     ),
                   ),

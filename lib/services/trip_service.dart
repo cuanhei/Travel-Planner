@@ -36,10 +36,15 @@ class TripService {
   }
 
   Future<String> _resolve() async {
+    // Deterministic when a user ends up in more than one trip (e.g. they
+    // opened Budget/Group once before joining someone else's trip via
+    // code) — always resolves to whichever trip they've belonged to
+    // longest, so repeated calls never flip between trips.
     final membership = await _client
         .from('trip_members')
         .select('trip_id')
         .eq('user_id', _uid)
+        .order('joined_at')
         .limit(1)
         .maybeSingle();
     if (membership != null) {
