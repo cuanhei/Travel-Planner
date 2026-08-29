@@ -38,6 +38,9 @@ dependencies:
   # Backend: Supabase client + .env loading for the project URL/anon key.
   supabase_flutter: ^2.17.2
   flutter_dotenv: ^5.2.1
+  http: ^1.6.0
+  sqflite: ^2.4.3
+  path: ^1.9.1
 
 dev_dependencies:
   flutter_test:

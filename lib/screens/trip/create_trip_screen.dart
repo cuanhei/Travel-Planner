@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../../models/malaysia_city.dart';
+import '../../services/malaysia_location_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/detail_header.dart';
 import '../../widgets/gradient_button.dart';
@@ -21,10 +23,11 @@ class CreateTripScreen extends StatefulWidget {
 class _CreateTripScreenState extends State<CreateTripScreen> {
   final _nameController = TextEditingController(text: 'Penang Adventure');
   final _descriptionController = TextEditingController();
-  final _destinationController = TextEditingController(
-    text: 'Penang, Malaysia',
-  );
   final _budgetController = TextEditingController(text: 'RM 1,500');
+  final _locationService = MalaysiaLocationService();
+  late final _citiesFuture = _locationService.getCities();
+  MalaysiaCity? _startCity;
+  MalaysiaCity? _endCity;
   int _travelers = 2;
   final Set<String> _selectedInterests = {'Shopping', 'Food'};
   final Set<Place> _selectedPlaces = {places[0], places[2]};
@@ -34,9 +37,27 @@ class _CreateTripScreenState extends State<CreateTripScreen> {
   void dispose() {
     _nameController.dispose();
     _descriptionController.dispose();
-    _destinationController.dispose();
     _budgetController.dispose();
     super.dispose();
+  }
+
+  Future<void> _pickStartCity() async {
+    final picked = await _pickCity(context);
+    if (picked != null) setState(() => _startCity = picked);
+  }
+
+  Future<void> _pickEndCity() async {
+    final picked = await _pickCity(context);
+    if (picked != null) setState(() => _endCity = picked);
+  }
+
+  Future<MalaysiaCity?> _pickCity(BuildContext context) {
+    return showModalBottomSheet<MalaysiaCity>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => _CityPickerSheet(citiesFuture: _citiesFuture),
+    );
   }
 
   Future<void> _addCustomLocation() async {
@@ -117,16 +138,10 @@ class _CreateTripScreenState extends State<CreateTripScreen> {
                     title: 'Travel Information',
                     children: [
                       _FieldLabel('Starting From'),
-                      _InputBox(
-                        controller: _destinationController,
-                        icon: Icons.location_on_rounded,
-                      ),
+                      _CityField(city: _startCity, onTap: _pickStartCity),
                       const SizedBox(height: 18),
                       _FieldLabel('Ending At'),
-                      _InputBox(
-                        controller: _destinationController,
-                        icon: Icons.location_on_rounded,
-                      ),
+                      _CityField(city: _endCity, onTap: _pickEndCity),
                       const SizedBox(height: 18),
                       _FieldLabel('Travel Dates'),
                       _DatePickerRow(onTap: () {}),
@@ -505,6 +520,203 @@ class _InputBox extends StatelessWidget {
           horizontal: 16,
         ),
       ),
+    );
+  }
+}
+
+/// Tappable field showing the selected Malaysian city, or a placeholder
+/// until one is picked. Opens [_CityPickerSheet] on tap.
+class _CityField extends StatelessWidget {
+  const _CityField({required this.city, required this.onTap});
+
+  final MalaysiaCity? city;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      borderRadius: BorderRadius.circular(16),
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+        decoration: BoxDecoration(
+          color: context.colors.surface,
+          borderRadius: BorderRadius.circular(16),
+        ),
+        child: Row(
+          children: [
+            Icon(
+              Icons.location_on_rounded,
+              color: context.colors.muted,
+              size: 18,
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                city?.label ?? 'Select a city',
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  color: city == null
+                      ? context.colors.muted
+                      : context.colors.ink,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+            const Spacer(),
+            Icon(Icons.expand_more_rounded, color: context.colors.muted),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Searchable bottom sheet listing every Malaysian city from
+/// [MalaysiaLocationService], filtered as the user types. Returns the
+/// tapped [MalaysiaCity] via `Navigator.pop`.
+class _CityPickerSheet extends StatefulWidget {
+  const _CityPickerSheet({required this.citiesFuture});
+
+  final Future<List<MalaysiaCity>> citiesFuture;
+
+  @override
+  State<_CityPickerSheet> createState() => _CityPickerSheetState();
+}
+
+class _CityPickerSheetState extends State<_CityPickerSheet> {
+  final _searchController = TextEditingController();
+  String _query = '';
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return DraggableScrollableSheet(
+      initialChildSize: 0.75,
+      minChildSize: 0.5,
+      maxChildSize: 0.92,
+      expand: false,
+      builder: (context, scrollController) {
+        return Container(
+          decoration: BoxDecoration(
+            color: context.colors.card,
+            borderRadius: const BorderRadius.vertical(
+              top: Radius.circular(24),
+            ),
+          ),
+          child: Column(
+            children: [
+              const SizedBox(height: 12),
+              Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: context.colors.muted.withValues(alpha: 0.3),
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 16, 20, 12),
+                child: TextField(
+                  controller: _searchController,
+                  autofocus: true,
+                  onChanged: (v) => setState(() => _query = v),
+                  style: TextStyle(color: context.colors.ink),
+                  decoration: InputDecoration(
+                    hintText: 'Search city or state…',
+                    hintStyle: TextStyle(color: context.colors.muted),
+                    prefixIcon: Icon(
+                      Icons.search_rounded,
+                      color: context.colors.muted,
+                    ),
+                    filled: true,
+                    fillColor: context.colors.surface,
+                    isDense: true,
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(14),
+                      borderSide: BorderSide.none,
+                    ),
+                  ),
+                ),
+              ),
+              Expanded(
+                child: FutureBuilder<List<MalaysiaCity>>(
+                  future: widget.citiesFuture,
+                  builder: (context, snapshot) {
+                    if (snapshot.connectionState != ConnectionState.done) {
+                      return const Center(child: CircularProgressIndicator());
+                    }
+                    if (snapshot.hasError) {
+                      return Center(
+                        child: Padding(
+                          padding: const EdgeInsets.all(24),
+                          child: Text(
+                            'Could not load cities: ${snapshot.error}',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(color: context.colors.muted),
+                          ),
+                        ),
+                      );
+                    }
+
+                    final cities = snapshot.data ?? const <MalaysiaCity>[];
+                    final q = _query.trim().toLowerCase();
+                    final filtered = q.isEmpty
+                        ? cities
+                        : cities
+                              .where(
+                                (c) =>
+                                    c.city.toLowerCase().contains(q) ||
+                                    c.state.toLowerCase().contains(q),
+                              )
+                              .toList();
+
+                    if (filtered.isEmpty) {
+                      return Center(
+                        child: Text(
+                          'No matching city',
+                          style: TextStyle(color: context.colors.muted),
+                        ),
+                      );
+                    }
+
+                    return ListView.builder(
+                      controller: scrollController,
+                      padding: const EdgeInsets.only(bottom: 16),
+                      itemCount: filtered.length,
+                      itemBuilder: (context, i) {
+                        final c = filtered[i];
+                        return ListTile(
+                          title: Text(
+                            c.city,
+                            style: TextStyle(
+                              color: context.colors.ink,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          subtitle: Text(
+                            c.state,
+                            style: TextStyle(
+                              color: context.colors.muted,
+                              fontSize: 12,
+                            ),
+                          ),
+                          onTap: () => Navigator.of(context).pop(c),
+                        );
+                      },
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 }
