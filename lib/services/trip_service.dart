@@ -222,16 +222,35 @@ class TripService {
     return tripId;
   }
 
-  /// Live list of every trip the signed-in user belongs to, for the "My
-  /// Trips" tab. No explicit membership filter needed here — the
-  /// `trips_select_members` RLS policy already restricts rows to trips
-  /// the current user is a member of.
+  /// Live list of every trip the signed-in user belongs to (as creator or
+  /// invited member), for the "My Trips" tab.
+  ///
+  /// Filters explicitly via `trip_members` rather than trusting RLS alone
+  /// to narrow a plain `trips` stream: `.stream()`'s realtime half
+  /// broadcasts `postgres_changes` events, and relying on RLS to filter
+  /// those (instead of passing an explicit `.eq()`, which Realtime
+  /// enforces server-side regardless of policy state) risks a trip
+  /// leaking into every signed-in user's list if RLS on `trips` is ever
+  /// missing or misconfigured. Membership already covers "created by",
+  /// too — the `on_trip_created` trigger adds the creator as organizer.
   Stream<List<Trip>> watchMyTrips() {
     return _client
-        .from('trips')
-        .stream(primaryKey: ['id'])
-        .order('created_at', ascending: false)
-        .map((rows) => rows.map(Trip.fromMap).toList());
+        .from('trip_members')
+        .stream(primaryKey: ['trip_id', 'user_id'])
+        .eq('user_id', _uid)
+        .asyncMap((memberRows) async {
+          final tripIds = memberRows
+              .map((row) => row['trip_id'] as String)
+              .toSet()
+              .toList();
+          if (tripIds.isEmpty) return const <Trip>[];
+          final rows = await _client
+              .from('trips')
+              .select()
+              .inFilter('id', tripIds)
+              .order('created_at', ascending: false);
+          return rows.map(Trip.fromMap).toList();
+        });
   }
 
   /// Fetches a trip's current name, for screens that only hold its id
