@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../../models/join_request.dart';
 import '../../services/group_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/detail_header.dart';
@@ -63,7 +64,9 @@ class _JoinTripScreenState extends State<JoinTripScreen> {
       SnackBar(
         behavior: SnackBarBehavior.floating,
         backgroundColor: context.colors.ink,
-        content: const Text('Request sent! Waiting for the organizer to approve.'),
+        content: const Text(
+          'Request sent! Waiting for the organizer to approve.',
+        ),
       ),
     );
     Navigator.of(context).maybePop();
@@ -114,7 +117,10 @@ class _JoinTripScreenState extends State<JoinTripScreen> {
                   Text(
                     'Ask the trip organizer for their 6-character code',
                     textAlign: TextAlign.center,
-                    style: TextStyle(color: context.colors.muted, fontSize: 12.5),
+                    style: TextStyle(
+                      color: context.colors.muted,
+                      fontSize: 12.5,
+                    ),
                   ),
                   const SizedBox(height: 22),
                   TextField(
@@ -150,9 +156,7 @@ class _JoinTripScreenState extends State<JoinTripScreen> {
                           width: 1.5,
                         ),
                       ),
-                      contentPadding: const EdgeInsets.symmetric(
-                        vertical: 18,
-                      ),
+                      contentPadding: const EdgeInsets.symmetric(vertical: 18),
                     ),
                   ),
                   const SizedBox(height: 28),
@@ -161,11 +165,108 @@ class _JoinTripScreenState extends State<JoinTripScreen> {
                     icon: Icons.group_add_rounded,
                     onPressed: _canJoin ? () => _join() : () {},
                   ),
+                  const SizedBox(height: 32),
+                  StreamBuilder<List<MyJoinRequest>>(
+                    stream: _groupService.watchMyRequests(),
+                    builder: (context, snapshot) {
+                      final requests = snapshot.data ?? const <MyJoinRequest>[];
+                      if (requests.isEmpty) return const SizedBox.shrink();
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Your Requests',
+                            style: TextStyle(
+                              color: context.colors.ink,
+                              fontWeight: FontWeight.w800,
+                              fontSize: 15,
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                          ...requests.map(
+                            (r) => _RequestStatusTile(request: r),
+                          ),
+                        ],
+                      );
+                    },
+                  ),
                 ],
               ),
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _RequestStatusTile extends StatelessWidget {
+  const _RequestStatusTile({required this.request});
+
+  final MyJoinRequest request;
+
+  (Color, String) get _statusVisuals => switch (request.status) {
+    'approved' => (const Color(0xFF11998E), 'Approved'),
+    'rejected' => (Colors.redAccent, 'Declined'),
+    _ => (const Color(0xFFFFB347), 'Pending'),
+  };
+
+  @override
+  Widget build(BuildContext context) {
+    final (color, label) = _statusVisuals;
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: context.colors.card,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: context.colors.ink.withValues(alpha: 0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 10,
+            height: 10,
+            margin: const EdgeInsets.only(top: 4),
+            decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label,
+                  style: TextStyle(
+                    color: color,
+                    fontWeight: FontWeight.w800,
+                    fontSize: 12.5,
+                  ),
+                ),
+                if (request.status == 'rejected' &&
+                    request.reason != null &&
+                    request.reason!.isNotEmpty) ...[
+                  const SizedBox(height: 4),
+                  Text(
+                    request.reason!,
+                    style: TextStyle(
+                      color: context.colors.muted,
+                      fontSize: 12,
+                      height: 1.4,
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }

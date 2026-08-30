@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../models/budget_category.dart';
 import '../../models/expense.dart';
 import '../../services/budget_service.dart';
+import '../../services/group_service.dart';
 import '../../services/trip_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/detail_header.dart';
@@ -70,7 +71,16 @@ class BudgetPlannerScreen extends StatefulWidget {
 
 class _BudgetPlannerScreenState extends State<BudgetPlannerScreen> {
   final _budgetService = BudgetService();
-  late final Future<String> _tripIdFuture = TripService().ensureDemoTrip();
+  final _tripService = TripService();
+  final _groupService = GroupService();
+  late final Future<(String, String, bool)> _tripFuture = _loadTrip();
+
+  Future<(String, String, bool)> _loadTrip() async {
+    final tripId = await _tripService.ensureDemoTrip();
+    final tripName = await _tripService.getTripName(tripId);
+    final isOrganizer = await _groupService.isOrganizer(tripId);
+    return (tripId, tripName, isOrganizer);
+  }
 
   Future<void> _editBudget(String tripId, double currentTotal) async {
     final result = await showModalBottomSheet<double>(
@@ -88,8 +98,8 @@ class _BudgetPlannerScreenState extends State<BudgetPlannerScreen> {
     return Scaffold(
       backgroundColor: context.colors.surface,
       body: SafeArea(
-        child: FutureBuilder<String>(
-          future: _tripIdFuture,
+        child: FutureBuilder<(String, String, bool)>(
+          future: _tripFuture,
           builder: (context, tripSnap) {
             if (tripSnap.connectionState != ConnectionState.done) {
               return const Column(
@@ -118,9 +128,11 @@ class _BudgetPlannerScreenState extends State<BudgetPlannerScreen> {
                 ],
               );
             }
-            final tripId = tripSnap.data!;
+            final (tripId, tripName, isOrganizer) = tripSnap.data!;
             return _BudgetPlannerContent(
               tripId: tripId,
+              tripName: tripName,
+              isOrganizer: isOrganizer,
               budgetService: _budgetService,
               onEditBudget: (currentTotal) => _editBudget(tripId, currentTotal),
             );
@@ -134,13 +146,41 @@ class _BudgetPlannerScreenState extends State<BudgetPlannerScreen> {
 class _BudgetPlannerContent extends StatelessWidget {
   const _BudgetPlannerContent({
     required this.tripId,
+    required this.tripName,
+    required this.isOrganizer,
     required this.budgetService,
     required this.onEditBudget,
   });
 
   final String tripId;
+  final String tripName;
+  final bool isOrganizer;
   final BudgetService budgetService;
   final ValueChanged<double> onEditBudget;
+
+  Future<void> _manageCategories(
+    BuildContext context,
+    List<BudgetCategoryData> categories,
+  ) async {
+    final plannedByLabel = {
+      for (final c in categories) c.label: c.plannedAmount,
+    };
+    final result = await showModalBottomSheet<Map<String, double>>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (_) => _ManageCategoriesSheet(plannedByLabel: plannedByLabel),
+    );
+    if (result == null) return;
+    await Future.wait([
+      for (final entry in result.entries)
+        budgetService.upsertCategory(
+          tripId: tripId,
+          label: entry.key,
+          plannedAmount: entry.value,
+        ),
+    ]);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -174,7 +214,7 @@ class _BudgetPlannerContent extends StatelessWidget {
                   children: [
                     DetailHeader(
                       title: 'Budget Planner',
-                      subtitle: 'Penang Adventure',
+                      subtitle: tripName,
                       trailing: IconButton(
                         onPressed: () => Navigator.of(context).push(
                           MaterialPageRoute(
@@ -225,26 +265,28 @@ class _BudgetPlannerContent extends StatelessWidget {
                                         ),
                                       ),
                                     ),
-                                    Material(
-                                      color: Colors.white.withValues(
-                                        alpha: 0.18,
-                                      ),
-                                      borderRadius: BorderRadius.circular(10),
-                                      child: InkWell(
-                                        borderRadius: BorderRadius.circular(
-                                          10,
+                                    if (isOrganizer)
+                                      Material(
+                                        color: Colors.white.withValues(
+                                          alpha: 0.18,
                                         ),
-                                        onTap: () => onEditBudget(totalBudget),
-                                        child: Padding(
-                                          padding: const EdgeInsets.all(6),
-                                          child: Icon(
-                                            Icons.edit_rounded,
-                                            color: Colors.white,
-                                            size: 14,
+                                        borderRadius: BorderRadius.circular(10),
+                                        child: InkWell(
+                                          borderRadius: BorderRadius.circular(
+                                            10,
+                                          ),
+                                          onTap: () =>
+                                              onEditBudget(totalBudget),
+                                          child: Padding(
+                                            padding: const EdgeInsets.all(6),
+                                            child: Icon(
+                                              Icons.edit_rounded,
+                                              color: Colors.white,
+                                              size: 14,
+                                            ),
                                           ),
                                         ),
                                       ),
-                                    ),
                                   ],
                                 ),
                                 SizedBox(height: 4),
@@ -293,6 +335,18 @@ class _BudgetPlannerContent extends StatelessWidget {
                                 ),
                               ),
                               Spacer(),
+                              GestureDetector(
+                                onTap: () =>
+                                    _manageCategories(context, categories),
+                                child: Padding(
+                                  padding: const EdgeInsets.only(right: 14),
+                                  child: Icon(
+                                    Icons.tune_rounded,
+                                    size: 16,
+                                    color: context.colors.muted,
+                                  ),
+                                ),
+                              ),
                               GestureDetector(
                                 onTap: () => Navigator.of(context).push(
                                   MaterialPageRoute(
@@ -516,6 +570,140 @@ class _EditBudgetSheetState extends State<_EditBudgetSheet> {
                 onPressed: _value > 0
                     ? () => Navigator.of(context).pop(_value)
                     : () {},
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Lets any trip member set how much they plan to spend in each of the
+/// fixed [budgetCategories] — the planned side of the Budget Planner's
+/// "By Category" breakdown. Open to every member (not just the
+/// organizer), matching the `categories_write_members` RLS policy.
+class _ManageCategoriesSheet extends StatefulWidget {
+  const _ManageCategoriesSheet({required this.plannedByLabel});
+
+  final Map<String, double> plannedByLabel;
+
+  @override
+  State<_ManageCategoriesSheet> createState() => _ManageCategoriesSheetState();
+}
+
+class _ManageCategoriesSheetState extends State<_ManageCategoriesSheet> {
+  late final _controllers = {
+    for (final c in budgetCategories)
+      c.label: TextEditingController(
+        text: (widget.plannedByLabel[c.label] ?? 0) > 0
+            ? widget.plannedByLabel[c.label]!.toStringAsFixed(0)
+            : '',
+      ),
+  };
+
+  @override
+  void dispose() {
+    for (final controller in _controllers.values) {
+      controller.dispose();
+    }
+    super.dispose();
+  }
+
+  void _save() {
+    final result = {
+      for (final entry in _controllers.entries)
+        entry.key: double.tryParse(entry.value.text.trim()) ?? 0,
+    };
+    Navigator.of(context).pop(result);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: EdgeInsets.only(
+        bottom: MediaQuery.of(context).viewInsets.bottom,
+      ),
+      child: SafeArea(
+        child: Container(
+          margin: const EdgeInsets.all(12),
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            color: context.colors.card,
+            borderRadius: BorderRadius.circular(24),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Plan Categories',
+                style: TextStyle(
+                  color: context.colors.ink,
+                  fontWeight: FontWeight.w800,
+                  fontSize: 16,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                'Set how much you plan to spend in each category',
+                style: TextStyle(color: context.colors.muted, fontSize: 12.5),
+              ),
+              const SizedBox(height: 18),
+              ...budgetCategories.map(
+                (c) => Padding(
+                  padding: const EdgeInsets.only(bottom: 12),
+                  child: Row(
+                    children: [
+                      Icon(c.icon, color: c.color, size: 18),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Text(
+                          c.label,
+                          style: TextStyle(
+                            color: context.colors.ink,
+                            fontWeight: FontWeight.w700,
+                            fontSize: 13,
+                          ),
+                        ),
+                      ),
+                      SizedBox(
+                        width: 100,
+                        child: TextField(
+                          controller: _controllers[c.label],
+                          keyboardType: const TextInputType.numberWithOptions(
+                            decimal: true,
+                          ),
+                          textAlign: TextAlign.end,
+                          style: TextStyle(
+                            color: context.colors.ink,
+                            fontWeight: FontWeight.w700,
+                          ),
+                          decoration: InputDecoration(
+                            prefixText: 'RM ',
+                            hintText: '0',
+                            filled: true,
+                            fillColor: context.colors.surface,
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              borderSide: BorderSide.none,
+                            ),
+                            contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 10,
+                              vertical: 10,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 10),
+              GradientButton(
+                label: 'Save Categories',
+                icon: Icons.check_rounded,
+                onPressed: _save,
               ),
             ],
           ),

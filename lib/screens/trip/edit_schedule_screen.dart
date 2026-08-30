@@ -14,7 +14,21 @@ import 'trip_data.dart';
 /// route/weather-optimized, so overriding it (on editable days) prompts
 /// a confirmation warning before the change is allowed to stick.
 class EditScheduleScreen extends StatefulWidget {
-  const EditScheduleScreen({super.key});
+  const EditScheduleScreen({
+    super.key,
+    this.initialItems,
+    this.dayCount,
+    this.previewMode = false,
+    this.onConfirm,
+  });
+
+  /// An optimized itinerary supplied before a trip exists. In preview mode
+  /// the route is intentionally read-only: go back to Create Trip to change
+  /// the inputs and generate a new optimized route.
+  final List<TripStop>? initialItems;
+  final int? dayCount;
+  final bool previewMode;
+  final Future<void> Function()? onConfirm;
 
   @override
   State<EditScheduleScreen> createState() => _EditScheduleScreenState();
@@ -23,7 +37,7 @@ class EditScheduleScreen extends StatefulWidget {
 class _EditScheduleScreenState extends State<EditScheduleScreen> {
   /// Simulated "today" within the trip — days before this have already
   /// happened and are locked to view-only.
-  static const _currentDay = 2;
+  int get _currentDay => widget.previewMode ? 1 : 2;
 
   int _selectedDay = 1;
 
@@ -136,15 +150,30 @@ class _EditScheduleScreenState extends State<EditScheduleScreen> {
   /// used to detect when a drag-reorder has actually changed the
   /// sequence. Kept in sync whenever a stop is added or removed, so only
   /// genuine drag-reorders of the existing set count as an "override".
-  late final List<int> _originalOrder = _items.map((i) => i.id).toList();
+  late final List<int> _originalOrder;
 
   /// Whether the user has already been warned and accepted the override
   /// for the current reordered sequence, so we don't re-prompt on every
   /// small drag while it's already in a non-original order.
   bool _orderOverridden = false;
 
-  int get _maxDay =>
-      _items.isEmpty ? 1 : _items.map((i) => i.day).reduce((a, b) => a > b ? a : b);
+  @override
+  void initState() {
+    super.initState();
+    final previewItems = widget.initialItems;
+    if (previewItems != null) {
+      _items
+        ..clear()
+        ..addAll(previewItems);
+    }
+    _originalOrder = _items.map((i) => i.id).toList();
+  }
+
+  int get _maxDay {
+    final itemDays =
+        _items.isEmpty ? 1 : _items.map((i) => i.day).reduce((a, b) => a > b ? a : b);
+    return itemDays > (widget.dayCount ?? 1) ? itemDays : (widget.dayCount ?? 1);
+  }
 
   bool _isDayLocked(int day) => day < _currentDay;
 
@@ -316,7 +345,21 @@ class _EditScheduleScreenState extends State<EditScheduleScreen> {
     });
   }
 
-  void _save() {
+  Future<void> _save() async {
+    if (widget.onConfirm != null) {
+      try {
+        await widget.onConfirm!();
+      } catch (error) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            behavior: SnackBarBehavior.floating,
+            content: Text('Could not create trip: $error'),
+          ),
+        );
+      }
+      return;
+    }
     Navigator.of(context).pop();
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -346,12 +389,14 @@ class _EditScheduleScreenState extends State<EditScheduleScreen> {
         child: Column(
           children: [
             DetailHeader(
-              title: 'Edit Trip',
-              subtitle: locked
+              title: widget.previewMode ? 'Review Schedule' : 'Edit Trip',
+              subtitle: widget.previewMode
+                  ? 'Review the optimized route before creating your trip'
+                  : locked
                   ? 'Day $selectedDay is already complete — view only'
                   : 'Tap a stop to edit, drag to reorder',
               trailing: IconButton(
-                onPressed: locked ? null : _openAddStop,
+                onPressed: locked || widget.previewMode ? null : _openAddStop,
                 icon: Icon(
                   Icons.add_rounded,
                   color: locked
@@ -442,7 +487,26 @@ class _EditScheduleScreenState extends State<EditScheduleScreen> {
                         );
                       },
                     )
-                  : ReorderableListView.builder(
+                    : widget.previewMode
+                    ? ListView.builder(
+                        padding: const EdgeInsets.fromLTRB(24, 16, 24, 24),
+                        itemCount: dayIndices.length,
+                        itemBuilder: (context, i) {
+                          final isLast = i == dayIndices.length - 1;
+                          return _StopTimelineRow(
+                            stop: _items[dayIndices[i]],
+                            isLast: isLast,
+                            locked: true,
+                            transportMinutes: isLast
+                                ? null
+                                : _transportMinutes(
+                                    _items[dayIndices[i]],
+                                    _items[dayIndices[i + 1]],
+                                  ),
+                          );
+                        },
+                      )
+                    : ReorderableListView.builder(
                       padding: const EdgeInsets.fromLTRB(24, 16, 24, 24),
                       itemCount: dayIndices.length,
                       onReorder: (oldIndex, newIndex) =>
@@ -471,8 +535,10 @@ class _EditScheduleScreenState extends State<EditScheduleScreen> {
             Padding(
               padding: const EdgeInsets.fromLTRB(24, 0, 24, 20),
               child: GradientButton(
-                label: 'Save Changes',
-                icon: Icons.check_rounded,
+                label: widget.previewMode ? 'Confirm & Create Trip' : 'Save Changes',
+                icon: widget.previewMode
+                    ? Icons.check_circle_rounded
+                    : Icons.check_rounded,
                 onPressed: _save,
               ),
             ),

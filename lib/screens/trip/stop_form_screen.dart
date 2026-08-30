@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 
+import '../../models/trip_stop_location.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/detail_header.dart';
 import '../../widgets/gradient_button.dart';
 import '../explore/explore_tab.dart' show Place, places;
 import 'location_map_picker.dart';
+import 'stop_selection_screen.dart';
 import 'trip_data.dart';
 
 /// Result of [StopFormScreen]: either a saved (added/edited) stop, or a
@@ -79,6 +81,11 @@ class _StopFormScreenState extends State<StopFormScreen> {
   final _searchController = TextEditingController();
   String _query = '';
   Place? _selectedPlace;
+
+  /// Real geocoded data behind [_selectedPlace] when it came from
+  /// [StopSelectionScreen] — null for a catalog pick, which has no
+  /// coordinates of its own.
+  TripStopLocation? _selectedStopDetails;
   _ArrangeMode _arrangeMode = _ArrangeMode.auto;
 
   // Shared.
@@ -129,13 +136,22 @@ class _StopFormScreenState extends State<StopFormScreen> {
       widget.isEditing ? _nameController.text.trim().isNotEmpty : _selectedPlace != null;
 
   void _togglePlace(Place place) {
-    setState(() => _selectedPlace = _selectedPlace == place ? null : place);
+    setState(() {
+      _selectedPlace = _selectedPlace == place ? null : place;
+      _selectedStopDetails = null;
+    });
   }
 
   Future<void> _addCustomLocation() async {
-    final place = await showAddCustomLocationDialog(context);
-    if (place == null) return;
-    setState(() => _selectedPlace = place);
+    final result = await Navigator.of(context).push<List<TripStopLocation>>(
+      MaterialPageRoute(builder: (_) => const StopSelectionScreen()),
+    );
+    if (result == null || result.isEmpty) return;
+    final stop = result.last;
+    setState(() {
+      _selectedPlace = buildCustomPlace(stop.name);
+      _selectedStopDetails = stop;
+    });
   }
 
   Future<void> _pickTime() async {
@@ -293,7 +309,14 @@ class _StopFormScreenState extends State<StopFormScreen> {
       else
         _SelectedPlaceChip(
           place: _selectedPlace!,
-          onRemove: () => setState(() => _selectedPlace = null),
+          address: _selectedStopDetails == null
+              ? null
+              : '${_selectedStopDetails!.category} · ${_selectedStopDetails!.address}',
+          icon: _selectedStopDetails?.categoryIcon,
+          onRemove: () => setState(() {
+            _selectedPlace = null;
+            _selectedStopDetails = null;
+          }),
         ),
       const SizedBox(height: 28),
       _FieldLabel('Arrangement'),
@@ -553,10 +576,23 @@ class _SearchBox extends StatelessWidget {
 }
 
 class _SelectedPlaceChip extends StatelessWidget {
-  const _SelectedPlaceChip({required this.place, required this.onRemove});
+  const _SelectedPlaceChip({
+    required this.place,
+    required this.onRemove,
+    this.address,
+    this.icon,
+  });
 
   final Place place;
   final VoidCallback onRemove;
+
+  /// Real address from Photon, when [place] came from
+  /// [StopSelectionScreen] rather than the recommended-places catalog.
+  final String? address;
+
+  /// Category icon from [StopSelectionScreen]'s geocoded data, overriding
+  /// [place]'s generic pin icon when available.
+  final IconData? icon;
 
   @override
   Widget build(BuildContext context) {
@@ -572,15 +608,26 @@ class _SelectedPlaceChip extends StatelessWidget {
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(place.icon, size: 14, color: context.colors.ink),
+            Icon(icon ?? place.icon, size: 14, color: context.colors.ink),
             const SizedBox(width: 6),
-            Text(
-              place.name,
-              style: TextStyle(
-                color: context.colors.ink,
-                fontWeight: FontWeight.w600,
-                fontSize: 12.5,
-              ),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  place.name,
+                  style: TextStyle(
+                    color: context.colors.ink,
+                    fontWeight: FontWeight.w600,
+                    fontSize: 12.5,
+                  ),
+                ),
+                if (address != null)
+                  Text(
+                    address!,
+                    style: TextStyle(color: context.colors.muted, fontSize: 10.5),
+                  ),
+              ],
             ),
             const SizedBox(width: 2),
             GestureDetector(

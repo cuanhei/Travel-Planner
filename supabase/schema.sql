@@ -78,11 +78,19 @@ create trigger on_profiles_updated
 create table public.trips (
   id uuid primary key default gen_random_uuid(),
   name text not null,
+  description text,
   destination text not null default '',
+  start_city text,
+  start_state text,
+  end_city text,
+  end_state text,
   start_date date,
   end_date date,
+  start_time time,
+  end_time time,
   created_by uuid not null references auth.users (id),
   total_budget numeric(12, 2) not null default 0,
+  auto_recommend boolean not null default true,
   created_at timestamptz not null default now()
 );
 
@@ -139,6 +147,49 @@ as $$
 $$;
 
 -- ============================================================
+-- Trip Planner module: stops and interests captured by Create Trip
+-- ============================================================
+
+-- One row per stop picked via the real map/search (Stop Selection).
+create table public.trip_stops (
+  id uuid primary key default gen_random_uuid(),
+  trip_id uuid not null references public.trips (id) on delete cascade,
+  name text not null,
+  address text not null,
+  latitude double precision not null,
+  longitude double precision not null,
+  osm_id text,
+  category text not null default 'Other',
+  created_at timestamptz not null default now()
+);
+
+-- One row per selected "auto-recommend" interest category.
+create table public.trip_interests (
+  trip_id uuid not null references public.trips (id) on delete cascade,
+  category text not null,
+  primary key (trip_id, category)
+);
+
+-- The day-by-day, timed schedule computed from the optimized route. Kept
+-- separate from `trip_stops` because the same physical stop (e.g. one
+-- hotel used as the base for every day) can appear in more than one
+-- day's schedule — this is the join between "which stop", "which day, in
+-- what order", and "at what time".
+create table public.trip_schedule_stops (
+  id uuid primary key default gen_random_uuid(),
+  trip_id uuid not null references public.trips (id) on delete cascade,
+  stop_id uuid not null references public.trip_stops (id) on delete cascade,
+  day_number integer not null,
+  sequence integer not null,
+  is_hotel boolean not null default false,
+  scheduled_arrival time,
+  scheduled_departure time,
+  travel_mode text,
+  travel_minutes integer,
+  created_at timestamptz not null default now()
+);
+
+-- ============================================================
 -- Group module: invites, join requests, chat, polls
 -- ============================================================
 
@@ -157,6 +208,9 @@ create table public.trip_join_requests (
   status text not null default 'pending' check (status in ('pending', 'approved', 'rejected')),
   created_at timestamptz not null default now(),
   decided_at timestamptz,
+  -- Organizer's note on why a request was rejected, shown back to the
+  -- requester (who can read their own row — see join_requests_select).
+  reason text,
   unique (trip_id, user_id)
 );
 
@@ -194,8 +248,14 @@ begin
 end;
 $$;
 
--- Organizer-only: approve or reject a pending request.
-create function public.decide_join_request(p_request_id uuid, p_approve boolean)
+-- Organizer-only: approve or reject a pending request. [p_reason] is the
+-- organizer's note shown to the requester when rejecting; ignored (and
+-- not stored) on approval.
+create function public.decide_join_request(
+  p_request_id uuid,
+  p_approve boolean,
+  p_reason text default null
+)
 returns void
 language plpgsql
 security definer set search_path = public
@@ -217,7 +277,8 @@ begin
 
   update public.trip_join_requests
   set status = case when p_approve then 'approved' else 'rejected' end,
-      decided_at = now()
+      decided_at = now(),
+      reason = case when p_approve then null else p_reason end
   where id = p_request_id;
 
   if p_approve then
@@ -312,6 +373,9 @@ alter table public.poll_votes enable row level security;
 alter table public.budget_categories enable row level security;
 alter table public.expenses enable row level security;
 alter table public.trip_balances enable row level security;
+alter table public.trip_stops enable row level security;
+alter table public.trip_interests enable row level security;
+alter table public.trip_schedule_stops enable row level security;
 
 -- profiles: names/avatars are visible to any signed-in user (needed to
 -- render trip-mates' names); everyone can only edit their own row.
@@ -436,6 +500,27 @@ create policy "balances_select_members" on public.trip_balances
 create policy "balances_write_organizer" on public.trip_balances
   for all to authenticated using (public.is_trip_organizer(trip_id))
   with check (public.is_trip_organizer(trip_id));
+
+-- trip_stops / trip_interests: any member can read/manage — mirrors
+-- budget_categories (anyone planning the trip can add a stop or tweak
+-- the interest list, not just the organizer).
+create policy "trip_stops_select_members" on public.trip_stops
+  for select to authenticated using (public.is_trip_member(trip_id));
+create policy "trip_stops_write_members" on public.trip_stops
+  for all to authenticated using (public.is_trip_member(trip_id))
+  with check (public.is_trip_member(trip_id));
+
+create policy "trip_interests_select_members" on public.trip_interests
+  for select to authenticated using (public.is_trip_member(trip_id));
+create policy "trip_interests_write_members" on public.trip_interests
+  for all to authenticated using (public.is_trip_member(trip_id))
+  with check (public.is_trip_member(trip_id));
+
+create policy "trip_schedule_stops_select_members" on public.trip_schedule_stops
+  for select to authenticated using (public.is_trip_member(trip_id));
+create policy "trip_schedule_stops_write_members" on public.trip_schedule_stops
+  for all to authenticated using (public.is_trip_member(trip_id))
+  with check (public.is_trip_member(trip_id));
 
 -- ============================================================
 -- Realtime: every table the Flutter services read via `.stream()`

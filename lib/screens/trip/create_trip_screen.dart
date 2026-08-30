@@ -1,18 +1,59 @@
+import 'package:flutter/cupertino.dart' show CupertinoDatePicker, CupertinoDatePickerMode;
 import 'package:flutter/material.dart';
+import 'package:latlong2/latlong.dart';
 
 import '../../models/malaysia_city.dart';
+import '../../models/trip_stop_location.dart';
 import '../../services/malaysia_location_service.dart';
+import '../../services/photon_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/detail_header.dart';
 import '../../widgets/gradient_button.dart';
-import '../explore/explore_tab.dart' show Place, categories, places;
-import 'location_map_picker.dart';
-import 'smart_schedule_screen.dart';
+import '../explore/explore_tab.dart' show Place, places;
+import 'location_map_picker.dart' show buildCustomPlace;
+import 'optimized_itinerary_screen.dart';
+import 'stop_map_picker.dart';
 
-/// UI-only trip creation form: name/description, trip logistics, a
-/// stylized map for picking exact locations (no map SDK/API), interest
-/// categories, and an optional "auto-recommend more places" toggle that
-/// supplements the traveler's picks — all in one page.
+const _monthNames = [
+  'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+  'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+];
+
+/// e.g. "Aug 14 – Aug 16, 2026".
+String _formatDateRange(DateTimeRange range) {
+  final start = range.start;
+  final end = range.end;
+  return '${_monthNames[start.month - 1]} ${start.day} – '
+      '${_monthNames[end.month - 1]} ${end.day}, ${end.year}';
+}
+
+bool _isSameDate(DateTime a, DateTime b) =>
+    a.year == b.year && a.month == b.month && a.day == b.day;
+
+/// Fixed interest options for "auto-recommend more places" — always the
+/// same list, regardless of which stops the traveler has already picked.
+/// [category] is the [Place.category] / [TripStopLocation.category] value
+/// matched against when generating recommendations; [label] is the more
+/// specific, traveler-facing name shown on the chip.
+const _interestOptions = [
+  (label: 'Hotel', icon: Icons.hotel_rounded, category: 'Hotel'),
+  (label: 'Restaurant', icon: Icons.restaurant_rounded, category: 'Food'),
+  (label: 'Shopping', icon: Icons.shopping_bag_rounded, category: 'Shopping'),
+  (label: 'Museum', icon: Icons.museum_rounded, category: 'Culture'),
+  (label: 'Beach', icon: Icons.beach_access_rounded, category: 'Beach'),
+  (label: 'Nature', icon: Icons.terrain_rounded, category: 'Nature'),
+  (
+    label: 'Attraction',
+    icon: Icons.attractions_rounded,
+    category: 'Attraction',
+  ),
+];
+
+/// Trip creation form: name/description, trip logistics, a real
+/// OpenStreetMap-backed location search embedded directly on the page for
+/// picking exact stops (see [StopMapPicker]), interest categories, and an
+/// optional "auto-recommend more places" toggle that supplements the
+/// traveler's picks from Explore's curated catalog — all in one page.
 class CreateTripScreen extends StatefulWidget {
   const CreateTripScreen({super.key});
 
@@ -26,12 +67,29 @@ class _CreateTripScreenState extends State<CreateTripScreen> {
   final _budgetController = TextEditingController(text: 'RM 1,500');
   final _locationService = MalaysiaLocationService();
   late final _citiesFuture = _locationService.getCities();
+  final _photonService = PhotonService();
   MalaysiaCity? _startCity;
   MalaysiaCity? _endCity;
+  DateTimeRange? _dateRange;
+  TimeOfDay _startTime = const TimeOfDay(hour: 9, minute: 0);
+  TimeOfDay _endTime = const TimeOfDay(hour: 18, minute: 0);
   int _travelers = 2;
   final Set<String> _selectedInterests = {'Shopping', 'Food'};
-  final Set<Place> _selectedPlaces = {places[0], places[2]};
+  final Map<Place, TripStopLocation> _mapPickedStops = {};
   bool _autoRecommend = true;
+  bool _saving = false;
+
+  /// Stops picked via the real map/search, wrapped as synthetic [Place]s
+  /// so they can flow into the existing itinerary-generation screens.
+  Set<Place> get _selectedPlaces => _mapPickedStops.keys.toSet();
+
+  /// Trip length in days (inclusive of both ends), for day-by-day route
+  /// planning — defaults to 1 when no date range has been picked.
+  int get _dayCount {
+    final range = _dateRange;
+    if (range == null) return 1;
+    return range.end.difference(range.start).inDays + 1;
+  }
 
   @override
   void dispose() {
@@ -60,19 +118,43 @@ class _CreateTripScreenState extends State<CreateTripScreen> {
     );
   }
 
-  Future<void> _addCustomLocation() async {
-    final place = await showAddCustomLocationDialog(context);
-    if (place == null) return;
-    setState(() => _selectedPlaces.add(place));
+  Future<void> _pickDatesAndTimes() async {
+    final result = await showModalBottomSheet<_TripSchedule>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => _DatesPickerSheet(
+        initialRange: _dateRange,
+        initialStartTime: _startTime,
+        initialEndTime: _endTime,
+      ),
+    );
+    if (result == null) return;
+    setState(() {
+      _dateRange = result.dateRange;
+      _startTime = result.startTime;
+      _endTime = result.endTime;
+    });
   }
 
-  void _removePlace(Place place) {
-    setState(() => _selectedPlaces.remove(place));
+  void _addStop(TripStopLocation stop) {
+    setState(() => _mapPickedStops[buildCustomPlace(stop.name)] = stop);
   }
 
-  bool get _canSubmit => _selectedPlaces.isNotEmpty || _autoRecommend;
+  void _removeStop(Place place) {
+    setState(() => _mapPickedStops.remove(place));
+  }
 
-  void _submit() {
+  bool get _canSubmit => (_selectedPlaces.isNotEmpty || _autoRecommend) && !_saving;
+
+  double _parseBudget(String text) {
+    final match = RegExp(
+      r'\d+(\.\d+)?',
+    ).firstMatch(text.replaceAll(',', ''));
+    return match == null ? 0 : double.tryParse(match.group(0)!) ?? 0;
+  }
+
+  Future<void> _submit() async {
     final recommended = _autoRecommend
         ? places
               .where(
@@ -87,13 +169,59 @@ class _CreateTripScreenState extends State<CreateTripScreen> {
     final finalPlaces = [..._selectedPlaces, ...recommended];
     if (finalPlaces.isEmpty) return;
 
+    setState(() => _saving = true);
+
+    final stops = _mapPickedStops.values.toList();
+    LatLng? startPoint;
+    LatLng? endPoint;
+
+    // Real, geocoded stops + a start city let the itinerary screen plot an
+    // actual hotel-anchored day plan; without both of those there's
+    // nothing to anchor it to, so it falls back to its simulated
+    // weather/day-split view instead.
+    if (stops.isNotEmpty && _startCity != null) {
+      try {
+        startPoint = await _photonService.geocodeQuery(
+          '${_startCity!.city}, ${_startCity!.state}, Malaysia',
+        );
+        if (_endCity != null) {
+          endPoint = await _photonService.geocodeQuery(
+            '${_endCity!.city}, ${_endCity!.state}, Malaysia',
+          );
+        }
+      } catch (_) {
+        startPoint = null;
+      }
+    }
+
+    if (!mounted) return;
+    setState(() => _saving = false);
+
     Navigator.of(context).push(
       MaterialPageRoute(
-        builder: (_) => SmartScheduleScreen(
+        builder: (_) => OptimizedItineraryScreen(
           tripName: _nameController.text.trim(),
           description: _descriptionController.text.trim(),
           places: finalPlaces,
           recommendedNames: recommended.map((p) => p.name).toSet(),
+          realStops: stops,
+          startLabel: _startCity?.label,
+          startPoint: startPoint,
+          endLabel: _endCity?.label,
+          endPoint: endPoint,
+          dayCount: _dayCount,
+          startDate: _dateRange?.start,
+          dayStartTime: _startTime,
+          // Nothing has been saved yet — the itinerary preview screen
+          // saves it all (trip, stops, schedule) once the traveler
+          // confirms with its own "Save Trip" button.
+          startCity: _startCity,
+          endCity: _endCity,
+          dateRange: _dateRange,
+          endTime: _endTime,
+          totalBudget: _parseBudget(_budgetController.text),
+          autoRecommend: _autoRecommend,
+          interests: _selectedInterests,
         ),
       ),
     );
@@ -143,8 +271,13 @@ class _CreateTripScreenState extends State<CreateTripScreen> {
                       _FieldLabel('Ending At'),
                       _CityField(city: _endCity, onTap: _pickEndCity),
                       const SizedBox(height: 18),
-                      _FieldLabel('Travel Dates'),
-                      _DatePickerRow(onTap: () {}),
+                      _FieldLabel('Travel Dates & Time'),
+                      _ScheduleField(
+                        dateRange: _dateRange,
+                        startTime: _startTime,
+                        endTime: _endTime,
+                        onTap: _pickDatesAndTimes,
+                      ),
                       const SizedBox(height: 18),
                       // _FieldLabel('Travelers'),
                       // _TravelersStepper(
@@ -165,7 +298,7 @@ class _CreateTripScreenState extends State<CreateTripScreen> {
                     icon: Icons.pin_drop_rounded,
                     title: 'Locations',
                     trailing: Text(
-                      '${_selectedPlaces.length} selected',
+                      '${_mapPickedStops.length} selected',
                       style: TextStyle(
                         color: context.colors.muted,
                         fontSize: 12,
@@ -174,24 +307,22 @@ class _CreateTripScreenState extends State<CreateTripScreen> {
                     ),
                     children: [
                       Text(
-                        'Search for a place you want to visit, or tap directly on the map to add it to your trip.',
+                        'Search real places on the map — try "Komtar" or "Chew Jetty".',
                         style: TextStyle(
                           color: context.colors.muted,
                           fontSize: 12,
                         ),
                       ),
                       const SizedBox(height: 10),
-                      LocationMapPicker(
-                        selected: _selectedPlaces,
-                        onToggle: (place) => setState(() {
-                          _selectedPlaces.contains(place)
-                              ? _selectedPlaces.remove(place)
-                              : _selectedPlaces.add(place);
-                        }),
-                        onAddCustom: _addCustomLocation,
+                      SizedBox(
+                        height: 320,
+                        child: StopMapPicker(
+                          markedStops: _mapPickedStops.values.toList(),
+                          onAdd: _addStop,
+                        ),
                       ),
                       const SizedBox(height: 12),
-                      if (_selectedPlaces.isEmpty)
+                      if (_mapPickedStops.isEmpty)
                         Text(
                           'No locations picked yet.',
                           style: TextStyle(
@@ -203,7 +334,9 @@ class _CreateTripScreenState extends State<CreateTripScreen> {
                         Wrap(
                           spacing: 10,
                           runSpacing: 10,
-                          children: _selectedPlaces.map((place) {
+                          children: _mapPickedStops.entries.map((entry) {
+                            final place = entry.key;
+                            final stop = entry.value;
                             return Container(
                               padding: const EdgeInsets.only(
                                 left: 12,
@@ -224,22 +357,37 @@ class _CreateTripScreenState extends State<CreateTripScreen> {
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
                                   Icon(
-                                    place.icon,
+                                    stop.categoryIcon,
                                     size: 14,
                                     color: context.colors.ink,
                                   ),
                                   const SizedBox(width: 6),
-                                  Text(
-                                    place.name,
-                                    style: TextStyle(
-                                      color: context.colors.ink,
-                                      fontWeight: FontWeight.w600,
-                                      fontSize: 12.5,
-                                    ),
+                                  Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Text(
+                                        stop.name,
+                                        style: TextStyle(
+                                          color: context.colors.ink,
+                                          fontWeight: FontWeight.w600,
+                                          fontSize: 12.5,
+                                        ),
+                                      ),
+                                      Text(
+                                        '${stop.category} · ${stop.address}',
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: TextStyle(
+                                          color: context.colors.muted,
+                                          fontSize: 10,
+                                        ),
+                                      ),
+                                    ],
                                   ),
-                                  const SizedBox(width: 2),
+                                  const SizedBox(width: 4),
                                   GestureDetector(
-                                    onTap: () => _removePlace(place),
+                                    onTap: () => _removeStop(place),
                                     child: Icon(
                                       Icons.close_rounded,
                                       size: 16,
@@ -321,16 +469,17 @@ class _CreateTripScreenState extends State<CreateTripScreen> {
                                   Wrap(
                                     spacing: 10,
                                     runSpacing: 10,
-                                    children: categories.map((c) {
+                                    children: _interestOptions.map((opt) {
                                       final isSelected = _selectedInterests
-                                          .contains(c.label);
+                                          .contains(opt.category);
                                       return GestureDetector(
                                         onTap: () => setState(() {
                                           isSelected
-                                              ? _selectedInterests
-                                                    .remove(c.label)
+                                              ? _selectedInterests.remove(
+                                                  opt.category,
+                                                )
                                               : _selectedInterests.add(
-                                                  c.label,
+                                                  opt.category,
                                                 );
                                         }),
                                         child: AnimatedContainer(
@@ -360,7 +509,7 @@ class _CreateTripScreenState extends State<CreateTripScreen> {
                                             mainAxisSize: MainAxisSize.min,
                                             children: [
                                               Icon(
-                                                c.icon,
+                                                opt.icon,
                                                 size: 14,
                                                 color: isSelected
                                                     ? Colors.white
@@ -368,7 +517,7 @@ class _CreateTripScreenState extends State<CreateTripScreen> {
                                               ),
                                               const SizedBox(width: 6),
                                               Text(
-                                                c.label,
+                                                opt.label,
                                                 style: TextStyle(
                                                   color: isSelected
                                                       ? Colors.white
@@ -393,6 +542,7 @@ class _CreateTripScreenState extends State<CreateTripScreen> {
                   GradientButton(
                     label: 'Plan My Trip',
                     icon: Icons.route_rounded,
+                    loading: _saving,
                     onPressed: _canSubmit ? _submit : () {},
                   ),
                 ],
@@ -602,12 +752,11 @@ class _CityPickerSheetState extends State<_CityPickerSheet> {
       maxChildSize: 0.92,
       expand: false,
       builder: (context, scrollController) {
-        return Container(
-          decoration: BoxDecoration(
-            color: context.colors.card,
-            borderRadius: const BorderRadius.vertical(
-              top: Radius.circular(24),
-            ),
+        return Material(
+          color: context.colors.card,
+          clipBehavior: Clip.antiAlias,
+          borderRadius: const BorderRadius.vertical(
+            top: Radius.circular(24),
           ),
           child: Column(
             children: [
@@ -721,18 +870,29 @@ class _CityPickerSheetState extends State<_CityPickerSheet> {
   }
 }
 
-class _DatePickerRow extends StatelessWidget {
-  const _DatePickerRow({required this.onTap});
+/// Tappable field showing the trip's date range + start/end time on two
+/// lines, or a placeholder until picked. Opens [_DatesPickerSheet].
+class _ScheduleField extends StatelessWidget {
+  const _ScheduleField({
+    required this.dateRange,
+    required this.startTime,
+    required this.endTime,
+    required this.onTap,
+  });
 
+  final DateTimeRange? dateRange;
+  final TimeOfDay startTime;
+  final TimeOfDay endTime;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
+    final range = dateRange;
     return InkWell(
       borderRadius: BorderRadius.circular(16),
       onTap: onTap,
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
         decoration: BoxDecoration(
           color: context.colors.surface,
           borderRadius: BorderRadius.circular(16),
@@ -745,18 +905,453 @@ class _DatePickerRow extends StatelessWidget {
               size: 18,
             ),
             const SizedBox(width: 12),
-            Text(
-              'Aug 14 — Aug 16, 2026',
-              style: TextStyle(
-                color: context.colors.ink,
-                fontWeight: FontWeight.w600,
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    range == null ? 'Select travel dates' : _formatDateRange(range),
+                    style: TextStyle(
+                      color: range == null
+                          ? context.colors.muted
+                          : context.colors.ink,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  if (range != null) ...[
+                    const SizedBox(height: 2),
+                    Text(
+                      '${startTime.format(context)} — ${endTime.format(context)}',
+                      style: TextStyle(
+                        color: context.colors.muted,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ],
+                ],
               ),
             ),
-            const Spacer(),
             Icon(Icons.expand_more_rounded, color: context.colors.muted),
           ],
         ),
       ),
+    );
+  }
+}
+
+/// Result of [_DatesPickerSheet]: the picked date range plus start/end time.
+class _TripSchedule {
+  const _TripSchedule({
+    required this.dateRange,
+    required this.startTime,
+    required this.endTime,
+  });
+
+  final DateTimeRange dateRange;
+  final TimeOfDay startTime;
+  final TimeOfDay endTime;
+}
+
+/// Bottom-sheet date + time picker, in the same visual style as
+/// [_CityPickerSheet] — everything happens in one popup on the same page,
+/// no separate dialog/screen. Two calendars (start/end date) plus two
+/// scrollable time wheels (start/end time), with a "Done" button to confirm.
+class _DatesPickerSheet extends StatefulWidget {
+  const _DatesPickerSheet({
+    required this.initialRange,
+    required this.initialStartTime,
+    required this.initialEndTime,
+  });
+
+  final DateTimeRange? initialRange;
+  final TimeOfDay initialStartTime;
+  final TimeOfDay initialEndTime;
+
+  @override
+  State<_DatesPickerSheet> createState() => _DatesPickerSheetState();
+}
+
+class _DatesPickerSheetState extends State<_DatesPickerSheet> {
+  late final DateTime _today = _dateOnly(DateTime.now());
+  late DateTime _start;
+  late DateTime _end;
+  late TimeOfDay _startTime = widget.initialStartTime;
+  late TimeOfDay _endTime = widget.initialEndTime;
+
+  /// Bumped only when [_clampEndTime] actually corrects [_endTime], so the
+  /// End Time wheel resets to reflect it. Kept separate from a plain
+  /// `ValueKey(_endTime)` so normal scrolling through that same wheel
+  /// doesn't rebuild (and visually stutter) on every tick.
+  int _endTimeResetTick = 0;
+
+  static DateTime _dateOnly(DateTime d) => DateTime(d.year, d.month, d.day);
+
+  @override
+  void initState() {
+    super.initState();
+    _start = widget.initialRange?.start ?? _today;
+    _end = widget.initialRange?.end ?? _today.add(const Duration(days: 2));
+    _clampEndTime();
+  }
+
+  /// On a same-day trip, the end time can't be at or before the start time
+  /// — bumps it forward when that happens (from a start-time change, an
+  /// end-time change, or the dates collapsing onto the same day).
+  void _clampEndTime() {
+    if (!_isSameDate(_start, _end)) return;
+    final startMinutes = _startTime.hour * 60 + _startTime.minute;
+    final endMinutes = _endTime.hour * 60 + _endTime.minute;
+    if (endMinutes <= startMinutes) {
+      final adjusted = (startMinutes + 30).clamp(0, 23 * 60 + 59);
+      _endTime = TimeOfDay(hour: adjusted ~/ 60, minute: adjusted % 60);
+      _endTimeResetTick++;
+    }
+  }
+
+  void _confirm() {
+    Navigator.of(context).pop(
+      _TripSchedule(
+        dateRange: DateTimeRange(start: _start, end: _end),
+        startTime: _startTime,
+        endTime: _endTime,
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final lastDate = DateTime(_today.year + 3);
+    return DraggableScrollableSheet(
+      initialChildSize: 0.9,
+      minChildSize: 0.6,
+      maxChildSize: 0.95,
+      expand: false,
+      builder: (context, scrollController) {
+        return Material(
+          color: context.colors.card,
+          clipBehavior: Clip.antiAlias,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+          child: Column(
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 16, 8, 8),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        'Travel Dates & Time',
+                        style: TextStyle(
+                          color: context.colors.ink,
+                          fontWeight: FontWeight.w800,
+                          fontSize: 17,
+                        ),
+                      ),
+                    ),
+                    TextButton(
+                      onPressed: _confirm,
+                      child: const Text(
+                        'Done',
+                        style: TextStyle(fontWeight: FontWeight.w800),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Expanded(
+                child: ListView(
+                  controller: scrollController,
+                  padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
+                  children: [
+                    _SheetSectionLabel('Travel Dates'),
+                    _RangeCalendar(
+                      start: _start,
+                      end: _end,
+                      firstDate: _today,
+                      lastDate: lastDate,
+                      onChanged: (start, end) => setState(() {
+                        _start = start;
+                        _end = end;
+                        _clampEndTime();
+                      }),
+                    ),
+                    const SizedBox(height: 12),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              _SheetSectionLabel('Start Time'),
+                              SizedBox(
+                                height: 130,
+                                child: CupertinoDatePicker(
+                                  mode: CupertinoDatePickerMode.time,
+                                  initialDateTime: DateTime(
+                                    2000,
+                                    1,
+                                    1,
+                                    _startTime.hour,
+                                    _startTime.minute,
+                                  ),
+                                  onDateTimeChanged: (dt) => setState(() {
+                                    _startTime = TimeOfDay(
+                                      hour: dt.hour,
+                                      minute: dt.minute,
+                                    );
+                                    _clampEndTime();
+                                  }),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              _SheetSectionLabel('End Time'),
+                              SizedBox(
+                                height: 130,
+                                child: CupertinoDatePicker(
+                                  key: ValueKey(_endTimeResetTick),
+                                  mode: CupertinoDatePickerMode.time,
+                                  initialDateTime: DateTime(
+                                    2000,
+                                    1,
+                                    1,
+                                    _endTime.hour,
+                                    _endTime.minute,
+                                  ),
+                                  onDateTimeChanged: (dt) => setState(() {
+                                    _endTime = TimeOfDay(
+                                      hour: dt.hour,
+                                      minute: dt.minute,
+                                    );
+                                    _clampEndTime();
+                                  }),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _SheetSectionLabel extends StatelessWidget {
+  const _SheetSectionLabel(this.label);
+
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 4),
+      child: Text(
+        label,
+        style: TextStyle(
+          color: context.colors.ink,
+          fontWeight: FontWeight.w700,
+          fontSize: 13,
+        ),
+      ),
+    );
+  }
+}
+
+const _weekdayLabels = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
+
+/// Single-month calendar with Material-range-picker-style selection: start
+/// and end days get a filled circle, and every day between them gets a
+/// tinted highlight band — all in one calendar (no separate start/end
+/// views), with month navigation arrows.
+class _RangeCalendar extends StatefulWidget {
+  const _RangeCalendar({
+    required this.start,
+    required this.end,
+    required this.firstDate,
+    required this.lastDate,
+    required this.onChanged,
+  });
+
+  final DateTime start;
+  final DateTime end;
+  final DateTime firstDate;
+  final DateTime lastDate;
+  final void Function(DateTime start, DateTime end) onChanged;
+
+  @override
+  State<_RangeCalendar> createState() => _RangeCalendarState();
+}
+
+class _RangeCalendarState extends State<_RangeCalendar> {
+  late DateTime _displayedMonth = DateTime(widget.start.year, widget.start.month);
+
+  void _changeMonth(int delta) {
+    setState(() {
+      _displayedMonth = DateTime(
+        _displayedMonth.year,
+        _displayedMonth.month + delta,
+      );
+    });
+  }
+
+  void _onDayTap(DateTime day) {
+    final hasCompleteRange = !_isSameDate(widget.start, widget.end);
+    if (hasCompleteRange || day.isBefore(widget.start)) {
+      widget.onChanged(day, day);
+    } else {
+      widget.onChanged(widget.start, day);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final firstOfMonth = DateTime(_displayedMonth.year, _displayedMonth.month, 1);
+    final daysInMonth = DateTime(
+      _displayedMonth.year,
+      _displayedMonth.month + 1,
+      0,
+    ).day;
+    final leading = firstOfMonth.weekday % 7; // 0 = Sunday
+    final totalCells = leading + daysInMonth;
+    final rows = (totalCells / 7).ceil();
+
+    final canGoBack = DateTime(
+      _displayedMonth.year,
+      _displayedMonth.month,
+    ).isAfter(DateTime(widget.firstDate.year, widget.firstDate.month));
+
+    return Column(
+      children: [
+        Row(
+          children: [
+            IconButton(
+              onPressed: canGoBack ? () => _changeMonth(-1) : null,
+              icon: const Icon(Icons.chevron_left_rounded),
+            ),
+            Expanded(
+              child: Center(
+                child: Text(
+                  '${_monthNames[_displayedMonth.month - 1]} ${_displayedMonth.year}',
+                  style: TextStyle(
+                    color: context.colors.ink,
+                    fontWeight: FontWeight.w800,
+                    fontSize: 14,
+                  ),
+                ),
+              ),
+            ),
+            IconButton(
+              onPressed: () => _changeMonth(1),
+              icon: const Icon(Icons.chevron_right_rounded),
+            ),
+          ],
+        ),
+        Row(
+          children: [
+            for (final w in _weekdayLabels)
+              Expanded(
+                child: Center(
+                  child: Text(
+                    w,
+                    style: TextStyle(
+                      color: context.colors.muted,
+                      fontWeight: FontWeight.w700,
+                      fontSize: 11.5,
+                    ),
+                  ),
+                ),
+              ),
+          ],
+        ),
+        for (var r = 0; r < rows; r++)
+          Row(
+            children: [
+              for (var c = 0; c < 7; c++)
+                Builder(
+                  builder: (context) {
+                    final dayNum = r * 7 + c - leading + 1;
+                    if (dayNum < 1 || dayNum > daysInMonth) {
+                      return const Expanded(child: SizedBox(height: 40));
+                    }
+                    final day = DateTime(
+                      _displayedMonth.year,
+                      _displayedMonth.month,
+                      dayNum,
+                    );
+                    final disabled =
+                        day.isBefore(widget.firstDate) ||
+                        day.isAfter(widget.lastDate);
+                    final isStart = _isSameDate(day, widget.start);
+                    final isEnd = _isSameDate(day, widget.end);
+                    final isEndpoint = isStart || isEnd;
+                    // Inclusive of both endpoints, so a same-day trip (start
+                    // == end) still shows the highlight band, not just a
+                    // bare circle, and the band visually flows through the
+                    // start/end days rather than stopping just short of them.
+                    final inRange =
+                        !day.isBefore(widget.start) && !day.isAfter(widget.end);
+
+                    return Expanded(
+                      child: GestureDetector(
+                        onTap: disabled ? null : () => _onDayTap(day),
+                        child: Container(
+                          height: 40,
+                          margin: const EdgeInsets.symmetric(vertical: 2),
+                          color: inRange && !disabled
+                              ? AppColors.accent.withValues(alpha: 0.18)
+                              : null,
+                          alignment: Alignment.center,
+                          child: isEndpoint
+                              ? Container(
+                                  width: 32,
+                                  height: 32,
+                                  decoration: BoxDecoration(
+                                    color: context.colors.ink,
+                                    shape: BoxShape.circle,
+                                  ),
+                                  alignment: Alignment.center,
+                                  child: Text(
+                                    '$dayNum',
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontWeight: FontWeight.w800,
+                                      fontSize: 13,
+                                    ),
+                                  ),
+                                )
+                              : Text(
+                                  '$dayNum',
+                                  style: TextStyle(
+                                    color: disabled
+                                        ? context.colors.muted.withValues(
+                                            alpha: 0.35,
+                                          )
+                                        : context.colors.ink,
+                                    fontWeight: FontWeight.w500,
+                                    fontSize: 13,
+                                  ),
+                                ),
+                        ),
+                      ),
+                    );
+                  },
+                ),
+            ],
+          ),
+      ],
     );
   }
 }

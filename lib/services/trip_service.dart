@@ -1,6 +1,10 @@
+import 'package:flutter/material.dart' show TimeOfDay, DateTimeRange;
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../models/malaysia_city.dart';
 import '../models/trip.dart';
+import '../models/trip_stop_location.dart';
+import 'schedule_builder.dart';
 import 'supabase_config.dart';
 
 /// Default category plan seeded onto a freshly created demo trip —
@@ -78,14 +82,143 @@ class TripService {
 
     await _client.from('budget_categories').insert([
       for (final entry in _defaultCategoryPlan.entries)
-        {
-          'trip_id': tripId,
-          'label': entry.key,
-          'planned_amount': entry.value,
-        },
+        {'trip_id': tripId, 'label': entry.key, 'planned_amount': entry.value},
     ]);
 
     _cachedTripId = tripId;
+    return tripId;
+  }
+
+  /// Saves a trip created via the Create Trip form — the trip row itself,
+  /// every stop picked via the real map/search, every selected
+  /// "auto-recommend" interest category, and — when [daySchedules] is
+  /// given — the day-by-day timed schedule computed from the optimized
+  /// route (see `buildDaySchedule`). Returns the new trip's id.
+  ///
+  /// [stops] should be every real stop regardless of whether a schedule
+  /// was computed for them (e.g. it wasn't, because there was no start
+  /// city to anchor a route to) — they're still saved as plain,
+  /// unscheduled [trip_stops] rows in that case. When [daySchedules] is
+  /// non-empty, [stops] is only used as the fallback if it *isn't* empty
+  /// but [daySchedules] is (an inconsistent-looking call, but harmless).
+  Future<String> createTrip({
+    required String name,
+    String? description,
+    MalaysiaCity? startCity,
+    MalaysiaCity? endCity,
+    DateTimeRange? dateRange,
+    TimeOfDay? startTime,
+    TimeOfDay? endTime,
+    required double totalBudget,
+    required bool autoRecommend,
+    required Set<String> interests,
+    required List<TripStopLocation> stops,
+    List<DaySchedule> daySchedules = const [],
+  }) async {
+    String? isoDate(DateTime? d) => d?.toIso8601String().split('T').first;
+    String? isoTime(TimeOfDay? t) => t == null
+        ? null
+        : '${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}';
+
+    final trip = await _client
+        .from('trips')
+        .insert({
+          'name': name,
+          'description': description?.isEmpty ?? true ? null : description,
+          'destination': endCity?.label ?? startCity?.label ?? '',
+          'start_city': startCity?.city,
+          'start_state': startCity?.state,
+          'end_city': endCity?.city,
+          'end_state': endCity?.state,
+          'start_date': isoDate(dateRange?.start),
+          'end_date': isoDate(dateRange?.end),
+          'start_time': isoTime(dateRange == null ? null : startTime),
+          'end_time': isoTime(dateRange == null ? null : endTime),
+          'created_by': _uid,
+          'total_budget': totalBudget,
+          'auto_recommend': autoRecommend,
+        })
+        .select()
+        .single();
+    final tripId = trip['id'] as String;
+
+    // Every unique physical stop referenced anywhere in the schedule (a
+    // hotel reused across days is the same [TripStopLocation] instance —
+    // see its value-based `==` — so it only gets one `trip_stops` row).
+    final uniqueStops = <TripStopLocation>[];
+    if (daySchedules.isNotEmpty) {
+      final seen = <TripStopLocation>{};
+      for (final day in daySchedules) {
+        final hotel = day.hotel;
+        if (hotel != null && seen.add(hotel)) uniqueStops.add(hotel);
+        for (final scheduled in day.stops) {
+          if (seen.add(scheduled.stop)) uniqueStops.add(scheduled.stop);
+        }
+      }
+    } else {
+      uniqueStops.addAll(stops);
+    }
+
+    final stopIds = <TripStopLocation, String>{};
+    if (uniqueStops.isNotEmpty) {
+      final inserted = await _client.from('trip_stops').insert([
+        for (final stop in uniqueStops)
+          {
+            'trip_id': tripId,
+            'name': stop.name,
+            'address': stop.address,
+            'latitude': stop.latitude,
+            'longitude': stop.longitude,
+            'osm_id': stop.osmId,
+            'category': stop.category,
+          },
+      ]).select();
+      for (var i = 0; i < uniqueStops.length; i++) {
+        stopIds[uniqueStops[i]] = inserted[i]['id'] as String;
+      }
+    }
+
+    if (daySchedules.isNotEmpty) {
+      final scheduleRows = <Map<String, dynamic>>[];
+      for (final day in daySchedules) {
+        final hotel = day.hotel;
+        if (hotel != null) {
+          scheduleRows.add({
+            'trip_id': tripId,
+            'stop_id': stopIds[hotel],
+            'day_number': day.day,
+            'sequence': 0,
+            'is_hotel': true,
+            'scheduled_departure': isoTime(day.startTime),
+          });
+        }
+        for (var i = 0; i < day.stops.length; i++) {
+          final scheduled = day.stops[i];
+          scheduleRows.add({
+            'trip_id': tripId,
+            'stop_id': stopIds[scheduled.stop],
+            'day_number': day.day,
+            'sequence': i + 1,
+            'is_hotel': false,
+            'scheduled_arrival': isoTime(scheduled.arrival),
+            'scheduled_departure': isoTime(scheduled.departure),
+            'travel_mode': scheduled.travelFromPrevious?.mode,
+            'travel_minutes': scheduled.travelFromPrevious?.durationMinutes,
+          });
+        }
+      }
+      if (scheduleRows.isNotEmpty) {
+        await _client.from('trip_schedule_stops').insert(scheduleRows);
+      }
+    }
+
+    if (interests.isNotEmpty) {
+      await _client.from('trip_interests').insert([
+        for (final category in interests)
+          {'trip_id': tripId, 'category': category},
+      ]);
+    }
+
     return tripId;
   }
 
@@ -99,6 +232,17 @@ class TripService {
         .stream(primaryKey: ['id'])
         .order('created_at', ascending: false)
         .map((rows) => rows.map(Trip.fromMap).toList());
+  }
+
+  /// Fetches a trip's current name, for screens that only hold its id
+  /// (Budget/Group screens no longer hardcode "Penang Adventure").
+  Future<String> getTripName(String tripId) async {
+    final row = await _client
+        .from('trips')
+        .select('name')
+        .eq('id', tripId)
+        .single();
+    return row['name'] as String;
   }
 
   /// Call on sign-out so a different account doesn't inherit the

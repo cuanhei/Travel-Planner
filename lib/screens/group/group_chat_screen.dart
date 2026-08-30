@@ -3,6 +3,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../models/group_message.dart';
 import '../../services/chat_service.dart';
+import '../../services/trip_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/detail_header.dart';
 
@@ -19,6 +20,9 @@ class GroupChatScreen extends StatefulWidget {
 class _GroupChatScreenState extends State<GroupChatScreen> {
   final _controller = TextEditingController();
   final _chatService = ChatService();
+  late final Future<String> _tripNameFuture = TripService().getTripName(
+    widget.tripId,
+  );
 
   @override
   void dispose() {
@@ -44,7 +48,13 @@ class _GroupChatScreenState extends State<GroupChatScreen> {
       body: SafeArea(
         child: Column(
           children: [
-            DetailHeader(title: 'Group Chat', subtitle: 'Penang Adventure'),
+            FutureBuilder<String>(
+              future: _tripNameFuture,
+              builder: (context, nameSnap) => DetailHeader(
+                title: 'Group Chat',
+                subtitle: nameSnap.data ?? '',
+              ),
+            ),
             Expanded(
               child: StreamBuilder<List<GroupMessage>>(
                 stream: _chatService.watchMessages(widget.tripId),
