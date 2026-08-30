@@ -208,6 +208,9 @@ create table public.trip_join_requests (
   status text not null default 'pending' check (status in ('pending', 'approved', 'rejected')),
   created_at timestamptz not null default now(),
   decided_at timestamptz,
+  -- Organizer's note on why a request was rejected, shown back to the
+  -- requester (who can read their own row — see join_requests_select).
+  reason text,
   unique (trip_id, user_id)
 );
 
@@ -245,8 +248,14 @@ begin
 end;
 $$;
 
--- Organizer-only: approve or reject a pending request.
-create function public.decide_join_request(p_request_id uuid, p_approve boolean)
+-- Organizer-only: approve or reject a pending request. [p_reason] is the
+-- organizer's note shown to the requester when rejecting; ignored (and
+-- not stored) on approval.
+create function public.decide_join_request(
+  p_request_id uuid,
+  p_approve boolean,
+  p_reason text default null
+)
 returns void
 language plpgsql
 security definer set search_path = public
@@ -268,7 +277,8 @@ begin
 
   update public.trip_join_requests
   set status = case when p_approve then 'approved' else 'rejected' end,
-      decided_at = now()
+      decided_at = now(),
+      reason = case when p_approve then null else p_reason end
   where id = p_request_id;
 
   if p_approve then

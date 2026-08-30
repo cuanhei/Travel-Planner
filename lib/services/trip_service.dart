@@ -82,11 +82,7 @@ class TripService {
 
     await _client.from('budget_categories').insert([
       for (final entry in _defaultCategoryPlan.entries)
-        {
-          'trip_id': tripId,
-          'label': entry.key,
-          'planned_amount': entry.value,
-        },
+        {'trip_id': tripId, 'label': entry.key, 'planned_amount': entry.value},
     ]);
 
     _cachedTripId = tripId;
@@ -165,21 +161,18 @@ class TripService {
 
     final stopIds = <TripStopLocation, String>{};
     if (uniqueStops.isNotEmpty) {
-      final inserted = await _client
-          .from('trip_stops')
-          .insert([
-            for (final stop in uniqueStops)
-              {
-                'trip_id': tripId,
-                'name': stop.name,
-                'address': stop.address,
-                'latitude': stop.latitude,
-                'longitude': stop.longitude,
-                'osm_id': stop.osmId,
-                'category': stop.category,
-              },
-          ])
-          .select();
+      final inserted = await _client.from('trip_stops').insert([
+        for (final stop in uniqueStops)
+          {
+            'trip_id': tripId,
+            'name': stop.name,
+            'address': stop.address,
+            'latitude': stop.latitude,
+            'longitude': stop.longitude,
+            'osm_id': stop.osmId,
+            'category': stop.category,
+          },
+      ]).select();
       for (var i = 0; i < uniqueStops.length; i++) {
         stopIds[uniqueStops[i]] = inserted[i]['id'] as String;
       }
@@ -246,7 +239,10 @@ class TripService {
         .stream(primaryKey: ['trip_id', 'user_id'])
         .eq('user_id', _uid)
         .asyncMap((memberRows) async {
-          final tripIds = memberRows.map((row) => row['trip_id'] as String).toSet().toList();
+          final tripIds = memberRows
+              .map((row) => row['trip_id'] as String)
+              .toSet()
+              .toList();
           if (tripIds.isEmpty) return const <Trip>[];
           final rows = await _client
               .from('trips')
@@ -255,6 +251,17 @@ class TripService {
               .order('created_at', ascending: false);
           return rows.map(Trip.fromMap).toList();
         });
+  }
+
+  /// Fetches a trip's current name, for screens that only hold its id
+  /// (Budget/Group screens no longer hardcode "Penang Adventure").
+  Future<String> getTripName(String tripId) async {
+    final row = await _client
+        .from('trips')
+        .select('name')
+        .eq('id', tripId)
+        .single();
+    return row['name'] as String;
   }
 
   /// Call on sign-out so a different account doesn't inherit the

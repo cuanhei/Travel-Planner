@@ -17,9 +17,14 @@ class ChatService {
         .from('group_messages')
         .stream(primaryKey: ['id'])
         .eq('trip_id', tripId)
-        .order('created_at')
+        // Oldest-first: `order()` defaults to descending, which put the
+        // newest message at the top of the plain top-to-bottom ListView.
+        .order('created_at', ascending: true)
         .asyncMap((rows) async {
-          final userIds = rows.map((r) => r['user_id'] as String).toSet().toList();
+          final userIds = rows
+              .map((r) => r['user_id'] as String)
+              .toSet()
+              .toList();
           if (userIds.isEmpty) return <GroupMessage>[];
           final profiles = await _client
               .from('profiles')
@@ -40,7 +45,10 @@ class ChatService {
         });
   }
 
-  Future<void> sendMessage({required String tripId, required String body}) async {
+  Future<void> sendMessage({
+    required String tripId,
+    required String body,
+  }) async {
     final trimmed = body.trim();
     if (trimmed.isEmpty) return;
     await _client.from('group_messages').insert({

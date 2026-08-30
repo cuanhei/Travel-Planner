@@ -3,6 +3,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../models/trip_balance.dart';
 import '../../services/budget_service.dart';
+import '../../services/trip_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/detail_header.dart';
 
@@ -20,13 +21,20 @@ class ExpenseSplitScreen extends StatefulWidget {
 
 class _ExpenseSplitScreenState extends State<ExpenseSplitScreen> {
   final _budgetService = BudgetService();
+  late final Future<String> _tripNameFuture = TripService().getTripName(
+    widget.tripId,
+  );
   late Future<List<TripBalance>> _balancesFuture = _load();
 
-  Future<List<TripBalance>> _load() => _budgetService.getBalances(widget.tripId);
+  Future<List<TripBalance>> _load() =>
+      _budgetService.getBalances(widget.tripId);
 
   void _refresh() => setState(() => _balancesFuture = _load());
 
-  Future<void> _editOwed(TripBalance traveler, String organizerFirstName) async {
+  Future<void> _editOwed(
+    TripBalance traveler,
+    String organizerFirstName,
+  ) async {
     final controller = TextEditingController(
       text: traveler.owes.toStringAsFixed(2),
     );
@@ -146,9 +154,17 @@ class _ExpenseSplitScreenState extends State<ExpenseSplitScreen> {
 
             return Column(
               children: [
-                DetailHeader(
-                  title: 'Split Expenses',
-                  subtitle: 'Penang Adventure · ${travelers.length} travelers',
+                FutureBuilder<String>(
+                  future: _tripNameFuture,
+                  builder: (context, nameSnap) {
+                    final tripName = nameSnap.data;
+                    return DetailHeader(
+                      title: 'Split Expenses',
+                      subtitle: tripName == null
+                          ? '${travelers.length} travelers'
+                          : '$tripName · ${travelers.length} travelers',
+                    );
+                  },
                 ),
                 Expanded(
                   child: ListView(
@@ -333,10 +349,11 @@ class _ExpenseSplitScreenState extends State<ExpenseSplitScreen> {
                                 )
                               else if (canEdit)
                                 Material(
-                                  color: (settled
-                                          ? const Color(0xFF11998E)
-                                          : Colors.redAccent)
-                                      .withValues(alpha: 0.12),
+                                  color:
+                                      (settled
+                                              ? const Color(0xFF11998E)
+                                              : Colors.redAccent)
+                                          .withValues(alpha: 0.12),
                                   borderRadius: BorderRadius.circular(10),
                                   child: InkWell(
                                     borderRadius: BorderRadius.circular(10),

@@ -65,11 +65,68 @@ class _InviteMemberScreenState extends State<InviteMemberScreen> {
     );
   }
 
-  Future<void> _decide(JoinRequest request, bool approve) async {
+  Future<void> _rejectWithReason(JoinRequest request) async {
+    final controller = TextEditingController();
+    final reason = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        backgroundColor: dialogContext.colors.card,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Text(
+          'Decline ${request.displayName}\'s request',
+          style: TextStyle(
+            color: dialogContext.colors.ink,
+            fontWeight: FontWeight.w800,
+            fontSize: 15.5,
+          ),
+        ),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          maxLines: 3,
+          style: TextStyle(color: dialogContext.colors.ink),
+          decoration: InputDecoration(
+            hintText: 'Let them know why (optional)',
+            filled: true,
+            fillColor: dialogContext.colors.surface,
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(14),
+              borderSide: BorderSide.none,
+            ),
+            contentPadding: const EdgeInsets.symmetric(
+              horizontal: 14,
+              vertical: 12,
+            ),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () =>
+                Navigator.of(dialogContext).pop(controller.text.trim()),
+            style: FilledButton.styleFrom(backgroundColor: Colors.redAccent),
+            child: const Text('Decline'),
+          ),
+        ],
+      ),
+    );
+    if (reason == null) return;
+    await _decide(request, false, reason: reason.isEmpty ? null : reason);
+  }
+
+  Future<void> _decide(
+    JoinRequest request,
+    bool approve, {
+    String? reason,
+  }) async {
     try {
       await _groupService.decideJoinRequest(
         requestId: request.id,
         approve: approve,
+        reason: reason,
       );
     } catch (e) {
       if (!mounted) return;
@@ -303,7 +360,7 @@ class _InviteMemberScreenState extends State<InviteMemberScreen> {
                               (r) => _RequestTile(
                                 request: r,
                                 onApprove: () => _decide(r, true),
-                                onReject: () => _decide(r, false),
+                                onReject: () => _rejectWithReason(r),
                               ),
                             ),
                         ],
@@ -323,17 +380,20 @@ class _InviteMemberScreenState extends State<InviteMemberScreen> {
                   _StepTile(
                     number: '1',
                     title: 'Share this code',
-                    subtitle: 'Send it to your friend however you like — chat, text, or in person.',
+                    subtitle:
+                        'Send it to your friend however you like — chat, text, or in person.',
                   ),
                   _StepTile(
                     number: '2',
                     title: 'They enter it in the app',
-                    subtitle: 'From "Join a Trip", they type in the 6-character code.',
+                    subtitle:
+                        'From "Join a Trip", they type in the 6-character code.',
                   ),
                   _StepTile(
                     number: '3',
                     title: 'You approve their request',
-                    subtitle: 'They appear here as a join request — approve it and they\'re in the group.',
+                    subtitle:
+                        'They appear here as a join request — approve it and they\'re in the group.',
                     isLast: true,
                   ),
                 ],
@@ -402,10 +462,7 @@ class _RequestTile extends StatelessWidget {
                 const SizedBox(height: 2),
                 Text(
                   'Wants to join',
-                  style: TextStyle(
-                    color: context.colors.muted,
-                    fontSize: 11.5,
-                  ),
+                  style: TextStyle(color: context.colors.muted, fontSize: 11.5),
                 ),
               ],
             ),

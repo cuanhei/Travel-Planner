@@ -32,3 +32,29 @@ class JoinRequest {
     );
   }
 }
+
+/// The signed-in user's own join request, as seen from the requester's
+/// side — no profile join needed since it's their own name/avatar.
+/// Carries the organizer's [reason] when [status] is `'rejected'`.
+class MyJoinRequest {
+  const MyJoinRequest({
+    required this.id,
+    required this.status,
+    required this.reason,
+    required this.createdAt,
+  });
+
+  final String id;
+  final String status;
+  final String? reason;
+  final DateTime createdAt;
+
+  factory MyJoinRequest.fromMap(Map<String, dynamic> map) {
+    return MyJoinRequest(
+      id: map['id'] as String,
+      status: map['status'] as String,
+      reason: map['reason'] as String?,
+      createdAt: DateTime.parse(map['created_at'] as String),
+    );
+  }
+}

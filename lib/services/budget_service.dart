@@ -64,6 +64,19 @@ class BudgetService {
     }, onConflict: 'trip_id,label');
   }
 
+  // ---- Stops --------------------------------------------------------------
+
+  /// Live list of stop names for a trip, for the Expense Tracker's
+  /// "Where were you?" tagging chips.
+  Stream<List<String>> watchStopNames(String tripId) {
+    return _client
+        .from('trip_stops')
+        .stream(primaryKey: ['id'])
+        .eq('trip_id', tripId)
+        .order('created_at')
+        .map((rows) => rows.map((r) => r['name'] as String).toList());
+  }
+
   // ---- Expenses ---------------------------------------------------------
 
   Stream<List<Expense>> watchExpenses(String tripId) {
@@ -144,11 +157,7 @@ class BudgetService {
     for (final row in expenseRows as List) {
       final userId = row['user_id'] as String;
       final amount = (row['amount'] as num).toDouble();
-      paidByUser.update(
-        userId,
-        (v) => v + amount,
-        ifAbsent: () => amount,
-      );
+      paidByUser.update(userId, (v) => v + amount, ifAbsent: () => amount);
     }
 
     final balanceRows = await _client

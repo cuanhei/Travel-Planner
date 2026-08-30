@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../models/group_member.dart';
 import '../../services/group_service.dart';
@@ -20,15 +21,56 @@ class GroupDashboardScreen extends StatefulWidget {
 
 class _GroupDashboardScreenState extends State<GroupDashboardScreen> {
   final _groupService = GroupService();
-  late final Future<String> _tripIdFuture = TripService().ensureDemoTrip();
+  final _tripService = TripService();
+  late final Future<(String, String)> _tripFuture = _loadTrip();
+
+  Future<(String, String)> _loadTrip() async {
+    final tripId = await _tripService.ensureDemoTrip();
+    final tripName = await _tripService.getTripName(tripId);
+    return (tripId, tripName);
+  }
+
+  Future<void> _removeMember(String tripId, GroupMember member) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        backgroundColor: dialogContext.colors.card,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Text(
+          'Remove ${member.displayName}?',
+          style: TextStyle(
+            color: dialogContext.colors.ink,
+            fontWeight: FontWeight.w800,
+          ),
+        ),
+        content: Text(
+          'They\'ll be removed from the group and lose access to this trip.',
+          style: TextStyle(color: dialogContext.colors.muted),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            style: FilledButton.styleFrom(backgroundColor: Colors.redAccent),
+            child: const Text('Remove'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    await _groupService.removeMember(tripId: tripId, userId: member.userId);
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: context.colors.surface,
       body: SafeArea(
-        child: FutureBuilder<String>(
-          future: _tripIdFuture,
+        child: FutureBuilder<(String, String)>(
+          future: _tripFuture,
           builder: (context, tripSnap) {
             if (tripSnap.connectionState != ConnectionState.done) {
               return const Column(
@@ -57,33 +99,40 @@ class _GroupDashboardScreenState extends State<GroupDashboardScreen> {
                 ],
               );
             }
-            final tripId = tripSnap.data!;
+            final (tripId, tripName) = tripSnap.data!;
+
+            final myUid = Supabase.instance.client.auth.currentUser?.id;
 
             return StreamBuilder<List<GroupMember>>(
               stream: _groupService.watchMembers(tripId),
               builder: (context, memberSnap) {
                 final members = memberSnap.data ?? const <GroupMember>[];
+                final isOrganizer = members.any(
+                  (m) => m.userId == myUid && m.isOrganizer,
+                );
 
                 return Column(
                   children: [
                     DetailHeader(
                       title: 'Group Travel',
                       subtitle:
-                          'Penang Adventure · ${members.length} member${members.length == 1 ? '' : 's'}',
-                      trailing: IconButton(
-                        onPressed: () => Navigator.of(context).push(
-                          MaterialPageRoute(
-                            builder: (_) => InviteMemberScreen(
-                              tripId: tripId,
-                              tripName: 'Penang Adventure',
-                            ),
-                          ),
-                        ),
-                        icon: Icon(
-                          Icons.person_add_alt_1_rounded,
-                          color: context.colors.ink,
-                        ),
-                      ),
+                          '$tripName · ${members.length} member${members.length == 1 ? '' : 's'}',
+                      trailing: isOrganizer
+                          ? IconButton(
+                              onPressed: () => Navigator.of(context).push(
+                                MaterialPageRoute(
+                                  builder: (_) => InviteMemberScreen(
+                                    tripId: tripId,
+                                    tripName: tripName,
+                                  ),
+                                ),
+                              ),
+                              icon: Icon(
+                                Icons.person_add_alt_1_rounded,
+                                color: context.colors.ink,
+                              ),
+                            )
+                          : null,
                     ),
                     Expanded(
                       child: ListView(
@@ -154,14 +203,34 @@ class _GroupDashboardScreenState extends State<GroupDashboardScreen> {
                                       ],
                                     ),
                                   ),
-                                  Container(
-                                    width: 10,
-                                    height: 10,
-                                    decoration: BoxDecoration(
-                                      color: Color(0xFF11998E),
-                                      shape: BoxShape.circle,
+                                  if (isOrganizer && !m.isOrganizer)
+                                    Material(
+                                      color: Colors.redAccent.withValues(
+                                        alpha: 0.1,
+                                      ),
+                                      shape: const CircleBorder(),
+                                      child: InkWell(
+                                        customBorder: const CircleBorder(),
+                                        onTap: () => _removeMember(tripId, m),
+                                        child: const Padding(
+                                          padding: EdgeInsets.all(8),
+                                          child: Icon(
+                                            Icons.person_remove_rounded,
+                                            color: Colors.redAccent,
+                                            size: 18,
+                                          ),
+                                        ),
+                                      ),
+                                    )
+                                  else
+                                    Container(
+                                      width: 10,
+                                      height: 10,
+                                      decoration: BoxDecoration(
+                                        color: Color(0xFF11998E),
+                                        shape: BoxShape.circle,
+                                      ),
                                     ),
-                                  ),
                                 ],
                               ),
                             ),
