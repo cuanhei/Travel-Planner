@@ -1,16 +1,24 @@
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:latlong2/latlong.dart';
 
+import '../../models/drive_route.dart';
+import '../../models/transit_route.dart';
 import '../../models/transport_location.dart';
+import '../../services/route_service.dart';
 import '../../theme/app_theme.dart';
+import '../../utils/format.dart';
+import '../../utils/transit_vehicle_display.dart';
 import '../../widgets/current_location_marker.dart';
 import '../../widgets/detail_header.dart';
 import '../../widgets/map_label_pill.dart';
+import '../../widgets/route_map_view.dart';
 import '../../widgets/street_map_painter.dart';
 import '../../widgets/transport_location_search_field.dart';
 import '../explore/explore_tab.dart' show Place, places;
 import 'fare_calculator_screen.dart';
 import 'route_details_screen.dart';
+import 'transit_route_details_screen.dart';
 
 /// One scheduled bus option from the traveler's current location to a
 /// searched destination. UI-only mock data derived from the place's
@@ -125,6 +133,15 @@ class _TransportRoutesScreenState extends State<TransportRoutesScreen> {
   bool _locatingDeparture = false;
   String? _departureError;
 
+  final _routeService = RouteService();
+  List<TransitRoute> _transitRoutes = const [];
+  DriveRoute? _driveRoute;
+  bool _loadingRoutes = false;
+  String? _routesError;
+  bool _showDriveOnMap = false;
+  int _selectedTransitIndex = 0;
+  int _routeRequestId = 0;
+
   @override
   void initState() {
     super.initState();
@@ -182,6 +199,7 @@ class _TransportRoutesScreenState extends State<TransportRoutesScreen> {
         );
         _locatingDeparture = false;
       });
+      _maybeFetchRoutes();
     } catch (_) {
       _failDeparture(
         'Unable to retrieve your current location. Search for a departure point instead.',
@@ -196,6 +214,93 @@ class _TransportRoutesScreenState extends State<TransportRoutesScreen> {
       _departureError = message;
     });
   }
+
+  /// Fetches transit (primary) and driving (secondary comparison) routes
+  /// whenever both endpoints are set. Transit and drive are requested
+  /// independently — a driving failure never blocks or clears transit
+  /// results, per the "public transport must keep working" requirement.
+  /// A monotonic [_routeRequestId] discards stale responses if the
+  /// traveler changes an endpoint again before the first request lands.
+  Future<void> _maybeFetchRoutes() async {
+    final departure = _departure;
+    final destination = _selectedDestination;
+    if (departure == null || destination == null) {
+      setState(() {
+        _transitRoutes = const [];
+        _driveRoute = null;
+        _routesError = null;
+        _loadingRoutes = false;
+        _showDriveOnMap = false;
+        _selectedTransitIndex = 0;
+      });
+      return;
+    }
+
+    final requestId = ++_routeRequestId;
+    setState(() {
+      _loadingRoutes = true;
+      _routesError = null;
+      _transitRoutes = const [];
+      _driveRoute = null;
+      _showDriveOnMap = false;
+      _selectedTransitIndex = 0;
+    });
+
+    final origin = LatLng(departure.latitude, departure.longitude);
+    final dest = LatLng(destination.latitude, destination.longitude);
+
+    try {
+      final transitRoutes = await _routeService.getTransitRoutes(
+        origin: origin,
+        destination: dest,
+      );
+      if (!mounted || requestId != _routeRequestId) return;
+      setState(() {
+        _transitRoutes = transitRoutes;
+        _loadingRoutes = false;
+        _routesError = transitRoutes.isEmpty
+            ? 'No public transport routes found between these points.'
+            : null;
+      });
+    } catch (_) {
+      if (!mounted || requestId != _routeRequestId) return;
+      setState(() {
+        _loadingRoutes = false;
+        _routesError =
+            'Could not load public transport routes. Check your connection and try again.';
+      });
+    }
+
+    try {
+      final drive = await _routeService.getDriveRoute(
+        origin: origin,
+        destination: dest,
+      );
+      if (!mounted || requestId != _routeRequestId) return;
+      setState(() => _driveRoute = drive);
+    } catch (_) {
+      // Driving is a secondary comparison — silently unavailable is fine;
+      // transit results above are unaffected.
+    }
+  }
+
+  /// Polyline currently shown on the single persistent map — the
+  /// selected transit route by default, or the driving route when that
+  /// comparison is toggled on. Empty before both endpoints are set or
+  /// while routes are still loading.
+  List<LatLng> get _mapPolylinePoints {
+    if (_showDriveOnMap && _driveRoute != null) {
+      return _driveRoute!.polylinePoints;
+    }
+    if (_transitRoutes.isEmpty) return const [];
+    final index = _selectedTransitIndex.clamp(0, _transitRoutes.length - 1);
+    return _transitRoutes[index].polylinePoints;
+  }
+
+  Color get _mapPolylineColor =>
+      _showDriveOnMap && _driveRoute != null
+          ? const Color(0xFF5C6BC0)
+          : const Color(0xFF11998E);
 
   Future<void> _addFavoriteStop() async {
     final picked = await showModalBottomSheet<Place>(
@@ -402,10 +507,13 @@ class _TransportRoutesScreenState extends State<TransportRoutesScreen> {
                     const SizedBox(height: 8),
                     TransportLocationSearchField(
                       value: _departure,
-                      onChanged: (loc) => setState(() {
-                        _departure = loc;
-                        if (loc != null) _departureError = null;
-                      }),
+                      onChanged: (loc) {
+                        setState(() {
+                          _departure = loc;
+                          if (loc != null) _departureError = null;
+                        });
+                        _maybeFetchRoutes();
+                      },
                       hintText: _locatingDeparture
                           ? 'Getting your location…'
                           : 'Search departure location…',
@@ -418,20 +526,70 @@ class _TransportRoutesScreenState extends State<TransportRoutesScreen> {
                     const SizedBox(height: 18),
                     const _FieldLabel('Destination'),
                     const SizedBox(height: 8),
-                    _TransportSearchMap(
+                    TransportLocationSearchField(
                       value: _selectedDestination,
-                      onChanged: (d) =>
-                          setState(() => _selectedDestination = d),
+                      onChanged: (d) {
+                        setState(() => _selectedDestination = d);
+                        _maybeFetchRoutes();
+                      },
+                      hintText: 'Where do you want to go?',
+                      selectedIcon: Icons.directions_transit_filled_rounded,
+                    ),
+                    const SizedBox(height: 18),
+                    RouteMapView(
+                      source: _departure == null
+                          ? null
+                          : LatLng(
+                              _departure!.latitude,
+                              _departure!.longitude,
+                            ),
+                      destination: _selectedDestination == null
+                          ? null
+                          : LatLng(
+                              _selectedDestination!.latitude,
+                              _selectedDestination!.longitude,
+                            ),
+                      polylinePoints: _mapPolylinePoints,
+                      polylineColor: _mapPolylineColor,
+                      height: 270,
                     ),
                     const SizedBox(height: 20),
                     if (_selectedDestination == null)
                       const _EmptyDestinationState()
-                    else
+                    else ...[
                       _RouteEndpointsCard(
                         departure: _departure,
                         locatingDeparture: _locatingDeparture,
                         destination: _selectedDestination!,
                       ),
+                      if (_departure != null) ...[
+                        const SizedBox(height: 20),
+                        _RouteResultsSection(
+                          loading: _loadingRoutes,
+                          error: _routesError,
+                          transitRoutes: _transitRoutes,
+                          driveRoute: _driveRoute,
+                          showDriveOnMap: _showDriveOnMap,
+                          selectedTransitIndex: _selectedTransitIndex,
+                          onSelectTransit: (index) => setState(() {
+                            _selectedTransitIndex = index;
+                            _showDriveOnMap = false;
+                          }),
+                          onToggleDrive: (showDrive) =>
+                              setState(() => _showDriveOnMap = showDrive),
+                          onViewDetails: (route) =>
+                              Navigator.of(context).push(
+                            MaterialPageRoute(
+                              builder: (_) => TransitRouteDetailsScreen(
+                                route: route,
+                                departure: _departure!,
+                                destination: _selectedDestination!,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ],
                   ],
                 ],
               ),
@@ -1091,63 +1249,6 @@ class _EmptySearchState extends StatelessWidget {
   }
 }
 
-/// Map background (unchanged from [_TransitMap]'s painter/markers) with
-/// the real, Photon-backed [TransportLocationSearchField] on top — used
-/// only for the Transport screen's Home-page entry point, which has no
-/// bus-departure mock or favourite stops to drive.
-class _TransportSearchMap extends StatelessWidget {
-  const _TransportSearchMap({required this.value, required this.onChanged});
-
-  final TransportLocation? value;
-  final ValueChanged<TransportLocation?> onChanged;
-
-  static const _currentLocation = Alignment(-0.2, 0.55);
-
-  @override
-  Widget build(BuildContext context) {
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(24),
-      child: Container(
-        height: 270,
-        color: const Color(0xFFEFEDE6),
-        child: Stack(
-          children: [
-            const Positioned.fill(
-              child: CustomPaint(painter: StreetMapPainter()),
-            ),
-            for (final stop in _nearbyStops)
-              Align(
-                alignment: stop.alignment,
-                child: _StopMarker(label: stop.name),
-              ),
-            const Align(
-              alignment: _currentLocation,
-              child: CurrentLocationMarker(),
-            ),
-            Positioned(
-              left: 10,
-              right: 10,
-              top: 10,
-              child: TransportLocationSearchField(
-                value: value,
-                onChanged: onChanged,
-                hintText: 'Where do you want to go?',
-                selectedIcon: Icons.directions_transit_filled_rounded,
-                maxDropdownHeight: 190,
-              ),
-            ),
-            Positioned(
-              left: 10,
-              bottom: 10,
-              child: MapLabelPill(text: 'You are here · $_currentLocationName'),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
 class _EmptyDestinationState extends StatelessWidget {
   const _EmptyDestinationState();
 
@@ -1335,6 +1436,390 @@ class _EndpointRow extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+/// Public-transport (primary) + driving (secondary comparison) results
+/// for the current Depart From/Destination pair — brief route summaries,
+/// tap-through to full details, and a map preview of whichever route
+/// (transit or drive) is currently selected for display.
+/// Route summaries only — the map itself lives once, persistently,
+/// above this section on the Transport screen. Tapping a transit card
+/// both selects it (updates the shared map's polyline) and opens the
+/// full step-by-step details.
+class _RouteResultsSection extends StatelessWidget {
+  const _RouteResultsSection({
+    required this.loading,
+    required this.error,
+    required this.transitRoutes,
+    required this.driveRoute,
+    required this.showDriveOnMap,
+    required this.selectedTransitIndex,
+    required this.onSelectTransit,
+    required this.onToggleDrive,
+    required this.onViewDetails,
+  });
+
+  final bool loading;
+  final String? error;
+  final List<TransitRoute> transitRoutes;
+  final DriveRoute? driveRoute;
+  final bool showDriveOnMap;
+  final int selectedTransitIndex;
+  final ValueChanged<int> onSelectTransit;
+  final ValueChanged<bool> onToggleDrive;
+  final ValueChanged<TransitRoute> onViewDetails;
+
+  @override
+  Widget build(BuildContext context) {
+    if (loading) return const _RoutesLoadingCard();
+    if (transitRoutes.isEmpty) {
+      return _RoutesErrorCard(
+        message: error ??
+            'No public transport routes found between these points.',
+      );
+    }
+
+    final drive = driveRoute;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const _SectionLabel('Public Transport'),
+        const SizedBox(height: 10),
+        for (var i = 0; i < transitRoutes.length; i++) ...[
+          _TransitRouteSummaryCard(
+            route: transitRoutes[i],
+            recommended: i == 0,
+            selected: !showDriveOnMap && selectedTransitIndex == i,
+            onTap: () {
+              onSelectTransit(i);
+              onViewDetails(transitRoutes[i]);
+            },
+          ),
+          const SizedBox(height: 10),
+        ],
+        if (drive != null) ...[
+          const SizedBox(height: 6),
+          const _SectionLabel('Alternative'),
+          const SizedBox(height: 10),
+          _DriveRouteSummaryCard(
+            route: drive,
+            selected: showDriveOnMap,
+            onTap: () => onToggleDrive(!showDriveOnMap),
+          ),
+        ],
+      ],
+    );
+  }
+}
+
+class _RoutesLoadingCard extends StatelessWidget {
+  const _RoutesLoadingCard();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(vertical: 28),
+      decoration: BoxDecoration(
+        color: context.colors.card,
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Column(
+        children: [
+          const SizedBox(
+            width: 22,
+            height: 22,
+            child: CircularProgressIndicator(strokeWidth: 2.4),
+          ),
+          const SizedBox(height: 12),
+          Text(
+            'Finding public transport routes…',
+            style: TextStyle(
+              color: context.colors.muted,
+              fontSize: 12.5,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _RoutesErrorCard extends StatelessWidget {
+  const _RoutesErrorCard({required this.message});
+
+  final String message;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: context.colors.card,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: context.colors.muted.withValues(alpha: 0.15),
+        ),
+      ),
+      child: Row(
+        children: [
+          Icon(
+            Icons.info_outline_rounded,
+            color: context.colors.muted,
+            size: 20,
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              message,
+              style: TextStyle(color: context.colors.muted, fontSize: 12.5),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SectionLabel extends StatelessWidget {
+  const _SectionLabel(this.text);
+
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    return Text(
+      text,
+      style: TextStyle(
+        color: context.colors.ink,
+        fontWeight: FontWeight.w800,
+        fontSize: 15,
+      ),
+    );
+  }
+}
+
+/// Brief route summary — vehicle chips + duration/transfers, matching
+/// the "🚌 Bus + 🚆 LRT · 45 min · 2 transfers" style. Tapping it both
+/// selects the route (updates the shared map's polyline) and opens the
+/// full step-by-step [TransitRouteDetailsScreen].
+class _TransitRouteSummaryCard extends StatelessWidget {
+  const _TransitRouteSummaryCard({
+    required this.route,
+    required this.recommended,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final TransitRoute route;
+  final bool recommended;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final vehicles = route.vehicleSequence;
+    final transferLabel = route.transferCount == 0
+        ? 'Direct'
+        : '${route.transferCount} transfer${route.transferCount == 1 ? '' : 's'}';
+
+    return Material(
+      color: context.colors.card,
+      borderRadius: BorderRadius.circular(18),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(18),
+        onTap: onTap,
+        child: Container(
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(
+              color: selected
+                  ? const Color(0xFF11998E)
+                  : context.colors.muted.withValues(alpha: 0.12),
+              width: selected ? 1.5 : 1,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: context.colors.ink.withValues(alpha: 0.05),
+                blurRadius: 12,
+                offset: const Offset(0, 5),
+              ),
+            ],
+          ),
+          child: Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Wrap(
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      spacing: 4,
+                      runSpacing: 4,
+                      children: [
+                        if (recommended)
+                          Container(
+                            margin: const EdgeInsets.only(right: 4),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 3,
+                            ),
+                            decoration: BoxDecoration(
+                              color: AppColors.accent.withValues(alpha: 0.14),
+                              borderRadius: BorderRadius.circular(20),
+                            ),
+                            child: const Text(
+                              'RECOMMENDED',
+                              style: TextStyle(
+                                color: AppColors.accent,
+                                fontSize: 9.5,
+                                fontWeight: FontWeight.w800,
+                                letterSpacing: 0.4,
+                              ),
+                            ),
+                          ),
+                        for (var i = 0; i < vehicles.length; i++) ...[
+                          if (i > 0)
+                            Text(
+                              '+',
+                              style: TextStyle(
+                                color: context.colors.muted,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          Icon(
+                            TransitVehicleDisplay.of(vehicles[i]).icon,
+                            size: 17,
+                            color: const Color(0xFF11998E),
+                          ),
+                          Text(
+                            TransitVehicleDisplay.of(vehicles[i]).label,
+                            style: TextStyle(
+                              color: context.colors.ink,
+                              fontWeight: FontWeight.w700,
+                              fontSize: 12.5,
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      '${formatDuration(route.duration)} • $transferLabel',
+                      style: TextStyle(
+                        color: context.colors.muted,
+                        fontSize: 12.5,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 4),
+              Icon(
+                Icons.chevron_right_rounded,
+                color: context.colors.muted,
+                size: 20,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Secondary driving comparison card — tapping it toggles whether the
+/// map below shows the driving polyline instead of the primary transit
+/// route. Never appears inside the "Public Transport" list itself.
+class _DriveRouteSummaryCard extends StatelessWidget {
+  const _DriveRouteSummaryCard({
+    required this.route,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final DriveRoute route;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    const driveColor = Color(0xFF5C6BC0);
+    return Material(
+      color: context.colors.card,
+      borderRadius: BorderRadius.circular(18),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(18),
+        onTap: onTap,
+        child: Container(
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(
+              color: selected
+                  ? driveColor
+                  : context.colors.muted.withValues(alpha: 0.15),
+              width: selected ? 1.5 : 1,
+            ),
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 36,
+                height: 36,
+                decoration: BoxDecoration(
+                  color: driveColor.withValues(alpha: 0.14),
+                  shape: BoxShape.circle,
+                ),
+                alignment: Alignment.center,
+                child: const Icon(
+                  Icons.directions_car_filled_rounded,
+                  color: driveColor,
+                  size: 18,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Drive',
+                      style: TextStyle(
+                        color: context.colors.ink,
+                        fontWeight: FontWeight.w700,
+                        fontSize: 13.5,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      '${formatDuration(route.duration)} • ${formatDistanceMeters(route.distanceMeters)}',
+                      style: TextStyle(
+                        color: context.colors.muted,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Icon(
+                selected
+                    ? Icons.radio_button_checked_rounded
+                    : Icons.radio_button_unchecked_rounded,
+                color: selected ? driveColor : context.colors.muted,
+                size: 20,
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }
