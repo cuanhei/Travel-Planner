@@ -274,6 +274,31 @@ class TripService {
     return Trip.fromMap(row);
   }
 
+  /// Live list of a trip's stops (with their stored coordinates), for
+  /// the read-only Trip Map — every stop already saved to this trip,
+  /// nothing fetched from an external place-search API.
+  Stream<List<TripStopLocation>> watchTripStops(String tripId) {
+    return _client
+        .from('trip_stops')
+        .stream(primaryKey: ['id'])
+        .eq('trip_id', tripId)
+        .order('created_at')
+        .map(
+          (rows) => rows
+              .map(
+                (r) => TripStopLocation(
+                  name: r['name'] as String,
+                  address: (r['address'] as String?) ?? '',
+                  latitude: (r['latitude'] as num).toDouble(),
+                  longitude: (r['longitude'] as num).toDouble(),
+                  osmId: r['osm_id'] as String?,
+                  category: (r['category'] as String?) ?? 'Other',
+                ),
+              )
+              .toList(),
+        );
+  }
+
   /// Call on sign-out so a different account doesn't inherit the
   /// previous user's cached trip id.
   static void resetCache() {
