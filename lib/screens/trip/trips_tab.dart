@@ -33,8 +33,14 @@ class TripsTab extends StatefulWidget {
 class _TripsTabState extends State<TripsTab> {
   final _searchController = TextEditingController();
   final _tripService = TripService();
-  late final _tripsStream = _tripService.watchMyTrips();
+  late Stream<List<Trip>> _tripsStream = _tripService.watchMyTrips();
   String _query = '';
+
+  // This tab typically stays alive for the app's whole session (kept in
+  // an IndexedStack by the bottom nav), so a stream that errors once —
+  // e.g. a transient Supabase auth hiccup — would otherwise show that
+  // error forever with no way to recover short of restarting the app.
+  void _retry() => setState(() => _tripsStream = _tripService.watchMyTrips());
 
   @override
   void dispose() {
@@ -55,10 +61,36 @@ class _TripsTabState extends State<TripsTab> {
             return Center(
               child: Padding(
                 padding: const EdgeInsets.all(24),
-                child: Text(
-                  '${snapshot.error}',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(color: context.colors.muted),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      'Couldn\'t load your trips',
+                      style: TextStyle(
+                        color: context.colors.ink,
+                        fontWeight: FontWeight.w700,
+                        fontSize: 14,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      '${snapshot.error}',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        color: context.colors.muted,
+                        fontSize: 12,
+                      ),
+                    ),
+                    const SizedBox(height: 14),
+                    TextButton.icon(
+                      onPressed: _retry,
+                      icon: const Icon(Icons.refresh_rounded, size: 18),
+                      label: const Text('Retry'),
+                      style: TextButton.styleFrom(
+                        foregroundColor: context.colors.ink,
+                      ),
+                    ),
+                  ],
                 ),
               ),
             );
@@ -173,7 +205,11 @@ class _TripsTabState extends State<TripsTab> {
     );
   }
 
-  List<Widget> _tripCards(BuildContext context, List<Trip> trips, String status) {
+  List<Widget> _tripCards(
+    BuildContext context,
+    List<Trip> trips,
+    String status,
+  ) {
     return [
       for (var i = 0; i < trips.length; i++)
         _TripCard(
@@ -181,7 +217,9 @@ class _TripsTabState extends State<TripsTab> {
           status: status,
           gradient: _gradientFor(i),
           onTap: () => Navigator.of(context).push(
-            MaterialPageRoute(builder: (_) => const TripDetailsScreen()),
+            MaterialPageRoute(
+              builder: (_) => TripDetailsScreen(trip: trips[i]),
+            ),
           ),
         ),
     ];
@@ -265,17 +303,11 @@ class _NoSearchResults extends StatelessWidget {
       decoration: BoxDecoration(
         color: context.colors.card,
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(
-          color: context.colors.muted.withValues(alpha: 0.15),
-        ),
+        border: Border.all(color: context.colors.muted.withValues(alpha: 0.15)),
       ),
       child: Column(
         children: [
-          Icon(
-            Icons.search_off_rounded,
-            color: context.colors.muted,
-            size: 30,
-          ),
+          Icon(Icons.search_off_rounded, color: context.colors.muted, size: 30),
           const SizedBox(height: 10),
           Text(
             'No trips named "$query"',
@@ -496,17 +528,11 @@ class _EmptyTrips extends StatelessWidget {
       decoration: BoxDecoration(
         color: context.colors.card,
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(
-          color: context.colors.muted.withValues(alpha: 0.15),
-        ),
+        border: Border.all(color: context.colors.muted.withValues(alpha: 0.15)),
       ),
       child: Column(
         children: [
-          Icon(
-            Icons.luggage_rounded,
-            color: context.colors.muted,
-            size: 30,
-          ),
+          Icon(Icons.luggage_rounded, color: context.colors.muted, size: 30),
           const SizedBox(height: 10),
           Text(
             'No trips yet',
