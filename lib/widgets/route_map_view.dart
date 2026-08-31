@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 
+import 'current_location_marker.dart';
+
 const _osmTileUrl = 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
 const _osmUserAgent = 'com.example.travelplanner';
 
@@ -9,14 +11,38 @@ const _osmUserAgent = 'com.example.travelplanner';
 /// nor [RouteMapView.destination] is known yet.
 const _malaysiaFallbackCenter = LatLng(3.1390, 101.6869);
 
-/// Read-only OpenStreetMap view (via flutter_map). Renders whichever of
-/// [source]/[destination] are known — so the same widget instance can
-/// stay mounted for the Transport screen's single persistent map area
-/// across its whole lifecycle: an empty/current-location view before
-/// both endpoints are picked, then source+destination markers, then a
-/// route polyline once one is available. Also reused by the full
-/// route-details view, where both endpoints and a polyline are always
-/// present.
+/// west,south,east,north — a loose box around all of Malaysia (mirrors
+/// the same bbox used elsewhere for Photon search/`StopMapPicker`), so
+/// none of this app's maps can be panned/zoomed out to see other
+/// countries.
+final _malaysiaBounds = LatLngBounds(
+  const LatLng(0.5, 99.5),
+  const LatLng(7.5, 119.5),
+);
+
+const _closeZoom = 16.0;
+
+/// Read-only OpenStreetMap view (via flutter_map), constrained to
+/// Malaysia. Renders whichever of [source]/[destination] are known — so
+/// the same widget instance can stay mounted for the Transport screen's
+/// single persistent map area across its whole lifecycle: an empty/
+/// current-location view before both endpoints are picked, then source+
+/// destination markers, then a route polyline once one is available.
+/// Also reused by the full route-details view and the Home dashboard's
+/// map, where a plain search result is "plotted" the same way.
+///
+/// The inner `FlutterMap` is keyed off [source]/[destination]/the
+/// polyline's start+end, so a meaningful change (GPS resolves, a new
+/// place is searched, a different route is selected) tears down and
+/// remounts it with a fresh `initialCenter`/`initialCameraFit` rather
+/// than nudging the already-mounted map via `MapController`.
+/// flutter_map's tile layer only reliably reloads tiles for a new
+/// viewport when the map is (re)built with that viewport from the
+/// start — moving an existing controller straight after a rebuild can
+/// leave the tiles blank until the traveler manually pans/zooms.
+/// Panning/zooming the traveler does themselves (with the same points
+/// still in effect) doesn't change the key, so their manual view isn't
+/// reset by unrelated rebuilds.
 class RouteMapView extends StatelessWidget {
   const RouteMapView({
     super.key,
@@ -26,83 +52,118 @@ class RouteMapView extends StatelessWidget {
     this.polylineColor = const Color(0xFF11998E),
     this.height = 240,
     this.borderRadius = 24,
+    this.sourceIsCurrentLocation = false,
   });
 
   final LatLng? source;
   final LatLng? destination;
   final List<LatLng> polylinePoints;
   final Color polylineColor;
-  final double height;
+
+  /// Fixed height for the map. Pass null to instead fill whatever space
+  /// the parent gives it (e.g. inside an `Expanded`) — a plain
+  /// `SizedBox(height: double.infinity)` isn't safe to lay out.
+  final double? height;
   final double borderRadius;
+
+  /// When true, [source] is rendered as the pulsing "you are here" dot
+  /// ([CurrentLocationMarker]) instead of the plain origin pin — for
+  /// screens where `source` really is the traveler's live GPS position
+  /// rather than a route's starting point.
+  final bool sourceIsCurrentLocation;
+
+  String _pointKey(LatLng p) =>
+      '${p.latitude.toStringAsFixed(5)},${p.longitude.toStringAsFixed(5)}';
+
+  /// A cheap signature of "what should the camera be framing" — the
+  /// full polyline is represented by just its length + endpoints rather
+  /// than scanned point-by-point, since only a materially different
+  /// route (not e.g. a rebuild with the same one) should force a remount.
+  String get _cameraKey {
+    final parts = <String>[
+      if (source != null) 's:${_pointKey(source!)}',
+      if (destination != null) 'd:${_pointKey(destination!)}',
+      if (polylinePoints.isNotEmpty)
+        'p:${polylinePoints.length}:${_pointKey(polylinePoints.first)}:${_pointKey(polylinePoints.last)}',
+    ];
+    return parts.join('|');
+  }
 
   @override
   Widget build(BuildContext context) {
     final points = [?source, ?destination, ...polylinePoints];
     final bounds = points.isEmpty ? null : LatLngBounds.fromPoints(points);
 
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(borderRadius),
-      child: SizedBox(
-        height: height,
-        child: FlutterMap(
-          options: MapOptions(
-            initialCenter: bounds?.center ?? _malaysiaFallbackCenter,
-            initialZoom: bounds == null ? 6 : 14,
-            initialCameraFit: bounds == null
-                ? null
-                : CameraFit.bounds(
-                    bounds: bounds,
-                    padding: const EdgeInsets.all(44),
-                    maxZoom: 16,
-                  ),
-            interactionOptions: const InteractionOptions(
-              flags: InteractiveFlag.all & ~InteractiveFlag.rotate,
-            ),
-          ),
-          children: [
-            TileLayer(
-              urlTemplate: _osmTileUrl,
-              userAgentPackageName: _osmUserAgent,
-            ),
-            if (polylinePoints.length > 1)
-              PolylineLayer(
-                polylines: [
-                  Polyline(
-                    points: polylinePoints,
-                    strokeWidth: 4.5,
-                    color: polylineColor,
-                  ),
-                ],
-              ),
-            MarkerLayer(
-              markers: [
-                if (source != null)
-                  Marker(
-                    point: source!,
-                    width: 34,
-                    height: 34,
-                    child: const Icon(
-                      Icons.trip_origin_rounded,
-                      color: Color(0xFF5C6BC0),
-                      size: 28,
-                    ),
-                  ),
-                if (destination != null)
-                  Marker(
-                    point: destination!,
-                    width: 40,
-                    height: 40,
-                    child: const Icon(
-                      Icons.location_on_rounded,
-                      color: Color(0xFFFF7A59),
-                      size: 38,
-                    ),
-                  ),
-              ],
-            ),
-          ],
+    final map = FlutterMap(
+      key: ValueKey(_cameraKey),
+      options: MapOptions(
+        initialCenter: points.isEmpty
+            ? _malaysiaFallbackCenter
+            : (points.length == 1 ? points.first : bounds!.center),
+        initialZoom: points.isEmpty ? 6 : _closeZoom,
+        initialCameraFit: points.length > 1
+            ? CameraFit.bounds(
+                bounds: bounds!,
+                padding: const EdgeInsets.all(44),
+                maxZoom: _closeZoom,
+              )
+            : null,
+        cameraConstraint: CameraConstraint.contain(bounds: _malaysiaBounds),
+        interactionOptions: const InteractionOptions(
+          flags: InteractiveFlag.all & ~InteractiveFlag.rotate,
         ),
       ),
+      children: [
+        TileLayer(
+          urlTemplate: _osmTileUrl,
+          userAgentPackageName: _osmUserAgent,
+        ),
+        if (polylinePoints.length > 1)
+          PolylineLayer(
+            polylines: [
+              Polyline(
+                points: polylinePoints,
+                strokeWidth: 4.5,
+                color: polylineColor,
+              ),
+            ],
+          ),
+        MarkerLayer(
+          markers: [
+            if (source != null)
+              Marker(
+                point: source!,
+                width: sourceIsCurrentLocation ? 54 : 34,
+                height: sourceIsCurrentLocation ? 54 : 34,
+                child: sourceIsCurrentLocation
+                    ? const CurrentLocationMarker()
+                    : const Icon(
+                        Icons.trip_origin_rounded,
+                        color: Color(0xFF5C6BC0),
+                        size: 28,
+                      ),
+              ),
+            if (destination != null)
+              Marker(
+                point: destination!,
+                width: 40,
+                height: 40,
+                child: const Icon(
+                  Icons.location_on_rounded,
+                  color: Color(0xFFFF7A59),
+                  size: 38,
+                ),
+              ),
+          ],
+        ),
+      ],
+    );
+
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(borderRadius),
+      child: height == null
+          ? SizedBox.expand(child: map)
+          : SizedBox(height: height, child: map),
     );
   }
 }

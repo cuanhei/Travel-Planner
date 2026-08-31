@@ -1,21 +1,207 @@
 import 'package:flutter/material.dart';
+import 'package:geolocator/geolocator.dart';
+import 'package:latlong2/latlong.dart' hide Path;
 
+import '../../models/transport_location.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/current_location_marker.dart';
 import '../../widgets/detail_header.dart';
 import '../../widgets/map_label_pill.dart';
+import '../../widgets/route_map_view.dart';
 import '../../widgets/street_map_painter.dart';
+import '../../widgets/transport_location_search_field.dart';
 
-/// UI-only stylized map — no map SDK/API. By default (e.g. from the
-/// home dashboard) it shows just the traveler's current location. From
-/// Trip Details, [showStops] plots the trip's stops and the route
-/// between them on top of that.
-class MapViewScreen extends StatelessWidget {
+/// From the home dashboard (default), a real OpenStreetMap centered on
+/// the traveler's current GPS location with a Photon-backed search bar —
+/// searching a place plots it as a single marker, replacing whichever
+/// place was searched before. From Trip Details, [showStops] instead
+/// plots the trip's stops and the (still UI-only, stylized) route
+/// between them — untouched by the home-dashboard map above.
+class MapViewScreen extends StatefulWidget {
   const MapViewScreen({super.key, this.showStops = false});
 
   /// When true, plots the trip's stops and the dashed route between
   /// them in addition to the current-location marker.
   final bool showStops;
+
+  @override
+  State<MapViewScreen> createState() => _MapViewScreenState();
+}
+
+class _MapViewScreenState extends State<MapViewScreen> {
+  LatLng? _currentPosition;
+  bool _locatingCurrentPosition = false;
+  String? _locationError;
+  TransportLocation? _searchedLocation;
+
+  @override
+  void initState() {
+    super.initState();
+    if (!widget.showStops) _locateCurrentPosition();
+  }
+
+  /// One-shot GPS fetch for the "you are here" marker — mirrors the
+  /// Transport screen's Depart From permission handling, and never
+  /// blocks the map: on any failure the map just falls back to a
+  /// Malaysia-wide view and search still works.
+  Future<void> _locateCurrentPosition() async {
+    setState(() {
+      _locatingCurrentPosition = true;
+      _locationError = null;
+    });
+    try {
+      if (!await Geolocator.isLocationServiceEnabled()) {
+        _failLocate('Location services are turned off.');
+        return;
+      }
+      var permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
+      }
+      if (permission == LocationPermission.deniedForever) {
+        _failLocate(
+          'Location permission is permanently denied. Enable it in Settings.',
+        );
+        return;
+      }
+      if (permission == LocationPermission.denied) {
+        _failLocate('Location permission denied.');
+        return;
+      }
+      final position = await Geolocator.getCurrentPosition(
+        locationSettings: const LocationSettings(accuracy: LocationAccuracy.high),
+      );
+      if (!mounted) return;
+      setState(() {
+        _currentPosition = LatLng(position.latitude, position.longitude);
+        _locatingCurrentPosition = false;
+      });
+    } catch (_) {
+      _failLocate('Unable to retrieve your current location.');
+    }
+  }
+
+  void _failLocate(String message) {
+    if (!mounted) return;
+    setState(() {
+      _locatingCurrentPosition = false;
+      _locationError = message;
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: context.colors.surface,
+      body: SafeArea(
+        child: Column(
+          children: [
+            DetailHeader(
+              title: 'Map View',
+              subtitle: widget.showStops
+                  ? 'Your route across Penang'
+                  : 'Search anywhere in Malaysia',
+            ),
+            Expanded(
+              child: widget.showStops
+                  ? const _TripStopsMapView()
+                  : _HomeMapView(
+                      currentPosition: _currentPosition,
+                      locating: _locatingCurrentPosition,
+                      locationError: _locationError,
+                      searchedLocation: _searchedLocation,
+                      onSearchedLocationChanged: (loc) =>
+                          setState(() => _searchedLocation = loc),
+                      onRetryLocate: _locateCurrentPosition,
+                    ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _HomeMapView extends StatelessWidget {
+  const _HomeMapView({
+    required this.currentPosition,
+    required this.locating,
+    required this.locationError,
+    required this.searchedLocation,
+    required this.onSearchedLocationChanged,
+    required this.onRetryLocate,
+  });
+
+  final LatLng? currentPosition;
+  final bool locating;
+  final String? locationError;
+  final TransportLocation? searchedLocation;
+  final ValueChanged<TransportLocation?> onSearchedLocationChanged;
+  final VoidCallback onRetryLocate;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(24, 8, 24, 24),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          TransportLocationSearchField(
+            value: searchedLocation,
+            onChanged: onSearchedLocationChanged,
+            hintText: 'Search a place in Malaysia…',
+            selectedIcon: Icons.location_on_rounded,
+          ),
+          if (locationError != null && currentPosition == null) ...[
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    locationError!,
+                    style: const TextStyle(
+                      color: Color(0xFFB3541E),
+                      fontSize: 11.5,
+                    ),
+                  ),
+                ),
+                GestureDetector(
+                  onTap: onRetryLocate,
+                  child: Text(
+                    'Retry',
+                    style: TextStyle(
+                      color: AppColors.accent,
+                      fontWeight: FontWeight.w700,
+                      fontSize: 11.5,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
+          const SizedBox(height: 12),
+          Expanded(
+            child: RouteMapView(
+              source: currentPosition,
+              destination: searchedLocation == null
+                  ? null
+                  : LatLng(
+                      searchedLocation!.latitude,
+                      searchedLocation!.longitude,
+                    ),
+              sourceIsCurrentLocation: true,
+              height: null,
+              borderRadius: 24,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _TripStopsMapView extends StatelessWidget {
+  const _TripStopsMapView();
 
   static const _currentLocationName = 'Komtar, George Town';
   static const _currentLocation = Alignment(0, -0.1);
@@ -30,66 +216,44 @@ class MapViewScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final pins = showStops ? _pins(context) : const <({String name, double top, double left, Color color})>[];
-    return Scaffold(
-      backgroundColor: context.colors.surface,
-      body: SafeArea(
-        child: Column(
-          children: [
-            DetailHeader(
-              title: 'Map View',
-              subtitle: showStops
-                  ? 'Your route across Penang'
-                  : 'Your current location in Penang',
-            ),
-            Expanded(
-              child: Padding(
-                padding: EdgeInsets.fromLTRB(24, 8, 24, 24),
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(24),
-                  child: Container(
-                    decoration: BoxDecoration(color: Color(0xFFEFEDE6)),
-                    child: Stack(
-                      children: [
-                        const Positioned.fill(
-                          child: CustomPaint(painter: StreetMapPainter()),
-                        ),
-                        if (showStops) ...[
-                          CustomPaint(
-                            size: Size.infinite,
-                            painter: _RoutePainter(
-                              points: pins.map((p) => Offset(p.left, p.top)).toList(),
-                              color: context.colors.ink,
-                            ),
-                          ),
-                          ...pins.map((pin) {
-                            return Align(
-                              alignment: Alignment(
-                                pin.left * 2 - 1,
-                                pin.top * 2 - 1,
-                              ),
-                              child: _MapPin(label: pin.name, color: pin.color),
-                            );
-                          }),
-                        ],
-                        Align(
-                          alignment: _currentLocation,
-                          child: const CurrentLocationMarker(),
-                        ),
-                        Positioned(
-                          left: 10,
-                          bottom: 10,
-                          child: MapLabelPill(
-                            text: 'You are here · $_currentLocationName',
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
+    final pins = _pins(context);
+    return Padding(
+      padding: EdgeInsets.fromLTRB(24, 8, 24, 24),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(24),
+        child: Container(
+          decoration: BoxDecoration(color: Color(0xFFEFEDE6)),
+          child: Stack(
+            children: [
+              const Positioned.fill(
+                child: CustomPaint(painter: StreetMapPainter()),
+              ),
+              CustomPaint(
+                size: Size.infinite,
+                painter: _RoutePainter(
+                  points: pins.map((p) => Offset(p.left, p.top)).toList(),
+                  color: context.colors.ink,
                 ),
               ),
-            ),
-          ],
+              ...pins.map((pin) {
+                return Align(
+                  alignment: Alignment(pin.left * 2 - 1, pin.top * 2 - 1),
+                  child: _MapPin(label: pin.name, color: pin.color),
+                );
+              }),
+              Align(
+                alignment: _currentLocation,
+                child: const CurrentLocationMarker(),
+              ),
+              Positioned(
+                left: 10,
+                bottom: 10,
+                child: MapLabelPill(
+                  text: 'You are here · $_currentLocationName',
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
