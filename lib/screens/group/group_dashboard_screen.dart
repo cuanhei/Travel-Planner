@@ -13,7 +13,9 @@ import 'voting_screen.dart';
 /// Group trip hub: members list and links to shared itinerary, chat,
 /// and voting. Backed live by Supabase.
 class GroupDashboardScreen extends StatefulWidget {
-  const GroupDashboardScreen({super.key});
+  const GroupDashboardScreen({super.key, required this.tripId});
+
+  final String tripId;
 
   @override
   State<GroupDashboardScreen> createState() => _GroupDashboardScreenState();
@@ -25,9 +27,8 @@ class _GroupDashboardScreenState extends State<GroupDashboardScreen> {
   late final Future<(String, String)> _tripFuture = _loadTrip();
 
   Future<(String, String)> _loadTrip() async {
-    final tripId = await _tripService.ensureDemoTrip();
-    final tripName = await _tripService.getTripName(tripId);
-    return (tripId, tripName);
+    final tripName = await _tripService.getTripName(widget.tripId);
+    return (widget.tripId, tripName);
   }
 
   Future<void> _removeMember(String tripId, GroupMember member) async {

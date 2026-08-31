@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../models/trip.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/section_header.dart';
 import '../budget/budget_planner_screen.dart';
@@ -33,10 +34,14 @@ class _Stop {
   bool completed;
 }
 
-/// UI-only trip hub: overview, itinerary stops, and a tools grid linking
-/// out to scheduling, map, weather, transport, budget, and group screens.
+/// Trip hub: overview, itinerary stops, and a tools grid linking out to
+/// scheduling, map, weather, transport, budget, and group screens. The
+/// itinerary stops/activity feed below are still UI-only mock data; the
+/// Budget and Group tools are wired live to [trip].
 class TripDetailsScreen extends StatefulWidget {
-  const TripDetailsScreen({super.key});
+  const TripDetailsScreen({super.key, required this.trip});
+
+  final Trip trip;
 
   @override
   State<TripDetailsScreen> createState() => _TripDetailsScreenState();
@@ -134,7 +139,7 @@ class _TripDetailsScreenState extends State<TripDetailsScreen> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        'Penang Adventure',
+                        widget.trip.name,
                         style: TextStyle(
                           color: Colors.white,
                           fontSize: 24,
@@ -151,7 +156,9 @@ class _TripDetailsScreenState extends State<TripDetailsScreen> {
                           ),
                           SizedBox(width: 4),
                           Text(
-                            'Penang, Malaysia · Aug 14 – Aug 16',
+                            widget.trip.destination.isEmpty
+                                ? widget.trip.dateRangeLabel
+                                : '${widget.trip.destination} · ${widget.trip.dateRangeLabel}',
                             style: TextStyle(
                               color: Colors.white.withValues(alpha: 0.85),
                               fontSize: 13,
@@ -175,11 +182,11 @@ class _TripDetailsScreenState extends State<TripDetailsScreen> {
                     ),
                     child: ListView(
                       children: [
-                        _StatsRow(),
+                        _StatsRow(trip: widget.trip),
                         SizedBox(height: 28),
                         SectionHeader(title: 'Trip Tools'),
                         SizedBox(height: 14),
-                        _ToolsGrid(),
+                        _ToolsGrid(tripId: widget.trip.id),
                         SizedBox(height: 28),
                         SectionHeader(
                           title: 'Activity',
@@ -209,14 +216,22 @@ class _TripDetailsScreenState extends State<TripDetailsScreen> {
 }
 
 class _StatsRow extends StatelessWidget {
+  const _StatsRow({required this.trip});
+
+  final Trip trip;
+
   @override
   Widget build(BuildContext context) {
     final stats = [
       (label: 'Stops', value: '3', icon: Icons.flag_rounded),
-      (label: 'Days', value: '3', icon: Icons.calendar_today_rounded),
+      (
+        label: 'Days',
+        value: '${trip.days == 0 ? 3 : trip.days}',
+        icon: Icons.calendar_today_rounded,
+      ),
       (
         label: 'Budget',
-        value: 'RM1.5k',
+        value: 'RM${trip.totalBudget.toStringAsFixed(0)}',
         icon: Icons.account_balance_wallet_rounded,
       ),
       (label: 'Travelers', value: '2', icon: Icons.people_alt_rounded),
@@ -266,6 +281,10 @@ class _StatsRow extends StatelessWidget {
 }
 
 class _ToolsGrid extends StatelessWidget {
+  const _ToolsGrid({required this.tripId});
+
+  final String tripId;
+
   @override
   Widget build(BuildContext context) {
     final tools = [
@@ -313,9 +332,11 @@ class _ToolsGrid extends StatelessWidget {
         label: 'Budget',
         icon: Icons.account_balance_wallet_rounded,
         color: AppColors.accent,
-        onTap: () => Navigator.of(
-          context,
-        ).push(MaterialPageRoute(builder: (_) => BudgetPlannerScreen())),
+        onTap: () => Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (_) => BudgetPlannerScreen(tripId: tripId),
+          ),
+        ),
       ),
       (
         label: 'Utilities',
@@ -329,9 +350,11 @@ class _ToolsGrid extends StatelessWidget {
         label: 'Group',
         icon: Icons.group_rounded,
         color: Color(0xFF5C6BC0),
-        onTap: () => Navigator.of(
-          context,
-        ).push(MaterialPageRoute(builder: (_) => GroupDashboardScreen())),
+        onTap: () => Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (_) => GroupDashboardScreen(tripId: tripId),
+          ),
+        ),
       ),
     ];
 

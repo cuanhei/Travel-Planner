@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../services/trip_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/detail_header.dart';
 import '../trip/trip_details_screen.dart';
@@ -92,11 +93,20 @@ class TravelHistoryScreen extends StatelessWidget {
                               borderRadius: BorderRadius.circular(18),
                               child: InkWell(
                                 borderRadius: BorderRadius.circular(18),
-                                onTap: () => Navigator.of(context).push(
-                                  MaterialPageRoute(
-                                    builder: (_) => TripDetailsScreen(),
-                                  ),
-                                ),
+                                onTap: () async {
+                                  final tripId = await TripService()
+                                      .ensureDemoTrip();
+                                  final trip = await TripService().getTrip(
+                                    tripId,
+                                  );
+                                  if (!context.mounted) return;
+                                  Navigator.of(context).push(
+                                    MaterialPageRoute(
+                                      builder: (_) =>
+                                          TripDetailsScreen(trip: trip),
+                                    ),
+                                  );
+                                },
                                 child: Container(
                                   padding: EdgeInsets.all(14),
                                   decoration: BoxDecoration(

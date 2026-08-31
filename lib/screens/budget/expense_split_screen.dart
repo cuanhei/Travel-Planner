@@ -125,6 +125,25 @@ class _ExpenseSplitScreenState extends State<ExpenseSplitScreen> {
                 ],
               );
             }
+            if (snapshot.hasError) {
+              return Column(
+                children: [
+                  const DetailHeader(title: 'Split Expenses'),
+                  Expanded(
+                    child: Center(
+                      child: Padding(
+                        padding: const EdgeInsets.all(24),
+                        child: Text(
+                          'Could not load trip members.\n${snapshot.error}',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(color: context.colors.muted),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              );
+            }
             final travelers = snapshot.data ?? const <TripBalance>[];
             if (travelers.isEmpty) {
               return Column(

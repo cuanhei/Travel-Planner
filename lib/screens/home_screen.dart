@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 
+import '../services/trip_service.dart';
 import '../theme/app_theme.dart';
 import '../widgets/coming_soon.dart';
 import '../widgets/destination_search_bar.dart';
 import '../widgets/section_header.dart';
 import 'activity_log_screen.dart';
-import 'budget/budget_planner_screen.dart';
 import 'community/community_tab.dart';
 import 'explore/explore_tab.dart';
 import 'group/join_trip_screen.dart';
@@ -358,9 +358,16 @@ class _UpcomingTripCard extends StatelessWidget {
                 borderRadius: BorderRadius.circular(14),
                 child: InkWell(
                   borderRadius: BorderRadius.circular(14),
-                  onTap: () => Navigator.of(context).push(
-                    MaterialPageRoute(builder: (_) => TripDetailsScreen()),
-                  ),
+                  onTap: () async {
+                    final tripId = await TripService().ensureDemoTrip();
+                    final trip = await TripService().getTrip(tripId);
+                    if (!context.mounted) return;
+                    Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => TripDetailsScreen(trip: trip),
+                      ),
+                    );
+                  },
                   child: Padding(
                     padding: EdgeInsets.symmetric(horizontal: 16, vertical: 11),
                     child: Text(

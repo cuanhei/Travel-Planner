@@ -32,3 +32,20 @@ class SupabaseConfig {
 
   static SupabaseClient get client => Supabase.instance.client;
 }
+
+/// Retries [action] when it fails with Postgrest's `PGRST303` ("JWT
+/// issued at future") — a transient false rejection that can happen for
+/// a moment right after Supabase auto-refreshes the access token, if the
+/// request lands on a backend node whose clock hasn't caught up to the
+/// new token's `iat` yet. A short retry almost always succeeds; any
+/// other error is rethrown immediately since it's a real failure.
+Future<T> retryOnJwtClockSkew<T>(Future<T> Function() action) async {
+  for (var attempt = 0; ; attempt++) {
+    try {
+      return await action();
+    } on PostgrestException catch (e) {
+      if (e.code != 'PGRST303' || attempt >= 2) rethrow;
+      await Future.delayed(Duration(milliseconds: 400 * (attempt + 1)));
+    }
+  }
+}
