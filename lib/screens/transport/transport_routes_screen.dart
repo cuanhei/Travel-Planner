@@ -1,10 +1,13 @@
 import 'package:flutter/material.dart';
+import 'package:geolocator/geolocator.dart';
 
+import '../../models/transport_location.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/current_location_marker.dart';
 import '../../widgets/detail_header.dart';
 import '../../widgets/map_label_pill.dart';
 import '../../widgets/street_map_painter.dart';
+import '../../widgets/transport_location_search_field.dart';
 import '../explore/explore_tab.dart' show Place, places;
 import 'fare_calculator_screen.dart';
 import 'route_details_screen.dart';
@@ -117,10 +120,81 @@ class _TransportRoutesScreenState extends State<TransportRoutesScreen> {
 
   final _favoriteStops = [places[3], places[4]];
 
+  TransportLocation? _departure;
+  TransportLocation? _selectedDestination;
+  bool _locatingDeparture = false;
+  String? _departureError;
+
+  @override
+  void initState() {
+    super.initState();
+    if (!widget.showTripExtras) _initDeparture();
+  }
+
   @override
   void dispose() {
     _searchController.dispose();
     super.dispose();
+  }
+
+  /// Resolves the traveler's current GPS position as the default
+  /// "Depart From" location, handling every permission/service outcome
+  /// without ever blocking the screen — on any failure, "Depart From"
+  /// just stays empty and searchable.
+  Future<void> _initDeparture() async {
+    setState(() {
+      _locatingDeparture = true;
+      _departureError = null;
+    });
+    try {
+      if (!await Geolocator.isLocationServiceEnabled()) {
+        _failDeparture(
+          'Location services are turned off. Search for a departure point instead.',
+        );
+        return;
+      }
+      var permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
+      }
+      if (permission == LocationPermission.deniedForever) {
+        _failDeparture(
+          'Location permission is permanently denied. Enable it in Settings, or search for a departure point.',
+        );
+        return;
+      }
+      if (permission == LocationPermission.denied) {
+        _failDeparture(
+          'Location permission denied. Search for a departure point instead.',
+        );
+        return;
+      }
+      final position = await Geolocator.getCurrentPosition(
+        locationSettings: const LocationSettings(accuracy: LocationAccuracy.high),
+      );
+      if (!mounted) return;
+      setState(() {
+        _departure = TransportLocation(
+          name: 'Current Location',
+          address: '',
+          latitude: position.latitude,
+          longitude: position.longitude,
+        );
+        _locatingDeparture = false;
+      });
+    } catch (_) {
+      _failDeparture(
+        'Unable to retrieve your current location. Search for a departure point instead.',
+      );
+    }
+  }
+
+  void _failDeparture(String message) {
+    if (!mounted) return;
+    setState(() {
+      _locatingDeparture = false;
+      _departureError = message;
+    });
   }
 
   Future<void> _addFavoriteStop() async {
@@ -275,52 +349,89 @@ class _TransportRoutesScreenState extends State<TransportRoutesScreen> {
                       ),
                     const SizedBox(height: 20),
                   ],
-                  _TransitMap(
-                    destination: destination,
-                    searchController: _searchController,
-                    query: _query,
-                    matches: _matches,
-                    onQueryChanged: (v) => setState(() => _query = v),
-                    onPick: _selectDestination,
-                    onClear: _clearDestination,
-                  ),
-                  const SizedBox(height: 20),
-                  if (destination == null)
-                    const _EmptySearchState()
-                  else ...[
-                    Row(
-                      children: [
-                        Expanded(
-                          child: Text(
-                            'Buses to ${destination.name}',
+                  if (widget.showTripExtras) ...[
+                    _TransitMap(
+                      destination: destination,
+                      searchController: _searchController,
+                      query: _query,
+                      matches: _matches,
+                      onQueryChanged: (v) => setState(() => _query = v),
+                      onPick: _selectDestination,
+                      onClear: _clearDestination,
+                    ),
+                    const SizedBox(height: 20),
+                    if (destination == null)
+                      const _EmptySearchState()
+                    else ...[
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              'Buses to ${destination.name}',
+                              style: TextStyle(
+                                color: context.colors.ink,
+                                fontWeight: FontWeight.w800,
+                                fontSize: 16,
+                              ),
+                            ),
+                          ),
+                          Text(
+                            '${departures.length} options',
                             style: TextStyle(
-                              color: context.colors.ink,
-                              fontWeight: FontWeight.w800,
-                              fontSize: 16,
+                              color: context.colors.muted,
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                      ...departures.map(
+                        (d) => _DepartureCard(
+                          departure: d,
+                          onTap: () => Navigator.of(context).push(
+                            MaterialPageRoute(
+                              builder: (_) => RouteDetailsScreen(departure: d),
                             ),
                           ),
                         ),
-                        Text(
-                          '${departures.length} options',
-                          style: TextStyle(
-                            color: context.colors.muted,
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 12),
-                    ...departures.map(
-                      (d) => _DepartureCard(
-                        departure: d,
-                        onTap: () => Navigator.of(context).push(
-                          MaterialPageRoute(
-                            builder: (_) => RouteDetailsScreen(departure: d),
-                          ),
-                        ),
                       ),
+                    ],
+                  ] else ...[
+                    const _FieldLabel('Depart From'),
+                    const SizedBox(height: 8),
+                    TransportLocationSearchField(
+                      value: _departure,
+                      onChanged: (loc) => setState(() {
+                        _departure = loc;
+                        if (loc != null) _departureError = null;
+                      }),
+                      hintText: _locatingDeparture
+                          ? 'Getting your location…'
+                          : 'Search departure location…',
+                      selectedIcon: Icons.my_location_rounded,
+                      helperText: _departureError,
+                      externalLoading: _locatingDeparture,
+                      quickActionLabel: 'Use current location',
+                      onQuickAction: _initDeparture,
                     ),
+                    const SizedBox(height: 18),
+                    const _FieldLabel('Destination'),
+                    const SizedBox(height: 8),
+                    _TransportSearchMap(
+                      value: _selectedDestination,
+                      onChanged: (d) =>
+                          setState(() => _selectedDestination = d),
+                    ),
+                    const SizedBox(height: 20),
+                    if (_selectedDestination == null)
+                      const _EmptyDestinationState()
+                    else
+                      _RouteEndpointsCard(
+                        departure: _departure,
+                        locatingDeparture: _locatingDeparture,
+                        destination: _selectedDestination!,
+                      ),
                   ],
                 ],
               ),
@@ -976,6 +1087,254 @@ class _EmptySearchState extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+/// Map background (unchanged from [_TransitMap]'s painter/markers) with
+/// the real, Photon-backed [TransportLocationSearchField] on top — used
+/// only for the Transport screen's Home-page entry point, which has no
+/// bus-departure mock or favourite stops to drive.
+class _TransportSearchMap extends StatelessWidget {
+  const _TransportSearchMap({required this.value, required this.onChanged});
+
+  final TransportLocation? value;
+  final ValueChanged<TransportLocation?> onChanged;
+
+  static const _currentLocation = Alignment(-0.2, 0.55);
+
+  @override
+  Widget build(BuildContext context) {
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(24),
+      child: Container(
+        height: 270,
+        color: const Color(0xFFEFEDE6),
+        child: Stack(
+          children: [
+            const Positioned.fill(
+              child: CustomPaint(painter: StreetMapPainter()),
+            ),
+            for (final stop in _nearbyStops)
+              Align(
+                alignment: stop.alignment,
+                child: _StopMarker(label: stop.name),
+              ),
+            const Align(
+              alignment: _currentLocation,
+              child: CurrentLocationMarker(),
+            ),
+            Positioned(
+              left: 10,
+              right: 10,
+              top: 10,
+              child: TransportLocationSearchField(
+                value: value,
+                onChanged: onChanged,
+                hintText: 'Where do you want to go?',
+                selectedIcon: Icons.directions_transit_filled_rounded,
+                maxDropdownHeight: 190,
+              ),
+            ),
+            Positioned(
+              left: 10,
+              bottom: 10,
+              child: MapLabelPill(text: 'You are here · $_currentLocationName'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _EmptyDestinationState extends StatelessWidget {
+  const _EmptyDestinationState();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        color: context.colors.card,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: context.colors.muted.withValues(alpha: 0.15),
+        ),
+      ),
+      child: Column(
+        children: [
+          Icon(
+            Icons.travel_explore_rounded,
+            color: context.colors.muted,
+            size: 30,
+          ),
+          const SizedBox(height: 10),
+          Text(
+            'Search where you want to go',
+            style: TextStyle(
+              color: context.colors.ink,
+              fontWeight: FontWeight.w700,
+              fontSize: 13.5,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'Find any destination in Malaysia to get started.',
+            textAlign: TextAlign.center,
+            style: TextStyle(color: context.colors.muted, fontSize: 12),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _FieldLabel extends StatelessWidget {
+  const _FieldLabel(this.text);
+
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    return Text(
+      text,
+      style: TextStyle(
+        color: context.colors.ink,
+        fontWeight: FontWeight.w700,
+        fontSize: 13,
+      ),
+    );
+  }
+}
+
+/// Confirms both endpoints once a destination has been picked — the
+/// "Depart From → Destination" pair whose coordinates will be handed to
+/// the Route API next. [departure] may still be null (GPS pending or
+/// failed and the traveler hasn't searched one yet).
+class _RouteEndpointsCard extends StatelessWidget {
+  const _RouteEndpointsCard({
+    required this.departure,
+    required this.locatingDeparture,
+    required this.destination,
+  });
+
+  final TransportLocation? departure;
+  final bool locatingDeparture;
+  final TransportLocation destination;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: context.colors.card,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: context.colors.ink.withValues(alpha: 0.05),
+            blurRadius: 12,
+            offset: const Offset(0, 5),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _EndpointRow(
+            icon: Icons.trip_origin_rounded,
+            iconColor: const Color(0xFF5C6BC0),
+            label: 'DEPART FROM',
+            name: departure?.name ?? (locatingDeparture ? 'Locating…' : 'Not set'),
+            address: departure?.address ?? '',
+          ),
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 16),
+            child: Icon(
+              Icons.arrow_downward_rounded,
+              size: 16,
+              color: context.colors.muted,
+            ),
+          ),
+          _EndpointRow(
+            icon: Icons.location_on_rounded,
+            iconColor: AppColors.accent,
+            label: 'DESTINATION',
+            name: destination.name,
+            address: destination.address,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _EndpointRow extends StatelessWidget {
+  const _EndpointRow({
+    required this.icon,
+    required this.iconColor,
+    required this.label,
+    required this.name,
+    required this.address,
+  });
+
+  final IconData icon;
+  final Color iconColor;
+  final String label;
+  final String name;
+  final String address;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          width: 34,
+          height: 34,
+          decoration: BoxDecoration(
+            color: iconColor.withValues(alpha: 0.14),
+            shape: BoxShape.circle,
+          ),
+          alignment: Alignment.center,
+          child: Icon(icon, color: iconColor, size: 17),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                label,
+                style: TextStyle(
+                  color: context.colors.muted,
+                  fontSize: 10.5,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: 0.5,
+                ),
+              ),
+              const SizedBox(height: 3),
+              Text(
+                name,
+                style: TextStyle(
+                  color: context.colors.ink,
+                  fontWeight: FontWeight.w800,
+                  fontSize: 14.5,
+                ),
+              ),
+              if (address.isNotEmpty) ...[
+                const SizedBox(height: 2),
+                Text(
+                  address,
+                  style: TextStyle(color: context.colors.muted, fontSize: 11.5),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ],
     );
   }
 }
