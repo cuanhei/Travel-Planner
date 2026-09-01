@@ -6,6 +6,18 @@ const _earthRadiusMeters = 6371000.0;
 
 double _degToRad(double deg) => deg * math.pi / 180;
 
+/// Guards against malformed coordinates (e.g. a corrupted polyline point
+/// from a routing API response) reaching flutter_map's `LatLngBounds` or
+/// `Polyline.boundingBox`, both of which throw an assertion error outside
+/// the valid lat/lng range instead of failing gracefully.
+bool isValidLatLng(LatLng point) =>
+    point.latitude.isFinite &&
+    point.longitude.isFinite &&
+    point.latitude >= -90 &&
+    point.latitude <= 90 &&
+    point.longitude >= -180 &&
+    point.longitude <= 180;
+
 /// Great-circle distance between two points, in meters.
 double haversineMeters(LatLng a, LatLng b) {
   final dLat = _degToRad(b.latitude - a.latitude);
