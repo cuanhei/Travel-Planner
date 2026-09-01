@@ -16,7 +16,6 @@ import '../../widgets/route_map_view.dart';
 import '../../widgets/street_map_painter.dart';
 import '../../widgets/transport_location_search_field.dart';
 import '../explore/explore_tab.dart' show Place, places;
-import 'fare_calculator_screen.dart';
 import 'route_details_screen.dart';
 import 'transit_route_details_screen.dart';
 

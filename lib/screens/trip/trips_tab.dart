@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 
 import '../../models/trip.dart';
-import '../../services/trip_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/section_header.dart';
 import 'create_trip_screen.dart';
@@ -19,10 +18,49 @@ const _tripGradients = [
 List<Color> _gradientFor(int index) =>
     _tripGradients[index % _tripGradients.length];
 
-/// "Trips" bottom-nav tab: the signed-in user's own trips (via Supabase
-/// RLS — a trip only appears here if they're a member of it), bucketed
-/// into Current / Upcoming / Past. Includes a search box that filters
-/// trips by name, and the entry point for creating a new trip.
+/// UI-only dummy trips, standing in for what used to be a live Supabase
+/// query — one in each of the Current / Upcoming / Past buckets.
+List<Trip> _dummyTrips() {
+  final today = DateTime.now();
+  DateTime daysFrom(int offset) =>
+      DateTime(today.year, today.month, today.day + offset);
+  return [
+    Trip(
+      id: 'dummy-current',
+      name: 'Penang Adventure',
+      destination: 'Penang, Malaysia',
+      startDate: daysFrom(-1),
+      endDate: daysFrom(2),
+      totalBudget: 1500,
+      createdBy: 'demo',
+      createdAt: daysFrom(-10),
+    ),
+    Trip(
+      id: 'dummy-upcoming',
+      name: 'Langkawi Getaway',
+      destination: 'Langkawi, Malaysia',
+      startDate: daysFrom(20),
+      endDate: daysFrom(24),
+      totalBudget: 2200,
+      createdBy: 'demo',
+      createdAt: daysFrom(-3),
+    ),
+    Trip(
+      id: 'dummy-past',
+      name: 'Malacca Weekend',
+      destination: 'Malacca City, Malaysia',
+      startDate: daysFrom(-40),
+      endDate: daysFrom(-38),
+      totalBudget: 800,
+      createdBy: 'demo',
+      createdAt: daysFrom(-50),
+    ),
+  ];
+}
+
+/// "Trips" bottom-nav tab: the signed-in user's own trips, bucketed into
+/// Current / Upcoming / Past. Includes a search box that filters trips by
+/// name, and the entry point for creating a new trip.
 class TripsTab extends StatefulWidget {
   const TripsTab({super.key});
 
@@ -32,15 +70,8 @@ class TripsTab extends StatefulWidget {
 
 class _TripsTabState extends State<TripsTab> {
   final _searchController = TextEditingController();
-  final _tripService = TripService();
-  late Stream<List<Trip>> _tripsStream = _tripService.watchMyTrips();
+  final List<Trip> _trips = _dummyTrips();
   String _query = '';
-
-  // This tab typically stays alive for the app's whole session (kept in
-  // an IndexedStack by the bottom nav), so a stream that errors once —
-  // e.g. a transient Supabase auth hiccup — would otherwise show that
-  // error forever with no way to recover short of restarting the app.
-  void _retry() => setState(() => _tripsStream = _tripService.watchMyTrips());
 
   @override
   void dispose() {
@@ -51,52 +82,9 @@ class _TripsTabState extends State<TripsTab> {
   @override
   Widget build(BuildContext context) {
     return SafeArea(
-      child: StreamBuilder<List<Trip>>(
-        stream: _tripsStream,
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
-          }
-          if (snapshot.hasError) {
-            return Center(
-              child: Padding(
-                padding: const EdgeInsets.all(24),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      'Couldn\'t load your trips',
-                      style: TextStyle(
-                        color: context.colors.ink,
-                        fontWeight: FontWeight.w700,
-                        fontSize: 14,
-                      ),
-                    ),
-                    const SizedBox(height: 6),
-                    Text(
-                      '${snapshot.error}',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        color: context.colors.muted,
-                        fontSize: 12,
-                      ),
-                    ),
-                    const SizedBox(height: 14),
-                    TextButton.icon(
-                      onPressed: _retry,
-                      icon: const Icon(Icons.refresh_rounded, size: 18),
-                      label: const Text('Retry'),
-                      style: TextButton.styleFrom(
-                        foregroundColor: context.colors.ink,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            );
-          }
-
-          final trips = snapshot.data ?? const <Trip>[];
+      child: Builder(
+        builder: (context) {
+          final trips = _trips;
           final q = _query.trim().toLowerCase();
           final searching = q.isNotEmpty;
           final filtered = searching

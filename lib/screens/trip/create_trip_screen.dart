@@ -1,18 +1,40 @@
 import 'package:flutter/cupertino.dart' show CupertinoDatePicker, CupertinoDatePickerMode;
 import 'package:flutter/material.dart';
-import 'package:latlong2/latlong.dart';
 
-import '../../models/malaysia_city.dart';
-import '../../models/trip_stop_location.dart';
-import '../../services/malaysia_location_service.dart';
-import '../../services/photon_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/detail_header.dart';
 import '../../widgets/gradient_button.dart';
 import '../explore/explore_tab.dart' show Place, places;
-import 'location_map_picker.dart' show buildCustomPlace;
+import 'location_map_picker.dart';
 import 'optimized_itinerary_screen.dart';
-import 'stop_map_picker.dart';
+
+/// A Malaysian city/state pair for the Starting From / Ending At pickers —
+/// a small fixed list standing in for what used to be a live postcode
+/// lookup; the picker UI itself is unchanged.
+class _City {
+  const _City(this.city, this.state);
+  final String city;
+  final String state;
+  String get label => '$city, $state';
+}
+
+const _dummyCities = [
+  _City('George Town', 'Penang'),
+  _City('Butterworth', 'Penang'),
+  _City('Kuala Lumpur', 'Federal Territory'),
+  _City('Petaling Jaya', 'Selangor'),
+  _City('Shah Alam', 'Selangor'),
+  _City('Johor Bahru', 'Johor'),
+  _City('Malacca City', 'Malacca'),
+  _City('Ipoh', 'Perak'),
+  _City('Kota Kinabalu', 'Sabah'),
+  _City('Kuching', 'Sarawak'),
+  _City('Alor Setar', 'Kedah'),
+  _City('Kota Bharu', 'Kelantan'),
+  _City('Kuantan', 'Pahang'),
+  _City('Seremban', 'Negeri Sembilan'),
+  _City('Kangar', 'Perlis'),
+];
 
 const _monthNames = [
   'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
@@ -32,9 +54,9 @@ bool _isSameDate(DateTime a, DateTime b) =>
 
 /// Fixed interest options for "auto-recommend more places" — always the
 /// same list, regardless of which stops the traveler has already picked.
-/// [category] is the [Place.category] / [TripStopLocation.category] value
-/// matched against when generating recommendations; [label] is the more
-/// specific, traveler-facing name shown on the chip.
+/// [category] is the [Place.category] value matched against when
+/// generating recommendations; [label] is the more specific,
+/// traveler-facing name shown on the chip.
 const _interestOptions = [
   (label: 'Hotel', icon: Icons.hotel_rounded, category: 'Hotel'),
   (label: 'Restaurant', icon: Icons.restaurant_rounded, category: 'Food'),
@@ -49,11 +71,10 @@ const _interestOptions = [
   ),
 ];
 
-/// Trip creation form: name/description, trip logistics, a real
-/// OpenStreetMap-backed location search embedded directly on the page for
-/// picking exact stops (see [StopMapPicker]), interest categories, and an
-/// optional "auto-recommend more places" toggle that supplements the
-/// traveler's picks from Explore's curated catalog — all in one page.
+/// Trip creation form: name/description, trip logistics, a catalog-based
+/// location picker for picking stops, interest categories, and an optional
+/// "auto-recommend more places" toggle that supplements the traveler's
+/// picks from Explore's curated catalog — all in one page.
 class CreateTripScreen extends StatefulWidget {
   const CreateTripScreen({super.key});
 
@@ -65,31 +86,14 @@ class _CreateTripScreenState extends State<CreateTripScreen> {
   final _nameController = TextEditingController(text: 'Penang Adventure');
   final _descriptionController = TextEditingController();
   final _budgetController = TextEditingController(text: 'RM 1,500');
-  final _locationService = MalaysiaLocationService();
-  late final _citiesFuture = _locationService.getCities();
-  final _photonService = PhotonService();
-  MalaysiaCity? _startCity;
-  MalaysiaCity? _endCity;
+  _City? _startCity;
+  _City? _endCity;
   DateTimeRange? _dateRange;
   TimeOfDay _startTime = const TimeOfDay(hour: 9, minute: 0);
   TimeOfDay _endTime = const TimeOfDay(hour: 18, minute: 0);
-  int _travelers = 2;
   final Set<String> _selectedInterests = {'Shopping', 'Food'};
-  final Map<Place, TripStopLocation> _mapPickedStops = {};
+  final Set<Place> _selectedPlaces = {};
   bool _autoRecommend = true;
-  bool _saving = false;
-
-  /// Stops picked via the real map/search, wrapped as synthetic [Place]s
-  /// so they can flow into the existing itinerary-generation screens.
-  Set<Place> get _selectedPlaces => _mapPickedStops.keys.toSet();
-
-  /// Trip length in days (inclusive of both ends), for day-by-day route
-  /// planning — defaults to 1 when no date range has been picked.
-  int get _dayCount {
-    final range = _dateRange;
-    if (range == null) return 1;
-    return range.end.difference(range.start).inDays + 1;
-  }
 
   @override
   void dispose() {
@@ -109,12 +113,12 @@ class _CreateTripScreenState extends State<CreateTripScreen> {
     if (picked != null) setState(() => _endCity = picked);
   }
 
-  Future<MalaysiaCity?> _pickCity(BuildContext context) {
-    return showModalBottomSheet<MalaysiaCity>(
+  Future<_City?> _pickCity(BuildContext context) {
+    return showModalBottomSheet<_City>(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (_) => _CityPickerSheet(citiesFuture: _citiesFuture),
+      builder: (_) => const _CityPickerSheet(),
     );
   }
 
@@ -137,22 +141,15 @@ class _CreateTripScreenState extends State<CreateTripScreen> {
     });
   }
 
-  void _addStop(TripStopLocation stop) {
-    setState(() => _mapPickedStops[buildCustomPlace(stop.name)] = stop);
+  void _togglePlace(Place place) {
+    setState(() {
+      _selectedPlaces.contains(place)
+          ? _selectedPlaces.remove(place)
+          : _selectedPlaces.add(place);
+    });
   }
 
-  void _removeStop(Place place) {
-    setState(() => _mapPickedStops.remove(place));
-  }
-
-  bool get _canSubmit => (_selectedPlaces.isNotEmpty || _autoRecommend) && !_saving;
-
-  double _parseBudget(String text) {
-    final match = RegExp(
-      r'\d+(\.\d+)?',
-    ).firstMatch(text.replaceAll(',', ''));
-    return match == null ? 0 : double.tryParse(match.group(0)!) ?? 0;
-  }
+  bool get _canSubmit => _selectedPlaces.isNotEmpty || _autoRecommend;
 
   Future<void> _submit() async {
     final recommended = _autoRecommend
@@ -169,34 +166,6 @@ class _CreateTripScreenState extends State<CreateTripScreen> {
     final finalPlaces = [..._selectedPlaces, ...recommended];
     if (finalPlaces.isEmpty) return;
 
-    setState(() => _saving = true);
-
-    final stops = _mapPickedStops.values.toList();
-    LatLng? startPoint;
-    LatLng? endPoint;
-
-    // Real, geocoded stops + a start city let the itinerary screen plot an
-    // actual hotel-anchored day plan; without both of those there's
-    // nothing to anchor it to, so it falls back to its simulated
-    // weather/day-split view instead.
-    if (stops.isNotEmpty && _startCity != null) {
-      try {
-        startPoint = await _photonService.geocodeQuery(
-          '${_startCity!.city}, ${_startCity!.state}, Malaysia',
-        );
-        if (_endCity != null) {
-          endPoint = await _photonService.geocodeQuery(
-            '${_endCity!.city}, ${_endCity!.state}, Malaysia',
-          );
-        }
-      } catch (_) {
-        startPoint = null;
-      }
-    }
-
-    if (!mounted) return;
-    setState(() => _saving = false);
-
     Navigator.of(context).push(
       MaterialPageRoute(
         builder: (_) => OptimizedItineraryScreen(
@@ -204,24 +173,6 @@ class _CreateTripScreenState extends State<CreateTripScreen> {
           description: _descriptionController.text.trim(),
           places: finalPlaces,
           recommendedNames: recommended.map((p) => p.name).toSet(),
-          realStops: stops,
-          startLabel: _startCity?.label,
-          startPoint: startPoint,
-          endLabel: _endCity?.label,
-          endPoint: endPoint,
-          dayCount: _dayCount,
-          startDate: _dateRange?.start,
-          dayStartTime: _startTime,
-          // Nothing has been saved yet — the itinerary preview screen
-          // saves it all (trip, stops, schedule) once the traveler
-          // confirms with its own "Save Trip" button.
-          startCity: _startCity,
-          endCity: _endCity,
-          dateRange: _dateRange,
-          endTime: _endTime,
-          totalBudget: _parseBudget(_budgetController.text),
-          autoRecommend: _autoRecommend,
-          interests: _selectedInterests,
         ),
       ),
     );
@@ -279,12 +230,6 @@ class _CreateTripScreenState extends State<CreateTripScreen> {
                         onTap: _pickDatesAndTimes,
                       ),
                       const SizedBox(height: 18),
-                      // _FieldLabel('Travelers'),
-                      // _TravelersStepper(
-                      //   count: _travelers,
-                      //   onChanged: (v) => setState(() => _travelers = v),
-                      // ),
-                      // const SizedBox(height: 18),
                       _FieldLabel('Budget'),
                       _InputBox(
                         controller: _budgetController,
@@ -298,7 +243,7 @@ class _CreateTripScreenState extends State<CreateTripScreen> {
                     icon: Icons.pin_drop_rounded,
                     title: 'Locations',
                     trailing: Text(
-                      '${_mapPickedStops.length} selected',
+                      '${_selectedPlaces.length} selected',
                       style: TextStyle(
                         color: context.colors.muted,
                         fontSize: 12,
@@ -307,22 +252,20 @@ class _CreateTripScreenState extends State<CreateTripScreen> {
                     ),
                     children: [
                       Text(
-                        'Search real places on the map — try "Komtar" or "Chew Jetty".',
+                        'Search or tap a pin to pick your stops.',
                         style: TextStyle(
                           color: context.colors.muted,
                           fontSize: 12,
                         ),
                       ),
                       const SizedBox(height: 10),
-                      SizedBox(
-                        height: 320,
-                        child: StopMapPicker(
-                          markedStops: _mapPickedStops.values.toList(),
-                          onAdd: _addStop,
-                        ),
+                      LocationMapPicker(
+                        selected: _selectedPlaces,
+                        onToggle: _togglePlace,
+                        onAddCustom: () {},
                       ),
                       const SizedBox(height: 12),
-                      if (_mapPickedStops.isEmpty)
+                      if (_selectedPlaces.isEmpty)
                         Text(
                           'No locations picked yet.',
                           style: TextStyle(
@@ -334,9 +277,7 @@ class _CreateTripScreenState extends State<CreateTripScreen> {
                         Wrap(
                           spacing: 10,
                           runSpacing: 10,
-                          children: _mapPickedStops.entries.map((entry) {
-                            final place = entry.key;
-                            final stop = entry.value;
+                          children: _selectedPlaces.map((place) {
                             return Container(
                               padding: const EdgeInsets.only(
                                 left: 12,
@@ -357,37 +298,22 @@ class _CreateTripScreenState extends State<CreateTripScreen> {
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
                                   Icon(
-                                    stop.categoryIcon,
+                                    place.icon,
                                     size: 14,
                                     color: context.colors.ink,
                                   ),
                                   const SizedBox(width: 6),
-                                  Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      Text(
-                                        stop.name,
-                                        style: TextStyle(
-                                          color: context.colors.ink,
-                                          fontWeight: FontWeight.w600,
-                                          fontSize: 12.5,
-                                        ),
-                                      ),
-                                      Text(
-                                        '${stop.category} · ${stop.address}',
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis,
-                                        style: TextStyle(
-                                          color: context.colors.muted,
-                                          fontSize: 10,
-                                        ),
-                                      ),
-                                    ],
+                                  Text(
+                                    place.name,
+                                    style: TextStyle(
+                                      color: context.colors.ink,
+                                      fontWeight: FontWeight.w600,
+                                      fontSize: 12.5,
+                                    ),
                                   ),
                                   const SizedBox(width: 4),
                                   GestureDetector(
-                                    onTap: () => _removeStop(place),
+                                    onTap: () => _togglePlace(place),
                                     child: Icon(
                                       Icons.close_rounded,
                                       size: 16,
@@ -542,7 +468,6 @@ class _CreateTripScreenState extends State<CreateTripScreen> {
                   GradientButton(
                     label: 'Plan My Trip',
                     icon: Icons.route_rounded,
-                    loading: _saving,
                     onPressed: _canSubmit ? _submit : () {},
                   ),
                 ],
@@ -679,7 +604,7 @@ class _InputBox extends StatelessWidget {
 class _CityField extends StatelessWidget {
   const _CityField({required this.city, required this.onTap});
 
-  final MalaysiaCity? city;
+  final _City? city;
   final VoidCallback onTap;
 
   @override
@@ -722,13 +647,11 @@ class _CityField extends StatelessWidget {
   }
 }
 
-/// Searchable bottom sheet listing every Malaysian city from
-/// [MalaysiaLocationService], filtered as the user types. Returns the
-/// tapped [MalaysiaCity] via `Navigator.pop`.
+/// Searchable bottom sheet listing Malaysian cities from [_dummyCities],
+/// filtered as the user types. Returns the tapped [_City] via
+/// `Navigator.pop`.
 class _CityPickerSheet extends StatefulWidget {
-  const _CityPickerSheet({required this.citiesFuture});
-
-  final Future<List<MalaysiaCity>> citiesFuture;
+  const _CityPickerSheet();
 
   @override
   State<_CityPickerSheet> createState() => _CityPickerSheetState();
@@ -794,30 +717,12 @@ class _CityPickerSheetState extends State<_CityPickerSheet> {
                 ),
               ),
               Expanded(
-                child: FutureBuilder<List<MalaysiaCity>>(
-                  future: widget.citiesFuture,
-                  builder: (context, snapshot) {
-                    if (snapshot.connectionState != ConnectionState.done) {
-                      return const Center(child: CircularProgressIndicator());
-                    }
-                    if (snapshot.hasError) {
-                      return Center(
-                        child: Padding(
-                          padding: const EdgeInsets.all(24),
-                          child: Text(
-                            'Could not load cities: ${snapshot.error}',
-                            textAlign: TextAlign.center,
-                            style: TextStyle(color: context.colors.muted),
-                          ),
-                        ),
-                      );
-                    }
-
-                    final cities = snapshot.data ?? const <MalaysiaCity>[];
+                child: Builder(
+                  builder: (context) {
                     final q = _query.trim().toLowerCase();
                     final filtered = q.isEmpty
-                        ? cities
-                        : cities
+                        ? _dummyCities
+                        : _dummyCities
                               .where(
                                 (c) =>
                                     c.city.toLowerCase().contains(q) ||
@@ -1356,74 +1261,3 @@ class _RangeCalendarState extends State<_RangeCalendar> {
   }
 }
 
-class _TravelersStepper extends StatelessWidget {
-  const _TravelersStepper({required this.count, required this.onChanged});
-
-  final int count;
-  final ValueChanged<int> onChanged;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      decoration: BoxDecoration(
-        color: context.colors.surface,
-        borderRadius: BorderRadius.circular(16),
-      ),
-      child: Row(
-        children: [
-          Icon(Icons.people_alt_rounded, color: context.colors.muted, size: 18),
-          const SizedBox(width: 12),
-          Text(
-            '$count ${count == 1 ? 'traveler' : 'travelers'}',
-            style: TextStyle(
-              color: context.colors.ink,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-          const Spacer(),
-          _StepperButton(
-            icon: Icons.remove_rounded,
-            onTap: count > 1 ? () => onChanged(count - 1) : null,
-          ),
-          const SizedBox(width: 8),
-          _StepperButton(
-            icon: Icons.add_rounded,
-            onTap: () => onChanged(count + 1),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _StepperButton extends StatelessWidget {
-  const _StepperButton({required this.icon, required this.onTap});
-
-  final IconData icon;
-  final VoidCallback? onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return Material(
-      color: context.colors.card,
-      shape: const CircleBorder(),
-      child: InkWell(
-        customBorder: const CircleBorder(),
-        onTap: onTap,
-        child: Container(
-          width: 34,
-          height: 34,
-          alignment: Alignment.center,
-          child: Icon(
-            icon,
-            size: 18,
-            color: onTap == null
-                ? context.colors.muted.withValues(alpha: 0.4)
-                : context.colors.ink,
-          ),
-        ),
-      ),
-    );
-  }
-}

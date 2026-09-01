@@ -3,7 +3,6 @@ import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 
 import '../../models/trip_stop_location.dart';
-import '../../services/trip_service.dart';
 import '../../theme/app_theme.dart';
 import '../../utils/malaysia_bounds.dart';
 import '../../widgets/detail_header.dart';
@@ -15,12 +14,44 @@ const _stopMarkerRed = Color(0xFFE53935);
 const _stopMarkerBlue = Color(0xFF1E88E5);
 const _focusZoom = 16.0;
 
+/// UI-only dummy stops, standing in for what used to be a live Supabase
+/// query — a handful of well-known Penang landmarks.
+const _dummyStops = [
+  TripStopLocation(
+    name: 'Komtar',
+    address: 'Jalan Penang, George Town, Penang',
+    latitude: 5.4141,
+    longitude: 100.3288,
+    category: 'Shopping',
+  ),
+  TripStopLocation(
+    name: 'Chew Jetty',
+    address: 'Pengkalan Weld, George Town, Penang',
+    latitude: 5.4145,
+    longitude: 100.3428,
+    category: 'Attraction',
+  ),
+  TripStopLocation(
+    name: 'Penang Hill',
+    address: 'Air Itam, Penang',
+    latitude: 5.4234,
+    longitude: 100.2789,
+    category: 'Nature',
+  ),
+  TripStopLocation(
+    name: 'Gurney Drive',
+    address: 'Persiaran Gurney, George Town, Penang',
+    latitude: 5.4381,
+    longitude: 100.3086,
+    category: 'Food',
+  ),
+];
+
 /// Read-only map of every stop already saved to one trip — NOT the
 /// Transport module's routing/navigation map. No route calculation, no
 /// polylines, no external place search: this only plots
-/// [TripStopLocation]s already stored for [tripId] (via
-/// [TripService.watchTripStops]) and lets the traveler find one by name
-/// among them.
+/// [TripStopLocation]s already stored for [tripId] and lets the traveler
+/// find one by name among them.
 class TripMapScreen extends StatefulWidget {
   const TripMapScreen({super.key, required this.tripId});
 
@@ -31,7 +62,6 @@ class TripMapScreen extends StatefulWidget {
 }
 
 class _TripMapScreenState extends State<TripMapScreen> {
-  final _tripService = TripService();
   final _searchController = TextEditingController();
   final _searchFocusNode = FocusNode();
 
@@ -115,21 +145,13 @@ class _TripMapScreenState extends State<TripMapScreen> {
               subtitle: 'Every stop on this trip',
             ),
             Expanded(
-              child: StreamBuilder<List<TripStopLocation>>(
-                stream: _tripService.watchTripStops(widget.tripId),
-                builder: (context, snapshot) {
-                  final stops = snapshot.data ?? const <TripStopLocation>[];
-                  final loading =
-                      snapshot.connectionState == ConnectionState.waiting &&
-                      !snapshot.hasData;
+              child: Builder(
+                builder: (context) {
+                  const stops = _dummyStops;
 
                   return Padding(
                     padding: const EdgeInsets.fromLTRB(20, 4, 20, 20),
-                    child: loading
-                        ? const Center(child: CircularProgressIndicator())
-                        : snapshot.hasError
-                        ? _ErrorState(message: '${snapshot.error}')
-                        : stops.isEmpty
+                    child: stops.isEmpty
                         ? const _NoStopsState()
                         : ClipRRect(
                             borderRadius: BorderRadius.circular(24),
@@ -470,38 +492,3 @@ class _NoStopsState extends StatelessWidget {
   }
 }
 
-class _ErrorState extends StatelessWidget {
-  const _ErrorState({required this.message});
-
-  final String message;
-
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(Icons.error_outline_rounded, color: context.colors.muted, size: 30),
-            const SizedBox(height: 10),
-            Text(
-              'Could not load trip stops.',
-              style: TextStyle(
-                color: context.colors.ink,
-                fontWeight: FontWeight.w700,
-                fontSize: 14,
-              ),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              message,
-              textAlign: TextAlign.center,
-              style: TextStyle(color: context.colors.muted, fontSize: 12),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}

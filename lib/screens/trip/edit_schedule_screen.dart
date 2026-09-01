@@ -509,7 +509,7 @@ class _EditScheduleScreenState extends State<EditScheduleScreen> {
                     : ReorderableListView.builder(
                       padding: const EdgeInsets.fromLTRB(24, 16, 24, 24),
                       itemCount: dayIndices.length,
-                      onReorder: (oldIndex, newIndex) =>
+                      onReorderItem: (oldIndex, newIndex) =>
                           _reorder(selectedDay, oldIndex, newIndex),
                       itemBuilder: (context, i) {
                         final absoluteIndex = dayIndices[i];
