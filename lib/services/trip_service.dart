@@ -244,11 +244,13 @@ class TripService {
               .toSet()
               .toList();
           if (tripIds.isEmpty) return const <Trip>[];
-          final rows = await _client
-              .from('trips')
-              .select()
-              .inFilter('id', tripIds)
-              .order('created_at', ascending: false);
+          final rows = await retryOnJwtClockSkew(
+            () => _client
+                .from('trips')
+                .select()
+                .inFilter('id', tripIds)
+                .order('created_at', ascending: false),
+          );
           return rows.map(Trip.fromMap).toList();
         });
   }
@@ -262,6 +264,14 @@ class TripService {
         .eq('id', tripId)
         .single();
     return row['name'] as String;
+  }
+
+  /// Fetches a full trip row, for entry points (Home dashboard, Saved
+  /// Trips, Travel History) that still only resolve "the current trip"
+  /// via [ensureDemoTrip] rather than holding a real [Trip] already.
+  Future<Trip> getTrip(String tripId) async {
+    final row = await _client.from('trips').select().eq('id', tripId).single();
+    return Trip.fromMap(row);
   }
 
   /// Call on sign-out so a different account doesn't inherit the

@@ -429,31 +429,31 @@ create policy "messages_insert_members" on public.group_messages
 create policy "messages_delete_own" on public.group_messages
   for delete to authenticated using (user_id = auth.uid());
 
--- polls + options: any member can read/create; only the poll's creator
--- or the organizer can edit/delete it (matches Voting screen's
--- edit/delete-poll affordance).
+-- polls + options: any member can read/create; only the trip's organizer
+-- can edit/delete a poll (matches Voting screen's edit/delete-poll
+-- affordance, which is hidden from non-organizer members).
 create policy "polls_select_members" on public.polls
   for select to authenticated using (public.is_trip_member(trip_id));
 create policy "polls_insert_members" on public.polls
   for insert to authenticated
   with check (public.is_trip_member(trip_id) and created_by = auth.uid());
-create policy "polls_update_owner_or_organizer" on public.polls
+create policy "polls_update_organizer" on public.polls
   for update to authenticated
-  using (created_by = auth.uid() or public.is_trip_organizer(trip_id));
-create policy "polls_delete_owner_or_organizer" on public.polls
+  using (public.is_trip_organizer(trip_id));
+create policy "polls_delete_organizer" on public.polls
   for delete to authenticated
-  using (created_by = auth.uid() or public.is_trip_organizer(trip_id));
+  using (public.is_trip_organizer(trip_id));
 
 create policy "poll_options_select_members" on public.poll_options
   for select to authenticated
   using (public.is_trip_member((select trip_id from public.polls where id = poll_id)));
-create policy "poll_options_write_owner_or_organizer" on public.poll_options
+create policy "poll_options_write_organizer" on public.poll_options
   for all to authenticated
   using (
     exists (
       select 1 from public.polls p
       where p.id = poll_id
-        and (p.created_by = auth.uid() or public.is_trip_organizer(p.trip_id))
+        and public.is_trip_organizer(p.trip_id)
     )
   );
 
@@ -537,3 +537,16 @@ alter publication supabase_realtime add table
   public.trips,
   public.expenses,
   public.budget_categories;
+
+-- A DELETE event's replication payload only carries the replica
+-- identity's columns for the deleted row — by default just the primary
+-- key. `.stream()` calls that filter by a non-primary-key column (every
+-- one of these is filtered by `trip_id`, not `id`) can't evaluate that
+-- filter against a payload that's missing `trip_id`, so the delete
+-- event is silently dropped and the row lingers in the UI until the
+-- stream re-subscribes (e.g. leaving and reopening the screen). FULL
+-- replica identity includes every column, fixing that for tables whose
+-- rows actually get deleted through the app (expenses, polls, members).
+alter table public.expenses replica identity full;
+alter table public.polls replica identity full;
+alter table public.trip_members replica identity full;

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../models/budget_category.dart';
@@ -14,6 +16,21 @@ class BudgetService {
   final SupabaseClient _client;
 
   String get _uid => _client.auth.currentUser!.id;
+
+  /// Fires a tripId right after this client deletes an expense for that
+  /// trip. Supabase Realtime's `postgres_changes` filters (here,
+  /// `trip_id = ...`) are evaluated against a DELETE event's replica
+  /// identity columns, which by default is just the primary key — so a
+  /// filtered DELETE can silently never reach a subscriber even with
+  /// `expenses replica identity full` set (migration 0008), depending on
+  /// how promptly that took effect for the deleting client's own
+  /// connection. Every open [watchExpenses] stream for that trip listens
+  /// on this and does an immediate manual re-fetch, so the deleting
+  /// client's own UI always reflects it right away regardless of
+  /// whether the realtime broadcast ever arrives. `static` so it's
+  /// shared across every `BudgetService` instance (each screen creates
+  /// its own).
+  static final _expenseDeletions = StreamController<String>.broadcast();
 
   // ---- Total budget -------------------------------------------------
 
@@ -80,12 +97,50 @@ class BudgetService {
   // ---- Expenses ---------------------------------------------------------
 
   Stream<List<Expense>> watchExpenses(String tripId) {
-    return _client
-        .from('expenses')
-        .stream(primaryKey: ['id'])
-        .eq('trip_id', tripId)
-        .order('spent_at', ascending: false)
-        .map((rows) => rows.map(Expense.fromMap).toList());
+    late StreamController<List<Expense>> controller;
+    StreamSubscription<List<Expense>>? realtimeSub;
+    StreamSubscription<String>? deletionSub;
+
+    Future<void> refetch() async {
+      if (controller.isClosed) return;
+      try {
+        final rows = await _client
+            .from('expenses')
+            .select()
+            .eq('trip_id', tripId)
+            .order('created_at', ascending: false);
+        if (!controller.isClosed) {
+          controller.add(rows.map(Expense.fromMap).toList());
+        }
+      } catch (e, s) {
+        if (!controller.isClosed) controller.addError(e, s);
+      }
+    }
+
+    controller = StreamController<List<Expense>>.broadcast(
+      onListen: () {
+        // Ordered by created_at (not spent_at) so newly-added expenses
+        // always land at the top: spent_at is a date-only column, so
+        // two expenses logged the same day would tie and sort
+        // unpredictably.
+        realtimeSub = _client
+            .from('expenses')
+            .stream(primaryKey: ['id'])
+            .eq('trip_id', tripId)
+            .order('created_at', ascending: false)
+            .map((rows) => rows.map(Expense.fromMap).toList())
+            .listen(controller.add, onError: controller.addError);
+        deletionSub = _expenseDeletions.stream
+            .where((id) => id == tripId)
+            .listen((_) => refetch());
+      },
+      onCancel: () {
+        realtimeSub?.cancel();
+        deletionSub?.cancel();
+      },
+    );
+
+    return controller.stream;
   }
 
   Future<Expense> addExpense({
@@ -134,8 +189,20 @@ class BudgetService {
         .eq('id', expenseId);
   }
 
-  Future<void> deleteExpense(String expenseId) async {
-    await _client.from('expenses').delete().eq('id', expenseId);
+  Future<void> deleteExpense(String expenseId, {required String tripId}) async {
+    // Plain delete() with no .select() returns success even when RLS
+    // silently blocks it (0 rows affected, no error) — request the
+    // deleted row back so a blocked delete surfaces as a real failure
+    // instead of the sheet just closing with nothing actually removed.
+    final deleted = await _client
+        .from('expenses')
+        .delete()
+        .eq('id', expenseId)
+        .select();
+    if (deleted.isEmpty) {
+      throw Exception('Could not delete this expense — check your permission.');
+    }
+    _expenseDeletions.add(tripId);
   }
 
   // ---- Balances / splits ------------------------------------------------
@@ -146,8 +213,24 @@ class BudgetService {
   Future<List<TripBalance>> getBalances(String tripId) async {
     final members = await _client
         .from('trip_members')
-        .select('user_id, role, profiles!inner(display_name, avatar_color)')
+        .select('user_id, role')
         .eq('trip_id', tripId);
+    final userIds = (members as List)
+        .map((m) => m['user_id'] as String)
+        .toList();
+    if (userIds.isEmpty) return [];
+
+    // trip_members.user_id and profiles.id both reference auth.users but
+    // not each other, so there's no FK path for PostgREST to embed
+    // profiles automatically (matches GroupService.watchMembers) — fetch
+    // separately and merge client-side instead.
+    final profiles = await _client
+        .from('profiles')
+        .select('id, display_name, avatar_color')
+        .inFilter('id', userIds);
+    final profileById = {
+      for (final p in profiles as List) p['id'] as String: p,
+    };
 
     final expenseRows = await _client
         .from('expenses')
@@ -169,9 +252,9 @@ class BudgetService {
         row['user_id'] as String: (row['owes_amount'] as num).toDouble(),
     };
 
-    return (members as List).map((m) {
+    return members.where((m) => profileById.containsKey(m['user_id'])).map((m) {
       final userId = m['user_id'] as String;
-      final profile = m['profiles'] as Map<String, dynamic>;
+      final profile = profileById[userId]!;
       return TripBalance(
         userId: userId,
         displayName: profile['display_name'] as String,
