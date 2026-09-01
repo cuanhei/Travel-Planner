@@ -11,7 +11,7 @@ import '../weather/weather_forecast_screen.dart';
 import 'daily_timeline_screen.dart';
 import 'edit_schedule_screen.dart';
 import 'edit_trip_screen.dart';
-import 'map_view_screen.dart';
+import 'trip_map_screen.dart';
 
 /// A single itinerary stop. Mutable `completed` flag so the "Activity"
 /// section's Complete button can check a stop off — UI-only, no
@@ -309,7 +309,7 @@ class _ToolsGrid extends StatelessWidget {
         icon: Icons.map_rounded,
         color: Color(0xFFFFB347),
         onTap: () => Navigator.of(context).push(
-          MaterialPageRoute(builder: (_) => MapViewScreen(showStops: true)),
+          MaterialPageRoute(builder: (_) => TripMapScreen(tripId: tripId)),
         ),
       ),
       (
