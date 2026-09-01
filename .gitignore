@@ -23,6 +23,9 @@ migrate_working_dir/
 # is commented out by default.
 #.vscode/
 
+# Claude Code local settings (personal permission overrides, not shared)
+.claude/settings.local.json
+
 # Flutter/Dart/Pub related
 **/doc/api/
 **/ios/Flutter/.last_build_id
@@ -32,6 +35,9 @@ migrate_working_dir/
 .pub/
 /build/
 /coverage/
+
+# Environment / secrets
+.env
 
 # Symbolication related
 app.*.symbols

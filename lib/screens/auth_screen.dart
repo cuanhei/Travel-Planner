@@ -24,6 +24,7 @@ class _AuthScreenState extends State<AuthScreen> {
   bool _obscureConfirm = true;
   bool _loading = false;
 
+  final _formKey = GlobalKey<FormState>();
   final _nameController = TextEditingController();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
@@ -40,36 +41,14 @@ class _AuthScreenState extends State<AuthScreen> {
 
   void _switchMode(bool signIn) {
     if (signIn == _isSignIn) return;
-    setState(() => _isSignIn = signIn);
-  }
-
-  /// Client-side checks, run before ever touching the network. Returns the
-  /// first failing field's message, or null if everything looks valid.
-  ///
-  /// All errors — this pre-check and anything Supabase itself rejects — are
-  /// surfaced as a single snackbar at the bottom of the page rather than
-  /// inline under each field, so sign-in and sign-up show errors the same
-  /// way.
-  String? _validate() {
-    if (_isSignIn) {
-      return Validators.email(_emailController.text) ??
-          Validators.loginPassword(_passwordController.text);
-    }
-    return Validators.name(_nameController.text) ??
-        Validators.email(_emailController.text) ??
-        Validators.newPassword(_passwordController.text) ??
-        Validators.confirmPassword(
-          _confirmController.text,
-          _passwordController.text,
-        );
+    setState(() {
+      _isSignIn = signIn;
+      _formKey.currentState?.reset();
+    });
   }
 
   Future<void> _submit() async {
-    final validationError = _validate();
-    if (validationError != null) {
-      _showError(validationError);
-      return;
-    }
+    if (!(_formKey.currentState?.validate() ?? false)) return;
 
     setState(() => _loading = true);
     try {
@@ -84,15 +63,9 @@ class _AuthScreenState extends State<AuthScreen> {
           (route) => false,
         );
       } else {
-        final email = _emailController.text.trim();
-        if (await AuthService.instance.emailExists(email)) {
-          if (!mounted) return;
-          _showError(_emailAlreadyExistsMessage);
-          return;
-        }
         final response = await AuthService.instance.signUp(
           name: _nameController.text.trim(),
-          email: email,
+          email: _emailController.text.trim(),
           password: _passwordController.text,
         );
         if (!mounted) return;
@@ -103,14 +76,6 @@ class _AuthScreenState extends State<AuthScreen> {
             MaterialPageRoute(builder: (_) => HomeScreen()),
             (route) => false,
           );
-        } else if (response.user?.identities?.isEmpty ?? false) {
-          // Supabase deliberately can't tell a real signup from a repeat of
-          // an already-registered (and confirmed) email via an error — it
-          // returns this same "success" shape either way, distinguishable
-          // only by an empty `identities` list, to prevent account
-          // enumeration. The `emailExists` pre-check above normally catches
-          // this first; this is a fallback for when that RPC is unavailable.
-          _showError(_emailAlreadyExistsMessage);
         } else {
           Navigator.of(context).push(
             MaterialPageRoute(
@@ -121,40 +86,13 @@ class _AuthScreenState extends State<AuthScreen> {
         }
       }
     } on AuthException catch (e) {
-      if (_isSignIn && _isInvalidCredentials(e)) {
-        final registered = await AuthService.instance.emailExists(
-          _emailController.text.trim(),
-        );
-        if (!mounted) return;
-        _showError(
-          registered
-              ? 'Incorrect email or password.'
-              : 'No account found with this email. Please sign up.',
-        );
-      } else if (!_isSignIn && _isEmailAlreadyExists(e)) {
-        _showError(_emailAlreadyExistsMessage);
-      } else {
-        _showError(friendlyAuthError(e));
-      }
+      _showError(friendlyAuthError(e));
     } catch (_) {
       _showError('Something went wrong. Please try again.');
     } finally {
       if (mounted) setState(() => _loading = false);
     }
   }
-
-  static const _emailAlreadyExistsMessage =
-      'An account with this email already exists. Try signing in instead.';
-
-  bool _isInvalidCredentials(AuthException e) =>
-      e.code == 'invalid_credentials' ||
-      e.message.toLowerCase().contains('invalid login credentials');
-
-  bool _isEmailAlreadyExists(AuthException e) =>
-      e.code == 'user_already_exists' ||
-      e.code == 'email_exists' ||
-      e.message.toLowerCase().contains('already registered') ||
-      e.message.toLowerCase().contains('already exists');
 
   void _showError(String message) {
     ScaffoldMessenger.of(context).showSnackBar(
@@ -202,48 +140,52 @@ class _AuthScreenState extends State<AuthScreen> {
                             onChanged: _switchMode,
                           ),
                           SizedBox(height: 28),
-                          AnimatedSwitcher(
-                            duration: Duration(milliseconds: 350),
-                            transitionBuilder: (child, animation) {
-                              final offset = Tween<Offset>(
-                                begin: Offset(_isSignIn ? -0.08 : 0.08, 0),
-                                end: Offset.zero,
-                              ).animate(animation);
-                              return FadeTransition(
-                                opacity: animation,
-                                child: SlideTransition(
-                                  position: offset,
-                                  child: child,
-                                ),
-                              );
-                            },
-                            child: _isSignIn
-                                ? _SignInFields(
-                                    key: ValueKey('signin'),
-                                    emailController: _emailController,
-                                    passwordController: _passwordController,
-                                    obscurePassword: _obscurePassword,
-                                    onToggleObscure: () => setState(
-                                      () => _obscurePassword =
-                                          !_obscurePassword,
-                                    ),
-                                  )
-                                : _SignUpFields(
-                                    key: ValueKey('signup'),
-                                    nameController: _nameController,
-                                    emailController: _emailController,
-                                    passwordController: _passwordController,
-                                    confirmController: _confirmController,
-                                    obscurePassword: _obscurePassword,
-                                    obscureConfirm: _obscureConfirm,
-                                    onTogglePassword: () => setState(
-                                      () => _obscurePassword =
-                                          !_obscurePassword,
-                                    ),
-                                    onToggleConfirm: () => setState(
-                                      () => _obscureConfirm = !_obscureConfirm,
-                                    ),
+                          Form(
+                            key: _formKey,
+                            child: AnimatedSwitcher(
+                              duration: Duration(milliseconds: 350),
+                              transitionBuilder: (child, animation) {
+                                final offset = Tween<Offset>(
+                                  begin: Offset(_isSignIn ? -0.08 : 0.08, 0),
+                                  end: Offset.zero,
+                                ).animate(animation);
+                                return FadeTransition(
+                                  opacity: animation,
+                                  child: SlideTransition(
+                                    position: offset,
+                                    child: child,
                                   ),
+                                );
+                              },
+                              child: _isSignIn
+                                  ? _SignInFields(
+                                      key: ValueKey('signin'),
+                                      emailController: _emailController,
+                                      passwordController: _passwordController,
+                                      obscurePassword: _obscurePassword,
+                                      onToggleObscure: () => setState(
+                                        () => _obscurePassword =
+                                            !_obscurePassword,
+                                      ),
+                                    )
+                                  : _SignUpFields(
+                                      key: ValueKey('signup'),
+                                      nameController: _nameController,
+                                      emailController: _emailController,
+                                      passwordController: _passwordController,
+                                      confirmController: _confirmController,
+                                      obscurePassword: _obscurePassword,
+                                      obscureConfirm: _obscureConfirm,
+                                      onTogglePassword: () => setState(
+                                        () => _obscurePassword =
+                                            !_obscurePassword,
+                                      ),
+                                      onToggleConfirm: () => setState(
+                                        () =>
+                                            _obscureConfirm = !_obscureConfirm,
+                                      ),
+                                    ),
+                            ),
                           ),
                           SizedBox(height: 4),
                           if (_isSignIn)
@@ -527,36 +469,32 @@ class _AuthTextField extends StatelessWidget {
     required this.controller,
     required this.label,
     required this.icon,
-    this.hint,
     this.obscureText = false,
     this.keyboardType,
     this.suffixIcon,
     this.onSuffixTap,
+    this.validator,
   });
 
   final TextEditingController controller;
   final String label;
   final IconData icon;
-  final String? hint;
   final bool obscureText;
   final TextInputType? keyboardType;
   final IconData? suffixIcon;
   final VoidCallback? onSuffixTap;
+  final String? Function(String?)? validator;
 
   @override
   Widget build(BuildContext context) {
-    return TextField(
+    return TextFormField(
       controller: controller,
       obscureText: obscureText,
       keyboardType: keyboardType,
+      validator: validator,
       style: TextStyle(fontWeight: FontWeight.w600, color: context.colors.ink),
       decoration: InputDecoration(
         labelText: label,
-        hintText: hint,
-        hintStyle: TextStyle(
-          color: context.colors.muted.withValues(alpha: 0.6),
-          fontWeight: FontWeight.w500,
-        ),
         prefixIcon: Icon(icon, color: context.colors.muted, size: 20),
         suffixIcon: suffixIcon != null
             ? IconButton(
@@ -573,6 +511,10 @@ class _AuthTextField extends StatelessWidget {
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(16),
           borderSide: BorderSide(color: context.colors.ink, width: 1.5),
+        ),
+        errorBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(16),
+          borderSide: BorderSide(color: Colors.redAccent, width: 1.2),
         ),
         contentPadding: EdgeInsets.symmetric(vertical: 16),
       ),
@@ -601,21 +543,21 @@ class _SignInFields extends StatelessWidget {
         _AuthTextField(
           controller: emailController,
           label: 'Email',
-          hint: 'you@example.com',
           icon: Icons.mail_outline_rounded,
           keyboardType: TextInputType.emailAddress,
+          validator: Validators.email,
         ),
         SizedBox(height: 16),
         _AuthTextField(
           controller: passwordController,
           label: 'Password',
-          hint: 'Enter your password',
           icon: Icons.lock_outline_rounded,
           obscureText: obscurePassword,
           suffixIcon: obscurePassword
               ? Icons.visibility_off_rounded
               : Icons.visibility_rounded,
           onSuffixTap: onToggleObscure,
+          validator: Validators.loginPassword,
         ),
       ],
     );
@@ -651,40 +593,41 @@ class _SignUpFields extends StatelessWidget {
         _AuthTextField(
           controller: nameController,
           label: 'Full Name',
-          hint: 'e.g. John Tan',
           icon: Icons.person_outline_rounded,
+          validator: Validators.name,
         ),
         SizedBox(height: 16),
         _AuthTextField(
           controller: emailController,
           label: 'Email',
-          hint: 'you@example.com',
           icon: Icons.mail_outline_rounded,
           keyboardType: TextInputType.emailAddress,
+          validator: Validators.email,
         ),
         SizedBox(height: 16),
         _AuthTextField(
           controller: passwordController,
           label: 'Password',
-          hint: 'At least 8 characters',
           icon: Icons.lock_outline_rounded,
           obscureText: obscurePassword,
           suffixIcon: obscurePassword
               ? Icons.visibility_off_rounded
               : Icons.visibility_rounded,
           onSuffixTap: onTogglePassword,
+          validator: Validators.newPassword,
         ),
         SizedBox(height: 16),
         _AuthTextField(
           controller: confirmController,
           label: 'Confirm Password',
-          hint: 'Re-enter your password',
           icon: Icons.lock_outline_rounded,
           obscureText: obscureConfirm,
           suffixIcon: obscureConfirm
               ? Icons.visibility_off_rounded
               : Icons.visibility_rounded,
           onSuffixTap: onToggleConfirm,
+          validator: (v) =>
+              Validators.confirmPassword(v, passwordController.text),
         ),
       ],
     );

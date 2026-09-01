@@ -1,297 +1,550 @@
 import 'package:flutter/material.dart';
 
+import '../../models/budget_category.dart';
+import '../../models/expense.dart';
+import '../../services/budget_service.dart';
+import '../../services/group_service.dart';
+import '../../services/trip_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/detail_header.dart';
 import '../../widgets/gradient_button.dart';
 import 'expense_split_screen.dart';
 import 'expense_tracker_screen.dart';
 
+/// Visual definition (icon/color) for a spending category, keyed by
+/// [label]. Planned/spent amounts are no longer static — they're read
+/// live from Supabase (`budget_categories` / `expenses`) and matched
+/// back to this list by label purely to pick an icon and color.
 class BudgetCategory {
-  BudgetCategory({
+  const BudgetCategory({
     required this.label,
     required this.icon,
     required this.color,
-    required this.planned,
-    required this.spent,
   });
 
   final String label;
   final IconData icon;
   final Color color;
-  final double planned;
-  final double spent;
 }
 
-final budgetCategories = [
+const budgetCategories = [
   BudgetCategory(
     label: 'Accommodation',
     icon: Icons.hotel_rounded,
     color: Color(0xFF5C6BC0),
-    planned: 600,
-    spent: 600,
   ),
   BudgetCategory(
     label: 'Food & Drinks',
     icon: Icons.restaurant_rounded,
     color: AppColors.accent,
-    planned: 350,
-    spent: 268,
   ),
   BudgetCategory(
     label: 'Transport',
     icon: Icons.directions_bus_filled_rounded,
     color: Color(0xFF11998E),
-    planned: 150,
-    spent: 92,
   ),
   BudgetCategory(
     label: 'Shopping',
     icon: Icons.shopping_bag_rounded,
     color: Color(0xFFFFB347),
-    planned: 300,
-    spent: 145,
   ),
   BudgetCategory(
     label: 'Activities',
     icon: Icons.local_activity_rounded,
     color: Color(0xFF8E63CE),
-    planned: 100,
-    spent: 40,
   ),
 ];
 
+/// Fallback visual for a custom category typed in via "Other" — a
+/// neutral tag icon rather than misleadingly reusing Accommodation's.
+BudgetCategory _otherCategoryVisual(String label) =>
+    BudgetCategory(label: label, icon: Icons.sell_rounded, color: Colors.grey);
+
+BudgetCategory categoryVisuals(String label) => budgetCategories.firstWhere(
+  (c) => c.label == label,
+  orElse: () => _otherCategoryVisual(label),
+);
+
+/// Formats an RM amount, showing decimals only when it actually has
+/// cents — RM 1500 stays whole, RM 12.50 keeps its cents instead of
+/// being silently rounded away to RM 13 by a flat `toStringAsFixed(0)`.
+String formatAmount(double amount) {
+  final rounded = double.parse(amount.toStringAsFixed(2));
+  return rounded % 1 == 0
+      ? rounded.toStringAsFixed(0)
+      : rounded.toStringAsFixed(2);
+}
+
 /// Trip budget overview: total vs spent, category breakdown, and links
-/// into expense tracking and splitting.
+/// into expense tracking and splitting. Backed live by Supabase.
 class BudgetPlannerScreen extends StatefulWidget {
-  const BudgetPlannerScreen({super.key});
+  const BudgetPlannerScreen({super.key, required this.tripId});
+
+  final String tripId;
 
   @override
   State<BudgetPlannerScreen> createState() => _BudgetPlannerScreenState();
 }
 
 class _BudgetPlannerScreenState extends State<BudgetPlannerScreen> {
-  late double _totalBudget = budgetCategories.fold<double>(
-    0,
-    (sum, c) => sum + c.planned,
-  );
+  final _budgetService = BudgetService();
+  final _tripService = TripService();
+  final _groupService = GroupService();
+  late final Future<(String, String, bool)> _tripFuture = _loadTrip();
 
-  Future<void> _editBudget() async {
+  Future<(String, String, bool)> _loadTrip() async {
+    final tripName = await _tripService.getTripName(widget.tripId);
+    final isOrganizer = await _groupService.isOrganizer(widget.tripId);
+    return (widget.tripId, tripName, isOrganizer);
+  }
+
+  Future<void> _editBudget(String tripId, double currentTotal) async {
     final result = await showModalBottomSheet<double>(
       context: context,
       backgroundColor: Colors.transparent,
       isScrollControlled: true,
-      builder: (_) => _EditBudgetSheet(initialAmount: _totalBudget),
+      builder: (_) => _EditBudgetSheet(initialAmount: currentTotal),
     );
     if (result == null) return;
-    setState(() => _totalBudget = result);
+    await _budgetService.setTotalBudget(tripId, result);
   }
 
   @override
   Widget build(BuildContext context) {
-    final totalSpent = budgetCategories.fold<double>(
-      0,
-      (sum, c) => sum + c.spent,
-    );
-    final ratio = _totalBudget <= 0
-        ? 0.0
-        : (totalSpent / _totalBudget).clamp(0.0, 1.0);
-
     return Scaffold(
       backgroundColor: context.colors.surface,
       body: SafeArea(
-        child: Column(
-          children: [
-            DetailHeader(
-              title: 'Budget Planner',
-              subtitle: 'Penang Adventure',
-              trailing: IconButton(
-                onPressed: () => Navigator.of(
-                  context,
-                ).push(MaterialPageRoute(builder: (_) => ExpenseSplitScreen())),
-                icon: Icon(Icons.call_split_rounded, color: context.colors.ink),
-              ),
-            ),
-            Expanded(
-              child: ListView(
-                padding: EdgeInsets.fromLTRB(24, 8, 24, 24),
+        child: FutureBuilder<(String, String, bool)>(
+          future: _tripFuture,
+          builder: (context, tripSnap) {
+            if (tripSnap.connectionState != ConnectionState.done) {
+              return const Column(
                 children: [
-                  Container(
-                    padding: EdgeInsets.all(20),
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        colors: AppColors.horizon,
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                      ),
-                      borderRadius: BorderRadius.circular(24),
-                      boxShadow: [
-                        BoxShadow(
-                          color: AppColors.horizon.last.withValues(alpha: 0.3),
-                          blurRadius: 18,
-                          offset: Offset(0, 8),
+                  DetailHeader(title: 'Budget Planner'),
+                  Expanded(child: Center(child: CircularProgressIndicator())),
+                ],
+              );
+            }
+            if (tripSnap.hasError) {
+              return Column(
+                children: [
+                  const DetailHeader(title: 'Budget Planner'),
+                  Expanded(
+                    child: Center(
+                      child: Padding(
+                        padding: const EdgeInsets.all(24),
+                        child: Text(
+                          '${tripSnap.error}',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(color: context.colors.muted),
                         ),
-                      ],
+                      ),
                     ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          children: [
-                            Expanded(
-                              child: Text(
-                                'Total Budget',
+                  ),
+                ],
+              );
+            }
+            final (tripId, tripName, isOrganizer) = tripSnap.data!;
+            return _BudgetPlannerContent(
+              tripId: tripId,
+              tripName: tripName,
+              isOrganizer: isOrganizer,
+              budgetService: _budgetService,
+              onEditBudget: (currentTotal) => _editBudget(tripId, currentTotal),
+            );
+          },
+        ),
+      ),
+    );
+  }
+}
+
+class _BudgetPlannerContent extends StatelessWidget {
+  const _BudgetPlannerContent({
+    required this.tripId,
+    required this.tripName,
+    required this.isOrganizer,
+    required this.budgetService,
+    required this.onEditBudget,
+  });
+
+  final String tripId;
+  final String tripName;
+  final bool isOrganizer;
+  final BudgetService budgetService;
+  final ValueChanged<double> onEditBudget;
+
+  Future<void> _manageCategories(
+    BuildContext context,
+    List<BudgetCategoryData> categories,
+    double totalBudget,
+  ) async {
+    final plannedByLabel = {
+      for (final c in categories) c.label: c.plannedAmount,
+    };
+    final result = await showModalBottomSheet<Map<String, double>>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (_) => _ManageCategoriesSheet(
+        plannedByLabel: plannedByLabel,
+        totalBudget: totalBudget,
+      ),
+    );
+    if (result == null) return;
+    await Future.wait([
+      for (final entry in result.entries)
+        budgetService.upsertCategory(
+          tripId: tripId,
+          label: entry.key,
+          plannedAmount: entry.value,
+        ),
+    ]);
+  }
+
+  /// Tapping a single category row sets just that category's planned
+  /// amount — quicker than opening the full "Plan Categories" sheet
+  /// when you only want to fix up one category (e.g. Transport needs
+  /// how much budget). Validated against [totalBudget] so the sum of
+  /// every category's planned amount can never exceed it.
+  Future<void> _editCategoryBudget(
+    BuildContext context,
+    String label,
+    double currentPlanned,
+    double totalBudget,
+    Map<String, double> plannedByLabel,
+  ) async {
+    final otherCategoriesTotal = plannedByLabel.entries
+        .where((e) => e.key != label)
+        .fold<double>(0, (sum, e) => sum + e.value);
+    final result = await showDialog<double>(
+      context: context,
+      builder: (dialogContext) => _CategoryBudgetDialog(
+        label: label,
+        initialAmount: currentPlanned,
+        totalBudget: totalBudget,
+        otherCategoriesTotal: otherCategoriesTotal,
+      ),
+    );
+    if (result != null && result >= 0) {
+      await budgetService.upsertCategory(
+        tripId: tripId,
+        label: label,
+        plannedAmount: result,
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder<double>(
+      stream: budgetService.watchTotalBudget(tripId),
+      builder: (context, totalSnap) {
+        final totalBudget = totalSnap.data ?? 0;
+        return StreamBuilder<List<Expense>>(
+          stream: budgetService.watchExpenses(tripId),
+          builder: (context, expenseSnap) {
+            final expenses = expenseSnap.data ?? const <Expense>[];
+            final totalSpent = expenses.fold<double>(0, (s, e) => s + e.amount);
+            final spentByCategory = <String, double>{};
+            for (final e in expenses) {
+              spentByCategory.update(
+                e.category,
+                (v) => v + e.amount,
+                ifAbsent: () => e.amount,
+              );
+            }
+            final ratio = totalBudget <= 0
+                ? 0.0
+                : (totalSpent / totalBudget).clamp(0.0, 1.0);
+
+            return StreamBuilder<List<BudgetCategoryData>>(
+              stream: budgetService.watchCategories(tripId),
+              builder: (context, catSnap) {
+                final plannedCategories =
+                    catSnap.data ?? const <BudgetCategoryData>[];
+                // Always show the default categories (so there's
+                // somewhere to tap into and plan a budget for each one
+                // before any spending happens), plus any category nobody
+                // planned for but that already has real spending against
+                // it — e.g. a custom "Other" category from the expense
+                // form — so it doesn't silently vanish from the
+                // breakdown.
+                final plannedByLabel = {
+                  for (final c in plannedCategories) c.label: c.plannedAmount,
+                };
+                final categoryLabels = {
+                  for (final c in budgetCategories) c.label,
+                  ...plannedByLabel.keys,
+                  ...spentByCategory.keys,
+                };
+
+                return Column(
+                  children: [
+                    DetailHeader(
+                      title: 'Budget Planner',
+                      subtitle: tripName,
+                      trailing: IconButton(
+                        onPressed: () => Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (_) => ExpenseSplitScreen(tripId: tripId),
+                          ),
+                        ),
+                        icon: Icon(
+                          Icons.call_split_rounded,
+                          color: context.colors.ink,
+                        ),
+                      ),
+                    ),
+                    Expanded(
+                      child: ListView(
+                        padding: EdgeInsets.fromLTRB(24, 8, 24, 24),
+                        children: [
+                          Container(
+                            padding: EdgeInsets.all(20),
+                            decoration: BoxDecoration(
+                              gradient: LinearGradient(
+                                colors: AppColors.horizon,
+                                begin: Alignment.topLeft,
+                                end: Alignment.bottomRight,
+                              ),
+                              borderRadius: BorderRadius.circular(24),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: AppColors.horizon.last.withValues(
+                                    alpha: 0.3,
+                                  ),
+                                  blurRadius: 18,
+                                  offset: Offset(0, 8),
+                                ),
+                              ],
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  children: [
+                                    Expanded(
+                                      child: Text(
+                                        'Total Budget',
+                                        style: TextStyle(
+                                          color: Colors.white70,
+                                          fontSize: 12.5,
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                      ),
+                                    ),
+                                    if (isOrganizer)
+                                      Material(
+                                        color: Colors.white.withValues(
+                                          alpha: 0.18,
+                                        ),
+                                        borderRadius: BorderRadius.circular(10),
+                                        child: InkWell(
+                                          borderRadius: BorderRadius.circular(
+                                            10,
+                                          ),
+                                          onTap: () =>
+                                              onEditBudget(totalBudget),
+                                          child: Padding(
+                                            padding: const EdgeInsets.all(6),
+                                            child: Icon(
+                                              Icons.edit_rounded,
+                                              color: Colors.white,
+                                              size: 14,
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                  ],
+                                ),
+                                SizedBox(height: 4),
+                                Text(
+                                  'RM ${formatAmount(totalBudget)}',
+                                  style: TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 30,
+                                    fontWeight: FontWeight.w800,
+                                  ),
+                                ),
+                                SizedBox(height: 14),
+                                ClipRRect(
+                                  borderRadius: BorderRadius.circular(6),
+                                  child: LinearProgressIndicator(
+                                    value: ratio,
+                                    minHeight: 10,
+                                    backgroundColor: Colors.white.withValues(
+                                      alpha: 0.15,
+                                    ),
+                                    valueColor: AlwaysStoppedAnimation(
+                                      AppColors.accent,
+                                    ),
+                                  ),
+                                ),
+                                SizedBox(height: 8),
+                                Text(
+                                  'RM ${formatAmount(totalSpent)} spent · RM ${formatAmount(totalBudget - totalSpent)} remaining',
+                                  style: TextStyle(
+                                    color: Colors.white.withValues(alpha: 0.85),
+                                    fontSize: 12,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          SizedBox(height: 24),
+                          Row(
+                            children: [
+                              Text(
+                                'By Category',
                                 style: TextStyle(
-                                  color: Colors.white70,
-                                  fontSize: 12.5,
-                                  fontWeight: FontWeight.w600,
+                                  color: context.colors.ink,
+                                  fontWeight: FontWeight.w800,
+                                  fontSize: 15,
                                 ),
                               ),
-                            ),
-                            Material(
-                              color: Colors.white.withValues(alpha: 0.18),
-                              borderRadius: BorderRadius.circular(10),
-                              child: InkWell(
-                                borderRadius: BorderRadius.circular(10),
-                                onTap: _editBudget,
+                              Spacer(),
+                              GestureDetector(
+                                onTap: () => _manageCategories(
+                                  context,
+                                  plannedCategories,
+                                  totalBudget,
+                                ),
                                 child: Padding(
-                                  padding: const EdgeInsets.all(6),
+                                  padding: const EdgeInsets.only(right: 14),
                                   child: Icon(
-                                    Icons.edit_rounded,
-                                    color: Colors.white,
-                                    size: 14,
+                                    Icons.tune_rounded,
+                                    size: 16,
+                                    color: context.colors.muted,
                                   ),
                                 ),
                               ),
-                            ),
-                          ],
-                        ),
-                        SizedBox(height: 4),
-                        Text(
-                          'RM ${_totalBudget.toStringAsFixed(0)}',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 30,
-                            fontWeight: FontWeight.w800,
-                          ),
-                        ),
-                        SizedBox(height: 14),
-                        ClipRRect(
-                          borderRadius: BorderRadius.circular(6),
-                          child: LinearProgressIndicator(
-                            value: ratio,
-                            minHeight: 10,
-                            backgroundColor: Colors.white.withValues(
-                              alpha: 0.15,
-                            ),
-                            valueColor: AlwaysStoppedAnimation(
-                              AppColors.accent,
-                            ),
-                          ),
-                        ),
-                        SizedBox(height: 8),
-                        Text(
-                          'RM ${totalSpent.toStringAsFixed(0)} spent · RM ${(_totalBudget - totalSpent).toStringAsFixed(0)} remaining',
-                          style: TextStyle(
-                            color: Colors.white.withValues(alpha: 0.85),
-                            fontSize: 12,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  SizedBox(height: 24),
-                  Row(
-                    children: [
-                      Text(
-                        'By Category',
-                        style: TextStyle(
-                          color: context.colors.ink,
-                          fontWeight: FontWeight.w800,
-                          fontSize: 15,
-                        ),
-                      ),
-                      Spacer(),
-                      GestureDetector(
-                        onTap: () => Navigator.of(context).push(
-                          MaterialPageRoute(
-                            builder: (_) => ExpenseTrackerScreen(),
-                          ),
-                        ),
-                        child: Text(
-                          'View expenses',
-                          style: TextStyle(
-                            color: AppColors.accent,
-                            fontWeight: FontWeight.w700,
-                            fontSize: 13,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                  SizedBox(height: 14),
-                  ...budgetCategories.map((c) {
-                    final r = (c.spent / c.planned).clamp(0.0, 1.0);
-                    return Container(
-                      margin: EdgeInsets.only(bottom: 12),
-                      padding: EdgeInsets.all(14),
-                      decoration: BoxDecoration(
-                        color: context.colors.card,
-                        borderRadius: BorderRadius.circular(16),
-                        boxShadow: [
-                          BoxShadow(
-                            color: context.colors.ink.withValues(alpha: 0.05),
-                            blurRadius: 10,
-                            offset: Offset(0, 4),
-                          ),
-                        ],
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            children: [
-                              Icon(c.icon, color: c.color, size: 18),
-                              SizedBox(width: 10),
-                              Expanded(
+                              GestureDetector(
+                                onTap: () => Navigator.of(context).push(
+                                  MaterialPageRoute(
+                                    builder: (_) =>
+                                        ExpenseTrackerScreen(tripId: tripId),
+                                  ),
+                                ),
                                 child: Text(
-                                  c.label,
+                                  'View expenses',
                                   style: TextStyle(
-                                    color: context.colors.ink,
+                                    color: AppColors.accent,
                                     fontWeight: FontWeight.w700,
                                     fontSize: 13,
                                   ),
                                 ),
                               ),
-                              Text(
-                                'RM ${c.spent.toStringAsFixed(0)} / ${c.planned.toStringAsFixed(0)}',
-                                style: TextStyle(
-                                  color: context.colors.muted,
-                                  fontSize: 11.5,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
                             ],
                           ),
-                          SizedBox(height: 10),
-                          ClipRRect(
-                            borderRadius: BorderRadius.circular(4),
-                            child: LinearProgressIndicator(
-                              value: r,
-                              minHeight: 6,
-                              backgroundColor: context.colors.surface,
-                              valueColor: AlwaysStoppedAnimation(c.color),
-                            ),
-                          ),
+                          SizedBox(height: 14),
+                          ...categoryLabels.map((label) {
+                            final visuals = categoryVisuals(label);
+                            final planned = plannedByLabel[label] ?? 0;
+                            final spent = spentByCategory[label] ?? 0;
+                            // No planned amount to measure against but
+                            // money was spent anyway — show the bar full
+                            // rather than empty, since "0% of an unset
+                            // budget" would read as no spending at all.
+                            final r = planned <= 0
+                                ? (spent > 0 ? 1.0 : 0.0)
+                                : (spent / planned).clamp(0.0, 1.0);
+                            return Material(
+                              color: context.colors.card,
+                              borderRadius: BorderRadius.circular(16),
+                              child: InkWell(
+                                borderRadius: BorderRadius.circular(16),
+                                onTap: () => _editCategoryBudget(
+                                  context,
+                                  label,
+                                  planned,
+                                  totalBudget,
+                                  plannedByLabel,
+                                ),
+                                child: Container(
+                                  margin: EdgeInsets.only(bottom: 12),
+                                  padding: EdgeInsets.all(14),
+                                  decoration: BoxDecoration(
+                                    borderRadius: BorderRadius.circular(16),
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color: context.colors.ink.withValues(
+                                          alpha: 0.05,
+                                        ),
+                                        blurRadius: 10,
+                                        offset: Offset(0, 4),
+                                      ),
+                                    ],
+                                  ),
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Row(
+                                        children: [
+                                          Icon(
+                                            visuals.icon,
+                                            color: visuals.color,
+                                            size: 18,
+                                          ),
+                                          SizedBox(width: 10),
+                                          Expanded(
+                                            child: Text(
+                                              label,
+                                              style: TextStyle(
+                                                color: context.colors.ink,
+                                                fontWeight: FontWeight.w700,
+                                                fontSize: 13,
+                                              ),
+                                            ),
+                                          ),
+                                          Text(
+                                            planned <= 0
+                                                ? 'RM ${formatAmount(spent)} spent · no budget set'
+                                                : 'RM ${formatAmount(spent)} / ${formatAmount(planned)}',
+                                            style: TextStyle(
+                                              color: context.colors.muted,
+                                              fontSize: 11.5,
+                                              fontWeight: FontWeight.w600,
+                                            ),
+                                          ),
+                                          SizedBox(width: 4),
+                                          Icon(
+                                            Icons.edit_rounded,
+                                            size: 13,
+                                            color: context.colors.muted,
+                                          ),
+                                        ],
+                                      ),
+                                      SizedBox(height: 10),
+                                      ClipRRect(
+                                        borderRadius: BorderRadius.circular(4),
+                                        child: LinearProgressIndicator(
+                                          value: r,
+                                          minHeight: 6,
+                                          backgroundColor:
+                                              context.colors.surface,
+                                          valueColor: AlwaysStoppedAnimation(
+                                            visuals.color,
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            );
+                          }),
                         ],
                       ),
-                    );
-                  }),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
+                    ),
+                  ],
+                );
+              },
+            );
+          },
+        );
+      },
     );
   }
 }
@@ -307,14 +560,14 @@ class _EditBudgetSheet extends StatefulWidget {
 
 class _EditBudgetSheetState extends State<_EditBudgetSheet> {
   late final _controller = TextEditingController(
-    text: widget.initialAmount.toStringAsFixed(0),
+    text: formatAmount(widget.initialAmount),
   );
 
   double get _value => double.tryParse(_controller.text) ?? 0;
 
   void _adjust(double delta) {
     final next = (_value + delta).clamp(0, 999999).toDouble();
-    setState(() => _controller.text = next.toStringAsFixed(0));
+    setState(() => _controller.text = formatAmount(next));
   }
 
   @override
@@ -409,6 +662,301 @@ class _EditBudgetSheetState extends State<_EditBudgetSheet> {
                 onPressed: _value > 0
                     ? () => Navigator.of(context).pop(_value)
                     : () {},
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Single-category planned-amount editor, opened by tapping a category
+/// row. Validates that this category's amount plus every other
+/// category's planned amount ([otherCategoriesTotal]) never exceeds
+/// [totalBudget] — shows an inline error instead of saving when it would.
+class _CategoryBudgetDialog extends StatefulWidget {
+  const _CategoryBudgetDialog({
+    required this.label,
+    required this.initialAmount,
+    required this.totalBudget,
+    required this.otherCategoriesTotal,
+  });
+
+  final String label;
+  final double initialAmount;
+  final double totalBudget;
+  final double otherCategoriesTotal;
+
+  @override
+  State<_CategoryBudgetDialog> createState() => _CategoryBudgetDialogState();
+}
+
+class _CategoryBudgetDialogState extends State<_CategoryBudgetDialog> {
+  late final _controller = TextEditingController(
+    text: widget.initialAmount > 0 ? formatAmount(widget.initialAmount) : '',
+  );
+  String? _error;
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  void _save() {
+    final value = double.tryParse(_controller.text.trim());
+    if (value == null || value < 0) {
+      setState(() => _error = 'Enter a valid amount');
+      return;
+    }
+    final remaining = widget.totalBudget - widget.otherCategoriesTotal;
+    if (widget.totalBudget > 0 && value > remaining) {
+      setState(() {
+        _error =
+            'That\'s RM ${formatAmount(value - remaining)} over your '
+            'RM ${formatAmount(widget.totalBudget)} total budget · '
+            'RM ${formatAmount(remaining.clamp(0, double.infinity))} left to allocate';
+      });
+      return;
+    }
+    Navigator.of(context).pop(value);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      backgroundColor: context.colors.card,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      title: Text(
+        '${widget.label} budget',
+        style: TextStyle(
+          color: context.colors.ink,
+          fontWeight: FontWeight.w800,
+          fontSize: 15.5,
+        ),
+      ),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          TextField(
+            controller: _controller,
+            autofocus: true,
+            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+            onChanged: (_) {
+              if (_error != null) setState(() => _error = null);
+            },
+            style: TextStyle(
+              color: context.colors.ink,
+              fontWeight: FontWeight.w700,
+              fontSize: 18,
+            ),
+            decoration: InputDecoration(
+              prefixText: 'RM ',
+              prefixStyle: TextStyle(
+                color: context.colors.ink,
+                fontWeight: FontWeight.w700,
+                fontSize: 18,
+              ),
+              hintText: 'How much do you plan to spend?',
+              filled: true,
+              fillColor: context.colors.surface,
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(14),
+                borderSide: BorderSide.none,
+              ),
+              contentPadding: const EdgeInsets.symmetric(
+                horizontal: 14,
+                vertical: 12,
+              ),
+            ),
+          ),
+          if (_error != null) ...[
+            const SizedBox(height: 10),
+            Text(
+              _error!,
+              style: const TextStyle(
+                color: Colors.redAccent,
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
+        ],
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('Cancel'),
+        ),
+        FilledButton(
+          onPressed: _save,
+          style: FilledButton.styleFrom(backgroundColor: context.colors.ink),
+          child: const Text('Save'),
+        ),
+      ],
+    );
+  }
+}
+
+/// Lets any trip member set how much they plan to spend in each of the
+/// fixed [budgetCategories] — the planned side of the Budget Planner's
+/// "By Category" breakdown. Open to every member (not just the
+/// organizer), matching the `categories_write_members` RLS policy.
+/// Validates that the categories never add up to more than [totalBudget].
+class _ManageCategoriesSheet extends StatefulWidget {
+  const _ManageCategoriesSheet({
+    required this.plannedByLabel,
+    required this.totalBudget,
+  });
+
+  final Map<String, double> plannedByLabel;
+  final double totalBudget;
+
+  @override
+  State<_ManageCategoriesSheet> createState() => _ManageCategoriesSheetState();
+}
+
+class _ManageCategoriesSheetState extends State<_ManageCategoriesSheet> {
+  late final _controllers = {
+    for (final c in budgetCategories)
+      c.label: TextEditingController(
+        text: (widget.plannedByLabel[c.label] ?? 0) > 0
+            ? formatAmount(widget.plannedByLabel[c.label]!)
+            : '',
+      ),
+  };
+  String? _error;
+
+  @override
+  void dispose() {
+    for (final controller in _controllers.values) {
+      controller.dispose();
+    }
+    super.dispose();
+  }
+
+  void _save() {
+    final result = {
+      for (final entry in _controllers.entries)
+        entry.key: double.tryParse(entry.value.text.trim()) ?? 0,
+    };
+    final sum = result.values.fold<double>(0, (s, v) => s + v);
+    if (widget.totalBudget > 0 && sum > widget.totalBudget) {
+      setState(() {
+        _error =
+            'Categories add up to RM ${formatAmount(sum)}, which is '
+            'RM ${formatAmount(sum - widget.totalBudget)} over your '
+            'RM ${formatAmount(widget.totalBudget)} total budget';
+      });
+      return;
+    }
+    Navigator.of(context).pop(result);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: EdgeInsets.only(
+        bottom: MediaQuery.of(context).viewInsets.bottom,
+      ),
+      child: SafeArea(
+        child: Container(
+          margin: const EdgeInsets.all(12),
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            color: context.colors.card,
+            borderRadius: BorderRadius.circular(24),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Plan Categories',
+                style: TextStyle(
+                  color: context.colors.ink,
+                  fontWeight: FontWeight.w800,
+                  fontSize: 16,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                widget.totalBudget > 0
+                    ? 'Set how much you plan to spend in each category · RM ${formatAmount(widget.totalBudget)} total'
+                    : 'Set how much you plan to spend in each category',
+                style: TextStyle(color: context.colors.muted, fontSize: 12.5),
+              ),
+              const SizedBox(height: 18),
+              ...budgetCategories.map(
+                (c) => Padding(
+                  padding: const EdgeInsets.only(bottom: 12),
+                  child: Row(
+                    children: [
+                      Icon(c.icon, color: c.color, size: 18),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Text(
+                          c.label,
+                          style: TextStyle(
+                            color: context.colors.ink,
+                            fontWeight: FontWeight.w700,
+                            fontSize: 13,
+                          ),
+                        ),
+                      ),
+                      SizedBox(
+                        width: 100,
+                        child: TextField(
+                          controller: _controllers[c.label],
+                          keyboardType: const TextInputType.numberWithOptions(
+                            decimal: true,
+                          ),
+                          textAlign: TextAlign.end,
+                          onChanged: (_) {
+                            if (_error != null) setState(() => _error = null);
+                          },
+                          style: TextStyle(
+                            color: context.colors.ink,
+                            fontWeight: FontWeight.w700,
+                          ),
+                          decoration: InputDecoration(
+                            prefixText: 'RM ',
+                            hintText: '0',
+                            filled: true,
+                            fillColor: context.colors.surface,
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              borderSide: BorderSide.none,
+                            ),
+                            contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 10,
+                              vertical: 10,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              if (_error != null) ...[
+                const SizedBox(height: 4),
+                Text(
+                  _error!,
+                  style: const TextStyle(
+                    color: Colors.redAccent,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
+              const SizedBox(height: 10),
+              GradientButton(
+                label: 'Save Categories',
+                icon: Icons.check_rounded,
+                onPressed: _save,
               ),
             ],
           ),

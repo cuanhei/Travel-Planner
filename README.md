@@ -1,9 +1,11 @@
 # TravelPlanner
 
 A Flutter travel-planning app UI. Every screen is built and navigable end
-to end, but all data is local/dummy — there is no backend, API, or
-persistence. It's a UI/UX prototype for a Penang, Malaysia trip
-("Penang Adventure": Komtar → Gurney Drive → Queensbay Mall).
+to end. Most modules still run on local/dummy data — it's a UI/UX
+prototype for a Penang, Malaysia trip ("Penang Adventure": Komtar →
+Gurney Drive → Queensbay Mall). The **Authentication**, **Budget**, and
+**Group Travel** modules are the exception: they're wired to a real,
+shared Supabase backend (see below).
 
 ## Getting Started
 
@@ -18,12 +20,77 @@ onboarding/auth flow described below.
 ## Tech stack
 
 - Flutter / Material 3, single package, no state-management library —
-  screens use local `State` and dummy `const` data lists.
-- No `http`, no backend, no persistence. Every "submit", "save", or
-  "sign in" action either navigates forward or shows a
-  `showComingSoon()` snackbar (see `lib/widgets/coming_soon.dart`).
+  screens use local `State`, mostly still with dummy `const` data lists.
+- Auth, Budget, and Group Travel are the exception (Supabase-backed —
+  see below); everywhere else, "submit"/"save" either navigates forward
+  or shows a `showComingSoon()` snackbar (see `lib/widgets/coming_soon.dart`).
 - Shared design system in `lib/theme/app_theme.dart` (`AppColors`,
   gradients) and `lib/widgets/` (see below).
+
+## Backend (Auth + Budget + Group modules)
+
+`lib/services/`, `lib/models/`, and `lib/utils/` hold a Supabase-backed
+data layer shared by three modules, all reading/writing it live instead
+of local mock data:
+
+- **Authentication** — real sign up/in/out, password reset via emailed
+  link, 6-digit sign-up email verification, friendly error messages,
+  client-side validation.
+- **Budget** — total budget, category planning, expense CRUD,
+  per-member balances.
+- **Group Travel** — live member roster, realtime chat, realtime
+  polls/voting, invite codes, join requests.
+
+**Setup**
+
+1. Create a Supabase project, then run `supabase/schema.sql` against it
+   (SQL Editor, or `supabase db push`) — see `SUPABASE_SETUP.md` for a
+   full walkthrough (creating the project, Auth provider config, the
+   redirect URL needed for password-reset links). If you already ran an
+   earlier version of this schema, run
+   `supabase/migrations/0001_add_auth_profile_fields.sql` instead to
+   bring it up to date.
+2. In Authentication → Providers → Email, make sure **"Confirm email"
+   is ON** — `VerifyEmailScreen` submits the real 6-digit code from
+   Supabase's confirmation email (Email Templates → Confirm signup must
+   still contain `{{ .Token }}`).
+3. Authentication → URL Configuration → add `http://localhost:8766/**`
+   to both **Site URL** and **Redirect URLs**, and always run with
+   `--web-port=8766` — this lets a password-reset email link land back
+   in the running app and auto-open Reset Password.
+4. Copy `.env.example` to `.env` and fill in your project's URL and
+   anon/publishable key (Project Settings → API). `.env` is gitignored.
+5. `flutter pub get`, then `flutter run -d chrome --web-port=8766` —
+   `main.dart` calls `SupabaseConfig.load()` before `runApp`.
+
+**No trip selection exists anywhere else in the app yet** (Trip Planner
+module), so `TripService.ensureDemoTrip()` auto-creates/reuses one
+"Penang Adventure" trip per signed-in user as a stand-in — every
+Budget/Group screen resolves it internally, so no navigation call
+sites outside `screens/budget/` and `screens/group/` needed to change.
+Swap this out once real trip creation/selection lands.
+
+Joining a trip is now a real request/approve flow, not instant: enter
+a code on **Join a Trip** and it files a pending request; the trip's
+organizer approves/rejects it from **Invite Member**'s "Join Requests"
+list.
+
+| File | Covers |
+|---|---|
+| `services/auth_service.dart` | Wraps every Supabase Auth call (sign up/in/out, password reset, OTP verify/resend) |
+| `services/auth_error_messages.dart` | Maps raw Supabase auth errors to user-facing messages |
+| `utils/validators.dart` | Client-side email/password/name field validation |
+| `services/trip_service.dart` | Resolves/creates the demo trip (see above) |
+| `services/budget_service.dart` | Total budget, category planning, expense CRUD, per-member balances |
+| `services/group_service.dart` | Member roster, invite codes, join requests |
+| `services/chat_service.dart` | Realtime group chat |
+| `services/poll_service.dart` | Polls, options, live vote tallies |
+
+The `profiles` table is shared by all three modules: `display_name` /
+`avatar_color` are read by Budget/Group (member names, chat senders,
+avatars), `full_name` / `email` / `avatar_url` are owned by
+Authentication — one sign-up trigger (in `schema.sql`) populates both
+sets of columns so neither module clobbers the other's data.
 
 ## Shared widgets (`lib/widgets/`)
 
@@ -58,15 +125,15 @@ HomeScreen (bottom nav, 5 tabs)
 Screens reached by pushing (not part of the bottom nav) are nested
 under the tab/section that links to them below.
 
-### Auth Module
+### Auth Module — Supabase-backed
 `splash_screen.dart` · `welcome_screen.dart` · `auth_screen.dart` ·
 `forgot_password_screen.dart` · `reset_password_screen.dart` ·
 `verify_email_screen.dart`
 
-Splash → onboarding carousel → combined sign in/sign up screen →
-forgot-password / reset-password flow → email verification. Signing
-in (any valid-looking input) or completing verification lands on the
-home dashboard.
+Splash (skips straight to Home if a session is already active) →
+onboarding carousel → combined sign in/sign up screen → forgot-password
+(emailed reset link) / reset-password → 6-digit email verification (a
+real Supabase OTP). Live data — see "Backend" above.
 
 ### Home tab
 `home_screen.dart` (dashboard body) · `search_destination_screen.dart` ·
@@ -143,14 +210,15 @@ fare estimate). Reached from Trip Details tools grid.
 Bookmarked places (grid, un-save supported) and bookmarked/draft
 itineraries. Reached from the Profile menu.
 
-### Budget Module
+### Budget Module — Supabase-backed
 `budget/budget_planner_screen.dart` · `budget/expense_tracker_screen.dart` ·
 `budget/expense_split_screen.dart`
 
 Total-vs-spent overview with category breakdown → **Expense
 Tracker** (add expenses via bottom sheet) / **Expense Split**
-(per-traveler balances). Reached from the home dashboard Budget quick
-action and the Trip Details tools grid.
+(per-traveler balances, editable by the organizer). Reached from the
+home dashboard Budget quick action and the Trip Details tools grid.
+Live data — see "Backend" above.
 
 ### Utilities Module
 `utilities/utilities_home_screen.dart` · `utilities/packing_list_screen.dart` ·
@@ -163,14 +231,17 @@ auto-generated **Packing List** (checkboxes), **Currency Converter**
 (English ↔ Bahasa Malaysia phrasebook), **Emergency Contacts** (local
 numbers for Penang).
 
-### Group Travel Module
-`group/group_dashboard_screen.dart` · `group/shared_itinerary_screen.dart` ·
-`group/group_chat_screen.dart` · `group/voting_screen.dart`
+### Group Travel Module — Supabase-backed
+`group/group_dashboard_screen.dart` · `group/group_chat_screen.dart` ·
+`group/voting_screen.dart` · `group/poll_form_screen.dart` ·
+`group/invite_member_screen.dart` · `group/join_trip_screen.dart`
 
-A hub screen (linked from Trip Details tools grid) showing trip
-members, with links to: **Shared Itinerary** (who edited what),
-**Group Chat** (local send), **Voting** (tap-to-vote polls with live
-results).
+A hub screen (linked from Trip Details tools grid) showing the live
+member roster, with links to: **Group Chat** (realtime), **Voting**
+(create/edit/delete polls, live tallies via **Poll Form**), and
+**Invite Member** (generate a code, approve/reject join requests).
+**Join a Trip** (reached from the home dashboard) is the requester
+side. Live data — see "Backend" above.
 
 ### Profile tab — Profile Module
 `profile/profile_tab.dart` · `profile/travel_history_screen.dart` ·
@@ -188,9 +259,13 @@ results).
 
 ```
 lib/
-  main.dart                 # MaterialApp, home: SplashScreen
+  main.dart                 # Supabase init, MaterialApp, home: SplashScreen
   theme/app_theme.dart       # AppColors, gradients, ThemeData
   widgets/                   # shared components (see table above)
+  models/                    # Expense, BudgetCategoryData, TripBalance,
+                              # GroupMember, GroupMessage, Poll, JoinRequest
+  services/                  # SupabaseConfig + Auth/Budget/Group backend (see above)
+  utils/validators.dart      # Auth form validation
   screens/
     splash_screen.dart
     welcome_screen.dart

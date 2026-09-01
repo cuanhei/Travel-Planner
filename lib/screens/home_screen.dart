@@ -1,12 +1,15 @@
 import 'package:flutter/material.dart';
+import 'package:geolocator/geolocator.dart';
+import 'package:latlong2/latlong.dart';
 
-import '../services/auth_service.dart';
+import '../services/trip_service.dart';
+import '../services/weather_service.dart';
 import '../theme/app_theme.dart';
+import '../utils/weather_display.dart';
 import '../widgets/coming_soon.dart';
 import '../widgets/destination_search_bar.dart';
 import '../widgets/section_header.dart';
 import 'activity_log_screen.dart';
-import 'budget/budget_planner_screen.dart';
 import 'community/community_tab.dart';
 import 'explore/explore_tab.dart';
 import 'group/join_trip_screen.dart';
@@ -144,8 +147,6 @@ class _GreetingBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final name = AuthService.instance.currentUserName;
-    final initial = name.isNotEmpty ? name[0].toUpperCase() : '?';
     return Row(
       children: [
         Expanded(
@@ -162,7 +163,7 @@ class _GreetingBar extends StatelessWidget {
               ),
               SizedBox(height: 4),
               Text(
-                'Hi, $name',
+                'Hi, Alex',
                 style: TextStyle(
                   color: context.colors.ink,
                   fontSize: 24,
@@ -201,7 +202,7 @@ class _GreetingBar extends StatelessWidget {
           ),
           alignment: Alignment.center,
           child: Text(
-            initial,
+            'A',
             style: TextStyle(
               color: Colors.white,
               fontWeight: FontWeight.w800,
@@ -361,9 +362,16 @@ class _UpcomingTripCard extends StatelessWidget {
                 borderRadius: BorderRadius.circular(14),
                 child: InkWell(
                   borderRadius: BorderRadius.circular(14),
-                  onTap: () => Navigator.of(context).push(
-                    MaterialPageRoute(builder: (_) => TripDetailsScreen()),
-                  ),
+                  onTap: () async {
+                    final tripId = await TripService().ensureDemoTrip();
+                    final trip = await TripService().getTrip(tripId);
+                    if (!context.mounted) return;
+                    Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => TripDetailsScreen(trip: trip),
+                      ),
+                    );
+                  },
                   child: Padding(
                     padding: EdgeInsets.symmetric(horizontal: 16, vertical: 11),
                     child: Text(
@@ -521,18 +529,82 @@ class _QuickActionItem extends StatelessWidget {
   }
 }
 
-class _WeatherCard extends StatelessWidget {
+/// Real forecast for the traveler's current location, via
+/// [WeatherService] (MET Malaysia data through the government's open
+/// API) — matched from GPS down to town level. Replaces what used to be
+/// hardcoded "Penang, 31°C, Partly Cloudy" placeholder numbers.
+class _WeatherCard extends StatefulWidget {
   const _WeatherCard();
 
-  static final _hourly = [
-    (label: 'Now', icon: Icons.wb_sunny_rounded, temp: '31°'),
-    (label: '1 PM', icon: Icons.wb_cloudy_rounded, temp: '30°'),
-    (label: '3 PM', icon: Icons.cloud_rounded, temp: '29°'),
-    (label: '5 PM', icon: Icons.grain_rounded, temp: '27°'),
-  ];
+  @override
+  State<_WeatherCard> createState() => _WeatherCardState();
+}
+
+class _WeatherCardState extends State<_WeatherCard> {
+  final _weatherService = WeatherService();
+
+  ResolvedWeather? _weather;
+  bool _loading = true;
+  String? _error;
+  bool _outsideMalaysia = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    setState(() {
+      _loading = true;
+      _error = null;
+      _outsideMalaysia = false;
+    });
+    try {
+      if (!await Geolocator.isLocationServiceEnabled()) {
+        throw Exception('Location services are turned off.');
+      }
+      var permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
+      }
+      if (permission == LocationPermission.deniedForever) {
+        throw Exception('Location permission is permanently denied.');
+      }
+      if (permission == LocationPermission.denied) {
+        throw Exception('Location permission is needed for local weather.');
+      }
+      final position = await Geolocator.getCurrentPosition(
+        locationSettings: const LocationSettings(accuracy: LocationAccuracy.high),
+      );
+      final result = await _weatherService.getForecastForPosition(
+        LatLng(position.latitude, position.longitude),
+      );
+      if (!mounted) return;
+      setState(() {
+        _weather = result;
+        _loading = false;
+      });
+    } on LocationNotInMalaysiaException {
+      if (!mounted) return;
+      setState(() {
+        _loading = false;
+        _outsideMalaysia = true;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _loading = false;
+        _error = e.toString();
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
+    if (_outsideMalaysia) {
+      return const _WeatherOutsideMalaysiaNotice();
+    }
     return GestureDetector(
       onTap: () => Navigator.of(
         context,
@@ -555,71 +627,234 @@ class _WeatherCard extends StatelessWidget {
             ),
           ],
         ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+        child: _buildContent(),
+      ),
+    );
+  }
+
+  Widget _buildContent() {
+    if (_loading) return const _WeatherLoading();
+    final error = _error;
+    if (error != null) return _WeatherError(message: error, onRetry: _load);
+    final weather = _weather;
+    if (weather == null) {
+      return _WeatherError(message: 'No forecast available.', onRetry: _load);
+    }
+    return _WeatherContent(weather: weather);
+  }
+}
+
+/// Shown instead of the weather card entirely when the traveler's
+/// current location is confirmed to be outside Malaysia — this API only
+/// covers Malaysia, so there's no forecast to show rather than an error
+/// to retry.
+class _WeatherOutsideMalaysiaNotice extends StatelessWidget {
+  const _WeatherOutsideMalaysiaNotice();
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Icon(Icons.info_outline_rounded, size: 16, color: context.colors.muted),
+        SizedBox(width: 8),
+        Expanded(
+          child: Text(
+            'Weather forecast will only show for your current location if '
+            'you are in Malaysia.',
+            style: TextStyle(color: context.colors.muted, fontSize: 12.5),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _WeatherLoading extends StatelessWidget {
+  const _WeatherLoading();
+
+  @override
+  Widget build(BuildContext context) {
+    return const SizedBox(
+      height: 96,
+      child: Center(
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Penang, Malaysia',
-                        style: TextStyle(
-                          color: Colors.white70,
-                          fontSize: 12.5,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                      SizedBox(height: 4),
-                      Text(
-                        '31°C',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 30,
-                          fontWeight: FontWeight.w800,
-                        ),
-                      ),
-                      Text(
-                        'Partly Cloudy · Feels like 34°C',
-                        style: TextStyle(color: Colors.white70, fontSize: 12),
-                      ),
-                    ],
-                  ),
-                ),
-                Icon(Icons.wb_sunny_rounded, color: Colors.white, size: 44),
-              ],
+            SizedBox(
+              width: 16,
+              height: 16,
+              child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
             ),
-            SizedBox(height: 18),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: _hourly.map((h) {
-                return Column(
-                  children: [
-                    Text(
-                      h.label,
-                      style: TextStyle(color: Colors.white70, fontSize: 11),
-                    ),
-                    SizedBox(height: 6),
-                    Icon(h.icon, color: Colors.white, size: 18),
-                    SizedBox(height: 6),
-                    Text(
-                      h.temp,
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 12,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                  ],
-                );
-              }).toList(),
+            SizedBox(width: 10),
+            Text(
+              'Getting your local weather…',
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 12.5,
+                fontWeight: FontWeight.w600,
+              ),
             ),
           ],
         ),
       ),
+    );
+  }
+}
+
+class _WeatherError extends StatelessWidget {
+  const _WeatherError({required this.message, required this.onRetry});
+
+  final String message;
+  final VoidCallback onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: 96,
+      child: Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.cloud_off_rounded, color: Colors.white, size: 20),
+            const SizedBox(height: 6),
+            Text(
+              message,
+              textAlign: TextAlign.center,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(color: Colors.white, fontSize: 11.5),
+            ),
+            const SizedBox(height: 6),
+            GestureDetector(
+              onTap: onRetry,
+              child: const Text(
+                'Retry',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w800,
+                  fontSize: 12,
+                  decoration: TextDecoration.underline,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _WeatherContent extends StatelessWidget {
+  const _WeatherContent({required this.weather});
+
+  final ResolvedWeather weather;
+
+  @override
+  Widget build(BuildContext context) {
+    final forecast = weather.forecast;
+    final periods = [
+      (label: 'Morning', text: forecast.morningForecast),
+      (label: 'Afternoon', text: forecast.afternoonForecast),
+      (label: 'Night', text: forecast.nightForecast),
+    ];
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    '${weather.areaLabel}, Malaysia',
+                    style: TextStyle(
+                      color: Colors.white70,
+                      fontSize: 12.5,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  SizedBox(height: 4),
+                  Text(
+                    '${forecast.minTemp}° – ${forecast.maxTemp}°C',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 28,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                  Text(
+                    translateWeather(forecast.summaryForecast),
+                    style: TextStyle(color: Colors.white70, fontSize: 12),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 8),
+            Icon(
+              weatherIconFor(forecast.summaryForecast),
+              color: Colors.white,
+              size: 44,
+            ),
+          ],
+        ),
+        SizedBox(height: 18),
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            for (var i = 0; i < periods.length; i++) ...[
+              if (i > 0) const SizedBox(width: 6),
+              Expanded(
+                child: _PeriodTile(
+                  label: periods[i].label,
+                  forecastText: periods[i].text,
+                ),
+              ),
+            ],
+          ],
+        ),
+      ],
+    );
+  }
+}
+
+/// One Morning/Afternoon/Night slot — sized to share the card's width
+/// equally with its siblings ([Expanded] from the parent `Row`) so a
+/// long translated phrase (e.g. "Thunderstorms in Some Coastal Areas")
+/// wraps within its own column instead of overflowing the row.
+class _PeriodTile extends StatelessWidget {
+  const _PeriodTile({required this.label, required this.forecastText});
+
+  final String label;
+  final String forecastText;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        Text(
+          label,
+          style: TextStyle(color: Colors.white70, fontSize: 11),
+        ),
+        SizedBox(height: 6),
+        Icon(weatherIconFor(forecastText), color: Colors.white, size: 18),
+        SizedBox(height: 6),
+        Text(
+          translateWeather(forecastText),
+          textAlign: TextAlign.center,
+          maxLines: 2,
+          overflow: TextOverflow.ellipsis,
+          style: TextStyle(
+            color: Colors.white,
+            fontSize: 10.5,
+            fontWeight: FontWeight.w700,
+            height: 1.2,
+          ),
+        ),
+      ],
     );
   }
 }

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../services/auth_service.dart';
+import '../../services/trip_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/detail_header.dart';
 import '../../widgets/list_tile_card.dart';
@@ -139,6 +140,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     trailing: SizedBox.shrink(),
                     onTap: () async {
                       await AuthService.instance.signOut();
+                      TripService.resetCache();
                       if (!context.mounted) return;
                       Navigator.of(context).pushAndRemoveUntil(
                         MaterialPageRoute(builder: (_) => WelcomeScreen()),

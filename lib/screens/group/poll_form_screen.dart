@@ -1,27 +1,21 @@
 import 'package:flutter/material.dart';
 
+import '../../models/poll.dart';
+import '../../services/poll_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/detail_header.dart';
 import '../../widgets/gradient_button.dart';
-import 'voting_screen.dart';
-
-/// Result of [PollFormScreen]: either a saved (created/edited) poll, or
-/// a request to delete the poll being edited.
-class PollFormResult {
-  const PollFormResult.save(Poll savedPoll) : poll = savedPoll, deleted = false;
-  const PollFormResult.delete() : poll = null, deleted = true;
-
-  final Poll? poll;
-  final bool deleted;
-}
 
 const _maxOptions = 6;
 const _minOptions = 2;
 
-/// UI-only form for creating a new group poll or editing/deleting an
-/// existing one — a question plus 2–6 options.
+/// Form for creating a new group poll or editing/deleting an existing
+/// one — a question plus 2–6 options. Writes straight to Supabase;
+/// [VotingScreen] picks up the change via its realtime stream.
 class PollFormScreen extends StatefulWidget {
-  const PollFormScreen({super.key, this.initial});
+  const PollFormScreen({super.key, required this.tripId, this.initial});
+
+  final String tripId;
 
   /// Poll being edited, or null when creating a new one.
   final Poll? initial;
@@ -33,6 +27,9 @@ class PollFormScreen extends StatefulWidget {
 }
 
 class _PollFormScreenState extends State<PollFormScreen> {
+  final _pollService = PollService();
+  bool _isSaving = false;
+
   late final _questionController = TextEditingController(
     text: widget.initial?.question ?? '',
   );
@@ -68,23 +65,37 @@ class _PollFormScreenState extends State<PollFormScreen> {
     setState(() => _optionControllers.removeAt(index).dispose());
   }
 
-  void _save() {
-    if (!_canSave) return;
-    final options = <PollOption>[];
-    for (var i = 0; i < _optionControllers.length; i++) {
-      final label = _optionControllers[i].text.trim();
-      if (label.isEmpty) continue;
-      final priorVotes = (widget.initial != null && i < widget.initial!.options.length)
-          ? widget.initial!.options[i].votes
-          : 0;
-      options.add(PollOption(label, priorVotes));
+  Future<void> _save() async {
+    if (!_canSave || _isSaving) return;
+    final labels = _optionControllers
+        .map((c) => c.text.trim())
+        .where((label) => label.isNotEmpty)
+        .toList();
+
+    setState(() => _isSaving = true);
+    try {
+      if (widget.initial != null) {
+        await _pollService.updatePoll(
+          pollId: widget.initial!.id,
+          question: _questionController.text.trim(),
+          optionLabels: labels,
+        );
+      } else {
+        await _pollService.createPoll(
+          tripId: widget.tripId,
+          question: _questionController.text.trim(),
+          optionLabels: labels,
+        );
+      }
+      if (!mounted) return;
+      Navigator.of(context).pop();
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _isSaving = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(behavior: SnackBarBehavior.floating, content: Text('$e')),
+      );
     }
-    final poll = Poll(_questionController.text.trim(), options);
-    final priorVotedIndex = widget.initial?.votedIndex;
-    poll.votedIndex = (priorVotedIndex != null && priorVotedIndex < options.length)
-        ? priorVotedIndex
-        : null;
-    Navigator.of(context).pop(PollFormResult.save(poll));
   }
 
   Future<void> _confirmDelete() async {
@@ -117,9 +128,10 @@ class _PollFormScreenState extends State<PollFormScreen> {
         ],
       ),
     );
-    if (confirmed == true && mounted) {
-      Navigator.of(context).pop(const PollFormResult.delete());
-    }
+    if (confirmed != true || !mounted) return;
+    await _pollService.deletePoll(widget.initial!.id);
+    if (!mounted) return;
+    Navigator.of(context).pop();
   }
 
   @override
@@ -248,7 +260,7 @@ class _PollFormScreenState extends State<PollFormScreen> {
                   GradientButton(
                     label: widget.isEditing ? 'Save Changes' : 'Create Poll',
                     icon: Icons.how_to_vote_rounded,
-                    onPressed: _canSave ? _save : () {},
+                    onPressed: _canSave && !_isSaving ? _save : () {},
                   ),
                   if (widget.isEditing) ...[
                     const SizedBox(height: 14),

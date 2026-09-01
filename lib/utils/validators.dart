@@ -15,7 +15,7 @@ class Validators {
   static String? email(String? value) {
     final v = value?.trim() ?? '';
     if (v.isEmpty) return 'Enter your email';
-    if (!_emailPattern.hasMatch(v)) return 'The email format is invalid.';
+    if (!_emailPattern.hasMatch(v)) return 'Enter a valid email address';
     return null;
   }
 

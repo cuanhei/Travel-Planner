@@ -1,12 +1,10 @@
 import 'package:flutter/material.dart';
 
-import '../../services/auth_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/detail_header.dart';
 import '../../widgets/gradient_button.dart';
 
-/// Profile editor, seeded with the signed-in user's real name/email — phone
-/// and bio remain UI-only (no backing columns yet).
+/// UI-only profile editor — name, email, phone, and a short bio.
 class EditProfileScreen extends StatefulWidget {
   const EditProfileScreen({super.key});
 
@@ -15,14 +13,12 @@ class EditProfileScreen extends StatefulWidget {
 }
 
 class _EditProfileScreenState extends State<EditProfileScreen> {
-  late final _nameController = TextEditingController(
-    text: AuthService.instance.currentUserName,
+  final _nameController = TextEditingController(text: 'Alex Tan');
+  final _emailController = TextEditingController(text: 'alex.tan@email.com');
+  final _phoneController = TextEditingController(text: '+60 12-345 6789');
+  final _bioController = TextEditingController(
+    text: 'Always chasing the next sunset and the next hawker stall.',
   );
-  late final _emailController = TextEditingController(
-    text: AuthService.instance.currentUser?.email ?? '',
-  );
-  final _phoneController = TextEditingController();
-  final _bioController = TextEditingController();
 
   @override
   void dispose() {
@@ -84,11 +80,9 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                             ],
                           ),
                           alignment: Alignment.center,
-                          child: Text(
-                            _nameController.text.isNotEmpty
-                                ? _nameController.text[0].toUpperCase()
-                                : '?',
-                            style: const TextStyle(
+                          child: const Text(
+                            'A',
+                            style: TextStyle(
                               color: Colors.white,
                               fontSize: 30,
                               fontWeight: FontWeight.w800,

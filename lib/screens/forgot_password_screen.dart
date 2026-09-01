@@ -1,24 +1,15 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:supabase_flutter/supabase_flutter.dart' show AuthException;
 
-import '../main.dart' show markResetPasswordShown;
 import '../services/auth_error_messages.dart';
 import '../services/auth_service.dart';
 import '../theme/app_theme.dart';
 import '../utils/validators.dart';
 import '../widgets/gradient_button.dart';
-import 'reset_password_screen.dart';
 
-/// Requests a Supabase password-reset code, then lets the user enter the
-/// 6-digit code emailed to them. Verifying it establishes a recovery
-/// session and opens the Reset Password screen.
-///
-/// Deliberately code-based rather than link-based: a single-click email
-/// link can get silently consumed by mail-provider link-prescanning (the
-/// same issue that affects sign-up confirmation links) before the user
-/// ever opens it, and it also depends on the click landing in the same
-/// browser profile that requested it. A manually-typed code sidesteps both.
+/// Requests a Supabase password-reset email, then shows a confirmation
+/// state. Tapping the link in that email lands back in the app and (see
+/// `main.dart`) opens the Reset Password screen automatically.
 class ForgotPasswordScreen extends StatefulWidget {
   const ForgotPasswordScreen({super.key});
 
@@ -26,36 +17,20 @@ class ForgotPasswordScreen extends StatefulWidget {
   State<ForgotPasswordScreen> createState() => _ForgotPasswordScreenState();
 }
 
-enum _Step { request, code }
-
 class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
-  static final _digits = 6;
-
   final _formKey = GlobalKey<FormState>();
   final _emailController = TextEditingController();
-  final _codeControllers = List.generate(_digits, (_) => TextEditingController());
-  final _codeFocusNodes = List.generate(_digits, (_) => FocusNode());
-
-  _Step _step = _Step.request;
+  bool _linkSent = false;
   bool _loading = false;
-  bool _codeError = false;
   int _cooldown = 0;
 
   @override
   void dispose() {
     _emailController.dispose();
-    for (final c in _codeControllers) {
-      c.dispose();
-    }
-    for (final f in _codeFocusNodes) {
-      f.dispose();
-    }
     super.dispose();
   }
 
-  String get _code => _codeControllers.map((c) => c.text).join();
-
-  Future<void> _sendCode() async {
+  Future<void> _sendLink() async {
     if (!(_formKey.currentState?.validate() ?? false)) return;
 
     setState(() => _loading = true);
@@ -64,7 +39,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
         _emailController.text.trim(),
       );
       if (!mounted) return;
-      setState(() => _step = _Step.code);
+      setState(() => _linkSent = true);
       _startCooldown();
     } on AuthException catch (e) {
       _showError(friendlyAuthError(e));
@@ -78,7 +53,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
   Future<void> _resend() async {
     setState(() => _loading = true);
     try {
-      await AuthService.instance.resendPasswordResetCode(
+      await AuthService.instance.sendPasswordResetEmail(
         _emailController.text.trim(),
       );
       _startCooldown();
@@ -88,50 +63,6 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
       _showError('Something went wrong. Please try again.');
     } finally {
       if (mounted) setState(() => _loading = false);
-    }
-  }
-
-  Future<void> _verifyCode() async {
-    if (_code.length < _digits) {
-      setState(() => _codeError = true);
-      return;
-    }
-
-    setState(() {
-      _codeError = false;
-      _loading = true;
-    });
-    try {
-      await AuthService.instance.verifyRecoveryCode(
-        email: _emailController.text.trim(),
-        token: _code,
-      );
-      if (!mounted) return;
-      markResetPasswordShown();
-      Navigator.of(context).pushReplacement(
-        MaterialPageRoute(builder: (_) => ResetPasswordScreen()),
-      );
-    } on AuthException catch (e) {
-      setState(() => _codeError = true);
-      _showError(friendlyAuthError(e));
-    } catch (_) {
-      setState(() => _codeError = true);
-      _showError('Something went wrong. Please try again.');
-    } finally {
-      if (mounted) setState(() => _loading = false);
-    }
-  }
-
-  void _onCodeChanged(int index, String value) {
-    setState(() => _codeError = false);
-    if (value.isNotEmpty && index < _digits - 1) {
-      _codeFocusNodes[index + 1].requestFocus();
-    }
-    if (value.isEmpty && index > 0) {
-      _codeFocusNodes[index - 1].requestFocus();
-    }
-    if (_code.length == _digits) {
-      FocusScope.of(context).unfocus();
     }
   }
 
@@ -158,7 +89,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
       resizeToAvoidBottomInset: true,
       body: Stack(
         children: [
-          _Header(step: _step),
+          _Header(isSent: _linkSent),
           SafeArea(
             child: Column(
               children: [
@@ -186,17 +117,12 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                             child: child,
                           ),
                         ),
-                        child: _step == _Step.code
-                            ? _CodeView(
-                                key: ValueKey('code'),
+                        child: _linkSent
+                            ? _SentView(
+                                key: ValueKey('sent'),
                                 email: _emailController.text.trim(),
-                                controllers: _codeControllers,
-                                focusNodes: _codeFocusNodes,
-                                hasError: _codeError,
-                                loading: _loading,
                                 cooldown: _cooldown,
-                                onChanged: _onCodeChanged,
-                                onVerify: _verifyCode,
+                                loading: _loading,
                                 onResend: _cooldown == 0 ? _resend : null,
                               )
                             : _RequestView(
@@ -204,7 +130,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                                 formKey: _formKey,
                                 emailController: _emailController,
                                 loading: _loading,
-                                onSubmit: _sendCode,
+                                onSubmit: _sendLink,
                               ),
                       ),
                     ),
@@ -231,13 +157,12 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
 }
 
 class _Header extends StatelessWidget {
-  const _Header({required this.step});
+  const _Header({required this.isSent});
 
-  final _Step step;
+  final bool isSent;
 
   @override
   Widget build(BuildContext context) {
-    final isCode = step == _Step.code;
     return Container(
       height: 260,
       width: double.infinity,
@@ -265,7 +190,7 @@ class _Header extends StatelessWidget {
                 ),
               ),
               child: Icon(
-                isCode
+                isSent
                     ? Icons.mark_email_read_rounded
                     : Icons.lock_reset_rounded,
                 color: Colors.white,
@@ -274,7 +199,7 @@ class _Header extends StatelessWidget {
             ),
             SizedBox(height: 16),
             Text(
-              isCode ? 'Enter Reset Code' : 'Forgot Password?',
+              isSent ? 'Check Your Email' : 'Forgot Password?',
               style: TextStyle(
                 color: Colors.white,
                 fontSize: 24,
@@ -285,9 +210,9 @@ class _Header extends StatelessWidget {
             Padding(
               padding: EdgeInsets.symmetric(horizontal: 40),
               child: Text(
-                isCode
-                    ? "We've sent a 6-digit code to your email"
-                    : "No worries, we'll send you a reset code",
+                isSent
+                    ? 'We sent a password reset link to your inbox'
+                    : "No worries, we'll send you reset instructions",
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   color: Colors.white.withValues(alpha: 0.85),
@@ -357,7 +282,7 @@ class _RequestView extends StatelessWidget {
           ),
           SizedBox(height: 28),
           GradientButton(
-            label: 'Send Reset Code',
+            label: 'Send Reset Link',
             onPressed: onSubmit,
             loading: loading,
           ),
@@ -389,28 +314,18 @@ class _RequestView extends StatelessWidget {
   }
 }
 
-class _CodeView extends StatelessWidget {
-  const _CodeView({
+class _SentView extends StatelessWidget {
+  const _SentView({
     super.key,
     required this.email,
-    required this.controllers,
-    required this.focusNodes,
-    required this.hasError,
-    required this.loading,
     required this.cooldown,
-    required this.onChanged,
-    required this.onVerify,
+    required this.loading,
     required this.onResend,
   });
 
   final String email;
-  final List<TextEditingController> controllers;
-  final List<FocusNode> focusNodes;
-  final bool hasError;
-  final bool loading;
   final int cooldown;
-  final void Function(int, String) onChanged;
-  final VoidCallback onVerify;
+  final bool loading;
   final VoidCallback? onResend;
 
   @override
@@ -418,96 +333,49 @@ class _CodeView extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        if (email.isNotEmpty)
-          Padding(
-            padding: EdgeInsets.only(bottom: 20),
-            child: Text.rich(
+        Text.rich(
+          TextSpan(
+            style: TextStyle(color: context.colors.muted, height: 1.5),
+            children: [
+              TextSpan(text: "Didn't get the email? Check your spam "),
+              TextSpan(text: 'folder, or resend it to '),
               TextSpan(
-                style: TextStyle(color: context.colors.muted, height: 1.5),
-                children: [
-                  TextSpan(text: 'Code sent to '),
-                  TextSpan(
-                    text: email,
+                text: email.isEmpty ? 'your email address' : email,
+                style: TextStyle(
+                  color: context.colors.ink,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              TextSpan(text: '.'),
+            ],
+          ),
+          textAlign: TextAlign.center,
+        ),
+        SizedBox(height: 28),
+        SizedBox(
+          height: 48,
+          child: loading
+              ? Center(
+                  child: SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(strokeWidth: 2.4),
+                  ),
+                )
+              : TextButton(
+                  onPressed: onResend,
+                  child: Text(
+                    onResend == null
+                        ? 'Resend in ${cooldown}s'
+                        : 'Resend Email',
                     style: TextStyle(
-                      color: context.colors.ink,
+                      color: onResend == null
+                          ? context.colors.muted
+                          : AppColors.accent,
                       fontWeight: FontWeight.w700,
                     ),
                   ),
-                ],
-              ),
-              textAlign: TextAlign.center,
-            ),
-          ),
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: List.generate(controllers.length, (index) {
-            return SizedBox(
-              width: 46,
-              height: 56,
-              child: TextField(
-                controller: controllers[index],
-                focusNode: focusNodes[index],
-                textAlign: TextAlign.center,
-                keyboardType: TextInputType.number,
-                maxLength: 1,
-                inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                style: TextStyle(
-                  fontSize: 22,
-                  fontWeight: FontWeight.w800,
-                  color: context.colors.ink,
                 ),
-                decoration: InputDecoration(
-                  counterText: '',
-                  filled: true,
-                  fillColor: context.colors.surface,
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(14),
-                    borderSide: hasError
-                        ? BorderSide(color: Colors.redAccent, width: 1.2)
-                        : BorderSide.none,
-                  ),
-                  focusedBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(14),
-                    borderSide: BorderSide(
-                      color: context.colors.ink,
-                      width: 1.5,
-                    ),
-                  ),
-                ),
-                onChanged: (value) => onChanged(index, value),
-              ),
-            );
-          }),
-        ),
-        if (hasError)
-          Padding(
-            padding: EdgeInsets.only(top: 10),
-            child: Text(
-              'Enter the full 6-digit code',
-              style: TextStyle(color: Colors.redAccent, fontSize: 12),
-            ),
-          ),
-        SizedBox(height: 28),
-        GradientButton(
-          label: 'Verify Code',
-          onPressed: onVerify,
-          loading: loading,
-        ),
-        SizedBox(height: 20),
-        SizedBox(
-          height: 48,
-          child: TextButton(
-            onPressed: onResend,
-            child: Text(
-              onResend == null ? 'Resend code in ${cooldown}s' : 'Resend Code',
-              style: TextStyle(
-                color: onResend == null
-                    ? context.colors.muted
-                    : AppColors.accent,
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-          ),
         ),
         SizedBox(height: 8),
         Row(

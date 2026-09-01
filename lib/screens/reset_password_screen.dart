@@ -8,7 +8,7 @@ import '../utils/validators.dart';
 import '../widgets/gradient_button.dart';
 
 /// "Set a new password" screen, reached once a recovery session has been
-/// established by entering the 6-digit code from `forgot_password_screen.dart`.
+/// established from a password-reset email link (see `main.dart`).
 class ResetPasswordScreen extends StatefulWidget {
   const ResetPasswordScreen({super.key});
 
