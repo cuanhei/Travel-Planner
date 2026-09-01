@@ -1,6 +1,7 @@
 import 'package:flutter/cupertino.dart' show CupertinoDatePicker, CupertinoDatePickerMode;
 import 'package:flutter/material.dart';
 
+import '../../services/trip_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/detail_header.dart';
 import '../../widgets/gradient_button.dart';
@@ -83,9 +84,10 @@ class CreateTripScreen extends StatefulWidget {
 }
 
 class _CreateTripScreenState extends State<CreateTripScreen> {
-  final _nameController = TextEditingController(text: 'Penang Adventure');
+  final _nameController = TextEditingController();
   final _descriptionController = TextEditingController();
   final _budgetController = TextEditingController(text: 'RM 1,500');
+  final _tripService = TripService();
   _City? _startCity;
   _City? _endCity;
   DateTimeRange? _dateRange;
@@ -94,6 +96,7 @@ class _CreateTripScreenState extends State<CreateTripScreen> {
   final Set<String> _selectedInterests = {'Shopping', 'Food'};
   final Set<Place> _selectedPlaces = {};
   bool _autoRecommend = true;
+  bool _isSubmitting = false;
 
   @override
   void dispose() {
@@ -149,9 +152,30 @@ class _CreateTripScreenState extends State<CreateTripScreen> {
     });
   }
 
-  bool get _canSubmit => _selectedPlaces.isNotEmpty || _autoRecommend;
+  bool get _canSubmit =>
+      (_selectedPlaces.isNotEmpty || _autoRecommend) && !_isSubmitting;
+
+  /// Parses the free-text Budget field (e.g. "RM 1,500") down to a plain
+  /// number for `trips.total_budget` — strips everything but digits and
+  /// the decimal point.
+  double _parseBudget(String text) =>
+      double.tryParse(text.replaceAll(RegExp(r'[^0-9.]'), '')) ?? 0;
+
+  String _formatTimeOfDay(TimeOfDay t) =>
+      '${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}:00';
 
   Future<void> _submit() async {
+    final name = _nameController.text.trim();
+    if (name.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          behavior: SnackBarBehavior.floating,
+          content: Text('Give your trip a name first'),
+        ),
+      );
+      return;
+    }
+
     final recommended = _autoRecommend
         ? places
               .where(
@@ -166,10 +190,48 @@ class _CreateTripScreenState extends State<CreateTripScreen> {
     final finalPlaces = [..._selectedPlaces, ...recommended];
     if (finalPlaces.isEmpty) return;
 
+    setState(() => _isSubmitting = true);
+    try {
+      // Trip details + travel information only, for now — no stops,
+      // interests, or day-by-day schedule yet.
+      await _tripService.createTrip(
+        name: name,
+        description: _descriptionController.text.trim(),
+        destination: _endCity?.label ?? _startCity?.label,
+        startCity: _startCity?.city,
+        startState: _startCity?.state,
+        endCity: _endCity?.city,
+        endState: _endCity?.state,
+        startDate: _dateRange?.start,
+        endDate: _dateRange?.end,
+        startTime: _formatTimeOfDay(_startTime),
+        endTime: _formatTimeOfDay(_endTime),
+        totalBudget: _parseBudget(_budgetController.text),
+        autoRecommend: _autoRecommend,
+      );
+    } catch (e) {
+      // Full exception (PostgrestException's message/code/details/hint)
+      // printed to the console — the SnackBar alone can truncate or get
+      // dismissed before it's readable.
+      debugPrint('Create trip failed: $e');
+      if (!mounted) return;
+      setState(() => _isSubmitting = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          behavior: SnackBarBehavior.floating,
+          duration: const Duration(seconds: 8),
+          content: Text('Could not create trip: $e'),
+        ),
+      );
+      return;
+    }
+    if (!mounted) return;
+    setState(() => _isSubmitting = false);
+
     Navigator.of(context).push(
       MaterialPageRoute(
         builder: (_) => OptimizedItineraryScreen(
-          tripName: _nameController.text.trim(),
+          tripName: name,
           description: _descriptionController.text.trim(),
           places: finalPlaces,
           recommendedNames: recommended.map((p) => p.name).toSet(),
@@ -201,6 +263,7 @@ class _CreateTripScreenState extends State<CreateTripScreen> {
                       _InputBox(
                         controller: _nameController,
                         icon: Icons.edit_rounded,
+                        hintText: 'e.g. Penang Adventure',
                       ),
                       const SizedBox(height: 18),
                       _FieldLabel('Description (optional)'),
@@ -468,6 +531,7 @@ class _CreateTripScreenState extends State<CreateTripScreen> {
                   GradientButton(
                     label: 'Plan My Trip',
                     icon: Icons.route_rounded,
+                    loading: _isSubmitting,
                     onPressed: _canSubmit ? _submit : () {},
                   ),
                 ],
@@ -562,12 +626,14 @@ class _InputBox extends StatelessWidget {
     required this.icon,
     this.keyboardType,
     this.maxLines = 1,
+    this.hintText,
   });
 
   final TextEditingController controller;
   final IconData icon;
   final TextInputType? keyboardType;
   final int maxLines;
+  final String? hintText;
 
   @override
   Widget build(BuildContext context) {
@@ -577,6 +643,11 @@ class _InputBox extends StatelessWidget {
       maxLines: maxLines,
       style: TextStyle(fontWeight: FontWeight.w600, color: context.colors.ink),
       decoration: InputDecoration(
+        hintText: hintText,
+        hintStyle: TextStyle(
+          color: context.colors.muted,
+          fontWeight: FontWeight.w500,
+        ),
         prefixIcon: maxLines == 1
             ? Icon(icon, color: context.colors.muted, size: 20)
             : null,

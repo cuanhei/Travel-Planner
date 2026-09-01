@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../models/trip.dart';
+import '../../services/trip_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/section_header.dart';
 import 'create_trip_screen.dart';
@@ -18,46 +19,6 @@ const _tripGradients = [
 List<Color> _gradientFor(int index) =>
     _tripGradients[index % _tripGradients.length];
 
-/// UI-only dummy trips, standing in for what used to be a live Supabase
-/// query — one in each of the Current / Upcoming / Past buckets.
-List<Trip> _dummyTrips() {
-  final today = DateTime.now();
-  DateTime daysFrom(int offset) =>
-      DateTime(today.year, today.month, today.day + offset);
-  return [
-    Trip(
-      id: 'dummy-current',
-      name: 'Penang Adventure',
-      destination: 'Penang, Malaysia',
-      startDate: daysFrom(-1),
-      endDate: daysFrom(2),
-      totalBudget: 1500,
-      createdBy: 'demo',
-      createdAt: daysFrom(-10),
-    ),
-    Trip(
-      id: 'dummy-upcoming',
-      name: 'Langkawi Getaway',
-      destination: 'Langkawi, Malaysia',
-      startDate: daysFrom(20),
-      endDate: daysFrom(24),
-      totalBudget: 2200,
-      createdBy: 'demo',
-      createdAt: daysFrom(-3),
-    ),
-    Trip(
-      id: 'dummy-past',
-      name: 'Malacca Weekend',
-      destination: 'Malacca City, Malaysia',
-      startDate: daysFrom(-40),
-      endDate: daysFrom(-38),
-      totalBudget: 800,
-      createdBy: 'demo',
-      createdAt: daysFrom(-50),
-    ),
-  ];
-}
-
 /// "Trips" bottom-nav tab: the signed-in user's own trips, bucketed into
 /// Current / Upcoming / Past. Includes a search box that filters trips by
 /// name, and the entry point for creating a new trip.
@@ -70,8 +31,17 @@ class TripsTab extends StatefulWidget {
 
 class _TripsTabState extends State<TripsTab> {
   final _searchController = TextEditingController();
-  final List<Trip> _trips = _dummyTrips();
+  final _tripService = TripService();
+  List<Trip> _trips = [];
+  bool _loading = true;
+  String? _error;
   String _query = '';
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
 
   @override
   void dispose() {
@@ -79,11 +49,44 @@ class _TripsTabState extends State<TripsTab> {
     super.dispose();
   }
 
+  Future<void> _load() async {
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+    try {
+      final trips = await _tripService.myTrips();
+      if (!mounted) return;
+      setState(() {
+        _trips = trips;
+        _loading = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _error = '$e';
+        _loading = false;
+      });
+    }
+  }
+
+  Future<void> _openCreateTrip() async {
+    await Navigator.of(
+      context,
+    ).push(MaterialPageRoute(builder: (_) => const CreateTripScreen()));
+    if (mounted) _load();
+  }
+
   @override
   Widget build(BuildContext context) {
     return SafeArea(
       child: Builder(
         builder: (context) {
+          if (_loading) return const _TripsLoading();
+          if (_error != null) {
+            return _TripsError(message: _error!, onRetry: _load);
+          }
+
           final trips = _trips;
           final q = _query.trim().toLowerCase();
           final searching = q.isNotEmpty;
@@ -140,11 +143,7 @@ class _TripsTabState extends State<TripsTab> {
                     shape: const CircleBorder(),
                     child: InkWell(
                       customBorder: const CircleBorder(),
-                      onTap: () => Navigator.of(context).push(
-                        MaterialPageRoute(
-                          builder: (_) => const CreateTripScreen(),
-                        ),
-                      ),
+                      onTap: _openCreateTrip,
                       child: const Padding(
                         padding: EdgeInsets.all(12),
                         child: Icon(
@@ -312,6 +311,58 @@ class _NoSearchResults extends StatelessWidget {
             style: TextStyle(color: context.colors.muted, fontSize: 12),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _TripsLoading extends StatelessWidget {
+  const _TripsLoading();
+
+  @override
+  Widget build(BuildContext context) {
+    return const Center(child: CircularProgressIndicator());
+  }
+}
+
+class _TripsError extends StatelessWidget {
+  const _TripsError({required this.message, required this.onRetry});
+
+  final String message;
+  final VoidCallback onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              Icons.error_outline_rounded,
+              color: context.colors.muted,
+              size: 30,
+            ),
+            const SizedBox(height: 10),
+            Text(
+              'Could not load your trips',
+              style: TextStyle(
+                color: context.colors.ink,
+                fontWeight: FontWeight.w700,
+                fontSize: 13.5,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              message,
+              textAlign: TextAlign.center,
+              style: TextStyle(color: context.colors.muted, fontSize: 12),
+            ),
+            const SizedBox(height: 14),
+            TextButton(onPressed: onRetry, child: const Text('Try again')),
+          ],
+        ),
       ),
     );
   }
