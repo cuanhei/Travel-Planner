@@ -3,6 +3,7 @@ import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 
 import '../../models/trip_stop_location.dart';
+import '../../services/trip_service.dart';
 import '../../theme/app_theme.dart';
 import '../../utils/malaysia_bounds.dart';
 import '../../widgets/detail_header.dart';
@@ -13,39 +14,6 @@ const _osmUserAgent = 'com.example.travelplanner';
 const _stopMarkerRed = Color(0xFFE53935);
 const _stopMarkerBlue = Color(0xFF1E88E5);
 const _focusZoom = 16.0;
-
-/// UI-only dummy stops, standing in for what used to be a live Supabase
-/// query — a handful of well-known Penang landmarks.
-const _dummyStops = [
-  TripStopLocation(
-    name: 'Komtar',
-    address: 'Jalan Penang, George Town, Penang',
-    latitude: 5.4141,
-    longitude: 100.3288,
-    category: 'Shopping',
-  ),
-  TripStopLocation(
-    name: 'Chew Jetty',
-    address: 'Pengkalan Weld, George Town, Penang',
-    latitude: 5.4145,
-    longitude: 100.3428,
-    category: 'Attraction',
-  ),
-  TripStopLocation(
-    name: 'Penang Hill',
-    address: 'Air Itam, Penang',
-    latitude: 5.4234,
-    longitude: 100.2789,
-    category: 'Nature',
-  ),
-  TripStopLocation(
-    name: 'Gurney Drive',
-    address: 'Persiaran Gurney, George Town, Penang',
-    latitude: 5.4381,
-    longitude: 100.3086,
-    category: 'Food',
-  ),
-];
 
 /// Read-only map of every stop already saved to one trip — NOT the
 /// Transport module's routing/navigation map. No route calculation, no
@@ -64,6 +32,11 @@ class TripMapScreen extends StatefulWidget {
 class _TripMapScreenState extends State<TripMapScreen> {
   final _searchController = TextEditingController();
   final _searchFocusNode = FocusNode();
+  final _tripService = TripService();
+
+  List<TripStopLocation> _stops = [];
+  bool _loading = true;
+  String? _error;
 
   /// Marker color/popup state — set either by picking a stop from the
   /// search dropdown or by tapping its marker directly on the map.
@@ -85,6 +58,7 @@ class _TripMapScreenState extends State<TripMapScreen> {
         setState(() => _showDropdown = true);
       }
     });
+    _loadStops();
   }
 
   @override
@@ -92,6 +66,27 @@ class _TripMapScreenState extends State<TripMapScreen> {
     _searchController.dispose();
     _searchFocusNode.dispose();
     super.dispose();
+  }
+
+  Future<void> _loadStops() async {
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+    try {
+      final stops = await _tripService.getTripStops(widget.tripId);
+      if (!mounted) return;
+      setState(() {
+        _stops = stops;
+        _loading = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _error = '$e';
+        _loading = false;
+      });
+    }
   }
 
   List<TripStopLocation> _filteredStops(List<TripStopLocation> all) {
@@ -147,7 +142,11 @@ class _TripMapScreenState extends State<TripMapScreen> {
             Expanded(
               child: Builder(
                 builder: (context) {
-                  const stops = _dummyStops;
+                  if (_loading) return const _StopsLoading();
+                  if (_error != null) {
+                    return _StopsError(message: _error!, onRetry: _loadStops);
+                  }
+                  final stops = _stops;
 
                   return Padding(
                     padding: const EdgeInsets.fromLTRB(20, 4, 20, 20),
@@ -238,7 +237,10 @@ class _TripStopsMap extends StatelessWidget {
       key: ValueKey(cameraKey),
       options: MapOptions(
         initialCenter: focus ?? bounds?.center ?? malaysiaFallbackCenter,
-        initialZoom: focus != null || bounds == null ? _focusZoom : 6,
+        // Only actually used when initialCameraFit is null (falls back to
+        // the fit's own computed zoom otherwise) — kept >= minZoom below
+        // regardless, so there's no zoom/minZoom mismatch either way.
+        initialZoom: focus != null || bounds == null ? _focusZoom : 12,
         initialCameraFit: focus == null && bounds != null
             ? CameraFit.bounds(
                 bounds: bounds,
@@ -247,6 +249,11 @@ class _TripStopsMap extends StatelessWidget {
               )
             : null,
         cameraConstraint: CameraConstraint.contain(bounds: malaysiaBounds),
+        // A trip's stops sit within one city — zooming out further than
+        // that only reaches OSM's coarser, generalized coastline tiles,
+        // where a point genuinely near the shore (e.g. a jetty) can
+        // render as if it's over water even though it isn't.
+        minZoom: 10,
         interactionOptions: const InteractionOptions(
           flags: InteractiveFlag.all & ~InteractiveFlag.rotate,
         ),
@@ -456,6 +463,58 @@ class _TripStopDropdown extends StatelessWidget {
                   );
                 },
               ),
+      ),
+    );
+  }
+}
+
+class _StopsLoading extends StatelessWidget {
+  const _StopsLoading();
+
+  @override
+  Widget build(BuildContext context) {
+    return const Center(child: CircularProgressIndicator());
+  }
+}
+
+class _StopsError extends StatelessWidget {
+  const _StopsError({required this.message, required this.onRetry});
+
+  final String message;
+  final VoidCallback onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              Icons.error_outline_rounded,
+              color: context.colors.muted,
+              size: 30,
+            ),
+            const SizedBox(height: 10),
+            Text(
+              'Could not load this trip\'s stops',
+              style: TextStyle(
+                color: context.colors.ink,
+                fontWeight: FontWeight.w700,
+                fontSize: 13.5,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              message,
+              textAlign: TextAlign.center,
+              style: TextStyle(color: context.colors.muted, fontSize: 12),
+            ),
+            const SizedBox(height: 14),
+            TextButton(onPressed: onRetry, child: const Text('Try again')),
+          ],
+        ),
       ),
     );
   }

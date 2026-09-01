@@ -11,10 +11,14 @@ class TripStopLocation {
     required this.address,
     required this.latitude,
     required this.longitude,
+    this.id,
     this.osmId,
     this.category = 'Other',
   });
 
+  /// `trip_stops.id` — null for a freshly-picked search/map result that
+  /// hasn't been saved to a trip yet.
+  final String? id;
   final String name;
   final String address;
   final double latitude;
@@ -31,6 +35,18 @@ class TripStopLocation {
 
   /// Icon representing [category], for chips, list tiles, and cards.
   IconData get categoryIcon => iconForCategory(category);
+
+  factory TripStopLocation.fromMap(Map<String, dynamic> map) {
+    return TripStopLocation(
+      id: map['id'] as String,
+      name: map['name'] as String,
+      address: map['address'] as String,
+      latitude: (map['latitude'] as num).toDouble(),
+      longitude: (map['longitude'] as num).toDouble(),
+      osmId: map['osm_id'] as String?,
+      category: (map['category'] as String?) ?? 'Other',
+    );
+  }
 
   @override
   bool operator ==(Object other) =>

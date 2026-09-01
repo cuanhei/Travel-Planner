@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../models/trip.dart';
+import '../models/trip_stop_location.dart';
 import 'supabase_config.dart';
 
 /// Default category plan seeded onto a freshly created demo trip —
@@ -146,6 +147,18 @@ class TripService {
         .eq('trip_members.user_id', _uid)
         .order('created_at', ascending: false);
     return [for (final row in rows) Trip.fromMap(row)];
+  }
+
+  /// Every stop saved to a trip, for [TripMapScreen] — was hardcoded
+  /// dummy data before, so every trip showed the same 4 Penang landmarks
+  /// regardless of [tripId].
+  Future<List<TripStopLocation>> getTripStops(String tripId) async {
+    final rows = await _client
+        .from('trip_stops')
+        .select()
+        .eq('trip_id', tripId)
+        .order('created_at');
+    return [for (final row in rows) TripStopLocation.fromMap(row)];
   }
 
   /// Fetches a trip's current name, for screens that only hold its id
