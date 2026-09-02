@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import '../../models/trip.dart';
 import '../../services/trip_service.dart';
 import '../../theme/app_theme.dart';
-import '../../widgets/section_header.dart';
 import 'create_trip_screen.dart';
 import 'trip_details_screen.dart';
 
@@ -18,6 +17,24 @@ const _tripGradients = [
 
 List<Color> _gradientFor(int index) =>
     _tripGradients[index % _tripGradients.length];
+
+const _statusFilters = [
+  (status: TripStatus.current, label: 'Current', icon: Icons.explore_rounded),
+  (
+    status: TripStatus.upcoming,
+    label: 'Upcoming',
+    icon: Icons.schedule_rounded,
+  ),
+  (status: TripStatus.past, label: 'Past', icon: Icons.history_rounded),
+];
+
+/// Badge text shown on a trip card — distinct from the filter chip
+/// labels above ("Current" reads as "Ongoing" once it's on a card).
+String _badgeLabelFor(TripStatus status) => switch (status) {
+  TripStatus.current => 'Ongoing',
+  TripStatus.upcoming => 'Upcoming',
+  TripStatus.past => 'Completed',
+};
 
 /// "Trips" bottom-nav tab: the signed-in user's own trips, bucketed into
 /// Current / Upcoming / Past. Includes a search box that filters trips by
@@ -36,6 +53,7 @@ class _TripsTabState extends State<TripsTab> {
   bool _loading = true;
   String? _error;
   String _query = '';
+  TripStatus _selectedStatus = TripStatus.current;
 
   @override
   void initState() {
@@ -94,19 +112,15 @@ class _TripsTabState extends State<TripsTab> {
               ? trips.where((t) => t.name.toLowerCase().contains(q)).toList()
               : trips;
 
-          final current = <Trip>[];
-          final upcoming = <Trip>[];
-          final past = <Trip>[];
+          final byStatus = <TripStatus, List<Trip>>{
+            TripStatus.current: [],
+            TripStatus.upcoming: [],
+            TripStatus.past: [],
+          };
           for (final t in filtered) {
-            switch (t.status) {
-              case TripStatus.current:
-                current.add(t);
-              case TripStatus.upcoming:
-                upcoming.add(t);
-              case TripStatus.past:
-                past.add(t);
-            }
+            byStatus[t.status]!.add(t);
           }
+          final displayed = byStatus[_selectedStatus]!;
 
           final noMatches = searching && filtered.isEmpty;
 
@@ -161,30 +175,22 @@ class _TripsTabState extends State<TripsTab> {
                 controller: _searchController,
                 onChanged: (v) => setState(() => _query = v),
               ),
-              const SizedBox(height: 26),
+              const SizedBox(height: 16),
+              if (!(noMatches || trips.isEmpty)) ...[
+                _StatusFilterChips(
+                  selected: _selectedStatus,
+                  onSelected: (s) => setState(() => _selectedStatus = s),
+                ),
+                const SizedBox(height: 20),
+              ],
               if (noMatches)
                 _NoSearchResults(query: _query.trim())
               else if (trips.isEmpty)
                 const _EmptyTrips()
-              else ...[
-                if (current.isNotEmpty) ...[
-                  SectionHeader(title: 'Current'),
-                  const SizedBox(height: 14),
-                  ..._tripCards(context, current, 'Ongoing'),
-                  const SizedBox(height: 28),
-                ],
-                if (upcoming.isNotEmpty) ...[
-                  SectionHeader(title: 'Upcoming'),
-                  const SizedBox(height: 14),
-                  ..._tripCards(context, upcoming, 'Upcoming'),
-                  const SizedBox(height: 28),
-                ],
-                if (past.isNotEmpty) ...[
-                  SectionHeader(title: 'Past Trips'),
-                  const SizedBox(height: 14),
-                  ..._tripCards(context, past, 'Completed'),
-                ],
-              ],
+              else if (displayed.isEmpty)
+                _NoTripsInStatus(status: _selectedStatus)
+              else
+                ..._tripCards(context, displayed, _badgeLabelFor(_selectedStatus)),
             ],
           );
         },
@@ -271,6 +277,127 @@ class _TripSearchField extends StatelessWidget {
                 size: 18,
               ),
             ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Current / Upcoming / Past category filter — single-select, mirrors
+/// [_CategoryChip]'s pill style from the Explore tab's category filter.
+class _StatusFilterChips extends StatelessWidget {
+  const _StatusFilterChips({required this.selected, required this.onSelected});
+
+  final TripStatus selected;
+  final ValueChanged<TripStatus> onSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        for (final filter in _statusFilters) ...[
+          Expanded(
+            child: _StatusChip(
+              label: filter.label,
+              icon: filter.icon,
+              selected: filter.status == selected,
+              onTap: () => onSelected(filter.status),
+            ),
+          ),
+          if (filter != _statusFilters.last) const SizedBox(width: 10),
+        ],
+      ],
+    );
+  }
+}
+
+class _StatusChip extends StatelessWidget {
+  const _StatusChip({
+    required this.label,
+    required this.icon,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final String label;
+  final IconData icon;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        height: 38,
+        decoration: BoxDecoration(
+          color: selected ? context.colors.ink : context.colors.card,
+          borderRadius: BorderRadius.circular(19),
+        ),
+        alignment: Alignment.center,
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              icon,
+              size: 15,
+              color: selected ? Colors.white : context.colors.muted,
+            ),
+            const SizedBox(width: 6),
+            Text(
+              label,
+              style: TextStyle(
+                color: selected ? Colors.white : context.colors.ink,
+                fontWeight: FontWeight.w700,
+                fontSize: 12.5,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _NoTripsInStatus extends StatelessWidget {
+  const _NoTripsInStatus({required this.status});
+
+  final TripStatus status;
+
+  @override
+  Widget build(BuildContext context) {
+    final label = _statusFilters
+        .firstWhere((f) => f.status == status)
+        .label
+        .toLowerCase();
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        color: context.colors.card,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: context.colors.muted.withValues(alpha: 0.15)),
+      ),
+      child: Column(
+        children: [
+          Icon(Icons.event_busy_rounded, color: context.colors.muted, size: 30),
+          const SizedBox(height: 10),
+          Text(
+            'No $label trips',
+            style: TextStyle(
+              color: context.colors.ink,
+              fontWeight: FontWeight.w700,
+              fontSize: 13.5,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'Trips will show up here once they match this category.',
+            textAlign: TextAlign.center,
+            style: TextStyle(color: context.colors.muted, fontSize: 12),
+          ),
         ],
       ),
     );
