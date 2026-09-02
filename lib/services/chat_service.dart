@@ -64,14 +64,17 @@ class ChatService {
           ) {
             final userId = r['user_id'] as String;
             final profile = profileById[userId]!;
-            return GroupMessage.fromMap({
-              ...r,
-              'profiles': {
-                ...profile,
-                if (nicknameByUserId[userId] != null)
-                  'display_name': nicknameByUserId[userId],
-              },
-            });
+            // Explicitly typed: an untyped `{...profile, if (...) ...}`
+            // literal infers as Map<dynamic, dynamic> here (the `if`
+            // collection-element defeats the spread's own Map<String,
+            // dynamic> type), which then fails GroupMessage.fromMap's
+            // `as Map<String, dynamic>` cast on every single message.
+            final mergedProfile = <String, dynamic>{
+              ...profile,
+              if (nicknameByUserId[userId] != null)
+                'display_name': nicknameByUserId[userId],
+            };
+            return GroupMessage.fromMap({...r, 'profiles': mergedProfile});
           }).toList();
         });
   }
