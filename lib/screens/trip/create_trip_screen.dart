@@ -154,6 +154,14 @@ class _CreateTripScreenState extends State<CreateTripScreen> {
   bool _isSubmitting = false;
   bool _hasTriedSubmitting = false;
 
+  /// Flipped true right before the follow-up `Navigator.pop()` in
+  /// [_handlePopInvoked], once the traveler has confirmed discarding.
+  /// Without this, that pop would still be vetoed by `PopScope.canPop`
+  /// (unchanged since `_hasUnsavedInput` is still true), forcing a second
+  /// pop through against an active veto — which trips a framework
+  /// assertion (`_dependents.isEmpty`) instead of a clean, normal pop.
+  bool _forceDiscard = false;
+
   @override
   void initState() {
     super.initState();
@@ -564,13 +572,15 @@ class _CreateTripScreenState extends State<CreateTripScreen> {
   Future<void> _handlePopInvoked(bool didPop, Object? result) async {
     if (didPop) return;
     final shouldExit = await _confirmDiscard();
-    if (shouldExit && mounted) Navigator.of(context).pop();
+    if (!shouldExit || !mounted) return;
+    setState(() => _forceDiscard = true);
+    if (mounted) Navigator.of(context).pop();
   }
 
   @override
   Widget build(BuildContext context) {
     return PopScope(
-      canPop: !_hasUnsavedInput,
+      canPop: !_hasUnsavedInput || _forceDiscard,
       onPopInvokedWithResult: _handlePopInvoked,
       child: Scaffold(
         backgroundColor: context.colors.surface,
