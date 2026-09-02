@@ -4,9 +4,9 @@ import '../../services/support_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/detail_header.dart';
 
-/// A support ticket's message thread — where the customer reads a reply to
-/// their [ContactSupportScreen] request (added on support's side via the
-/// Supabase Table Editor) and can send follow-up messages.
+/// A support ticket's message thread — where the customer reads a reply
+/// (added on support's side via the Supabase Table Editor) and can send
+/// follow-up messages.
 class SupportTicketScreen extends StatefulWidget {
   const SupportTicketScreen({
     super.key,

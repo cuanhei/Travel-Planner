@@ -1,8 +1,8 @@
 import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
-/// A support request started from the Help Center's "Contact Support"
-/// compose screen.
+/// A support request thread, created on support's side once an email sent
+/// via the Help Center's "Contact Support" action is triaged.
 @immutable
 class SupportTicket {
   const SupportTicket({
@@ -46,11 +46,11 @@ class SupportMessage {
   );
 }
 
-/// Backs the Help Center's "Contact Support" flow with real Supabase rows
-/// instead of an actual outbound email — sending a message inserts a row,
-/// and a reply (added by whoever is on support duty, via the Supabase Table
-/// Editor) is a row too, so it shows up next time the customer opens the
-/// thread here.
+/// Backs the Help Center's ticket history and reply threads with Supabase
+/// rows. Tickets are created on support's side (via the Supabase Table
+/// Editor) once an email sent through "Contact Support" is triaged; a
+/// reply — or a follow-up sent from here — is a row too, so it shows up
+/// next time the customer opens the thread.
 class SupportService {
   SupportService._();
 
@@ -67,30 +67,6 @@ class SupportService {
     return (rows as List)
         .map((r) => SupportTicket.fromRow(r as Map<String, dynamic>))
         .toList();
-  }
-
-  /// Creates a new ticket with [subject] and an opening [message], and
-  /// returns the new ticket's id.
-  Future<String> createTicket({
-    required String subject,
-    required String message,
-  }) async {
-    final user = _client.auth.currentUser;
-    if (user == null) {
-      throw StateError('createTicket called with no signed-in user');
-    }
-    final ticketRow = await _client
-        .from('support_tickets')
-        .insert({'user_id': user.id, 'subject': subject})
-        .select()
-        .single();
-    final ticketId = ticketRow['id'] as String;
-    await _client.from('support_messages').insert({
-      'ticket_id': ticketId,
-      'sender': 'customer',
-      'body': message,
-    });
-    return ticketId;
   }
 
   /// All messages on [ticketId], oldest first.
