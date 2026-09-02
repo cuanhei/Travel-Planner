@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 
-import '../../services/locale_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/detail_header.dart';
 import 'explore_tab.dart';
@@ -37,10 +36,7 @@ class _CategoriesScreenState extends State<CategoriesScreen> {
       body: SafeArea(
         child: Column(
           children: [
-            DetailHeader(
-              title: tr('explore_categories_title'),
-              subtitle: tr('explore_categories_subtitle'),
-            ),
+            DetailHeader(title: 'Categories', subtitle: 'Browse by interest'),
             Padding(
               padding: EdgeInsets.symmetric(horizontal: 24),
               child: GridView.builder(
@@ -83,7 +79,7 @@ class _CategoriesScreenState extends State<CategoriesScreen> {
                           ),
                           SizedBox(height: 8),
                           Text(
-                            categoryLabel(c.label),
+                            c.label,
                             style: TextStyle(
                               color: selected
                                   ? Colors.white
@@ -104,7 +100,7 @@ class _CategoriesScreenState extends State<CategoriesScreen> {
               child: results.isEmpty
                   ? Center(
                       child: Text(
-                        tr('explore_pick_category'),
+                        'Pick a category to see places',
                         style: TextStyle(color: context.colors.muted),
                       ),
                     )

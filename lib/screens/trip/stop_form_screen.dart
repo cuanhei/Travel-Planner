@@ -1,11 +1,12 @@
 import 'package:flutter/material.dart';
 
-import '../../services/locale_service.dart';
+import '../../models/trip_stop_location.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/detail_header.dart';
 import '../../widgets/gradient_button.dart';
 import '../explore/explore_tab.dart' show Place, places;
 import 'location_map_picker.dart';
+import 'stop_selection_screen.dart';
 import 'trip_data.dart';
 
 /// Result of [StopFormScreen]: either a saved (added/edited) stop, or a
@@ -80,6 +81,11 @@ class _StopFormScreenState extends State<StopFormScreen> {
   final _searchController = TextEditingController();
   String _query = '';
   Place? _selectedPlace;
+
+  /// Real geocoded data behind [_selectedPlace] when it came from
+  /// [StopSelectionScreen] — null for a catalog pick, which has no
+  /// coordinates of its own.
+  TripStopLocation? _selectedStopDetails;
   _ArrangeMode _arrangeMode = _ArrangeMode.auto;
 
   // Shared.
@@ -130,13 +136,22 @@ class _StopFormScreenState extends State<StopFormScreen> {
       widget.isEditing ? _nameController.text.trim().isNotEmpty : _selectedPlace != null;
 
   void _togglePlace(Place place) {
-    setState(() => _selectedPlace = _selectedPlace == place ? null : place);
+    setState(() {
+      _selectedPlace = _selectedPlace == place ? null : place;
+      _selectedStopDetails = null;
+    });
   }
 
   Future<void> _addCustomLocation() async {
-    final place = await showAddCustomLocationDialog(context);
-    if (place == null) return;
-    setState(() => _selectedPlace = place);
+    final result = await Navigator.of(context).push<List<TripStopLocation>>(
+      MaterialPageRoute(builder: (_) => const StopSelectionScreen()),
+    );
+    if (result == null || result.isEmpty) return;
+    final stop = result.last;
+    setState(() {
+      _selectedPlace = buildCustomPlace(stop.name);
+      _selectedStopDetails = stop;
+    });
   }
 
   Future<void> _pickTime() async {
@@ -181,25 +196,25 @@ class _StopFormScreenState extends State<StopFormScreen> {
         backgroundColor: dialogContext.colors.card,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         title: Text(
-          tr('trip_remove_stop_confirm_title'),
+          'Remove this stop?',
           style: TextStyle(
             color: dialogContext.colors.ink,
             fontWeight: FontWeight.w800,
           ),
         ),
         content: Text(
-          '"${widget.initial!.name}" ${tr('trip_remove_stop_confirm_suffix')}',
+          '"${widget.initial!.name}" will be removed from your itinerary.',
           style: TextStyle(color: dialogContext.colors.muted),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(dialogContext).pop(false),
-            child: Text(tr('trip_cancel')),
+            child: const Text('Cancel'),
           ),
           FilledButton(
             onPressed: () => Navigator.of(dialogContext).pop(true),
             style: FilledButton.styleFrom(backgroundColor: Colors.redAccent),
-            child: Text(tr('trip_remove_button')),
+            child: const Text('Remove'),
           ),
         ],
       ),
@@ -217,12 +232,10 @@ class _StopFormScreenState extends State<StopFormScreen> {
         child: Column(
           children: [
             DetailHeader(
-              title: widget.isEditing
-                  ? tr('trip_edit_stop_title')
-                  : tr('trip_add_stop_title'),
+              title: widget.isEditing ? 'Edit Stop' : 'Add Stop',
               subtitle: widget.isEditing
-                  ? tr('trip_edit_stop_subtitle')
-                  : tr('trip_add_stop_subtitle'),
+                  ? "Update this stop's details"
+                  : 'Search or tap a pin, then arrange it',
             ),
             Expanded(
               child: ListView(
@@ -231,9 +244,7 @@ class _StopFormScreenState extends State<StopFormScreen> {
                   ...widget.isEditing ? _editFields() : _addFields(),
                   const SizedBox(height: 36),
                   GradientButton(
-                    label: widget.isEditing
-                        ? tr('trip_save_changes')
-                        : tr('trip_add_stop_title'),
+                    label: widget.isEditing ? 'Save Changes' : 'Add Stop',
                     icon: Icons.check_rounded,
                     onPressed: _canSave ? _save : () {},
                   ),
@@ -247,9 +258,9 @@ class _StopFormScreenState extends State<StopFormScreen> {
                           color: Colors.redAccent,
                           size: 18,
                         ),
-                        label: Text(
-                          tr('trip_remove_stop_button'),
-                          style: const TextStyle(
+                        label: const Text(
+                          'Remove Stop',
+                          style: TextStyle(
                             color: Colors.redAccent,
                             fontWeight: FontWeight.w700,
                           ),
@@ -274,7 +285,7 @@ class _StopFormScreenState extends State<StopFormScreen> {
               .toList();
 
     return [
-      _FieldLabel(tr('trip_field_location')),
+      _FieldLabel('Location'),
       _SearchBox(
         controller: _searchController,
         onChanged: (v) => setState(() => _query = v),
@@ -291,35 +302,44 @@ class _StopFormScreenState extends State<StopFormScreen> {
       if (_selectedPlace == null)
         Builder(
           builder: (context) => Text(
-            tr('trip_no_location_picked'),
+            'No location picked yet — search, tap a pin, or add your own.',
             style: TextStyle(color: context.colors.muted, fontSize: 12),
           ),
         )
       else
         _SelectedPlaceChip(
           place: _selectedPlace!,
-          onRemove: () => setState(() => _selectedPlace = null),
+          address: _selectedStopDetails == null
+              ? null
+              : '${_selectedStopDetails!.category} · ${_selectedStopDetails!.address}',
+          icon: _selectedStopDetails?.categoryIcon,
+          onRemove: () => setState(() {
+            _selectedPlace = null;
+            _selectedStopDetails = null;
+          }),
         ),
       const SizedBox(height: 28),
-      _FieldLabel(tr('trip_field_arrangement')),
+      _FieldLabel('Arrangement'),
       const SizedBox(height: 8),
       _ArrangeOption(
-        title: tr('trip_auto_arrange_title'),
-        description: tr('trip_auto_arrange_desc'),
+        title: 'Auto-arrange',
+        description:
+            'Fit this stop into the itinerary automatically, based on '
+            'route and weather.',
         icon: Icons.auto_awesome_rounded,
         selected: _arrangeMode == _ArrangeMode.auto,
         onTap: () => setState(() => _arrangeMode = _ArrangeMode.auto),
       ),
       const SizedBox(height: 10),
       _ArrangeOption(
-        title: tr('trip_arrange_manually_title'),
-        description: tr('trip_arrange_manually_desc'),
+        title: 'Arrange manually',
+        description: 'Choose the exact day and time yourself.',
         icon: Icons.tune_rounded,
         selected: _arrangeMode == _ArrangeMode.manual,
         onTap: () => setState(() => _arrangeMode = _ArrangeMode.manual),
       ),
       const SizedBox(height: 28),
-      _FieldLabel(tr('trip_field_how_long')),
+      _FieldLabel('How Long Will You Stay?'),
       const SizedBox(height: 4),
       _DurationSelector(
         duration: _duration,
@@ -329,7 +349,7 @@ class _StopFormScreenState extends State<StopFormScreen> {
       if (_arrangeMode == _ArrangeMode.auto)
         _AutoArrangePreview(day: _defaultDay)
       else ...[
-        _FieldLabel(tr('trip_day_word')),
+        _FieldLabel('Day'),
         _DaySelector(
           day: _day,
           currentDay: widget.currentDay,
@@ -337,7 +357,7 @@ class _StopFormScreenState extends State<StopFormScreen> {
           onChanged: (v) => setState(() => _day = v),
         ),
         const SizedBox(height: 20),
-        _FieldLabel(tr('trip_field_pick_time_slot')),
+        _FieldLabel('Pick a Time Slot'),
         const SizedBox(height: 4),
         _TimelineSlotPicker(
           day: _day,
@@ -347,7 +367,7 @@ class _StopFormScreenState extends State<StopFormScreen> {
           onSelect: _pickSlot,
         ),
         const SizedBox(height: 20),
-        _FieldLabel(tr('trip_field_time')),
+        _FieldLabel('Time'),
         _TimeBox(time: _time, onTap: _pickTime),
       ],
     ];
@@ -355,14 +375,14 @@ class _StopFormScreenState extends State<StopFormScreen> {
 
   List<Widget> _editFields() {
     return [
-      _FieldLabel(tr('trip_field_place_name')),
+      _FieldLabel('Place Name'),
       _InputBox(
         controller: _nameController,
         icon: Icons.place_rounded,
         onChanged: (_) => setState(() {}),
       ),
       const SizedBox(height: 20),
-      _FieldLabel(tr('trip_day_word')),
+      _FieldLabel('Day'),
       _DaySelector(
         day: _day,
         currentDay: widget.currentDay,
@@ -370,7 +390,7 @@ class _StopFormScreenState extends State<StopFormScreen> {
         onChanged: (v) => setState(() => _day = v),
       ),
       const SizedBox(height: 20),
-      _FieldLabel(tr('trip_field_pick_time_slot')),
+      _FieldLabel('Pick a Time Slot'),
       const SizedBox(height: 4),
       _TimelineSlotPicker(
         day: _day,
@@ -380,17 +400,17 @@ class _StopFormScreenState extends State<StopFormScreen> {
         onSelect: _pickSlot,
       ),
       const SizedBox(height: 20),
-      _FieldLabel(tr('trip_field_time')),
+      _FieldLabel('Time'),
       _TimeBox(time: _time, onTap: _pickTime),
       const SizedBox(height: 20),
-      _FieldLabel(tr('trip_field_how_long')),
+      _FieldLabel('How Long Will You Stay?'),
       const SizedBox(height: 4),
       _DurationSelector(
         duration: _duration,
         onChanged: (v) => setState(() => _duration = v),
       ),
       const SizedBox(height: 20),
-      _FieldLabel(tr('trip_field_category')),
+      _FieldLabel('Category'),
       const SizedBox(height: 4),
       Wrap(
         spacing: 10,
@@ -498,7 +518,7 @@ class _InputBox extends StatelessWidget {
           vertical: 16,
           horizontal: 16,
         ),
-        hintText: tr('trip_place_name_hint'),
+        hintText: 'e.g. Chew Jetty',
         hintStyle: TextStyle(color: context.colors.muted),
       ),
     );
@@ -530,7 +550,7 @@ class _SearchBox extends StatelessWidget {
               onChanged: onChanged,
               style: TextStyle(color: context.colors.ink, fontSize: 14),
               decoration: InputDecoration(
-                hintText: tr('trip_search_places_hint'),
+                hintText: 'Search places…',
                 hintStyle: TextStyle(color: context.colors.muted),
                 border: InputBorder.none,
                 isDense: true,
@@ -556,10 +576,23 @@ class _SearchBox extends StatelessWidget {
 }
 
 class _SelectedPlaceChip extends StatelessWidget {
-  const _SelectedPlaceChip({required this.place, required this.onRemove});
+  const _SelectedPlaceChip({
+    required this.place,
+    required this.onRemove,
+    this.address,
+    this.icon,
+  });
 
   final Place place;
   final VoidCallback onRemove;
+
+  /// Real address from Photon, when [place] came from
+  /// [StopSelectionScreen] rather than the recommended-places catalog.
+  final String? address;
+
+  /// Category icon from [StopSelectionScreen]'s geocoded data, overriding
+  /// [place]'s generic pin icon when available.
+  final IconData? icon;
 
   @override
   Widget build(BuildContext context) {
@@ -575,15 +608,26 @@ class _SelectedPlaceChip extends StatelessWidget {
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(place.icon, size: 14, color: context.colors.ink),
+            Icon(icon ?? place.icon, size: 14, color: context.colors.ink),
             const SizedBox(width: 6),
-            Text(
-              place.name,
-              style: TextStyle(
-                color: context.colors.ink,
-                fontWeight: FontWeight.w600,
-                fontSize: 12.5,
-              ),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  place.name,
+                  style: TextStyle(
+                    color: context.colors.ink,
+                    fontWeight: FontWeight.w600,
+                    fontSize: 12.5,
+                  ),
+                ),
+                if (address != null)
+                  Text(
+                    address!,
+                    style: TextStyle(color: context.colors.muted, fontSize: 10.5),
+                  ),
+              ],
             ),
             const SizedBox(width: 2),
             GestureDetector(
@@ -901,7 +945,7 @@ class _TimelineSlotPickerState extends State<_TimelineSlotPicker> {
                               ),
                               alignment: Alignment.topLeft,
                               child: Text(
-                                '${tr('trip_this_stop_label')} · ${formatDuration(widget.selectedDuration)}',
+                                'This stop · ${formatDuration(widget.selectedDuration)}',
                                 style: const TextStyle(
                                   color: AppColors.accent,
                                   fontWeight: FontWeight.w800,
@@ -990,7 +1034,8 @@ class _AutoArrangePreview extends StatelessWidget {
           const SizedBox(width: 10),
           Expanded(
             child: Text(
-              '${tr('trip_auto_arrange_preview_prefix')} $day, ${tr('trip_auto_arrange_preview_suffix')}',
+              'The system will slot this in around Day $day, matched to a '
+              'good weather window.',
               style: TextStyle(
                 color: context.colors.ink,
                 fontSize: 12,
@@ -1076,9 +1121,7 @@ class _DaySelector extends StatelessWidget {
                       SnackBar(
                         behavior: SnackBarBehavior.floating,
                         backgroundColor: context.colors.ink,
-                        content: Text(
-                          '${tr('trip_day_word')} $d ${tr('trip_day_passed_snackbar_suffix')}',
-                        ),
+                        content: Text('Day $d has already passed'),
                       ),
                     )
                   : () => onChanged(d),
@@ -1110,7 +1153,7 @@ class _DaySelector extends StatelessWidget {
                         const SizedBox(width: 5),
                       ],
                       Text(
-                        '${tr('trip_day_word')} $d',
+                        'Day $d',
                         style: TextStyle(
                           color: selected ? Colors.white : context.colors.ink,
                           fontWeight: FontWeight.w600,
@@ -1129,8 +1172,8 @@ class _DaySelector extends StatelessWidget {
           const SizedBox(height: 8),
           Text(
             currentDay > 2
-                ? '${tr('trip_days_before_passed_prefix')} $currentDay ${tr('trip_days_before_passed_suffix')}'
-                : tr('trip_day1_passed'),
+                ? 'Days before Day $currentDay have already passed and can\'t be selected.'
+                : 'Day 1 has already passed and can\'t be selected.',
             style: TextStyle(color: context.colors.muted, fontSize: 11),
           ),
         ],

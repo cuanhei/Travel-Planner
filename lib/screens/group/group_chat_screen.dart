@@ -1,20 +1,17 @@
 import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
-import '../../services/locale_service.dart';
+import '../../models/group_message.dart';
+import '../../services/chat_service.dart';
+import '../../services/trip_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/detail_header.dart';
 
-class _Message {
-  _Message(this.sender, this.color, this.text, this.mine);
-  final String sender;
-  final Color color;
-  final String text;
-  final bool mine;
-}
-
-/// UI-only group chat with a static seed conversation plus local send.
+/// Live group chat for a trip, backed by Supabase Realtime.
 class GroupChatScreen extends StatefulWidget {
-  const GroupChatScreen({super.key});
+  const GroupChatScreen({super.key, required this.tripId});
+
+  final String tripId;
 
   @override
   State<GroupChatScreen> createState() => _GroupChatScreenState();
@@ -22,32 +19,10 @@ class GroupChatScreen extends StatefulWidget {
 
 class _GroupChatScreenState extends State<GroupChatScreen> {
   final _controller = TextEditingController();
-  late final _messages = [
-    _Message(
-      'Mei Ling',
-      Color(0xFF5C6BC0),
-      tr('group_msg_gurney_day'),
-      false,
-    ),
-    _Message(
-      'Arif Hakim',
-      Color(0xFF11998E),
-      tr('group_msg_day2_reason'),
-      false,
-    ),
-    _Message(
-      'Alex Tan',
-      AppColors.accent,
-      tr('group_msg_sounds_good'),
-      true,
-    ),
-    _Message(
-      'Mei Ling',
-      Color(0xFF5C6BC0),
-      tr('group_msg_chew_jetty'),
-      false,
-    ),
-  ];
+  final _chatService = ChatService();
+  late final Future<String> _tripNameFuture = TripService().getTripName(
+    widget.tripId,
+  );
 
   @override
   void dispose() {
@@ -58,99 +33,120 @@ class _GroupChatScreenState extends State<GroupChatScreen> {
   void _send() {
     final text = _controller.text.trim();
     if (text.isEmpty) return;
-    setState(() {
-      _messages.add(_Message('Alex Tan', AppColors.accent, text, true));
-      _controller.clear();
-    });
+    _controller.clear();
+    _chatService.sendMessage(tripId: widget.tripId, body: text);
     FocusScope.of(context).unfocus();
   }
 
   @override
   Widget build(BuildContext context) {
+    final myUid = Supabase.instance.client.auth.currentUser?.id;
+
     return Scaffold(
       backgroundColor: context.colors.surface,
       resizeToAvoidBottomInset: true,
       body: SafeArea(
         child: Column(
           children: [
-            DetailHeader(
-              title: tr('group_action_chat_title'),
-              subtitle: tr('group_chat_subtitle'),
+            FutureBuilder<String>(
+              future: _tripNameFuture,
+              builder: (context, nameSnap) => DetailHeader(
+                title: 'Group Chat',
+                subtitle: nameSnap.data ?? '',
+              ),
             ),
             Expanded(
-              child: ListView.builder(
-                padding: EdgeInsets.fromLTRB(20, 8, 20, 8),
-                itemCount: _messages.length,
-                itemBuilder: (context, index) {
-                  final m = _messages[index];
-                  return Padding(
-                    padding: EdgeInsets.only(bottom: 12),
-                    child: Row(
-                      mainAxisAlignment: m.mine
-                          ? MainAxisAlignment.end
-                          : MainAxisAlignment.start,
-                      crossAxisAlignment: CrossAxisAlignment.end,
-                      children: [
-                        if (!m.mine) ...[
-                          CircleAvatar(
-                            radius: 14,
-                            backgroundColor: m.color,
-                            child: Text(
-                              m.sender[0],
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontSize: 11,
-                                fontWeight: FontWeight.w800,
+              child: StreamBuilder<List<GroupMessage>>(
+                stream: _chatService.watchMessages(widget.tripId),
+                builder: (context, snapshot) {
+                  final messages = snapshot.data ?? const <GroupMessage>[];
+                  if (messages.isEmpty) {
+                    return Center(
+                      child: Text(
+                        'No messages yet — say hi!',
+                        style: TextStyle(color: context.colors.muted),
+                      ),
+                    );
+                  }
+                  return ListView.builder(
+                    padding: EdgeInsets.fromLTRB(20, 8, 20, 8),
+                    itemCount: messages.length,
+                    itemBuilder: (context, index) {
+                      final m = messages[index];
+                      final mine = m.userId == myUid;
+                      return Padding(
+                        padding: EdgeInsets.only(bottom: 12),
+                        child: Row(
+                          mainAxisAlignment: mine
+                              ? MainAxisAlignment.end
+                              : MainAxisAlignment.start,
+                          crossAxisAlignment: CrossAxisAlignment.end,
+                          children: [
+                            if (!mine) ...[
+                              CircleAvatar(
+                                radius: 14,
+                                backgroundColor: Color(m.senderColor),
+                                child: Text(
+                                  m.senderName[0].toUpperCase(),
+                                  style: TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w800,
+                                  ),
+                                ),
                               ),
-                            ),
-                          ),
-                          SizedBox(width: 8),
-                        ],
-                        Flexible(
-                          child: Column(
-                            crossAxisAlignment: m.mine
-                                ? CrossAxisAlignment.end
-                                : CrossAxisAlignment.start,
-                            children: [
-                              if (!m.mine)
-                                Padding(
-                                  padding: EdgeInsets.only(bottom: 3, left: 4),
-                                  child: Text(
-                                    m.sender,
-                                    style: TextStyle(
-                                      color: context.colors.muted,
-                                      fontSize: 10.5,
-                                      fontWeight: FontWeight.w600,
+                              SizedBox(width: 8),
+                            ],
+                            Flexible(
+                              child: Column(
+                                crossAxisAlignment: mine
+                                    ? CrossAxisAlignment.end
+                                    : CrossAxisAlignment.start,
+                                children: [
+                                  if (!mine)
+                                    Padding(
+                                      padding: EdgeInsets.only(
+                                        bottom: 3,
+                                        left: 4,
+                                      ),
+                                      child: Text(
+                                        m.senderName,
+                                        style: TextStyle(
+                                          color: context.colors.muted,
+                                          fontSize: 10.5,
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                      ),
+                                    ),
+                                  Container(
+                                    padding: EdgeInsets.symmetric(
+                                      horizontal: 14,
+                                      vertical: 10,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: mine
+                                          ? context.colors.ink
+                                          : context.colors.card,
+                                      borderRadius: BorderRadius.circular(16),
+                                    ),
+                                    child: Text(
+                                      m.body,
+                                      style: TextStyle(
+                                        color: mine
+                                            ? Colors.white
+                                            : context.colors.ink,
+                                        fontSize: 13,
+                                        height: 1.35,
+                                      ),
                                     ),
                                   ),
-                                ),
-                              Container(
-                                padding: EdgeInsets.symmetric(
-                                  horizontal: 14,
-                                  vertical: 10,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: m.mine
-                                      ? context.colors.ink
-                                      : context.colors.card,
-                                  borderRadius: BorderRadius.circular(16),
-                                ),
-                                child: Text(
-                                  m.text,
-                                  style: TextStyle(
-                                    color: m.mine
-                                        ? Colors.white
-                                        : context.colors.ink,
-                                    fontSize: 13,
-                                    height: 1.35,
-                                  ),
-                                ),
+                                ],
                               ),
-                            ],
-                          ),
+                            ),
+                          ],
                         ),
-                      ],
-                    ),
+                      );
+                    },
                   );
                 },
               ),
@@ -164,7 +160,7 @@ class _GroupChatScreenState extends State<GroupChatScreen> {
                       controller: _controller,
                       style: TextStyle(color: context.colors.ink, fontSize: 13),
                       decoration: InputDecoration(
-                        hintText: tr('group_message_hint'),
+                        hintText: 'Message the group…',
                         hintStyle: TextStyle(color: context.colors.muted),
                         filled: true,
                         fillColor: context.colors.card,

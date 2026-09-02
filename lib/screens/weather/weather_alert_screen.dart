@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 
-import '../../services/locale_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/detail_header.dart';
 
@@ -20,28 +19,33 @@ class WeatherAlertScreen extends StatelessWidget {
   >
   _alerts(BuildContext context) => [
     (
-      severity: tr('weather_severity_active'),
+      severity: 'Active',
       color: Color(0xFF2E9CCA),
       icon: Icons.grain_rounded,
-      title: tr('weather_alert_rain_title'),
-      description: tr('weather_alert_rain_desc'),
-      time: tr('weather_alert_rain_time'),
+      title: 'Heavy Rain Warning',
+      description:
+          'Heavy rain expected across George Town and Gurney Drive '
+          'between 3 PM and 7 PM today. Consider indoor activities.',
+      time: 'Today, 3:00 PM',
     ),
     (
-      severity: tr('weather_severity_advisory'),
+      severity: 'Advisory',
       color: Color(0xFFFFB347),
       icon: Icons.wb_sunny_rounded,
-      title: tr('weather_alert_uv_title'),
-      description: tr('weather_alert_uv_desc'),
-      time: tr('weather_alert_uv_time'),
+      title: 'High UV Index',
+      description:
+          'UV index expected to reach 10 (very high) around midday. '
+          'Wear sunscreen and stay hydrated.',
+      time: 'Today, 12:00 PM',
     ),
     (
-      severity: tr('weather_severity_past'),
+      severity: 'Past',
       color: context.colors.muted,
       icon: Icons.thunderstorm_rounded,
-      title: tr('weather_alert_storm_title'),
-      description: tr('weather_alert_storm_desc'),
-      time: tr('weather_alert_storm_time'),
+      title: 'Thunderstorm Alert',
+      description:
+          'Isolated thunderstorms passed through the area last evening.',
+      time: 'Yesterday, 6:30 PM',
     ),
   ];
 
@@ -54,8 +58,8 @@ class WeatherAlertScreen extends StatelessWidget {
         child: Column(
           children: [
             DetailHeader(
-              title: tr('weather_alert_title'),
-              subtitle: tr('weather_alert_subtitle'),
+              title: 'Weather Alerts',
+              subtitle: 'Rain, storm, and heat advisories',
             ),
             Expanded(
               child: ListView.builder(

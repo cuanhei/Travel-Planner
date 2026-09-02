@@ -1,9 +1,11 @@
 # Supabase Setup
 
 The Authentication module (Splash, Onboarding, Sign In/Up, Forgot/Reset
-Password, Email Verification) is wired up to Supabase Auth. To run the app
-you need a Supabase project and its URL/anon key — everyone on the team
-should point at the **same** project so data lands in one shared database.
+Password, Email Verification), the Profile module, and the Budget/Group
+Travel modules are all wired up to the same Supabase project. To run the
+app you need a Supabase project and its URL/anon key — everyone on the
+team should point at the **same** project so data lands in one shared
+database.
 
 ## 1. Create the project
 
@@ -72,38 +74,40 @@ In the dashboard, **Authentication**:
   Auth settings) — an accidentally-narrow allow-list produces this exact
   misleading error instead of a clearer "domain not allowed" one.
 
-## 4. Create the `profiles` table
+## 4. Create the database schema
 
-Auth only stores login credentials — actual user data (name, etc.) lives in
-a `public.profiles` table that's kept in sync automatically. Open the
-**SQL Editor** in the dashboard, paste in the contents of
-[`supabase/migrations/0001_create_profiles.sql`](supabase/migrations/0001_create_profiles.sql),
-and run it once against the shared project. This creates the table, locks
-it down with Row Level Security (each user can only read/edit their own
-row), and adds a trigger that inserts a row here the moment someone signs
-up.
+Auth only stores login credentials — actual user data (name, etc.), the
+Help Center support tickets, plus everything Budget and Group Travel need,
+lives in `public` tables kept in sync automatically. Open the **SQL
+Editor** in the dashboard:
 
-## 4b. Create the support ticket tables
+- **Brand-new project**: paste in the contents of
+  [`supabase/schema.sql`](supabase/schema.sql) and run it once. This
+  creates the core tables (including `profiles`), locks them down with Row
+  Level Security, and adds the sign-up trigger that inserts a `profiles`
+  row the moment someone signs up. Then also run
+  [`supabase/migrations/0002_create_support_tickets.sql`](supabase/migrations/0002_create_support_tickets.sql)
+  to add the `support_tickets` / `support_messages` tables used by the Help
+  Center (Profile → Help Center → Contact Support).
+- **Already ran an earlier version of the schema**: check
+  `supabase/migrations/` and run whichever of the numbered migrations you
+  haven't applied yet, in order — this repo currently carries migrations
+  from both the Auth/Profile side and the Budget/Group side of the project
+  (some numbers overlap between the two; check each file's contents, not
+  just its number, before deciding whether you've already run it). At
+  minimum this brings in `full_name` / `email` / `avatar_url` (owned by
+  Auth/Profile) and `display_name` / `avatar_color` (owned by Budget/
+  Group) on the shared `profiles` table without touching each other's data.
 
-The Help Center's "Contact Support" screen and ticket thread (Profile →
-Help Center) are backed by two tables — no real email is sent. Open the
-**SQL Editor** and run
-[`supabase/migrations/0002_create_support_tickets.sql`](supabase/migrations/0002_create_support_tickets.sql)
-once. This creates `support_tickets` and `support_messages`, locked down so
-each user only sees their own.
-
-**Replying as support**: open **Table Editor → support_messages**, insert a
-row with `ticket_id` set to the ticket you're replying to (copy it from the
-matching row in `support_tickets`), `sender` set to `support`, and `body`
-set to your reply. The customer sees it next time they open that ticket in
-the app. (Only the dashboard can do this — the app's own RLS policy only
-lets a signed-in user insert `sender = 'customer'` rows on their own
-tickets.)
+**Replying to a support ticket as support**: open **Table Editor →
+support_messages**, insert a row with `ticket_id` set to the ticket you're
+replying to (copy it from the matching row in `support_tickets`), `sender`
+set to `support`, and `body` set to your reply. The customer sees it next
+time they open that ticket in the app. (Only the dashboard can do this —
+the app's own RLS policy only lets a signed-in user insert
+`sender = 'customer'` rows on their own tickets.)
 
 ## 5. Run the app
-
-Always use the same fixed port (`8766`) so it matches the redirect URL
-configured above:
 
 ```
 flutter run -d chrome --web-port=8766 \
@@ -112,16 +116,24 @@ flutter run -d chrome --web-port=8766 \
 ```
 
 Without these `--dart-define` values the app still runs, but
-`SupabaseConfig.isConfigured` is `false` and auth calls are skipped — you'll
-just see the UI flow with no real backend behind it.
+`SupabaseConfig.isConfigured` is `false` and auth/backend calls are
+skipped — you'll just see the UI flow with no real backend behind it.
+Always use the same fixed port (`8766`).
+
+Optionally, copy `.env.example` to `.env` and fill in
+`GOOGLE_ROUTES_API_KEY` for the Transport module's live directions
+(`route_service.dart`) — unrelated to Supabase, and not required for
+Auth/Profile/Budget/Group to work.
 
 ## How it's wired up
 
-- `lib/services/supabase_config.dart` — reads the two values above from
+- `lib/services/supabase_config.dart` — reads the URL/key above from
   `--dart-define`.
 - `lib/services/auth_service.dart` — wraps every Supabase Auth call used by
   the module (`signUp`, `signIn`, `signOut`, `sendPasswordResetEmail`,
   `updatePassword`, `verifySignupCode`, `resendSignupCode`).
+- `lib/services/profile_service.dart` — reads/updates the signed-in user's
+  `profiles` row for the Profile module.
 - `lib/main.dart` — initializes Supabase on startup. Password reset is
   entirely in-app (email → 6-digit code → Reset Password screen), so
   there's no redirect/URL handling to worry about.
@@ -131,5 +143,6 @@ just see the UI flow with no real backend behind it.
 - `lib/services/auth_error_messages.dart` — maps Supabase's raw error codes
   (wrong password, duplicate email, expired code, rate limiting, etc.) to
   short, user-facing messages shown in a snackbar.
-- `supabase/migrations/0001_create_profiles.sql` — the `profiles` table
-  schema (see step 4 above).
+- `supabase/schema.sql` / `supabase/migrations/` — the full database
+  schema (see step 4 above), shared with the Budget/Group Travel modules
+  (see the main `README.md` for those).

@@ -1,34 +1,11 @@
 import 'package:flutter/material.dart';
 
-import '../../services/locale_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/destination_search_bar.dart';
 import '../../widgets/section_header.dart';
 import 'categories_screen.dart';
 import 'nearby_places_screen.dart';
 import 'place_details_screen.dart';
-
-/// Translates a category's English data label (as stored on [Place] and in
-/// [categories]) for display. The underlying label stays in English so
-/// filtering/comparison logic is unaffected by the active language.
-String categoryLabel(String label) {
-  switch (label) {
-    case 'Shopping':
-      return tr('explore_category_shopping');
-    case 'Food':
-      return tr('explore_category_food');
-    case 'Nature':
-      return tr('explore_category_nature');
-    case 'Culture':
-      return tr('explore_category_culture');
-    case 'Beach':
-      return tr('explore_category_beach');
-    case 'Nightlife':
-      return tr('explore_category_nightlife');
-    default:
-      return label;
-  }
-}
 
 class Place {
   Place({
@@ -178,7 +155,7 @@ class _ExploreTabState extends State<ExploreTab> {
         padding: EdgeInsets.fromLTRB(24, 20, 24, 24),
         children: [
           Text(
-            tr('explore_title'),
+            'Explore',
             style: TextStyle(
               color: context.colors.ink,
               fontSize: 24,
@@ -187,7 +164,7 @@ class _ExploreTabState extends State<ExploreTab> {
           ),
           SizedBox(height: 4),
           Text(
-            tr('explore_subtitle'),
+            'Discover more of Penang',
             style: TextStyle(color: context.colors.muted, fontSize: 13.5),
           ),
           SizedBox(height: 20),
@@ -199,7 +176,7 @@ class _ExploreTabState extends State<ExploreTab> {
               scrollDirection: Axis.horizontal,
               children: [
                 _CategoryChip(
-                  label: tr('explore_all'),
+                  label: 'All',
                   icon: Icons.apps_rounded,
                   selected: _selectedCategory == null,
                   onTap: () => setState(() => _selectedCategory = null),
@@ -209,7 +186,7 @@ class _ExploreTabState extends State<ExploreTab> {
                   (c) => Padding(
                     padding: EdgeInsets.only(right: 8),
                     child: _CategoryChip(
-                      label: categoryLabel(c.label),
+                      label: c.label,
                       icon: c.icon,
                       selected: _selectedCategory == c.label,
                       onTap: () => setState(() => _selectedCategory = c.label),
@@ -217,7 +194,7 @@ class _ExploreTabState extends State<ExploreTab> {
                   ),
                 ),
                 _CategoryChip(
-                  label: tr('explore_browse_all'),
+                  label: 'Browse all',
                   icon: Icons.grid_view_rounded,
                   selected: false,
                   onTap: () => Navigator.of(
@@ -229,7 +206,7 @@ class _ExploreTabState extends State<ExploreTab> {
           ),
           SizedBox(height: 24),
           SectionHeader(
-            title: tr('explore_nearby_places'),
+            title: 'Nearby Places',
             onAction: () => Navigator.of(
               context,
             ).push(MaterialPageRoute(builder: (_) => NearbyPlacesScreen())),
@@ -250,8 +227,8 @@ class _ExploreTabState extends State<ExploreTab> {
           SizedBox(height: 28),
           Text(
             _selectedCategory == null
-                ? tr('explore_popular_destinations')
-                : '${categoryLabel(_selectedCategory!)} ${tr('explore_spots_suffix')}',
+                ? 'Popular Destinations'
+                : '$_selectedCategory Spots',
             style: TextStyle(
               color: context.colors.ink,
               fontSize: 18,

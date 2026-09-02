@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 
-import '../../services/locale_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/detail_header.dart';
 import 'packing_item_form_screen.dart';
@@ -105,9 +104,8 @@ class _PackingListScreenState extends State<PackingListScreen> {
         child: Column(
           children: [
             DetailHeader(
-              title: tr('utilities_packing_list_title'),
-              subtitle:
-                  '$packedCount ${tr('utilities_of')} ${_items.length} ${tr('utilities_packed')}',
+              title: 'Packing List',
+              subtitle: '$packedCount of ${_items.length} packed',
               trailing: IconButton(
                 onPressed: _addItem,
                 icon: Icon(Icons.add_rounded, color: context.colors.ink),
@@ -213,7 +211,7 @@ class _EmptyState extends StatelessWidget {
             Icon(Icons.checklist_rounded, color: context.colors.muted, size: 44),
             const SizedBox(height: 16),
             Text(
-              tr('utilities_empty_packing_title'),
+              'Nothing on your list yet',
               style: TextStyle(
                 color: context.colors.ink,
                 fontWeight: FontWeight.w800,
@@ -222,7 +220,7 @@ class _EmptyState extends StatelessWidget {
             ),
             const SizedBox(height: 6),
             Text(
-              tr('utilities_empty_packing_subtitle'),
+              'Add the first thing you need to pack.',
               textAlign: TextAlign.center,
               style: TextStyle(color: context.colors.muted, fontSize: 12.5),
             ),
@@ -233,23 +231,16 @@ class _EmptyState extends StatelessWidget {
               child: InkWell(
                 borderRadius: BorderRadius.circular(14),
                 onTap: onAdd,
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 18,
-                    vertical: 12,
-                  ),
+                child: const Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 18, vertical: 12),
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      const Icon(
-                        Icons.add_rounded,
-                        color: Colors.white,
-                        size: 18,
-                      ),
-                      const SizedBox(width: 6),
+                      Icon(Icons.add_rounded, color: Colors.white, size: 18),
+                      SizedBox(width: 6),
                       Text(
-                        tr('utilities_add_item'),
-                        style: const TextStyle(
+                        'Add Item',
+                        style: TextStyle(
                           color: Colors.white,
                           fontWeight: FontWeight.w700,
                           fontSize: 13,

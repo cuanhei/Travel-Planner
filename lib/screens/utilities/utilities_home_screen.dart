@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 
-import '../../services/locale_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/detail_header.dart';
 import '../../widgets/list_tile_card.dart';
@@ -22,8 +21,8 @@ class UtilitiesHomeScreen extends StatelessWidget {
         child: Column(
           children: [
             DetailHeader(
-              title: tr('utilities_home_title'),
-              subtitle: tr('utilities_home_subtitle'),
+              title: 'Trip Utilities',
+              subtitle: 'Handy tools for your trip',
             ),
             Expanded(
               child: ListView(
@@ -31,8 +30,8 @@ class UtilitiesHomeScreen extends StatelessWidget {
                 children: [
                   ListTileCard(
                     icon: Icons.checklist_rounded,
-                    title: tr('utilities_packing_list_title'),
-                    subtitle: tr('utilities_packing_list_card_subtitle'),
+                    title: 'Packing List',
+                    subtitle: 'Auto-generated checklist',
                     iconColor: Color(0xFF11998E),
                     onTap: () => Navigator.of(context).push(
                       MaterialPageRoute(builder: (_) => PackingListScreen()),
@@ -40,8 +39,8 @@ class UtilitiesHomeScreen extends StatelessWidget {
                   ),
                   ListTileCard(
                     icon: Icons.currency_exchange_rounded,
-                    title: tr('utilities_currency_converter_title'),
-                    subtitle: tr('utilities_currency_converter_card_subtitle'),
+                    title: 'Currency Converter',
+                    subtitle: 'Exchange rates',
                     iconColor: Color(0xFFFFB347),
                     onTap: () => Navigator.of(context).push(
                       MaterialPageRoute(
@@ -51,8 +50,8 @@ class UtilitiesHomeScreen extends StatelessWidget {
                   ),
                   ListTileCard(
                     icon: Icons.translate_rounded,
-                    title: tr('utilities_translator_title'),
-                    subtitle: tr('utilities_translator_card_subtitle'),
+                    title: 'Translator',
+                    subtitle: 'Common travel phrases',
                     iconColor: Color(0xFF5C6BC0),
                     onTap: () => Navigator.of(context).push(
                       MaterialPageRoute(builder: (_) => TranslatorScreen()),
@@ -60,8 +59,8 @@ class UtilitiesHomeScreen extends StatelessWidget {
                   ),
                   ListTileCard(
                     icon: Icons.emergency_rounded,
-                    title: tr('utilities_emergency_contacts_title'),
-                    subtitle: tr('utilities_emergency_contacts_card_subtitle'),
+                    title: 'Emergency Contacts',
+                    subtitle: 'Local emergency information',
                     iconColor: Colors.redAccent,
                     onTap: () => Navigator.of(context).push(
                       MaterialPageRoute(

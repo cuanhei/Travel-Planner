@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 
-import '../../services/locale_service.dart';
 import '../../theme/app_theme.dart';
 
 /// Formats a stop's planned stay as a compact label, e.g. "1h 30m",
@@ -121,28 +120,14 @@ class StopCategory {
   final List<Color> gradient;
 }
 
-/// Re-evaluated on every access (not cached in a `const`/`static final`
-/// field) so the category labels pick up the active language immediately.
-List<StopCategory> get stopCategories => [
+const stopCategories = [
+  StopCategory('Sightseeing', Icons.location_city_rounded, AppColors.horizon),
+  StopCategory('Shopping', Icons.shopping_bag_rounded, AppColors.dusk),
+  StopCategory('Food', Icons.restaurant_rounded, AppColors.sunset),
+  StopCategory('Nature', Icons.terrain_rounded, AppColors.lagoon),
+  StopCategory('Beach', Icons.beach_access_rounded, AppColors.sunset),
   StopCategory(
-    tr('trip_category_sightseeing'),
-    Icons.location_city_rounded,
-    AppColors.horizon,
-  ),
-  StopCategory(
-    tr('trip_category_shopping'),
-    Icons.shopping_bag_rounded,
-    AppColors.dusk,
-  ),
-  StopCategory(tr('trip_category_food'), Icons.restaurant_rounded, AppColors.sunset),
-  StopCategory(tr('trip_category_nature'), Icons.terrain_rounded, AppColors.lagoon),
-  StopCategory(
-    tr('trip_category_beach'),
-    Icons.beach_access_rounded,
-    AppColors.sunset,
-  ),
-  StopCategory(
-    tr('trip_category_culture'),
+    'Culture',
     Icons.holiday_village_rounded,
     AppColors.horizon,
   ),

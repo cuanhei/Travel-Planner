@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 
-import '../../services/locale_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/gradient_button.dart';
 import '../community/add_review_screen.dart';
@@ -118,7 +117,7 @@ class _PlaceDetailsScreenState extends State<PlaceDetailsScreen> {
                   SizedBox(height: 14),
                   Row(
                     children: [
-                      _Tag(label: categoryLabel(place.category)),
+                      _Tag(label: place.category),
                       SizedBox(width: 8),
                       Icon(
                         Icons.star_rounded,
@@ -145,7 +144,7 @@ class _PlaceDetailsScreenState extends State<PlaceDetailsScreen> {
                   ),
                   SizedBox(height: 20),
                   Text(
-                    tr('explore_about'),
+                    'About',
                     style: TextStyle(
                       color: context.colors.ink,
                       fontWeight: FontWeight.w800,
@@ -177,7 +176,7 @@ class _PlaceDetailsScreenState extends State<PlaceDetailsScreen> {
                         ),
                         SizedBox(width: 10),
                         Text(
-                          '${tr('explore_open_today')} · 9:00 AM – 10:00 PM',
+                          'Open today · 9:00 AM – 10:00 PM',
                           style: TextStyle(
                             color: context.colors.ink,
                             fontWeight: FontWeight.w600,
@@ -204,7 +203,7 @@ class _PlaceDetailsScreenState extends State<PlaceDetailsScreen> {
                         SizedBox(width: 10),
                         Expanded(
                           child: Text(
-                            tr('explore_average_budget'),
+                            'Average budget',
                             style: TextStyle(
                               color: context.colors.ink,
                               fontWeight: FontWeight.w600,
@@ -213,7 +212,7 @@ class _PlaceDetailsScreenState extends State<PlaceDetailsScreen> {
                           ),
                         ),
                         Text(
-                          '${place.avgBudget} ${tr('explore_per_person')}',
+                          '${place.avgBudget} / person',
                           style: TextStyle(
                             color: context.colors.ink,
                             fontWeight: FontWeight.w800,
@@ -227,7 +226,7 @@ class _PlaceDetailsScreenState extends State<PlaceDetailsScreen> {
                   Row(
                     children: [
                       Text(
-                        tr('explore_reviews'),
+                        'Reviews',
                         style: TextStyle(
                           color: context.colors.ink,
                           fontWeight: FontWeight.w800,
@@ -243,7 +242,7 @@ class _PlaceDetailsScreenState extends State<PlaceDetailsScreen> {
                           ),
                         ),
                         child: Text(
-                          tr('explore_see_all'),
+                          'See all',
                           style: TextStyle(
                             color: AppColors.accent,
                             fontWeight: FontWeight.w700,
@@ -263,7 +262,7 @@ class _PlaceDetailsScreenState extends State<PlaceDetailsScreen> {
                       ),
                       SizedBox(width: 6),
                       Text(
-                        '${place.rating} ${tr('explore_out_of_5')}',
+                        '${place.rating} out of 5',
                         style: TextStyle(
                           color: context.colors.ink,
                           fontWeight: FontWeight.w700,
@@ -271,7 +270,7 @@ class _PlaceDetailsScreenState extends State<PlaceDetailsScreen> {
                         ),
                       ),
                       Text(
-                        ' ${tr('explore_from')} ${place.reviews} ${tr('explore_reviews_word')}',
+                        ' from ${place.reviews} reviews',
                         style: TextStyle(
                           color: context.colors.muted,
                           fontSize: 12,
@@ -284,7 +283,7 @@ class _PlaceDetailsScreenState extends State<PlaceDetailsScreen> {
                     children: [
                       Expanded(
                         child: GradientButton(
-                          label: tr('explore_add_review'),
+                          label: 'Add Review',
                           icon: Icons.rate_review_rounded,
                           colors: AppColors.dusk,
                           height: 48,
@@ -299,7 +298,7 @@ class _PlaceDetailsScreenState extends State<PlaceDetailsScreen> {
                       SizedBox(width: 12),
                       Expanded(
                         child: GradientButton(
-                          label: tr('explore_add_to_trip'),
+                          label: 'Add to Trip',
                           icon: Icons.playlist_add_check_rounded,
                           height: 48,
                           onPressed: () => Navigator.of(context).push(

@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 
-import '../../services/locale_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/detail_header.dart';
 
@@ -69,7 +68,7 @@ class _CommentsScreenState extends State<CommentsScreen> {
       body: SafeArea(
         child: Column(
           children: [
-            DetailHeader(title: tr('community_comments_title'), subtitle: widget.place),
+            DetailHeader(title: 'Comments', subtitle: widget.place),
             Expanded(
               child: ListView.builder(
                 padding: EdgeInsets.fromLTRB(24, 8, 24, 8),
@@ -152,7 +151,7 @@ class _CommentsScreenState extends State<CommentsScreen> {
                       controller: _controller,
                       style: TextStyle(color: context.colors.ink, fontSize: 13),
                       decoration: InputDecoration(
-                        hintText: tr('community_add_comment_hint'),
+                        hintText: 'Add a comment…',
                         hintStyle: TextStyle(color: context.colors.muted),
                         filled: true,
                         fillColor: context.colors.card,

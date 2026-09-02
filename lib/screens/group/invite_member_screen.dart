@@ -1,36 +1,22 @@
-import 'dart:math';
-
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
-import '../../services/locale_service.dart';
+import '../../models/join_request.dart';
+import '../../services/group_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/detail_header.dart';
 
-const _codeChars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-
-String _generateCode({int length = 6}) {
-  final random = Random();
-  return List.generate(
-    length,
-    (_) => _codeChars[random.nextInt(_codeChars.length)],
-  ).join();
-}
-
-class _JoinRequest {
-  _JoinRequest({required this.name, required this.color, required this.timeAgo});
-  final String name;
-  final Color color;
-  final String timeAgo;
-}
-
-/// UI-only "invite a member" flow: generates a random join code the
-/// traveler can share so a friend can add themselves to this trip's
-/// group. No backend or real invite link — copying uses the system
-/// clipboard, which is the only "live" behavior here.
+/// Organizer-side "invite a member" flow: generates a real invite code
+/// (`trip_invites`, valid 24h) the traveler can share, and shows/decides
+/// pending join requests live via Supabase Realtime.
 class InviteMemberScreen extends StatefulWidget {
-  const InviteMemberScreen({super.key, required this.tripName});
+  const InviteMemberScreen({
+    super.key,
+    required this.tripId,
+    required this.tripName,
+  });
 
+  final String tripId;
   final String tripName;
 
   @override
@@ -38,54 +24,126 @@ class InviteMemberScreen extends StatefulWidget {
 }
 
 class _InviteMemberScreenState extends State<InviteMemberScreen> {
-  String _code = _generateCode();
+  final _groupService = GroupService();
+  String? _code;
+  bool _generating = false;
 
-  final _requests = [
-    _JoinRequest(
-      name: 'Sarah Lim',
-      color: const Color(0xFFFF7A59),
-      timeAgo: '5 min ago',
-    ),
-    _JoinRequest(
-      name: 'Danial Yusof',
-      color: const Color(0xFF2E9CCA),
-      timeAgo: '1 hour ago',
-    ),
-  ];
+  @override
+  void initState() {
+    super.initState();
+    _regenerate();
+  }
 
-  void _regenerate() => setState(() => _code = _generateCode());
+  Future<void> _regenerate() async {
+    setState(() => _generating = true);
+    try {
+      final code = await _groupService.generateInviteCode(widget.tripId);
+      if (!mounted) return;
+      setState(() {
+        _code = code;
+        _generating = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _generating = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(behavior: SnackBarBehavior.floating, content: Text('$e')),
+      );
+    }
+  }
 
   Future<void> _copyCode() async {
-    await Clipboard.setData(ClipboardData(text: _code));
+    if (_code == null) return;
+    await Clipboard.setData(ClipboardData(text: _code!));
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         behavior: SnackBarBehavior.floating,
         backgroundColor: context.colors.ink,
-        content: Text(tr('group_code_copied_snackbar')),
+        content: const Text('Code copied to clipboard'),
       ),
     );
   }
 
-  void _approve(_JoinRequest request) {
-    setState(() => _requests.remove(request));
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        behavior: SnackBarBehavior.floating,
-        backgroundColor: context.colors.ink,
-        content: Text('${request.name} ${tr('group_member_added_suffix')}'),
+  Future<void> _rejectWithReason(JoinRequest request) async {
+    final controller = TextEditingController();
+    final reason = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        backgroundColor: dialogContext.colors.card,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Text(
+          'Decline ${request.displayName}\'s request',
+          style: TextStyle(
+            color: dialogContext.colors.ink,
+            fontWeight: FontWeight.w800,
+            fontSize: 15.5,
+          ),
+        ),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          maxLines: 3,
+          style: TextStyle(color: dialogContext.colors.ink),
+          decoration: InputDecoration(
+            hintText: 'Let them know why (optional)',
+            filled: true,
+            fillColor: dialogContext.colors.surface,
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(14),
+              borderSide: BorderSide.none,
+            ),
+            contentPadding: const EdgeInsets.symmetric(
+              horizontal: 14,
+              vertical: 12,
+            ),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () =>
+                Navigator.of(dialogContext).pop(controller.text.trim()),
+            style: FilledButton.styleFrom(backgroundColor: Colors.redAccent),
+            child: const Text('Decline'),
+          ),
+        ],
       ),
     );
+    if (reason == null) return;
+    await _decide(request, false, reason: reason.isEmpty ? null : reason);
   }
 
-  void _reject(_JoinRequest request) {
-    setState(() => _requests.remove(request));
+  Future<void> _decide(
+    JoinRequest request,
+    bool approve, {
+    String? reason,
+  }) async {
+    try {
+      await _groupService.decideJoinRequest(
+        requestId: request.id,
+        approve: approve,
+        reason: reason,
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(behavior: SnackBarBehavior.floating, content: Text('$e')),
+      );
+      return;
+    }
+    if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         behavior: SnackBarBehavior.floating,
         backgroundColor: context.colors.ink,
         content: Text(
-          '${request.name}: ${tr('group_request_declined_suffix')}',
+          approve
+              ? '${request.displayName} added to the group'
+              : "${request.displayName}'s request was declined",
         ),
       ),
     );
@@ -99,8 +157,8 @@ class _InviteMemberScreenState extends State<InviteMemberScreen> {
         child: Column(
           children: [
             DetailHeader(
-              title: tr('group_invite_title'),
-              subtitle: '${tr('group_invite_subtitle_prefix')} ${widget.tripName}',
+              title: 'Invite Member',
+              subtitle: 'Add someone to ${widget.tripName}',
             ),
             Expanded(
               child: ListView(
@@ -138,9 +196,9 @@ class _InviteMemberScreenState extends State<InviteMemberScreen> {
                             color: Colors.white.withValues(alpha: 0.18),
                             borderRadius: BorderRadius.circular(20),
                           ),
-                          child: Text(
-                            tr('group_invite_code_badge'),
-                            style: const TextStyle(
+                          child: const Text(
+                            'GROUP INVITE CODE',
+                            style: TextStyle(
                               color: Colors.white,
                               fontSize: 10.5,
                               fontWeight: FontWeight.w800,
@@ -149,18 +207,28 @@ class _InviteMemberScreenState extends State<InviteMemberScreen> {
                           ),
                         ),
                         const SizedBox(height: 22),
-                        Text(
-                          _code,
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 38,
-                            fontWeight: FontWeight.w900,
-                            letterSpacing: 8,
-                          ),
-                        ),
+                        _generating
+                            ? const SizedBox(
+                                height: 46,
+                                child: Center(
+                                  child: CircularProgressIndicator(
+                                    color: Colors.white,
+                                    strokeWidth: 2.5,
+                                  ),
+                                ),
+                              )
+                            : Text(
+                                _code ?? '——————',
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 38,
+                                  fontWeight: FontWeight.w900,
+                                  letterSpacing: 8,
+                                ),
+                              ),
                         const SizedBox(height: 4),
                         Text(
-                          tr('group_invite_code_expiry'),
+                          'Expires in 24 hours',
                           style: TextStyle(
                             color: Colors.white.withValues(alpha: 0.75),
                             fontSize: 11.5,
@@ -191,7 +259,7 @@ class _InviteMemberScreenState extends State<InviteMemberScreen> {
                                         ),
                                         const SizedBox(width: 6),
                                         Text(
-                                          tr('group_copy_code'),
+                                          'Copy Code',
                                           style: TextStyle(
                                             color: context.colors.ink,
                                             fontWeight: FontWeight.w700,
@@ -210,7 +278,7 @@ class _InviteMemberScreenState extends State<InviteMemberScreen> {
                               borderRadius: BorderRadius.circular(14),
                               child: InkWell(
                                 borderRadius: BorderRadius.circular(14),
-                                onTap: _regenerate,
+                                onTap: _generating ? null : _regenerate,
                                 child: const Padding(
                                   padding: EdgeInsets.all(13),
                                   child: Icon(
@@ -227,68 +295,81 @@ class _InviteMemberScreenState extends State<InviteMemberScreen> {
                     ),
                   ),
                   const SizedBox(height: 28),
-                  Row(
-                    children: [
-                      Text(
-                        tr('group_join_requests_header'),
-                        style: TextStyle(
-                          color: context.colors.ink,
-                          fontWeight: FontWeight.w800,
-                          fontSize: 15,
-                        ),
-                      ),
-                      if (_requests.isNotEmpty) ...[
-                        const SizedBox(width: 8),
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 8,
-                            vertical: 2,
+                  StreamBuilder<List<JoinRequest>>(
+                    stream: _groupService.watchJoinRequests(widget.tripId),
+                    builder: (context, snapshot) {
+                      final requests = snapshot.data ?? const <JoinRequest>[];
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Text(
+                                'Join Requests',
+                                style: TextStyle(
+                                  color: context.colors.ink,
+                                  fontWeight: FontWeight.w800,
+                                  fontSize: 15,
+                                ),
+                              ),
+                              if (requests.isNotEmpty) ...[
+                                const SizedBox(width: 8),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 8,
+                                    vertical: 2,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: AppColors.accent.withValues(
+                                      alpha: 0.15,
+                                    ),
+                                    borderRadius: BorderRadius.circular(10),
+                                  ),
+                                  child: Text(
+                                    '${requests.length}',
+                                    style: const TextStyle(
+                                      color: AppColors.accent,
+                                      fontWeight: FontWeight.w800,
+                                      fontSize: 11,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ],
                           ),
-                          decoration: BoxDecoration(
-                            color: AppColors.accent.withValues(alpha: 0.15),
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                          child: Text(
-                            '${_requests.length}',
-                            style: const TextStyle(
-                              color: AppColors.accent,
-                              fontWeight: FontWeight.w800,
-                              fontSize: 11,
+                          const SizedBox(height: 14),
+                          if (requests.isEmpty)
+                            Container(
+                              width: double.infinity,
+                              padding: const EdgeInsets.all(18),
+                              decoration: BoxDecoration(
+                                color: context.colors.card,
+                                borderRadius: BorderRadius.circular(16),
+                              ),
+                              child: Text(
+                                'No pending requests right now.',
+                                textAlign: TextAlign.center,
+                                style: TextStyle(
+                                  color: context.colors.muted,
+                                  fontSize: 12.5,
+                                ),
+                              ),
+                            )
+                          else
+                            ...requests.map(
+                              (r) => _RequestTile(
+                                request: r,
+                                onApprove: () => _decide(r, true),
+                                onReject: () => _rejectWithReason(r),
+                              ),
                             ),
-                          ),
-                        ),
-                      ],
-                    ],
+                        ],
+                      );
+                    },
                   ),
-                  const SizedBox(height: 14),
-                  if (_requests.isEmpty)
-                    Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.all(18),
-                      decoration: BoxDecoration(
-                        color: context.colors.card,
-                        borderRadius: BorderRadius.circular(16),
-                      ),
-                      child: Text(
-                        tr('group_no_pending_requests'),
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                          color: context.colors.muted,
-                          fontSize: 12.5,
-                        ),
-                      ),
-                    )
-                  else
-                    ..._requests.map(
-                      (r) => _RequestTile(
-                        request: r,
-                        onApprove: () => _approve(r),
-                        onReject: () => _reject(r),
-                      ),
-                    ),
                   const SizedBox(height: 28),
                   Text(
-                    tr('group_how_it_works'),
+                    'How it works',
                     style: TextStyle(
                       color: context.colors.ink,
                       fontWeight: FontWeight.w800,
@@ -298,18 +379,21 @@ class _InviteMemberScreenState extends State<InviteMemberScreen> {
                   const SizedBox(height: 14),
                   _StepTile(
                     number: '1',
-                    title: tr('group_step1_title'),
-                    subtitle: tr('group_step1_subtitle'),
+                    title: 'Share this code',
+                    subtitle:
+                        'Send it to your friend however you like — chat, text, or in person.',
                   ),
                   _StepTile(
                     number: '2',
-                    title: tr('group_step2_title'),
-                    subtitle: tr('group_step2_subtitle'),
+                    title: 'They enter it in the app',
+                    subtitle:
+                        'From "Join a Trip", they type in the 6-character code.',
                   ),
                   _StepTile(
                     number: '3',
-                    title: tr('group_step3_title'),
-                    subtitle: tr('group_step3_subtitle'),
+                    title: 'You approve their request',
+                    subtitle:
+                        'They appear here as a join request — approve it and they\'re in the group.',
                     isLast: true,
                   ),
                 ],
@@ -329,7 +413,7 @@ class _RequestTile extends StatelessWidget {
     required this.onReject,
   });
 
-  final _JoinRequest request;
+  final JoinRequest request;
   final VoidCallback onApprove;
   final VoidCallback onReject;
 
@@ -353,9 +437,9 @@ class _RequestTile extends StatelessWidget {
         children: [
           CircleAvatar(
             radius: 20,
-            backgroundColor: request.color,
+            backgroundColor: Color(request.avatarColor),
             child: Text(
-              request.name[0],
+              request.displayName[0].toUpperCase(),
               style: const TextStyle(
                 color: Colors.white,
                 fontWeight: FontWeight.w800,
@@ -368,7 +452,7 @@ class _RequestTile extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  request.name,
+                  request.displayName,
                   style: TextStyle(
                     color: context.colors.ink,
                     fontWeight: FontWeight.w700,
@@ -377,11 +461,8 @@ class _RequestTile extends StatelessWidget {
                 ),
                 const SizedBox(height: 2),
                 Text(
-                  '${tr('group_wants_to_join_prefix')} · ${request.timeAgo}',
-                  style: TextStyle(
-                    color: context.colors.muted,
-                    fontSize: 11.5,
-                  ),
+                  'Wants to join',
+                  style: TextStyle(color: context.colors.muted, fontSize: 11.5),
                 ),
               ],
             ),

@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 
-import '../../services/locale_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/detail_header.dart';
 import '../../widgets/gradient_button.dart';
@@ -29,9 +28,7 @@ class _AddToTripScreenState extends State<AddToTripScreen> {
       SnackBar(
         behavior: SnackBarBehavior.floating,
         backgroundColor: context.colors.ink,
-        content: Text(
-          '${tr('trip_added_prefix')} ${widget.place.name} ${tr('trip_to_word')} "${trip.title}"',
-        ),
+        content: Text('Added ${widget.place.name} to "${trip.title}"'),
       ),
     );
   }
@@ -43,10 +40,7 @@ class _AddToTripScreenState extends State<AddToTripScreen> {
       body: SafeArea(
         child: Column(
           children: [
-            DetailHeader(
-              title: tr('trip_add_to_trip_title'),
-              subtitle: widget.place.name,
-            ),
+            DetailHeader(title: 'Add to Trip', subtitle: widget.place.name),
             Expanded(
               child: upcomingTrips.isEmpty
                   ? _EmptyState(place: widget.place)
@@ -54,7 +48,7 @@ class _AddToTripScreenState extends State<AddToTripScreen> {
                       padding: const EdgeInsets.fromLTRB(24, 8, 24, 24),
                       children: [
                         Text(
-                          tr('trip_choose_trip_hint'),
+                          'Choose which trip to add this stop to',
                           style: TextStyle(
                             color: context.colors.muted,
                             fontSize: 12.5,
@@ -77,7 +71,7 @@ class _AddToTripScreenState extends State<AddToTripScreen> {
               Padding(
                 padding: const EdgeInsets.fromLTRB(24, 0, 24, 16),
                 child: GradientButton(
-                  label: tr('trip_add_to_trip_title'),
+                  label: 'Add to Trip',
                   icon: Icons.playlist_add_check_rounded,
                   onPressed: _selected == null ? () {} : _confirm,
                 ),
@@ -213,7 +207,7 @@ class _NewTripOption extends StatelessWidget {
             const SizedBox(width: 14),
             Expanded(
               child: Text(
-                '${tr('trip_create_new_trip_for')} ${place.name}',
+                'Create a new trip for ${place.name}',
                 style: TextStyle(
                   color: context.colors.ink,
                   fontWeight: FontWeight.w700,
@@ -243,7 +237,7 @@ class _EmptyState extends StatelessWidget {
           Icon(Icons.luggage_rounded, color: context.colors.muted, size: 48),
           const SizedBox(height: 16),
           Text(
-            tr('trip_no_upcoming_trips'),
+            'No upcoming trips yet',
             style: TextStyle(
               color: context.colors.ink,
               fontWeight: FontWeight.w800,
@@ -252,13 +246,13 @@ class _EmptyState extends StatelessWidget {
           ),
           const SizedBox(height: 6),
           Text(
-            '${tr('trip_create_trip_first')} ${place.name} ${tr('trip_to_it_suffix')}',
+            'Create a trip first, then add ${place.name} to it.',
             textAlign: TextAlign.center,
             style: TextStyle(color: context.colors.muted, fontSize: 12.5),
           ),
           const SizedBox(height: 20),
           GradientButton(
-            label: tr('trip_create_trip_title'),
+            label: 'Create Trip',
             icon: Icons.add_rounded,
             expand: false,
             onPressed: () => Navigator.of(

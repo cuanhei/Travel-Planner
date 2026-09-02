@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 
-import '../../services/locale_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/detail_header.dart';
 import '../../widgets/gradient_button.dart';
@@ -15,7 +14,21 @@ import 'trip_data.dart';
 /// route/weather-optimized, so overriding it (on editable days) prompts
 /// a confirmation warning before the change is allowed to stick.
 class EditScheduleScreen extends StatefulWidget {
-  const EditScheduleScreen({super.key});
+  const EditScheduleScreen({
+    super.key,
+    this.initialItems,
+    this.dayCount,
+    this.previewMode = false,
+    this.onConfirm,
+  });
+
+  /// An optimized itinerary supplied before a trip exists. In preview mode
+  /// the route is intentionally read-only: go back to Create Trip to change
+  /// the inputs and generate a new optimized route.
+  final List<TripStop>? initialItems;
+  final int? dayCount;
+  final bool previewMode;
+  final Future<void> Function()? onConfirm;
 
   @override
   State<EditScheduleScreen> createState() => _EditScheduleScreenState();
@@ -24,7 +37,7 @@ class EditScheduleScreen extends StatefulWidget {
 class _EditScheduleScreenState extends State<EditScheduleScreen> {
   /// Simulated "today" within the trip — days before this have already
   /// happened and are locked to view-only.
-  static const _currentDay = 2;
+  int get _currentDay => widget.previewMode ? 1 : 2;
 
   int _selectedDay = 1;
 
@@ -137,15 +150,30 @@ class _EditScheduleScreenState extends State<EditScheduleScreen> {
   /// used to detect when a drag-reorder has actually changed the
   /// sequence. Kept in sync whenever a stop is added or removed, so only
   /// genuine drag-reorders of the existing set count as an "override".
-  late final List<int> _originalOrder = _items.map((i) => i.id).toList();
+  late final List<int> _originalOrder;
 
   /// Whether the user has already been warned and accepted the override
   /// for the current reordered sequence, so we don't re-prompt on every
   /// small drag while it's already in a non-original order.
   bool _orderOverridden = false;
 
-  int get _maxDay =>
-      _items.isEmpty ? 1 : _items.map((i) => i.day).reduce((a, b) => a > b ? a : b);
+  @override
+  void initState() {
+    super.initState();
+    final previewItems = widget.initialItems;
+    if (previewItems != null) {
+      _items
+        ..clear()
+        ..addAll(previewItems);
+    }
+    _originalOrder = _items.map((i) => i.id).toList();
+  }
+
+  int get _maxDay {
+    final itemDays =
+        _items.isEmpty ? 1 : _items.map((i) => i.day).reduce((a, b) => a > b ? a : b);
+    return itemDays > (widget.dayCount ?? 1) ? itemDays : (widget.dayCount ?? 1);
+  }
 
   bool _isDayLocked(int day) => day < _currentDay;
 
@@ -222,7 +250,7 @@ class _EditScheduleScreenState extends State<EditScheduleScreen> {
           ),
         ),
         title: Text(
-          tr('trip_override_order_title'),
+          'Override planned order?',
           textAlign: TextAlign.center,
           style: TextStyle(
             color: dialogContext.colors.ink,
@@ -231,7 +259,10 @@ class _EditScheduleScreenState extends State<EditScheduleScreen> {
           ),
         ),
         content: Text(
-          tr('trip_override_order_body'),
+          'Your stops were sequenced to minimize travel time and match '
+          'each stop to its best forecasted weather. Overriding the order '
+          'may no longer be optimized and could lead to a less enjoyable '
+          'trip — for example, an outdoor stop landing during rain.',
           textAlign: TextAlign.center,
           style: TextStyle(
             color: dialogContext.colors.muted,
@@ -243,14 +274,14 @@ class _EditScheduleScreenState extends State<EditScheduleScreen> {
         actions: [
           TextButton(
             onPressed: () => Navigator.of(dialogContext).pop(false),
-            child: Text(tr('trip_keep_original_order')),
+            child: const Text('Keep Original Order'),
           ),
           FilledButton(
             onPressed: () => Navigator.of(dialogContext).pop(true),
             style: FilledButton.styleFrom(
               backgroundColor: Colors.orangeAccent.shade700,
             ),
-            child: Text(tr('trip_override_anyway')),
+            child: const Text('Override Anyway'),
           ),
         ],
       ),
@@ -314,16 +345,28 @@ class _EditScheduleScreenState extends State<EditScheduleScreen> {
     });
   }
 
-  void _save() {
+  Future<void> _save() async {
+    if (widget.onConfirm != null) {
+      try {
+        await widget.onConfirm!();
+      } catch (error) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            behavior: SnackBarBehavior.floating,
+            content: Text('Could not create trip: $error'),
+          ),
+        );
+      }
+      return;
+    }
     Navigator.of(context).pop();
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         behavior: SnackBarBehavior.floating,
         backgroundColor: context.colors.ink,
         content: Text(
-          _isReordered
-              ? tr('trip_updated_custom_order')
-              : tr('trip_updated_snackbar'),
+          _isReordered ? 'Trip updated — custom order saved' : 'Trip updated',
         ),
       ),
     );
@@ -346,12 +389,14 @@ class _EditScheduleScreenState extends State<EditScheduleScreen> {
         child: Column(
           children: [
             DetailHeader(
-              title: tr('trip_edit_trip_title'),
-              subtitle: locked
-                  ? '${tr('trip_day_word')} $selectedDay ${tr('trip_day_locked_suffix')}'
-                  : tr('trip_edit_schedule_subtitle'),
+              title: widget.previewMode ? 'Review Schedule' : 'Edit Trip',
+              subtitle: widget.previewMode
+                  ? 'Review the optimized route before creating your trip'
+                  : locked
+                  ? 'Day $selectedDay is already complete — view only'
+                  : 'Tap a stop to edit, drag to reorder',
               trailing: IconButton(
-                onPressed: locked ? null : _openAddStop,
+                onPressed: locked || widget.previewMode ? null : _openAddStop,
                 icon: Icon(
                   Icons.add_rounded,
                   color: locked
@@ -395,7 +440,7 @@ class _EditScheduleScreenState extends State<EditScheduleScreen> {
                               const SizedBox(width: 4),
                             ],
                             Text(
-                              '${tr('trip_day_word')} $day',
+                              'Day $day',
                               style: TextStyle(
                                 color: active ? Colors.white : context.colors.ink,
                                 fontWeight: FontWeight.w700,
@@ -419,7 +464,7 @@ class _EditScheduleScreenState extends State<EditScheduleScreen> {
               child: dayIndices.isEmpty
                   ? Center(
                       child: Text(
-                        '${tr('trip_no_stops_scheduled_prefix')} $selectedDay ${tr('trip_no_stops_scheduled_suffix')}',
+                        'No stops scheduled for Day $selectedDay yet.',
                         style: TextStyle(color: context.colors.muted, fontSize: 13),
                       ),
                     )
@@ -442,7 +487,26 @@ class _EditScheduleScreenState extends State<EditScheduleScreen> {
                         );
                       },
                     )
-                  : ReorderableListView.builder(
+                    : widget.previewMode
+                    ? ListView.builder(
+                        padding: const EdgeInsets.fromLTRB(24, 16, 24, 24),
+                        itemCount: dayIndices.length,
+                        itemBuilder: (context, i) {
+                          final isLast = i == dayIndices.length - 1;
+                          return _StopTimelineRow(
+                            stop: _items[dayIndices[i]],
+                            isLast: isLast,
+                            locked: true,
+                            transportMinutes: isLast
+                                ? null
+                                : _transportMinutes(
+                                    _items[dayIndices[i]],
+                                    _items[dayIndices[i + 1]],
+                                  ),
+                          );
+                        },
+                      )
+                    : ReorderableListView.builder(
                       padding: const EdgeInsets.fromLTRB(24, 16, 24, 24),
                       itemCount: dayIndices.length,
                       onReorder: (oldIndex, newIndex) =>
@@ -471,8 +535,10 @@ class _EditScheduleScreenState extends State<EditScheduleScreen> {
             Padding(
               padding: const EdgeInsets.fromLTRB(24, 0, 24, 20),
               child: GradientButton(
-                label: tr('trip_save_changes'),
-                icon: Icons.check_rounded,
+                label: widget.previewMode ? 'Confirm & Create Trip' : 'Save Changes',
+                icon: widget.previewMode
+                    ? Icons.check_circle_rounded
+                    : Icons.check_rounded,
                 onPressed: _save,
               ),
             ),
@@ -626,7 +692,7 @@ class _StopTimelineRow extends StatelessWidget {
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: Text(
-                  tr('trip_completed_badge_caps'),
+                  'COMPLETED',
                   style: TextStyle(
                     color: context.colors.muted,
                     fontSize: 9,
@@ -685,7 +751,7 @@ class _OverrideBanner extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  tr('trip_custom_order_applied'),
+                  'Custom order applied',
                   style: TextStyle(
                     color: context.colors.ink,
                     fontWeight: FontWeight.w700,
@@ -694,7 +760,8 @@ class _OverrideBanner extends StatelessWidget {
                 ),
                 SizedBox(height: 2),
                 Text(
-                  tr('trip_custom_order_desc'),
+                  'This sequence may not be optimized and could lead to a '
+                  'worse experience if the weather changes.',
                   style: TextStyle(
                     color: context.colors.muted,
                     fontSize: 11.5,
@@ -705,7 +772,7 @@ class _OverrideBanner extends StatelessWidget {
                 GestureDetector(
                   onTap: onReset,
                   child: Text(
-                    tr('trip_reset_optimized_order'),
+                    'Reset to optimized order',
                     style: TextStyle(
                       color: Colors.orangeAccent.shade700,
                       fontWeight: FontWeight.w700,

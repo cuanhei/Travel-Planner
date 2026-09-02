@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../../services/locale_service.dart';
+import '../../services/trip_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/detail_header.dart';
 import '../trip/trip_details_screen.dart';
@@ -9,34 +9,25 @@ import '../trip/trip_details_screen.dart';
 class SavedTripsScreen extends StatelessWidget {
   const SavedTripsScreen({super.key});
 
-  List<
-    ({
-      String title,
-      String place,
-      String dates,
-      List<Color> gradient,
-      IconData icon,
-    })
-  >
-  get _trips => [
+  static final _trips = [
     (
-      title: tr('saved_trip1_title'),
+      title: 'Penang Adventure',
       place: 'Penang, Malaysia',
       dates: 'Aug 14 – Aug 16',
       gradient: AppColors.horizon,
       icon: Icons.location_city_rounded,
     ),
     (
-      title: tr('saved_trip2_title'),
+      title: 'Weekend in Ipoh',
       place: 'Ipoh, Malaysia',
-      dates: tr('saved_trip_draft'),
+      dates: 'Draft itinerary',
       gradient: AppColors.dusk,
       icon: Icons.coffee_rounded,
     ),
     (
-      title: tr('saved_trip3_title'),
+      title: 'Borneo Rainforest Trip',
       place: 'Sabah, Malaysia',
-      dates: tr('saved_trip_draft'),
+      dates: 'Draft itinerary',
       gradient: AppColors.lagoon,
       icon: Icons.forest_rounded,
     ),
@@ -50,8 +41,8 @@ class SavedTripsScreen extends StatelessWidget {
         child: Column(
           children: [
             DetailHeader(
-              title: tr('saved_trips_title'),
-              subtitle: tr('saved_trips_subtitle'),
+              title: 'Saved Trips',
+              subtitle: 'Itineraries you\'ve bookmarked',
             ),
             Expanded(
               child: ListView.builder(
@@ -64,9 +55,16 @@ class SavedTripsScreen extends StatelessWidget {
                     borderRadius: BorderRadius.circular(18),
                     child: InkWell(
                       borderRadius: BorderRadius.circular(18),
-                      onTap: () => Navigator.of(context).push(
-                        MaterialPageRoute(builder: (_) => TripDetailsScreen()),
-                      ),
+                      onTap: () async {
+                        final tripId = await TripService().ensureDemoTrip();
+                        final trip = await TripService().getTrip(tripId);
+                        if (!context.mounted) return;
+                        Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (_) => TripDetailsScreen(trip: trip),
+                          ),
+                        );
+                      },
                       child: Container(
                         margin: EdgeInsets.only(bottom: 12),
                         padding: EdgeInsets.all(14),

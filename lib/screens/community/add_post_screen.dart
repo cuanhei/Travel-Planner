@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 
-import '../../services/locale_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/detail_header.dart';
 import '../../widgets/gradient_button.dart';
@@ -64,9 +63,9 @@ class _AddPostScreenState extends State<AddPostScreen> {
       body: SafeArea(
         child: Column(
           children: [
-            DetailHeader(
-              title: tr('community_new_post_title'),
-              subtitle: tr('community_new_post_subtitle'),
+            const DetailHeader(
+              title: 'New Post',
+              subtitle: 'Share a travel moment',
             ),
             Expanded(
               child: ListView(
@@ -87,7 +86,7 @@ class _AddPostScreenState extends State<AddPostScreen> {
                       ),
                       const SizedBox(width: 12),
                       Text(
-                        '${tr('community_posting_as')} Alex Tan',
+                        'Posting as Alex Tan',
                         style: TextStyle(
                           color: context.colors.ink,
                           fontWeight: FontWeight.w700,
@@ -97,24 +96,24 @@ class _AddPostScreenState extends State<AddPostScreen> {
                     ],
                   ),
                   const SizedBox(height: 24),
-                  _FieldLabel(tr('community_field_where')),
+                  _FieldLabel('Where was this?'),
                   _InputBox(
                     controller: _placeController,
                     icon: Icons.location_on_rounded,
-                    hint: tr('community_hint_where'),
+                    hint: 'e.g. Chew Jetty, George Town',
                     onChanged: (_) => setState(() {}),
                   ),
                   const SizedBox(height: 20),
-                  _FieldLabel(tr('community_field_caption')),
+                  _FieldLabel('Caption'),
                   _InputBox(
                     controller: _captionController,
                     icon: Icons.edit_rounded,
-                    hint: tr('community_hint_caption'),
+                    hint: 'Share your experience…',
                     maxLines: 5,
                     onChanged: (_) => setState(() {}),
                   ),
                   const SizedBox(height: 24),
-                  _FieldLabel(tr('community_field_category')),
+                  _FieldLabel('Category'),
                   const SizedBox(height: 4),
                   Wrap(
                     spacing: 10,
@@ -171,7 +170,7 @@ class _AddPostScreenState extends State<AddPostScreen> {
                     }),
                   ),
                   const SizedBox(height: 24),
-                  _FieldLabel(tr('community_field_cover_style')),
+                  _FieldLabel('Cover Style'),
                   const SizedBox(height: 4),
                   Row(
                     children: List.generate(_coverGradients.length, (i) {
@@ -212,21 +211,21 @@ class _AddPostScreenState extends State<AddPostScreen> {
                     }),
                   ),
                   const SizedBox(height: 28),
-                  _FieldLabel(tr('community_field_preview')),
+                  _FieldLabel('Preview'),
                   const SizedBox(height: 8),
                   _PostPreview(
                     caption: _captionController.text.trim().isEmpty
-                        ? tr('community_caption_placeholder')
+                        ? 'Your caption will appear here…'
                         : _captionController.text.trim(),
                     place: _placeController.text.trim().isEmpty
-                        ? tr('community_location_placeholder')
+                        ? 'Location'
                         : _placeController.text.trim(),
                     gradient: _coverGradients[_gradientIndex],
                     icon: categories[_categoryIndex].icon,
                   ),
                   const SizedBox(height: 32),
                   GradientButton(
-                    label: tr('community_post_button'),
+                    label: 'Post',
                     icon: Icons.send_rounded,
                     onPressed: _canPost ? _submit : () {},
                   ),
@@ -299,7 +298,7 @@ class _PostPreview extends StatelessWidget {
                       ),
                     ),
                     Text(
-                      '$place · ${tr('community_just_now')}',
+                      '$place · Just now',
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(
                         color: context.colors.muted,

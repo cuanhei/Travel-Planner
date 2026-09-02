@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 
-import '../../services/locale_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/coming_soon.dart';
 import 'add_post_screen.dart';
@@ -115,7 +114,7 @@ class _CommunityTabState extends State<CommunityTab> {
             children: [
               Expanded(
                 child: Text(
-                  tr('common_nav_community'),
+                  'Community',
                   style: TextStyle(
                     color: context.colors.ink,
                     fontSize: 24,
@@ -143,7 +142,7 @@ class _CommunityTabState extends State<CommunityTab> {
           ),
           SizedBox(height: 4),
           Text(
-            tr('community_subtitle'),
+            'Travel stories from fellow explorers',
             style: TextStyle(color: context.colors.muted, fontSize: 13.5),
           ),
           SizedBox(height: 20),
@@ -246,7 +245,7 @@ class _PostCard extends StatelessWidget {
               _PostAction(
                 icon: Icons.favorite_border_rounded,
                 label: '${post.likes}',
-                onTap: () => showComingSoon(context, tr('community_like')),
+                onTap: () => showComingSoon(context, 'Like'),
               ),
               SizedBox(width: 18),
               _PostAction(
@@ -260,7 +259,7 @@ class _PostCard extends StatelessWidget {
               ),
               Spacer(),
               GestureDetector(
-                onTap: () => showComingSoon(context, tr('community_share')),
+                onTap: () => showComingSoon(context, 'Share'),
                 child: Icon(
                   Icons.share_outlined,
                   color: context.colors.muted,

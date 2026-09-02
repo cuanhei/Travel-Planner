@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 
-import '../../services/locale_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/coming_soon.dart';
 import '../../widgets/detail_header.dart';
@@ -9,42 +8,39 @@ import '../../widgets/detail_header.dart';
 class EmergencyContactsScreen extends StatelessWidget {
   const EmergencyContactsScreen({super.key});
 
-  // A getter, not `static final` — `tr()` must re-evaluate on every build,
-  // and a `static final` initializer only runs once per app session.
-  List<({String label, String number, IconData icon, Color color})>
-  get _contacts => [
+  static final _contacts = [
     (
-      label: tr('utilities_contact_police'),
+      label: 'Police',
       number: '999',
       icon: Icons.local_police_rounded,
       color: Color(0xFF5C6BC0),
     ),
     (
-      label: tr('utilities_contact_ambulance'),
+      label: 'Ambulance',
       number: '999',
       icon: Icons.local_hospital_rounded,
       color: Colors.redAccent,
     ),
     (
-      label: tr('utilities_contact_fire'),
+      label: 'Fire Department',
       number: '994',
       icon: Icons.local_fire_department_rounded,
       color: Color(0xFFFFB347),
     ),
     (
-      label: tr('utilities_contact_tourist_police'),
+      label: 'Tourist Police',
       number: '03-2149 6590',
       icon: Icons.shield_rounded,
       color: Color(0xFF11998E),
     ),
     (
-      label: tr('utilities_contact_penang_hospital'),
+      label: 'Penang Hospital',
       number: '04-222 5333',
       icon: Icons.medical_services_rounded,
       color: Colors.redAccent,
     ),
     (
-      label: tr('utilities_contact_embassy'),
+      label: 'Your Embassy',
       number: '03-2170 2200',
       icon: Icons.account_balance_rounded,
       color: AppColors.accent,
@@ -59,8 +55,8 @@ class EmergencyContactsScreen extends StatelessWidget {
         child: Column(
           children: [
             DetailHeader(
-              title: tr('utilities_emergency_contacts_title'),
-              subtitle: tr('utilities_emergency_contacts_subtitle'),
+              title: 'Emergency Contacts',
+              subtitle: 'Local numbers for Penang, Malaysia',
             ),
             Expanded(
               child: ListView.builder(
@@ -123,10 +119,8 @@ class EmergencyContactsScreen extends StatelessWidget {
                           shape: CircleBorder(),
                           child: InkWell(
                             customBorder: CircleBorder(),
-                            onTap: () => showComingSoon(
-                              context,
-                              '${tr('utilities_calling_prefix')} ${c.label}',
-                            ),
+                            onTap: () =>
+                                showComingSoon(context, 'Calling ${c.label}'),
                             child: Padding(
                               padding: EdgeInsets.all(10),
                               child: Icon(

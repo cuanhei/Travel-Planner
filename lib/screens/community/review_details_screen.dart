@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 
-import '../../services/locale_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/coming_soon.dart';
 import '../../widgets/detail_header.dart';
@@ -57,7 +56,7 @@ class ReviewDetailsScreen extends StatelessWidget {
       body: SafeArea(
         child: Column(
           children: [
-            DetailHeader(title: tr('community_reviews_title'), subtitle: placeName),
+            DetailHeader(title: 'Reviews', subtitle: placeName),
             Padding(
               padding: EdgeInsets.symmetric(horizontal: 24),
               child: Container(
@@ -99,7 +98,7 @@ class ReviewDetailsScreen extends StatelessWidget {
                         ),
                         SizedBox(height: 2),
                         Text(
-                          '${_reviews.length} ${tr('community_reviews_count')}',
+                          '${_reviews.length} reviews',
                           style: TextStyle(
                             color: context.colors.muted,
                             fontSize: 11,
@@ -173,7 +172,7 @@ class ReviewDetailsScreen extends StatelessWidget {
                     ),
                   ),
                   icon: Icon(Icons.rate_review_rounded, size: 18),
-                  label: Text(tr('community_write_review')),
+                  label: Text('Write a Review'),
                   style: OutlinedButton.styleFrom(
                     foregroundColor: context.colors.ink,
                     side: BorderSide(color: context.colors.ink),
@@ -278,9 +277,9 @@ class _ReviewTile extends StatelessWidget {
           ),
           SizedBox(height: 8),
           GestureDetector(
-            onTap: () => showComingSoon(context, tr('community_reply')),
+            onTap: () => showComingSoon(context, 'Reply'),
             child: Text(
-              tr('community_reply'),
+              'Reply',
               style: TextStyle(
                 color: AppColors.accent,
                 fontWeight: FontWeight.w700,

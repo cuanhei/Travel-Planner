@@ -1,6 +1,8 @@
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'firebase_options.dart';
@@ -13,6 +15,13 @@ Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
   await loadSavedLanguage();
+
+  // Supabase itself is configured via --dart-define (see SupabaseConfig);
+  // .env only supplies the Transport module's Google Routes API key
+  // (route_service.dart), so a missing .env shouldn't block startup.
+  try {
+    await dotenv.load(fileName: '.env');
+  } catch (_) {}
 
   if (SupabaseConfig.isConfigured) {
     await Supabase.initialize(
@@ -51,6 +60,14 @@ class MyApp extends StatelessWidget {
               theme: AppTheme.light,
               darkTheme: AppTheme.dark,
               themeMode: mode,
+              // Cupertino delegate is needed for CupertinoDatePicker, used as
+              // an embeddable time-of-day wheel in Create Trip's date sheet.
+              localizationsDelegates: const [
+                GlobalMaterialLocalizations.delegate,
+                GlobalWidgetsLocalizations.delegate,
+                GlobalCupertinoLocalizations.delegate,
+              ],
+              supportedLocales: const [Locale('en')],
               home: const SplashScreen(),
             );
           },

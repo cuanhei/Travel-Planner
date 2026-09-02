@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 
-import '../../services/locale_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/detail_header.dart';
 import '../explore/explore_tab.dart';
@@ -27,14 +26,14 @@ class _SavedPlacesScreenState extends State<SavedPlacesScreen> {
         child: Column(
           children: [
             DetailHeader(
-              title: tr('saved_places_title'),
-              subtitle: tr('saved_places_subtitle'),
+              title: 'Saved Places',
+              subtitle: 'Your bookmarked spots',
             ),
             Expanded(
               child: results.isEmpty
                   ? Center(
                       child: Text(
-                        tr('saved_places_empty'),
+                        'No saved places yet',
                         style: TextStyle(color: context.colors.muted),
                       ),
                     )
