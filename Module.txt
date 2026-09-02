@@ -1,0 +1,332 @@
+TRAVELPLANNER — MODULES, FEATURES & EXPLANATIONS
+==================================================
+This is a UI-only Flutter prototype: every screen below is real and
+navigable, but there is no backend — all data is local mock/demo data
+that resets when the app restarts, unless a screen notes otherwise
+(e.g. Settings/Dark Mode persists for the session via a live toggle).
+Organized to match the module list in CLAUDE.md, with a few extra
+supporting screens (add/edit forms, etc.) noted under the feature they
+belong to.
+
+
+1. AUTHENTICATION MODULE
+-------------------------
+Splash Screen
+    App logo on a gradient background; auto-advances to Onboarding
+    after a short loading delay.
+
+Onboarding (Welcome Screen)
+    Swipeable feature carousel introducing the app, ending in a button
+    that leads to Login / Register.
+
+Login / Register (Auth Screen)
+    One combined screen with a Sign In / Sign Up toggle. Signing in
+    goes straight to the Home dashboard; signing up continues to Email
+    Verification first.
+
+Forgot Password
+    Request a password-reset link by email; shows a confirmation state
+    once the (simulated) email has been sent.
+
+Reset Password
+    Set a new password, reached from tapping a (simulated) reset link.
+
+Email Verification
+    6-digit code entry shown right after signing up, then continues
+    into the Home dashboard.
+
+
+2. HOME MODULE
+---------------
+Home Dashboard
+    Greeting, a destination search bar (shared with Explore), an
+    upcoming-trip hero card, quick actions (New Trip, Transport, Join
+    Trip, Map), a weather preview, a trips carousel, destination
+    inspiration cards, and a "Recent Activity" preview.
+
+Search Destination
+    Search bar with recent searches and live filtering over the place
+    catalog; tapping a result opens Place Details.
+
+Notifications
+    Alerts and reminders — trip updates, weather alerts, and social
+    notifications — grouped by recency.
+
+Activity Log (extra, beyond the base spec)
+    The full history behind the dashboard's "Recent Activity" preview:
+    every logged action (trip created, stop completed, review posted,
+    poll voted, etc.) grouped as Today / Yesterday / Earlier this week,
+    with a "Clear Log" action.
+
+
+3. TRIP PLANNER MODULE
+------------------------
+Create Trip
+    Trip name/description, destination, dates, travelers, budget, a
+    stylized map for picking exact locations, interest tags, and an
+    "auto-recommend more places" toggle (only shows the interest picker
+    when it's on). Submits into the AI Planner flow.
+
+AI Planner (Smart Schedule Screen)
+    A simulated "smart scheduling" progress screen — checking weather,
+    matching transport, optimizing the route — before landing on the
+    generated itinerary.
+
+Optimized Itinerary
+    Groups the traveler's picked places into days, gives each day a
+    plausible weather fit, orders stops for a shorter path, and
+    suggests transport between them. This is a presentable simulation
+    over local data — no real routing, weather, or transit API.
+
+Trip Details
+    The trip hub: quick stats, an "Activity" section showing the next
+    upcoming stop (with a Complete button) and the most recently
+    completed one, and a tools grid linking to every other trip
+    screen (Edit Schedule, Daily Timeline, Map View, Weather,
+    Transport, Budget, Utilities, Group).
+
+Edit Trip
+    Editable trip metadata — name, description, destination, dates,
+    travelers, budget, interests — styled like Create Trip but focused
+    on editing, plus a Delete Trip action. Reached via the pencil icon
+    on Trip Details (day-by-day scheduling stays separate, in Edit
+    Schedule).
+
+Edit Schedule
+    Day-tabbed itinerary editor styled like Daily Timeline: add, edit,
+    delete, or drag-reorder stops within a day. Reordering away from
+    the original route/weather-optimized order prompts a warning.
+    Days already in the past are locked to view-only (grayed out, no
+    edit/delete/drag). Each stop shows the estimated transport time to
+    the next one.
+
+Add / Edit Stop (extra, supports Edit Schedule)
+    Search or tap the map to pick a place (or add a custom one), then
+    either auto-arrange it into the itinerary or manually pick a day
+    and a time slot from a Google-Calendar-style day grid showing the
+    day's other activities. Editing an existing stop also sets its
+    category and how long the traveler plans to stay. Includes delete.
+
+Daily Timeline
+    A vertical, per-day timeline mixing activities with the transport
+    leg between each one. The first not-yet-done activity gets a
+    "Complete" button; completed ones show a checkmark. Tapping a
+    transport leg lets the traveler choose public transport,
+    e-hailing, or walking — choosing public transport jumps to the
+    Transport screen.
+
+Map View
+    A stylized (non-SDK) map. Opened from the Home dashboard it shows
+    only the "you are here" marker; opened from Trip Details it also
+    plots the trip's stops and a dashed route between them.
+
+Add to Trip
+    From Place Details — pick which upcoming trip to add that place to
+    (or jump into Create Trip to start a new one).
+
+
+4. WEATHER MODULE
+-------------------
+Weather Forecast
+    Current conditions, an hourly strip, and a 5-day outlook for the
+    trip destination.
+
+Weather Alert
+    Active and past rain / storm / heat alerts for the trip area.
+
+
+5. TRANSPORT MODULE
+---------------------
+Transport Routes
+    A stylized "real map" street view centered on "you are here", plus
+    a destination search — searching shows every available bus option
+    (number, wait time, fare, total time). Opened from Trip Details or
+    Daily Timeline it also shows a "Next Up" suggestion card (your
+    next itinerary stop) and a "My Stops" list of favourite places you
+    can add/remove — tapping a favourite immediately shows how to get
+    there. The Home-dashboard entry point is simplified to just the
+    map, search, and results.
+
+Route Details
+    Full walk -> wait -> ride -> alight directions for one chosen bus
+    departure, with a "Start Navigation" button.
+
+Start Navigation (extra, beyond the base spec)
+    A live-feeling turn-by-turn view: the "you are here" marker
+    animates along a dashed route on the map, a segmented bar tracks
+    progress across the 4 legs, and a bottom card shows a live
+    per-step countdown (auto-advances, or tap to skip ahead), ending
+    in an "arrived" confirmation.
+
+Fare Calculator
+    Estimate transport cost across modes (bus, e-hailing, taxi,
+    bicycle rental) for a chosen distance.
+
+
+6. EXPLORE MODULE
+-------------------
+Popular Destinations (Explore tab)
+    Destination search bar, category chips, a horizontal "Nearby
+    Places" strip, and a popular-destinations list — filterable by
+    category.
+
+Categories
+    Browse-by-interest grid; tapping a category filters the place
+    list.
+
+Place Details
+    Full place profile — hero area, tags, rating, description, opening
+    hours, average budget per person, and a reviews preview — with
+    links to Add Review, Add to Trip, and the full Review Details list.
+
+Nearby Places
+    Places sorted by proximity to the traveler's current (dummy)
+    location.
+
+
+7. COMMUNITY MODULE
+---------------------
+Community Feed (Community tab)
+    Travel-experience posts (author, place, caption, cover placeholder,
+    likes/comments) with a "+" button to compose a new one.
+
+Add Post (extra, supports Community Feed)
+    Compose a post: location, caption, a category (sets the icon), and
+    a cover-gradient picker, with a live preview of the finished post
+    card before posting.
+
+Review Details
+    Full review list for a place, with a rating breakdown and an entry
+    point to add a new review.
+
+Add Review
+    Star rating plus a written review submission form.
+
+Comments
+    Comment thread on a community post.
+
+
+8. SAVED MODULE
+-----------------
+Saved Places
+    Bookmarked places, shown as a grid.
+
+Saved Trips
+    Bookmarked / saved itineraries (draft or inspiration trips).
+
+
+9. BUDGET MODULE
+------------------
+Budget Planner
+    Total budget (editable via a quick "+RM10 / -RM10" style adjuster
+    sheet) versus spent, a progress bar, and a per-category breakdown;
+    links to Expense Tracker and Expense Split.
+
+Expense Tracker
+    A running log of trip expenses, each taggable with a category and
+    the itinerary stop it was spent at. Add fresh entries or edit ones
+    already logged; a per-stop / per-category "insights" breakdown is
+    shown as the kind of data a future AI budget recommendation would
+    draw on.
+
+Expense Split
+    Shows what each traveler paid and marks one as the trip organizer.
+    Every other traveler's "owes the organizer" amount is directly
+    editable — tap the amount to type in a new figure — rather than
+    being an automatic even split.
+
+
+10. UTILITIES MODULE
+----------------------
+Utilities Home
+    Hub linking to Packing List, Currency Converter, Translator, and
+    Emergency Contacts.
+
+Packing List
+    Checklist grouped by category with a progress bar. Add, edit, or
+    remove items (name, category, and whether it's already packed);
+    check items off as you pack them.
+
+Currency Converter
+    Convert between currencies using fixed dummy exchange rates.
+
+Translator
+    A common travel-phrases reference plus a dummy free-text translate
+    box.
+
+Emergency Contacts
+    Local emergency numbers and embassy contacts for the destination.
+
+
+11. GROUP TRAVEL MODULE
+--------------------------
+Group Dashboard
+    Member list plus links into Group Chat and Voting; an "invite
+    member" icon opens Invite Member.
+
+Shared Itinerary
+    Listed in the app's original spec but not yet built — referenced
+    (commented out) in the code, with no screen behind it yet.
+
+Group Chat
+    Group messaging with a static seed conversation and local sending
+    (messages you send appear in the thread for the session).
+
+Voting
+    Group decision-making polls (e.g. picking a restaurant). Create a
+    new poll, vote on one, or edit/delete an existing poll (question
+    plus 2-6 options).
+
+Invite Member
+    Generates a random join code the traveler can share (copies to the
+    clipboard); also lists incoming "Join Requests" with
+    Approve/Reject actions.
+
+Join a Trip
+    Enter a 6-character invite code to join the (single) demo trip's
+    group.
+
+
+12. PROFILE MODULE
+---------------------
+User Profile (Profile tab)
+    Identity header (avatar, name, email), trip/country/review/badge
+    stats, and a menu into Travel History, Achievements, Saved Places,
+    Saved Trips, and Settings.
+
+Travel History
+    Past trips with a quick summary of the traveler's journey stats.
+
+Achievements
+    Badges and milestones grid — some earned, some still locked.
+
+Settings
+    Notification toggles and a live Dark Mode switch (applies
+    app-wide immediately), plus entry points into every sub-screen
+    below:
+
+    - Language
+        Pick English, Bahasa Melayu, Chinese, or Tamil.
+
+    - Edit Profile
+        Name, email, phone, and a short bio (photo picker is stubbed).
+
+    - Change Password
+        Current / new / confirm password fields with show-hide toggles
+        and a mismatch check.
+
+    - Privacy & Security
+        Public-profile, share-activity, location-sharing, and
+        two-factor toggles, plus "Download My Data" and "Delete
+        Account" (with a confirmation dialog).
+
+    - Help Center
+        Searchable FAQ with expandable answers, plus a "Contact
+        Support" action.
+
+    - About TravelPlanner
+        App identity, version, and short description; "Open Source
+        Licenses" opens Flutter's real built-in license viewer (the
+        one genuinely functional link on this screen — Terms of
+        Service and Privacy Policy are stubbed, since no real legal
+        text exists for a demo app).
