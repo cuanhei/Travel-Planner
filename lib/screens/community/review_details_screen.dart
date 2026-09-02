@@ -1,190 +1,188 @@
 import 'package:flutter/material.dart';
 
+import '../../models/place_review.dart';
+import '../../services/community_service.dart';
 import '../../theme/app_theme.dart';
-import '../../widgets/coming_soon.dart';
+import '../../utils/time_ago.dart';
 import '../../widgets/detail_header.dart';
 import 'add_review_screen.dart';
-import 'community_tab.dart';
 
 /// Full review list for a place, with a rating breakdown and an entry
-/// point to add a new review.
-class ReviewDetailsScreen extends StatelessWidget {
+/// point to add a new review. Backed by `reviews`.
+class ReviewDetailsScreen extends StatefulWidget {
   const ReviewDetailsScreen({super.key, required this.placeName});
 
   final String placeName;
 
-  static final _reviews = [
-    Review(
-      author: 'Mei Ling',
-      avatarColor: Color(0xFFFF7A59),
-      rating: 5,
-      date: '2 days ago',
-      text:
-          'Absolutely stunning, go at sunset for the best light. Loved every minute!',
-    ),
-    Review(
-      author: 'Arif Hakim',
-      avatarColor: Color(0xFF5C6BC0),
-      rating: 4,
-      date: '1 week ago',
-      text: 'Great spot, a bit crowded on weekends but still worth it.',
-    ),
-    Review(
-      author: 'Sophia Tan',
-      avatarColor: Color(0xFF11998E),
-      rating: 5,
-      date: '3 weeks ago',
-      text:
-          'One of the highlights of our whole trip. Highly recommend for photos.',
-    ),
-    Review(
-      author: 'Daniel Wong',
-      avatarColor: Color(0xFFFFB347),
-      rating: 4,
-      date: '1 month ago',
-      text: 'Nice experience overall, could use better signage though.',
-    ),
-  ];
+  @override
+  State<ReviewDetailsScreen> createState() => _ReviewDetailsScreenState();
+}
+
+class _ReviewDetailsScreenState extends State<ReviewDetailsScreen> {
+  final _service = CommunityService();
 
   @override
   Widget build(BuildContext context) {
-    final avg =
-        _reviews.map((r) => r.rating).reduce((a, b) => a + b) / _reviews.length;
-
     return Scaffold(
       backgroundColor: context.colors.surface,
       body: SafeArea(
-        child: Column(
-          children: [
-            DetailHeader(title: 'Reviews', subtitle: placeName),
-            Padding(
-              padding: EdgeInsets.symmetric(horizontal: 24),
-              child: Container(
-                padding: EdgeInsets.all(18),
-                decoration: BoxDecoration(
-                  color: context.colors.card,
-                  borderRadius: BorderRadius.circular(18),
-                  boxShadow: [
-                    BoxShadow(
-                      color: context.colors.ink.withValues(alpha: 0.05),
-                      blurRadius: 12,
-                      offset: Offset(0, 5),
+        child: StreamBuilder<List<PlaceReview>>(
+          stream: _service.watchReviews(widget.placeName),
+          builder: (context, snapshot) {
+            final reviews = snapshot.data ?? const <PlaceReview>[];
+            final avg = reviews.isEmpty
+                ? 0.0
+                : reviews.map((r) => r.rating).reduce((a, b) => a + b) /
+                      reviews.length;
+
+            return Column(
+              children: [
+                DetailHeader(title: 'Reviews', subtitle: widget.placeName),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 24),
+                  child: Container(
+                    padding: const EdgeInsets.all(18),
+                    decoration: BoxDecoration(
+                      color: context.colors.card,
+                      borderRadius: BorderRadius.circular(18),
+                      boxShadow: [
+                        BoxShadow(
+                          color: context.colors.ink.withValues(alpha: 0.05),
+                          blurRadius: 12,
+                          offset: const Offset(0, 5),
+                        ),
+                      ],
                     ),
-                  ],
-                ),
-                child: Row(
-                  children: [
-                    Column(
+                    child: Row(
                       children: [
-                        Text(
-                          avg.toStringAsFixed(1),
-                          style: TextStyle(
-                            color: context.colors.ink,
-                            fontSize: 34,
-                            fontWeight: FontWeight.w800,
-                          ),
-                        ),
-                        Row(
-                          children: List.generate(
-                            5,
-                            (i) => Icon(
-                              i < avg.round()
-                                  ? Icons.star_rounded
-                                  : Icons.star_border_rounded,
-                              color: Color(0xFFFFB347),
-                              size: 16,
+                        Column(
+                          children: [
+                            Text(
+                              avg.toStringAsFixed(1),
+                              style: TextStyle(
+                                color: context.colors.ink,
+                                fontSize: 34,
+                                fontWeight: FontWeight.w800,
+                              ),
                             ),
-                          ),
+                            Row(
+                              children: List.generate(
+                                5,
+                                (i) => Icon(
+                                  i < avg.round()
+                                      ? Icons.star_rounded
+                                      : Icons.star_border_rounded,
+                                  color: const Color(0xFFFFB347),
+                                  size: 16,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              '${reviews.length} review${reviews.length == 1 ? '' : 's'}',
+                              style: TextStyle(
+                                color: context.colors.muted,
+                                fontSize: 11,
+                              ),
+                            ),
+                          ],
                         ),
-                        SizedBox(height: 2),
-                        Text(
-                          '${_reviews.length} reviews',
-                          style: TextStyle(
-                            color: context.colors.muted,
-                            fontSize: 11,
+                        const SizedBox(width: 20),
+                        Expanded(
+                          child: Column(
+                            children: List.generate(5, (i) {
+                              final star = 5 - i;
+                              final count = reviews
+                                  .where((r) => r.rating.round() == star)
+                                  .length;
+                              final ratio = reviews.isEmpty
+                                  ? 0.0
+                                  : count / reviews.length;
+                              return Padding(
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 2,
+                                ),
+                                child: Row(
+                                  children: [
+                                    Text(
+                                      '$star',
+                                      style: TextStyle(
+                                        color: context.colors.muted,
+                                        fontSize: 11,
+                                      ),
+                                    ),
+                                    const SizedBox(width: 6),
+                                    Expanded(
+                                      child: ClipRRect(
+                                        borderRadius: BorderRadius.circular(4),
+                                        child: LinearProgressIndicator(
+                                          value: ratio,
+                                          minHeight: 6,
+                                          backgroundColor:
+                                              context.colors.surface,
+                                          valueColor:
+                                              const AlwaysStoppedAnimation(
+                                                Color(0xFFFFB347),
+                                              ),
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              );
+                            }),
                           ),
                         ),
                       ],
                     ),
-                    SizedBox(width: 20),
-                    Expanded(
-                      child: Column(
-                        children: List.generate(5, (i) {
-                          final star = 5 - i;
-                          final count = _reviews
-                              .where((r) => r.rating.round() == star)
-                              .length;
-                          final ratio = count / _reviews.length;
-                          return Padding(
-                            padding: EdgeInsets.symmetric(vertical: 2),
-                            child: Row(
-                              children: [
-                                Text(
-                                  '$star',
-                                  style: TextStyle(
-                                    color: context.colors.muted,
-                                    fontSize: 11,
-                                  ),
-                                ),
-                                SizedBox(width: 6),
-                                Expanded(
-                                  child: ClipRRect(
-                                    borderRadius: BorderRadius.circular(4),
-                                    child: LinearProgressIndicator(
-                                      value: ratio,
-                                      minHeight: 6,
-                                      backgroundColor: context.colors.surface,
-                                      valueColor: AlwaysStoppedAnimation(
-                                        Color(0xFFFFB347),
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          );
-                        }),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Expanded(
+                  child: !snapshot.hasData
+                      ? const Center(child: CircularProgressIndicator())
+                      : reviews.isEmpty
+                      ? Center(
+                          child: Text(
+                            'No reviews yet — be the first!',
+                            style: TextStyle(color: context.colors.muted),
+                          ),
+                        )
+                      : ListView.builder(
+                          padding: const EdgeInsets.fromLTRB(24, 8, 24, 8),
+                          itemCount: reviews.length,
+                          itemBuilder: (context, index) {
+                            return _ReviewTile(review: reviews[index]);
+                          },
+                        ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(24, 0, 24, 16),
+                  child: SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton.icon(
+                      onPressed: () => Navigator.of(context).push(
+                        MaterialPageRoute(
+                          builder: (_) =>
+                              AddReviewScreen(placeName: widget.placeName),
+                        ),
+                      ),
+                      icon: const Icon(Icons.rate_review_rounded, size: 18),
+                      label: const Text('Write a Review'),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: context.colors.ink,
+                        side: BorderSide(color: context.colors.ink),
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(16),
+                        ),
                       ),
                     ),
-                  ],
-                ),
-              ),
-            ),
-            SizedBox(height: 8),
-            Expanded(
-              child: ListView.builder(
-                padding: EdgeInsets.fromLTRB(24, 8, 24, 8),
-                itemCount: _reviews.length,
-                itemBuilder: (context, index) {
-                  final r = _reviews[index];
-                  return _ReviewTile(review: r);
-                },
-              ),
-            ),
-            Padding(
-              padding: EdgeInsets.fromLTRB(24, 0, 24, 16),
-              child: SizedBox(
-                width: double.infinity,
-                child: OutlinedButton.icon(
-                  onPressed: () => Navigator.of(context).push(
-                    MaterialPageRoute(
-                      builder: (_) => AddReviewScreen(placeName: placeName),
-                    ),
-                  ),
-                  icon: Icon(Icons.rate_review_rounded, size: 18),
-                  label: Text('Write a Review'),
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: context.colors.ink,
-                    side: BorderSide(color: context.colors.ink),
-                    padding: EdgeInsets.symmetric(vertical: 14),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(16),
-                    ),
                   ),
                 ),
-              ),
-            ),
-          ],
+              ],
+            );
+          },
         ),
       ),
     );
@@ -194,13 +192,13 @@ class ReviewDetailsScreen extends StatelessWidget {
 class _ReviewTile extends StatelessWidget {
   const _ReviewTile({required this.review});
 
-  final Review review;
+  final PlaceReview review;
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      margin: EdgeInsets.only(bottom: 12),
-      padding: EdgeInsets.all(14),
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: context.colors.card,
         borderRadius: BorderRadius.circular(18),
@@ -208,7 +206,7 @@ class _ReviewTile extends StatelessWidget {
           BoxShadow(
             color: context.colors.ink.withValues(alpha: 0.05),
             blurRadius: 12,
-            offset: Offset(0, 5),
+            offset: const Offset(0, 5),
           ),
         ],
       ),
@@ -219,23 +217,23 @@ class _ReviewTile extends StatelessWidget {
             children: [
               CircleAvatar(
                 radius: 16,
-                backgroundColor: review.avatarColor,
+                backgroundColor: Color(review.authorColor),
                 child: Text(
-                  review.author[0],
-                  style: TextStyle(
+                  review.authorName[0].toUpperCase(),
+                  style: const TextStyle(
                     color: Colors.white,
                     fontWeight: FontWeight.w800,
                     fontSize: 12,
                   ),
                 ),
               ),
-              SizedBox(width: 10),
+              const SizedBox(width: 10),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      review.author,
+                      review.authorName,
                       style: TextStyle(
                         color: context.colors.ink,
                         fontWeight: FontWeight.w700,
@@ -243,7 +241,7 @@ class _ReviewTile extends StatelessWidget {
                       ),
                     ),
                     Text(
-                      review.date,
+                      timeAgo(review.createdAt),
                       style: TextStyle(
                         color: context.colors.muted,
                         fontSize: 11,
@@ -259,32 +257,20 @@ class _ReviewTile extends StatelessWidget {
                     i < review.rating
                         ? Icons.star_rounded
                         : Icons.star_border_rounded,
-                    color: Color(0xFFFFB347),
+                    color: const Color(0xFFFFB347),
                     size: 14,
                   ),
                 ),
               ),
             ],
           ),
-          SizedBox(height: 10),
+          const SizedBox(height: 10),
           Text(
-            review.text,
+            review.body,
             style: TextStyle(
               color: context.colors.ink,
               fontSize: 12.5,
               height: 1.4,
-            ),
-          ),
-          SizedBox(height: 8),
-          GestureDetector(
-            onTap: () => showComingSoon(context, 'Reply'),
-            child: Text(
-              'Reply',
-              style: TextStyle(
-                color: AppColors.accent,
-                fontWeight: FontWeight.w700,
-                fontSize: 11.5,
-              ),
             ),
           ),
         ],

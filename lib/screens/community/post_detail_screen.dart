@@ -1,0 +1,73 @@
+import 'package:flutter/material.dart';
+
+import '../../models/community_post.dart';
+import '../../services/community_service.dart';
+import '../../services/deep_link.dart';
+import '../../theme/app_theme.dart';
+import '../../widgets/detail_header.dart';
+import 'comments_screen.dart';
+import 'post_card.dart';
+
+/// Landing screen for a shared post link (`/post/<id>` — see
+/// [parseSharedPostId] and `SplashScreen`). Shows the post itself plus its
+/// full, live comment thread, scoped to this post only.
+class PostDetailScreen extends StatefulWidget {
+  const PostDetailScreen({super.key, required this.postId});
+
+  final String postId;
+
+  @override
+  State<PostDetailScreen> createState() => _PostDetailScreenState();
+}
+
+class _PostDetailScreenState extends State<PostDetailScreen> {
+  final _service = CommunityService();
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: context.colors.surface,
+      body: SafeArea(
+        child: StreamBuilder<CommunityPost?>(
+          stream: _service.watchPost(widget.postId),
+          builder: (context, snapshot) {
+            final post = snapshot.data;
+            return Column(
+              children: [
+                const DetailHeader(title: 'Post', subtitle: 'Shared moment'),
+                if (!snapshot.hasData)
+                  const Expanded(
+                    child: Center(child: CircularProgressIndicator()),
+                  )
+                else if (post == null)
+                  Expanded(
+                    child: Center(
+                      child: Text(
+                        'This post is no longer available.',
+                        style: TextStyle(color: context.colors.muted),
+                      ),
+                    ),
+                  )
+                else ...[
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(24, 8, 24, 0),
+                    child: PostCard(
+                      post: post,
+                      onToggleLike: () => _service.toggleLike(
+                        post.id,
+                        currentlyLiked: post.likedByMe,
+                      ),
+                      onComment: () {},
+                      onShare: () => shareCommunityPost(post),
+                    ),
+                  ),
+                  Expanded(child: CommentsSection(postId: post.id)),
+                ],
+              ],
+            );
+          },
+        ),
+      ),
+    );
+  }
+}

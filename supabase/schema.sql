@@ -358,6 +358,108 @@ create table public.trip_balances (
 );
 
 -- ============================================================
+-- Community module: travel-experience feed, comments, place reviews
+-- ============================================================
+--
+-- NOTE: on the shared project this app actually runs against, these four
+-- tables were provisioned by hand directly in the Supabase dashboard
+-- rather than from a committed SQL file, so this definition was
+-- reverse-engineered against the live schema (via the PostgREST API —
+-- there was no SQL source of truth to read from) rather than designed
+-- from scratch. It's what CommunityService (lib/services/
+-- community_service.dart) expects. If you're bootstrapping a brand-new
+-- project, this section creates it correctly from scratch; if you're
+-- pointing at the existing shared project (tables already exist, may be
+-- missing RLS/triggers/realtime), run
+-- supabase/migrations/0009_community_module.sql instead — it's an
+-- idempotent repair script safe to run against what's already there.
+
+create table public.posts (
+  id uuid primary key default gen_random_uuid(),
+  author_id uuid not null references auth.users (id) on delete cascade,
+  place_name text not null,
+  caption text not null check (char_length(trim(caption)) > 0),
+  category text not null,
+  cover_gradient text not null default 'horizon'
+    check (cover_gradient in ('horizon', 'dusk', 'sunset', 'lagoon')),
+  likes_count integer not null default 0,
+  comments_count integer not null default 0,
+  created_at timestamptz not null default now()
+);
+
+create table public.post_likes (
+  post_id uuid not null references public.posts (id) on delete cascade,
+  user_id uuid not null references auth.users (id) on delete cascade,
+  created_at timestamptz not null default now(),
+  primary key (post_id, user_id)
+);
+
+create table public.comments (
+  id uuid primary key default gen_random_uuid(),
+  post_id uuid not null references public.posts (id) on delete cascade,
+  author_id uuid not null references auth.users (id) on delete cascade,
+  body text not null check (char_length(trim(body)) > 0),
+  created_at timestamptz not null default now()
+);
+
+-- Keyed by place name (this app has no canonical `places` table — Explore's
+-- place cards and Community posts both just carry a free-text place name),
+-- so reviews attach to that same string. One review per user per place;
+-- re-submitting updates it in place (see CommunityService.upsertReview).
+create table public.reviews (
+  id uuid primary key default gen_random_uuid(),
+  place_name text not null,
+  author_id uuid not null references auth.users (id) on delete cascade,
+  rating smallint not null check (rating between 1 and 5),
+  body text not null check (char_length(trim(body)) > 0),
+  created_at timestamptz not null default now(),
+  unique (place_name, author_id)
+);
+
+-- Keep posts.likes_count/comments_count in sync so the feed (which only
+-- streams `posts`, not post_likes/comments) can show accurate counts
+-- without a join on every row.
+create function public.handle_post_like_change()
+returns trigger
+language plpgsql
+security definer set search_path = public
+as $$
+begin
+  if tg_op = 'INSERT' then
+    update public.posts set likes_count = likes_count + 1 where id = new.post_id;
+    return new;
+  else
+    update public.posts set likes_count = greatest(likes_count - 1, 0) where id = old.post_id;
+    return old;
+  end if;
+end;
+$$;
+
+create trigger on_post_like_change
+  after insert or delete on public.post_likes
+  for each row execute function public.handle_post_like_change();
+
+create function public.handle_post_comment_change()
+returns trigger
+language plpgsql
+security definer set search_path = public
+as $$
+begin
+  if tg_op = 'INSERT' then
+    update public.posts set comments_count = comments_count + 1 where id = new.post_id;
+    return new;
+  else
+    update public.posts set comments_count = greatest(comments_count - 1, 0) where id = old.post_id;
+    return old;
+  end if;
+end;
+$$;
+
+create trigger on_post_comment_change
+  after insert or delete on public.comments
+  for each row execute function public.handle_post_comment_change();
+
+-- ============================================================
 -- Row Level Security
 -- ============================================================
 
@@ -376,6 +478,10 @@ alter table public.trip_balances enable row level security;
 alter table public.trip_stops enable row level security;
 alter table public.trip_interests enable row level security;
 alter table public.trip_schedule_stops enable row level security;
+alter table public.posts enable row level security;
+alter table public.post_likes enable row level security;
+alter table public.comments enable row level security;
+alter table public.reviews enable row level security;
 
 -- profiles: names/avatars are visible to any signed-in user (needed to
 -- render trip-mates' names); everyone can only edit their own row.
@@ -522,6 +628,47 @@ create policy "trip_schedule_stops_write_members" on public.trip_schedule_stops
   for all to authenticated using (public.is_trip_member(trip_id))
   with check (public.is_trip_member(trip_id));
 
+-- posts: feed is visible to any signed-in user; only the author can
+-- edit/delete their own post.
+create policy "posts_select_authenticated" on public.posts
+  for select to authenticated using (true);
+create policy "posts_insert_self" on public.posts
+  for insert to authenticated with check (author_id = auth.uid());
+create policy "posts_update_own" on public.posts
+  for update to authenticated using (author_id = auth.uid());
+create policy "posts_delete_own" on public.posts
+  for delete to authenticated using (author_id = auth.uid());
+
+-- post_likes: anyone can see who liked what; you can only like/unlike as
+-- yourself (insert/delete your own row — toggling is add-or-remove, there's
+-- no "update" concept for a like).
+create policy "post_likes_select_authenticated" on public.post_likes
+  for select to authenticated using (true);
+create policy "post_likes_insert_self" on public.post_likes
+  for insert to authenticated with check (user_id = auth.uid());
+create policy "post_likes_delete_self" on public.post_likes
+  for delete to authenticated using (user_id = auth.uid());
+
+-- comments: any signed-in user can read/comment; only the author can
+-- delete their own comment (mirrors group_messages).
+create policy "comments_select_authenticated" on public.comments
+  for select to authenticated using (true);
+create policy "comments_insert_self" on public.comments
+  for insert to authenticated with check (author_id = auth.uid());
+create policy "comments_delete_own" on public.comments
+  for delete to authenticated using (author_id = auth.uid());
+
+-- reviews: any signed-in user can read; only the author can
+-- write/update/delete their own review.
+create policy "reviews_select_authenticated" on public.reviews
+  for select to authenticated using (true);
+create policy "reviews_insert_self" on public.reviews
+  for insert to authenticated with check (author_id = auth.uid());
+create policy "reviews_update_own" on public.reviews
+  for update to authenticated using (author_id = auth.uid());
+create policy "reviews_delete_own" on public.reviews
+  for delete to authenticated using (author_id = auth.uid());
+
 -- ============================================================
 -- Realtime: every table the Flutter services read via `.stream()`
 -- must be in this publication, or those streams silently never emit.
@@ -536,7 +683,10 @@ alter publication supabase_realtime add table
   public.trip_join_requests,
   public.trips,
   public.expenses,
-  public.budget_categories;
+  public.budget_categories,
+  public.posts,
+  public.comments,
+  public.reviews;
 
 -- A DELETE event's replication payload only carries the replica
 -- identity's columns for the deleted row — by default just the primary
@@ -550,3 +700,9 @@ alter publication supabase_realtime add table
 alter table public.expenses replica identity full;
 alter table public.polls replica identity full;
 alter table public.trip_members replica identity full;
+
+-- comments (watched filtered by post_id) and reviews (watched filtered by
+-- place_name) both support deleting your own row through the app — same
+-- DELETE-payload gotcha as above.
+alter table public.comments replica identity full;
+alter table public.reviews replica identity full;

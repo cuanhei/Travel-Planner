@@ -1,21 +1,15 @@
 import 'package:flutter/material.dart';
 
+import '../../services/community_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/detail_header.dart';
 import '../../widgets/gradient_button.dart';
 import '../explore/explore_tab.dart' show categories;
-import 'community_tab.dart';
+import 'post_card.dart' show communityGradients;
 
-const _coverGradients = [
-  AppColors.horizon,
-  AppColors.dusk,
-  AppColors.sunset,
-  AppColors.lagoon,
-];
-
-/// UI-only "new post" composer for the Community feed — caption,
-/// location, a category (sets the icon), and a cover gradient, with a
-/// live preview of the resulting post card.
+/// "New post" composer for the Community feed — caption, location, a
+/// category (sets the icon), and a cover gradient, with a live preview of
+/// the resulting post card. Posts to `posts` on submit.
 class AddPostScreen extends StatefulWidget {
   const AddPostScreen({super.key});
 
@@ -24,10 +18,24 @@ class AddPostScreen extends StatefulWidget {
 }
 
 class _AddPostScreenState extends State<AddPostScreen> {
+  final _service = CommunityService();
   final _captionController = TextEditingController();
   final _placeController = TextEditingController();
   int _categoryIndex = 0;
   int _gradientIndex = 0;
+  bool _posting = false;
+
+  late final _gradientKeys = communityGradients.keys.toList();
+
+  Map<String, dynamic>? _myProfile;
+
+  @override
+  void initState() {
+    super.initState();
+    _service.getMyProfile().then((profile) {
+      if (mounted) setState(() => _myProfile = profile);
+    });
+  }
 
   @override
   void dispose() {
@@ -37,27 +45,42 @@ class _AddPostScreenState extends State<AddPostScreen> {
   }
 
   bool get _canPost =>
+      !_posting &&
       _captionController.text.trim().isNotEmpty &&
       _placeController.text.trim().isNotEmpty;
 
-  void _submit() {
+  Future<void> _submit() async {
     if (!_canPost) return;
-    final post = Post(
-      author: 'Alex Tan',
-      avatarColor: AppColors.accent,
-      place: _placeController.text.trim(),
-      time: 'Just now',
-      caption: _captionController.text.trim(),
-      gradient: _coverGradients[_gradientIndex],
-      icon: categories[_categoryIndex].icon,
-      likes: 0,
-      comments: 0,
-    );
-    Navigator.of(context).pop(post);
+    setState(() => _posting = true);
+    try {
+      await _service.addPost(
+        placeName: _placeController.text.trim(),
+        caption: _captionController.text.trim(),
+        category: categories[_categoryIndex].label,
+        coverGradient: _gradientKeys[_gradientIndex],
+      );
+      if (mounted) Navigator.of(context).pop(true);
+    } catch (e) {
+      if (mounted) {
+        setState(() => _posting = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            behavior: SnackBarBehavior.floating,
+            backgroundColor: context.colors.ink,
+            content: Text('Could not post: $e'),
+          ),
+        );
+      }
+    }
   }
 
   @override
   Widget build(BuildContext context) {
+    final myName = _myProfile?['display_name'] as String? ?? 'You';
+    final myColor = _myProfile?['avatar_color'] != null
+        ? Color(_myProfile!['avatar_color'] as int)
+        : AppColors.accent;
+
     return Scaffold(
       backgroundColor: context.colors.surface,
       body: SafeArea(
@@ -73,12 +96,12 @@ class _AddPostScreenState extends State<AddPostScreen> {
                 children: [
                   Row(
                     children: [
-                      const CircleAvatar(
+                      CircleAvatar(
                         radius: 20,
-                        backgroundColor: AppColors.accent,
+                        backgroundColor: myColor,
                         child: Text(
-                          'A',
-                          style: TextStyle(
+                          myName.isNotEmpty ? myName[0].toUpperCase() : '?',
+                          style: const TextStyle(
                             color: Colors.white,
                             fontWeight: FontWeight.w800,
                           ),
@@ -86,7 +109,7 @@ class _AddPostScreenState extends State<AddPostScreen> {
                       ),
                       const SizedBox(width: 12),
                       Text(
-                        'Posting as Alex Tan',
+                        'Posting as $myName',
                         style: TextStyle(
                           color: context.colors.ink,
                           fontWeight: FontWeight.w700,
@@ -173,7 +196,7 @@ class _AddPostScreenState extends State<AddPostScreen> {
                   _FieldLabel('Cover Style'),
                   const SizedBox(height: 4),
                   Row(
-                    children: List.generate(_coverGradients.length, (i) {
+                    children: List.generate(_gradientKeys.length, (i) {
                       final selected = _gradientIndex == i;
                       return Padding(
                         padding: const EdgeInsets.only(right: 12),
@@ -185,7 +208,7 @@ class _AddPostScreenState extends State<AddPostScreen> {
                             height: 42,
                             decoration: BoxDecoration(
                               gradient: LinearGradient(
-                                colors: _coverGradients[i],
+                                colors: communityGradients[_gradientKeys[i]]!,
                                 begin: Alignment.topLeft,
                                 end: Alignment.bottomRight,
                               ),
@@ -214,18 +237,20 @@ class _AddPostScreenState extends State<AddPostScreen> {
                   _FieldLabel('Preview'),
                   const SizedBox(height: 8),
                   _PostPreview(
+                    authorName: myName,
+                    authorColor: myColor,
                     caption: _captionController.text.trim().isEmpty
                         ? 'Your caption will appear here…'
                         : _captionController.text.trim(),
                     place: _placeController.text.trim().isEmpty
                         ? 'Location'
                         : _placeController.text.trim(),
-                    gradient: _coverGradients[_gradientIndex],
+                    gradient: communityGradients[_gradientKeys[_gradientIndex]]!,
                     icon: categories[_categoryIndex].icon,
                   ),
                   const SizedBox(height: 32),
                   GradientButton(
-                    label: 'Post',
+                    label: _posting ? 'Posting…' : 'Post',
                     icon: Icons.send_rounded,
                     onPressed: _canPost ? _submit : () {},
                   ),
@@ -241,12 +266,16 @@ class _AddPostScreenState extends State<AddPostScreen> {
 
 class _PostPreview extends StatelessWidget {
   const _PostPreview({
+    required this.authorName,
+    required this.authorColor,
     required this.caption,
     required this.place,
     required this.gradient,
     required this.icon,
   });
 
+  final String authorName;
+  final Color authorColor;
   final String caption;
   final String place;
   final List<Color> gradient;
@@ -272,12 +301,12 @@ class _PostPreview extends StatelessWidget {
         children: [
           Row(
             children: [
-              const CircleAvatar(
+              CircleAvatar(
                 radius: 16,
-                backgroundColor: AppColors.accent,
+                backgroundColor: authorColor,
                 child: Text(
-                  'A',
-                  style: TextStyle(
+                  authorName.isNotEmpty ? authorName[0].toUpperCase() : '?',
+                  style: const TextStyle(
                     color: Colors.white,
                     fontWeight: FontWeight.w800,
                     fontSize: 12,
@@ -290,7 +319,7 @@ class _PostPreview extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'Alex Tan',
+                      authorName,
                       style: TextStyle(
                         color: context.colors.ink,
                         fontWeight: FontWeight.w700,

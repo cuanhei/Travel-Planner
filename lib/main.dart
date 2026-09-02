@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
+import 'package:flutter_web_plugins/url_strategy.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'screens/reset_password_screen.dart';
@@ -11,6 +12,9 @@ final navigatorKey = GlobalKey<NavigatorState>();
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  // Plain paths on web (e.g. /post/<id> for a shared Community post) instead
+  // of the default /#/post/<id> hash fragment.
+  usePathUrlStrategy();
   await SupabaseConfig.load();
 
   if (SupabaseConfig.isConfigured) {

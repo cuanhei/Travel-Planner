@@ -1,10 +1,13 @@
 import 'package:flutter/material.dart';
 
+import '../../services/community_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/detail_header.dart';
 import '../../widgets/gradient_button.dart';
 
-/// UI-only rating + written review submission form.
+/// Star rating plus a written review submission form. Backed by
+/// `reviews` (one review per user per place — resubmitting updates
+/// your existing review).
 class AddReviewScreen extends StatefulWidget {
   const AddReviewScreen({super.key, required this.placeName});
 
@@ -15,8 +18,10 @@ class AddReviewScreen extends StatefulWidget {
 }
 
 class _AddReviewScreenState extends State<AddReviewScreen> {
+  final _service = CommunityService();
   int _rating = 0;
   final _controller = TextEditingController();
+  bool _submitting = false;
 
   @override
   void dispose() {
@@ -24,15 +29,38 @@ class _AddReviewScreenState extends State<AddReviewScreen> {
     super.dispose();
   }
 
-  void _submit() {
-    Navigator.of(context).pop();
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        behavior: SnackBarBehavior.floating,
-        backgroundColor: context.colors.ink,
-        content: Text('Review for ${widget.placeName} posted!'),
-      ),
-    );
+  bool get _canSubmit =>
+      _rating > 0 && _controller.text.trim().isNotEmpty && !_submitting;
+
+  Future<void> _submit() async {
+    if (!_canSubmit) return;
+    setState(() => _submitting = true);
+    try {
+      await _service.upsertReview(
+        placeName: widget.placeName,
+        rating: _rating,
+        body: _controller.text.trim(),
+      );
+      if (!mounted) return;
+      Navigator.of(context).pop();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          behavior: SnackBarBehavior.floating,
+          backgroundColor: context.colors.ink,
+          content: Text('Review for ${widget.placeName} posted!'),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _submitting = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          behavior: SnackBarBehavior.floating,
+          backgroundColor: context.colors.ink,
+          content: Text('Could not post review: $e'),
+        ),
+      );
+    }
   }
 
   @override
@@ -46,7 +74,7 @@ class _AddReviewScreenState extends State<AddReviewScreen> {
             DetailHeader(title: 'Write a Review', subtitle: widget.placeName),
             Expanded(
               child: ListView(
-                padding: EdgeInsets.fromLTRB(24, 8, 24, 24),
+                padding: const EdgeInsets.fromLTRB(24, 8, 24, 24),
                 children: [
                   Text(
                     'Your rating',
@@ -55,7 +83,7 @@ class _AddReviewScreenState extends State<AddReviewScreen> {
                       fontWeight: FontWeight.w700,
                     ),
                   ),
-                  SizedBox(height: 12),
+                  const SizedBox(height: 12),
                   Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: List.generate(5, (i) {
@@ -66,13 +94,13 @@ class _AddReviewScreenState extends State<AddReviewScreen> {
                           filled
                               ? Icons.star_rounded
                               : Icons.star_border_rounded,
-                          color: Color(0xFFFFB347),
+                          color: const Color(0xFFFFB347),
                           size: 36,
                         ),
                       );
                     }),
                   ),
-                  SizedBox(height: 20),
+                  const SizedBox(height: 20),
                   Text(
                     'Your review',
                     style: TextStyle(
@@ -80,17 +108,18 @@ class _AddReviewScreenState extends State<AddReviewScreen> {
                       fontWeight: FontWeight.w700,
                     ),
                   ),
-                  SizedBox(height: 10),
+                  const SizedBox(height: 10),
                   TextField(
                     controller: _controller,
                     maxLines: 6,
+                    onChanged: (_) => setState(() {}),
                     style: TextStyle(color: context.colors.ink),
                     decoration: InputDecoration(
                       hintText: 'Share details of your experience…',
                       hintStyle: TextStyle(color: context.colors.muted),
                       filled: true,
                       fillColor: context.colors.card,
-                      contentPadding: EdgeInsets.all(16),
+                      contentPadding: const EdgeInsets.all(16),
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(16),
                         borderSide: BorderSide.none,
@@ -104,10 +133,10 @@ class _AddReviewScreenState extends State<AddReviewScreen> {
                       ),
                     ),
                   ),
-                  SizedBox(height: 28),
+                  const SizedBox(height: 28),
                   GradientButton(
-                    label: 'Post Review',
-                    onPressed: _rating > 0 ? _submit : () {},
+                    label: _submitting ? 'Posting…' : 'Post Review',
+                    onPressed: _canSubmit ? _submit : () {},
                   ),
                 ],
               ),
