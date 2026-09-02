@@ -109,6 +109,7 @@ class _NavigationMapViewState extends State<NavigationMapView> {
                     point: target,
                     width: 42,
                     height: 42,
+                    alignment: Alignment.bottomCenter,
                     child: const Icon(
                       Icons.location_on_rounded,
                       color: Color(0xFFFF7A59),

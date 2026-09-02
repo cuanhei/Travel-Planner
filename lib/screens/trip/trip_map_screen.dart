@@ -5,6 +5,7 @@ import 'package:latlong2/latlong.dart';
 import '../../models/trip_stop_location.dart';
 import '../../services/trip_service.dart';
 import '../../theme/app_theme.dart';
+import '../../utils/geo.dart';
 import '../../utils/malaysia_bounds.dart';
 import '../../widgets/detail_header.dart';
 
@@ -114,7 +115,19 @@ class _TripMapScreenState extends State<TripMapScreen> {
   }
 
   void _selectFromMarker(TripStopLocation stop) {
-    setState(() => _selectedMapStop = stop);
+    // Tapping the active marker again is an explicit deselect action.
+    // Reuse the normal clear path so a prior search focus is cleared too.
+    if (_selectedMapStop == stop) {
+      _clearSearch();
+      return;
+    }
+    _searchFocusNode.unfocus();
+    _searchController.text = stop.name;
+    setState(() {
+      _selectedMapStop = stop;
+      _searchQuery = '';
+      _showDropdown = false;
+    });
   }
 
   void _clearSearch() {
@@ -220,9 +233,20 @@ class _TripStopsMap extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final points = [for (final s in stops) LatLng(s.latitude, s.longitude)];
+    // A saved stop is always plotted from the values stored in the database:
+    // `LatLng` takes latitude first and longitude second. Discard malformed
+    // data here instead of letting one bad row skew the initial camera fit.
+    final plottedStops = [
+      for (final stop in stops)
+        if (isValidLatLng(LatLng(stop.latitude, stop.longitude))) stop,
+    ];
+    final points = [
+      for (final stop in plottedStops) LatLng(stop.latitude, stop.longitude),
+    ];
     final bounds = points.isEmpty ? null : LatLngBounds.fromPoints(points);
-    final focus = cameraFocus;
+    final focus = cameraFocus != null && isValidLatLng(cameraFocus!)
+        ? cameraFocus
+        : null;
 
     // Keyed on whether/where the camera should be focused, so selecting
     // a stop via search (or clearing back to "fit everything") remounts
@@ -231,16 +255,17 @@ class _TripStopsMap extends StatelessWidget {
     // MapController alone after the map is already mounted.
     final cameraKey = focus != null
         ? 'focus:${focus.latitude.toStringAsFixed(5)},${focus.longitude.toStringAsFixed(5)}'
-        : 'all:${stops.length}';
+        : 'all:${points.map((p) => '${p.latitude.toStringAsFixed(5)},${p.longitude.toStringAsFixed(5)}').join('|')}';
 
     return FlutterMap(
       key: ValueKey(cameraKey),
       options: MapOptions(
         initialCenter: focus ?? bounds?.center ?? malaysiaFallbackCenter,
         // Only actually used when initialCameraFit is null (falls back to
-        // the fit's own computed zoom otherwise) — kept >= minZoom below
-        // regardless, so there's no zoom/minZoom mismatch either way.
-        initialZoom: focus != null || bounds == null ? _focusZoom : 12,
+        // the fit's own computed zoom otherwise).
+        initialZoom: focus != null || bounds == null || points.length == 1
+            ? _focusZoom
+            : 12,
         initialCameraFit: focus == null && bounds != null
             ? CameraFit.bounds(
                 bounds: bounds,
@@ -248,12 +273,14 @@ class _TripStopsMap extends StatelessWidget {
                 maxZoom: _focusZoom,
               )
             : null,
+        // No explicit minZoom here on purpose: MapOptions.minZoom acts as a
+        // hard floor on CameraFit.bounds's own computed zoom (it's clamped
+        // up to at least minZoom), so a fixed floor previously fought the
+        // "fit every stop" goal above whenever stops were spread wider than
+        // that floor allowed, clipping some out of the initial view.
+        // CameraConstraint.contain below already stops the camera from
+        // zooming/panning out past Malaysia, so no extra floor is needed.
         cameraConstraint: CameraConstraint.contain(bounds: malaysiaBounds),
-        // A trip's stops sit within one city — zooming out further than
-        // that only reaches OSM's coarser, generalized coastline tiles,
-        // where a point genuinely near the shore (e.g. a jetty) can
-        // render as if it's over water even though it isn't.
-        minZoom: 10,
         interactionOptions: const InteractionOptions(
           flags: InteractiveFlag.all & ~InteractiveFlag.rotate,
         ),
@@ -265,15 +292,20 @@ class _TripStopsMap extends StatelessWidget {
         ),
         MarkerLayer(
           markers: [
-            for (final stop in stops)
+            for (final (index, stop) in plottedStops.indexed)
               Marker(
                 point: LatLng(stop.latitude, stop.longitude),
-                width: 170,
-                height: 76,
-                alignment: Alignment.bottomCenter,
+                // A compact circular marker has its geographic coordinate at
+                // its exact centre. Unlike a tall pin/label widget, its
+                // visual position therefore cannot appear to drift as the
+                // camera zoom changes.
+                width: 38,
+                height: 38,
+                alignment: Alignment.center,
                 child: _TripStopMarker(
                   name: stop.name,
                   isSelected: stop == selected,
+                  number: index + 1,
                   onTap: () => onTapMarker(stop),
                 ),
               ),
@@ -288,21 +320,28 @@ class _TripStopMarker extends StatelessWidget {
   const _TripStopMarker({
     required this.name,
     required this.isSelected,
+    required this.number,
     required this.onTap,
   });
 
   final String name;
   final bool isSelected;
+  final int number;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      mainAxisAlignment: MainAxisAlignment.end,
+    return Stack(
+      clipBehavior: Clip.none,
+      alignment: Alignment.center,
       children: [
-        if (isSelected) ...[
-          Flexible(
+        // The label deliberately overflows the fixed-size marker. That keeps
+        // the marker's centre locked to the saved latitude/longitude.
+        if (isSelected)
+          Positioned(
+            left: -72,
+            right: -72,
+            bottom: 42,
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
               decoration: BoxDecoration(
@@ -310,7 +349,7 @@ class _TripStopMarker extends StatelessWidget {
                 borderRadius: BorderRadius.circular(10),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.2),
+                    color: Colors.black.withValues(alpha: 0.22),
                     blurRadius: 8,
                     offset: const Offset(0, 3),
                   ),
@@ -329,14 +368,38 @@ class _TripStopMarker extends StatelessWidget {
               ),
             ),
           ),
-          const SizedBox(height: 3),
-        ],
-        GestureDetector(
-          onTap: onTap,
-          child: Icon(
-            Icons.location_on_rounded,
-            color: isSelected ? _stopMarkerBlue : _stopMarkerRed,
-            size: 34,
+        Tooltip(
+          message: name,
+          child: Material(
+            color: Colors.transparent,
+            child: InkWell(
+              customBorder: const CircleBorder(),
+              onTap: onTap,
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  color: isSelected ? _stopMarkerBlue : _stopMarkerRed,
+                  shape: BoxShape.circle,
+                  border: Border.all(color: Colors.white, width: 3),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.28),
+                      blurRadius: 5,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
+                ),
+                child: Center(
+                  child: Text(
+                    '$number',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ),
+              ),
+            ),
           ),
         ),
       ],

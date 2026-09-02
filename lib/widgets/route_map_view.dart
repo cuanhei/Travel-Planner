@@ -141,6 +141,11 @@ class RouteMapView extends StatelessWidget {
                 point: validSource,
                 width: sourceIsCurrentLocation ? 54 : 34,
                 height: sourceIsCurrentLocation ? 54 : 34,
+                // A circular GPS dot is centered on its coordinate, while
+                // a pin must be anchored at its tip.
+                alignment: sourceIsCurrentLocation
+                    ? Alignment.center
+                    : Alignment.bottomCenter,
                 child: sourceIsCurrentLocation
                     ? const CurrentLocationMarker()
                     : const Icon(
@@ -154,6 +159,10 @@ class RouteMapView extends StatelessWidget {
                 point: validDestination,
                 width: 40,
                 height: 40,
+                // Keep the location's coordinate at the pin tip rather than
+                // the centre of the icon, which is especially visible when
+                // zoomed out.
+                alignment: Alignment.bottomCenter,
                 child: const Icon(
                   Icons.location_on_rounded,
                   color: Color(0xFFFF7A59),
