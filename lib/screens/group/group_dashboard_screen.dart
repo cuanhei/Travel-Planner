@@ -1,11 +1,17 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../../models/direct_message.dart';
 import '../../models/group_member.dart';
+import '../../models/group_message.dart';
+import '../../services/chat_service.dart';
+import '../../services/direct_message_service.dart';
 import '../../services/group_service.dart';
 import '../../services/trip_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/detail_header.dart';
+import 'direct_chat_screen.dart';
+import 'direct_message_inbox_screen.dart';
 import 'group_chat_screen.dart';
 import 'invite_member_screen.dart';
 import 'voting_screen.dart';
@@ -24,6 +30,8 @@ class GroupDashboardScreen extends StatefulWidget {
 class _GroupDashboardScreenState extends State<GroupDashboardScreen> {
   final _groupService = GroupService();
   final _tripService = TripService();
+  final _chatService = ChatService();
+  final _dmService = DirectMessageService();
   late final Future<(String, String)> _tripFuture = _loadTrip();
 
   Future<(String, String)> _loadTrip() async {
@@ -151,7 +159,6 @@ class _GroupDashboardScreenState extends State<GroupDashboardScreen> {
                           ...members.map(
                             (m) => Container(
                               margin: EdgeInsets.only(bottom: 10),
-                              padding: EdgeInsets.all(12),
                               decoration: BoxDecoration(
                                 color: context.colors.card,
                                 borderRadius: BorderRadius.circular(16),
@@ -165,88 +172,141 @@ class _GroupDashboardScreenState extends State<GroupDashboardScreen> {
                                   ),
                                 ],
                               ),
-                              child: Row(
-                                children: [
-                                  CircleAvatar(
-                                    radius: 20,
-                                    backgroundColor: Color(m.avatarColor),
-                                    child: Text(
-                                      m.displayName[0].toUpperCase(),
-                                      style: TextStyle(
-                                        color: Colors.white,
-                                        fontWeight: FontWeight.w800,
-                                      ),
-                                    ),
-                                  ),
-                                  SizedBox(width: 12),
-                                  Expanded(
-                                    child: Column(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.start,
+                              child: Material(
+                                color: Colors.transparent,
+                                borderRadius: BorderRadius.circular(16),
+                                child: InkWell(
+                                  borderRadius: BorderRadius.circular(16),
+                                  onTap: m.userId == myUid
+                                      ? null
+                                      : () => Navigator.of(context).push(
+                                          MaterialPageRoute(
+                                            builder: (_) => DirectChatScreen(
+                                              tripId: tripId,
+                                              otherUserId: m.userId,
+                                              otherUserName: m.displayName,
+                                              otherUserColor: m.avatarColor,
+                                            ),
+                                          ),
+                                        ),
+                                  child: Padding(
+                                    padding: EdgeInsets.all(12),
+                                    child: Row(
                                       children: [
-                                        Text(
-                                          m.displayName,
-                                          style: TextStyle(
-                                            color: context.colors.ink,
-                                            fontWeight: FontWeight.w700,
-                                            fontSize: 13.5,
+                                        CircleAvatar(
+                                          radius: 20,
+                                          backgroundColor: Color(m.avatarColor),
+                                          child: Text(
+                                            m.displayName[0].toUpperCase(),
+                                            style: TextStyle(
+                                              color: Colors.white,
+                                              fontWeight: FontWeight.w800,
+                                            ),
                                           ),
                                         ),
-                                        Text(
-                                          m.isOrganizer
-                                              ? 'Organizer'
-                                              : 'Member',
-                                          style: TextStyle(
-                                            color: context.colors.muted,
-                                            fontSize: 11.5,
+                                        SizedBox(width: 12),
+                                        Expanded(
+                                          child: Column(
+                                            crossAxisAlignment:
+                                                CrossAxisAlignment.start,
+                                            children: [
+                                              Text(
+                                                m.displayName,
+                                                style: TextStyle(
+                                                  color: context.colors.ink,
+                                                  fontWeight: FontWeight.w700,
+                                                  fontSize: 13.5,
+                                                ),
+                                              ),
+                                              Text(
+                                                m.isOrganizer
+                                                    ? 'Organizer'
+                                                    : 'Member',
+                                                style: TextStyle(
+                                                  color: context.colors.muted,
+                                                  fontSize: 11.5,
+                                                ),
+                                              ),
+                                            ],
                                           ),
                                         ),
+                                        if (isOrganizer && !m.isOrganizer)
+                                          Material(
+                                            color: Colors.redAccent.withValues(
+                                              alpha: 0.1,
+                                            ),
+                                            shape: const CircleBorder(),
+                                            child: InkWell(
+                                              customBorder:
+                                                  const CircleBorder(),
+                                              onTap: () =>
+                                                  _removeMember(tripId, m),
+                                              child: const Padding(
+                                                padding: EdgeInsets.all(8),
+                                                child: Icon(
+                                                  Icons.person_remove_rounded,
+                                                  color: Colors.redAccent,
+                                                  size: 18,
+                                                ),
+                                              ),
+                                            ),
+                                          )
+                                        else
+                                          Container(
+                                            width: 10,
+                                            height: 10,
+                                            decoration: BoxDecoration(
+                                              color: Color(0xFF11998E),
+                                              shape: BoxShape.circle,
+                                            ),
+                                          ),
                                       ],
                                     ),
                                   ),
-                                  if (isOrganizer && !m.isOrganizer)
-                                    Material(
-                                      color: Colors.redAccent.withValues(
-                                        alpha: 0.1,
-                                      ),
-                                      shape: const CircleBorder(),
-                                      child: InkWell(
-                                        customBorder: const CircleBorder(),
-                                        onTap: () => _removeMember(tripId, m),
-                                        child: const Padding(
-                                          padding: EdgeInsets.all(8),
-                                          child: Icon(
-                                            Icons.person_remove_rounded,
-                                            color: Colors.redAccent,
-                                            size: 18,
-                                          ),
-                                        ),
-                                      ),
-                                    )
-                                  else
-                                    Container(
-                                      width: 10,
-                                      height: 10,
-                                      decoration: BoxDecoration(
-                                        color: Color(0xFF11998E),
-                                        shape: BoxShape.circle,
-                                      ),
-                                    ),
-                                ],
+                                ),
                               ),
                             ),
                           ),
                           SizedBox(height: 24),
-                          _ActionRow(
-                            icon: Icons.chat_bubble_rounded,
-                            color: AppColors.accent,
-                            title: 'Group Chat',
-                            subtitle: 'Chat with your travel group',
-                            onTap: () => Navigator.of(context).push(
-                              MaterialPageRoute(
-                                builder: (_) => GroupChatScreen(tripId: tripId),
-                              ),
-                            ),
+                          StreamBuilder<List<GroupMessage>>(
+                            stream: _chatService.watchMessages(tripId),
+                            builder: (context, msgSnap) {
+                              final messages =
+                                  msgSnap.data ?? const <GroupMessage>[];
+                              return StreamBuilder<
+                                Map<String, Map<String, DateTime>>
+                              >(
+                                stream: _chatService.watchReadReceipts(tripId),
+                                builder: (context, readsSnap) {
+                                  final reads = readsSnap.data ?? const {};
+                                  final unread = myUid == null
+                                      ? 0
+                                      : messages
+                                            .where(
+                                              (m) =>
+                                                  m.userId != myUid &&
+                                                  !(reads[m.id]?.containsKey(
+                                                        myUid,
+                                                      ) ??
+                                                      false),
+                                            )
+                                            .length;
+                                  return _ActionRow(
+                                    icon: Icons.chat_bubble_rounded,
+                                    color: AppColors.accent,
+                                    title: 'Group Chat',
+                                    subtitle: 'Chat with your travel group',
+                                    badgeCount: unread,
+                                    onTap: () => Navigator.of(context).push(
+                                      MaterialPageRoute(
+                                        builder: (_) =>
+                                            GroupChatScreen(tripId: tripId),
+                                      ),
+                                    ),
+                                  );
+                                },
+                              );
+                            },
                           ),
                           _ActionRow(
                             icon: Icons.how_to_vote_rounded,
@@ -258,6 +318,47 @@ class _GroupDashboardScreenState extends State<GroupDashboardScreen> {
                                 builder: (_) => VotingScreen(tripId: tripId),
                               ),
                             ),
+                          ),
+                          StreamBuilder<List<DirectMessage>>(
+                            stream: _dmService.watchAllMyMessages(tripId),
+                            builder: (context, dmSnap) {
+                              final dms =
+                                  dmSnap.data ?? const <DirectMessage>[];
+                              return StreamBuilder<Map<String, DateTime>>(
+                                stream: _dmService.watchAllLastRead(tripId),
+                                builder: (context, readSnap) {
+                                  final lastRead = readSnap.data ?? const {};
+                                  final unread = myUid == null
+                                      ? 0
+                                      : dms
+                                            .where(
+                                              (m) =>
+                                                  m.recipientId == myUid &&
+                                                  (lastRead[m.senderId] ==
+                                                          null ||
+                                                      m.createdAt.isAfter(
+                                                        lastRead[m.senderId]!,
+                                                      )),
+                                            )
+                                            .length;
+                                  return _ActionRow(
+                                    icon: Icons.forum_rounded,
+                                    color: const Color(0xFF11998E),
+                                    title: 'Personal Message',
+                                    subtitle: 'Message a trip-mate directly',
+                                    badgeCount: unread,
+                                    onTap: () => Navigator.of(context).push(
+                                      MaterialPageRoute(
+                                        builder: (_) =>
+                                            DirectMessageInboxScreen(
+                                              tripId: tripId,
+                                            ),
+                                      ),
+                                    ),
+                                  );
+                                },
+                              );
+                            },
                           ),
                         ],
                       ),
@@ -280,6 +381,7 @@ class _ActionRow extends StatelessWidget {
     required this.title,
     required this.subtitle,
     required this.onTap,
+    this.badgeCount = 0,
   });
 
   final IconData icon;
@@ -287,6 +389,10 @@ class _ActionRow extends StatelessWidget {
   final String title;
   final String subtitle;
   final VoidCallback onTap;
+
+  /// Unread-message count shown as a small red circle, WhatsApp-style —
+  /// hidden entirely when 0.
+  final int badgeCount;
 
   @override
   Widget build(BuildContext context) {
@@ -345,6 +451,26 @@ class _ActionRow extends StatelessWidget {
                   ],
                 ),
               ),
+              if (badgeCount > 0) ...[
+                Container(
+                  padding: EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                  constraints: BoxConstraints(minWidth: 20),
+                  decoration: BoxDecoration(
+                    color: Colors.redAccent,
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Text(
+                    badgeCount > 99 ? '99+' : '$badgeCount',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w800,
+                      fontSize: 11,
+                    ),
+                  ),
+                ),
+                SizedBox(width: 8),
+              ],
               Icon(Icons.chevron_right_rounded, color: context.colors.muted),
             ],
           ),

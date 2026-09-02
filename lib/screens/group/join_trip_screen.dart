@@ -1,11 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../models/join_request.dart';
 import '../../services/group_service.dart';
+import '../../services/trip_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/detail_header.dart';
 import '../../widgets/gradient_button.dart';
+import '../trip/trip_details_screen.dart';
 
 const _codeLength = 6;
 
@@ -35,6 +38,7 @@ class JoinTripScreen extends StatefulWidget {
 class _JoinTripScreenState extends State<JoinTripScreen> {
   final _controller = TextEditingController();
   final _groupService = GroupService();
+  final _tripService = TripService();
   String _code = '';
   bool _isSubmitting = false;
 
@@ -51,6 +55,17 @@ class _JoinTripScreenState extends State<JoinTripScreen> {
     setState(() => _isSubmitting = true);
     try {
       await _groupService.requestToJoin(_code);
+    } on PostgrestException catch (e) {
+      if (e.message.toLowerCase().contains('already a member')) {
+        await _handleAlreadyMember();
+        return;
+      }
+      if (!mounted) return;
+      setState(() => _isSubmitting = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(behavior: SnackBarBehavior.floating, content: Text(e.message)),
+      );
+      return;
     } catch (e) {
       if (!mounted) return;
       setState(() => _isSubmitting = false);
@@ -70,6 +85,48 @@ class _JoinTripScreenState extends State<JoinTripScreen> {
       ),
     );
     Navigator.of(context).maybePop();
+  }
+
+  /// The organizer's own invite code (or any code for a trip the caller
+  /// already belongs to) hits `request_to_join`'s "already a member"
+  /// guard — rather than leaving that raw error on screen, show a
+  /// friendly message and, once we know which trip it was, take them
+  /// straight to its Trip Details after a short pause.
+  Future<void> _handleAlreadyMember() async {
+    String? tripId;
+    try {
+      tripId = await _groupService.findMyTripByCode(_code);
+    } catch (_) {
+      tripId = null;
+    }
+    if (!mounted) return;
+    setState(() => _isSubmitting = false);
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        behavior: SnackBarBehavior.floating,
+        backgroundColor: context.colors.ink,
+        duration: const Duration(seconds: 5),
+        content: Text(
+          tripId == null
+              ? "You're already in this trip!"
+              : "You're already in this trip! Taking you there...",
+        ),
+      ),
+    );
+    if (tripId == null) return;
+
+    await Future.delayed(const Duration(seconds: 5));
+    if (!mounted) return;
+    try {
+      final trip = await _tripService.getTrip(tripId);
+      if (!mounted) return;
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute(builder: (_) => TripDetailsScreen(trip: trip)),
+      );
+    } catch (_) {
+      // Trip couldn't be loaded (e.g. removed since) — just leave them
+      // on this screen rather than crash into a broken details page.
+    }
   }
 
   @override
@@ -234,7 +291,7 @@ class _RequestStatusTile extends StatelessWidget {
           Container(
             width: 10,
             height: 10,
-            margin: const EdgeInsets.only(top: 4),
+            margin: const EdgeInsets.only(top: 5),
             decoration: BoxDecoration(color: color, shape: BoxShape.circle),
           ),
           const SizedBox(width: 10),
@@ -242,24 +299,104 @@ class _RequestStatusTile extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  label,
-                  style: TextStyle(
-                    color: color,
-                    fontWeight: FontWeight.w800,
-                    fontSize: 12.5,
-                  ),
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        request.tripName ?? 'Trip',
+                        style: TextStyle(
+                          color: context.colors.ink,
+                          fontWeight: FontWeight.w800,
+                          fontSize: 14,
+                        ),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    Container(
+                      margin: const EdgeInsets.only(left: 8),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 3,
+                      ),
+                      decoration: BoxDecoration(
+                        color: color.withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Text(
+                        label,
+                        style: TextStyle(
+                          color: color,
+                          fontWeight: FontWeight.w800,
+                          fontSize: 11,
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
-                if (request.status == 'rejected' &&
-                    request.reason != null &&
-                    request.reason!.isNotEmpty) ...[
+                const SizedBox(height: 4),
+                Text(
+                  [
+                    if ((request.destination ?? '').isNotEmpty)
+                      request.destination!,
+                    request.dateRangeLabel,
+                  ].join(' · '),
+                  style: TextStyle(color: context.colors.muted, fontSize: 12),
+                ),
+                if (request.status == 'pending') ...[
                   const SizedBox(height: 4),
                   Text(
-                    request.reason!,
+                    'Waiting for the organizer to approve',
                     style: TextStyle(
                       color: context.colors.muted,
-                      fontSize: 12,
-                      height: 1.4,
+                      fontSize: 11.5,
+                      fontStyle: FontStyle.italic,
+                    ),
+                  ),
+                ],
+                if (request.status == 'approved') ...[
+                  const SizedBox(height: 4),
+                  Text(
+                    "You're in! This trip now appears in My Trips.",
+                    style: TextStyle(
+                      color: context.colors.muted,
+                      fontSize: 11.5,
+                    ),
+                  ),
+                ],
+                if (request.status == 'rejected') ...[
+                  const SizedBox(height: 8),
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: Colors.redAccent.withValues(alpha: 0.08),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Reason',
+                          style: TextStyle(
+                            color: Colors.redAccent,
+                            fontWeight: FontWeight.w800,
+                            fontSize: 10.5,
+                            letterSpacing: 0.4,
+                          ),
+                        ),
+                        const SizedBox(height: 3),
+                        Text(
+                          (request.reason != null &&
+                                  request.reason!.isNotEmpty)
+                              ? request.reason!
+                              : 'The organizer didn\'t leave a reason.',
+                          style: TextStyle(
+                            color: context.colors.muted,
+                            fontSize: 12,
+                            height: 1.4,
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                 ],

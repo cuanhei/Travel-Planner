@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
+import 'package:media_kit/media_kit.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'screens/reset_password_screen.dart';
@@ -11,6 +12,9 @@ final navigatorKey = GlobalKey<NavigatorState>();
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  // Required once at startup before any Video/Player widget is used
+  // (chat's voice/video attachments) — sets up media_kit's native libs.
+  MediaKit.ensureInitialized();
   await SupabaseConfig.load();
 
   if (SupabaseConfig.isConfigured) {

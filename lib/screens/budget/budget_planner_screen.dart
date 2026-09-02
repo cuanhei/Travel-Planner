@@ -8,6 +8,8 @@ import '../../services/trip_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/detail_header.dart';
 import '../../widgets/gradient_button.dart';
+import 'budget_pie_chart_screen.dart';
+import 'category_expenses_screen.dart';
 import 'expense_split_screen.dart';
 import 'expense_tracker_screen.dart';
 
@@ -55,10 +57,35 @@ const budgetCategories = [
   ),
 ];
 
+/// Colors for custom ("Other") categories — distinct from every
+/// [budgetCategories] hue so a custom category never gets confused with
+/// a fixed one. Picked deterministically per label (not randomly) so a
+/// category keeps the same color across rebuilds/restarts, and cycled
+/// by hash so two different custom categories (e.g. two "Other" labels
+/// added on the same trip) don't all collapse onto one grey slice in
+/// the pie chart the way a single fixed grey used to.
+const _customCategoryPalette = [
+  Color(0xFFE53935), // red
+  Color(0xFF00ACC1), // cyan
+  Color(0xFF43A047), // green
+  Color(0xFF6D4C41), // brown
+  Color(0xFFD81B60), // pink
+  Color(0xFF546E7A), // blue grey
+  Color(0xFFF4511E), // deep orange
+  Color(0xFF8E24AA), // deep purple
+];
+
 /// Fallback visual for a custom category typed in via "Other" — a
-/// neutral tag icon rather than misleadingly reusing Accommodation's.
-BudgetCategory _otherCategoryVisual(String label) =>
-    BudgetCategory(label: label, icon: Icons.sell_rounded, color: Colors.grey);
+/// neutral tag icon (rather than misleadingly reusing a fixed
+/// category's), with a color chosen from [_customCategoryPalette] by
+/// hashing the label.
+BudgetCategory _otherCategoryVisual(String label) => BudgetCategory(
+  label: label,
+  icon: Icons.sell_rounded,
+  color:
+      _customCategoryPalette[label.hashCode.abs() %
+          _customCategoryPalette.length],
+);
 
 BudgetCategory categoryVisuals(String label) => budgetCategories.firstWhere(
   (c) => c.label == label,
@@ -235,6 +262,64 @@ class _BudgetPlannerContent extends StatelessWidget {
     }
   }
 
+  /// Organizer-only, reached from the trash icon on a category row.
+  /// Deleting a category also deletes every expense logged under it
+  /// (see [BudgetService.deleteCategory]), so the confirmation spells
+  /// out exactly how much that will remove from the trip's total spent.
+  Future<void> _confirmDeleteCategory(
+    BuildContext context,
+    String label,
+    double spent,
+  ) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        backgroundColor: context.colors.card,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Text(
+          'Delete $label?',
+          style: TextStyle(
+            color: context.colors.ink,
+            fontWeight: FontWeight.w800,
+            fontSize: 15.5,
+          ),
+        ),
+        content: Text(
+          spent > 0
+              ? 'This can\'t be undone. RM ${formatAmount(spent)} in expenses '
+                    'logged under $label will also be deleted, and your '
+                    'total spent will drop by that amount.'
+              : 'This can\'t be undone.',
+          style: TextStyle(
+            color: context.colors.muted,
+            fontSize: 13,
+            height: 1.4,
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            style: FilledButton.styleFrom(backgroundColor: Colors.redAccent),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    try {
+      await budgetService.deleteCategory(tripId: tripId, label: label);
+    } catch (e) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(behavior: SnackBarBehavior.floating, content: Text('$e')),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return StreamBuilder<double>(
@@ -300,97 +385,136 @@ class _BudgetPlannerContent extends StatelessWidget {
                       child: ListView(
                         padding: EdgeInsets.fromLTRB(24, 8, 24, 24),
                         children: [
-                          Container(
-                            padding: EdgeInsets.all(20),
-                            decoration: BoxDecoration(
-                              gradient: LinearGradient(
-                                colors: AppColors.horizon,
-                                begin: Alignment.topLeft,
-                                end: Alignment.bottomRight,
-                              ),
-                              borderRadius: BorderRadius.circular(24),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: AppColors.horizon.last.withValues(
-                                    alpha: 0.3,
+                          Builder(
+                            builder: (context) {
+                              final remaining = totalBudget - totalSpent;
+                              final isOverBudget =
+                                  totalBudget > 0 && totalSpent > totalBudget;
+                              return Container(
+                                padding: EdgeInsets.all(20),
+                                decoration: BoxDecoration(
+                                  gradient: LinearGradient(
+                                    colors: AppColors.horizon,
+                                    begin: Alignment.topLeft,
+                                    end: Alignment.bottomRight,
                                   ),
-                                  blurRadius: 18,
-                                  offset: Offset(0, 8),
-                                ),
-                              ],
-                            ),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Row(
-                                  children: [
-                                    Expanded(
-                                      child: Text(
-                                        'Total Budget',
-                                        style: TextStyle(
-                                          color: Colors.white70,
-                                          fontSize: 12.5,
-                                          fontWeight: FontWeight.w600,
-                                        ),
+                                  borderRadius: BorderRadius.circular(24),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: AppColors.horizon.last.withValues(
+                                        alpha: 0.3,
                                       ),
+                                      blurRadius: 18,
+                                      offset: Offset(0, 8),
                                     ),
-                                    if (isOrganizer)
-                                      Material(
-                                        color: Colors.white.withValues(
-                                          alpha: 0.18,
-                                        ),
-                                        borderRadius: BorderRadius.circular(10),
-                                        child: InkWell(
-                                          borderRadius: BorderRadius.circular(
-                                            10,
-                                          ),
-                                          onTap: () =>
-                                              onEditBudget(totalBudget),
-                                          child: Padding(
-                                            padding: const EdgeInsets.all(6),
-                                            child: Icon(
-                                              Icons.edit_rounded,
-                                              color: Colors.white,
-                                              size: 14,
+                                  ],
+                                ),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Row(
+                                      children: [
+                                        Expanded(
+                                          child: Text(
+                                            'Trip Budget',
+                                            style: TextStyle(
+                                              color: Colors.white70,
+                                              fontSize: 12.5,
+                                              fontWeight: FontWeight.w600,
                                             ),
                                           ),
                                         ),
+                                        if (isOverBudget) ...[
+                                          Icon(
+                                            Icons.warning_amber_rounded,
+                                            color: Color(0xFFFFCDD2),
+                                            size: 14,
+                                          ),
+                                          const SizedBox(width: 4),
+                                          Text(
+                                            'Over budget',
+                                            style: TextStyle(
+                                              color: Color(0xFFFFCDD2),
+                                              fontSize: 11.5,
+                                              fontWeight: FontWeight.w800,
+                                            ),
+                                          ),
+                                          const SizedBox(width: 10),
+                                        ],
+                                        if (isOrganizer)
+                                          Material(
+                                            color: Colors.white.withValues(
+                                              alpha: 0.18,
+                                            ),
+                                            borderRadius: BorderRadius.circular(
+                                              10,
+                                            ),
+                                            child: InkWell(
+                                              borderRadius:
+                                                  BorderRadius.circular(10),
+                                              onTap: () =>
+                                                  onEditBudget(totalBudget),
+                                              child: Padding(
+                                                padding: const EdgeInsets.all(
+                                                  6,
+                                                ),
+                                                child: Icon(
+                                                  Icons.edit_rounded,
+                                                  color: Colors.white,
+                                                  size: 14,
+                                                ),
+                                              ),
+                                            ),
+                                          ),
+                                      ],
+                                    ),
+                                    SizedBox(height: 18),
+                                    Row(
+                                      children: [
+                                        Expanded(
+                                          child: _BudgetStat(
+                                            label: 'Total Budget',
+                                            amount: totalBudget,
+                                          ),
+                                        ),
+                                        _StatDivider(),
+                                        Expanded(
+                                          child: _BudgetStat(
+                                            label: 'Spent',
+                                            amount: totalSpent,
+                                          ),
+                                        ),
+                                        _StatDivider(),
+                                        Expanded(
+                                          child: _BudgetStat(
+                                            label: 'Remaining',
+                                            amount: remaining,
+                                            valueColor: remaining < 0
+                                                ? Color(0xFFFFCDD2)
+                                                : null,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                    SizedBox(height: 18),
+                                    ClipRRect(
+                                      borderRadius: BorderRadius.circular(6),
+                                      child: LinearProgressIndicator(
+                                        value: ratio,
+                                        minHeight: 10,
+                                        backgroundColor: Colors.white
+                                            .withValues(alpha: 0.15),
+                                        valueColor: AlwaysStoppedAnimation(
+                                          isOverBudget
+                                              ? Color(0xFFFFCDD2)
+                                              : AppColors.accent,
+                                        ),
                                       ),
+                                    ),
                                   ],
                                 ),
-                                SizedBox(height: 4),
-                                Text(
-                                  'RM ${formatAmount(totalBudget)}',
-                                  style: TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 30,
-                                    fontWeight: FontWeight.w800,
-                                  ),
-                                ),
-                                SizedBox(height: 14),
-                                ClipRRect(
-                                  borderRadius: BorderRadius.circular(6),
-                                  child: LinearProgressIndicator(
-                                    value: ratio,
-                                    minHeight: 10,
-                                    backgroundColor: Colors.white.withValues(
-                                      alpha: 0.15,
-                                    ),
-                                    valueColor: AlwaysStoppedAnimation(
-                                      AppColors.accent,
-                                    ),
-                                  ),
-                                ),
-                                SizedBox(height: 8),
-                                Text(
-                                  'RM ${formatAmount(totalSpent)} spent · RM ${formatAmount(totalBudget - totalSpent)} remaining',
-                                  style: TextStyle(
-                                    color: Colors.white.withValues(alpha: 0.85),
-                                    fontSize: 12,
-                                  ),
-                                ),
-                              ],
-                            ),
+                              );
+                            },
                           ),
                           SizedBox(height: 24),
                           Row(
@@ -404,6 +528,24 @@ class _BudgetPlannerContent extends StatelessWidget {
                                 ),
                               ),
                               Spacer(),
+                              GestureDetector(
+                                onTap: () => Navigator.of(context).push(
+                                  MaterialPageRoute(
+                                    builder: (_) => BudgetPieChartScreen(
+                                      tripId: tripId,
+                                      tripName: tripName,
+                                    ),
+                                  ),
+                                ),
+                                child: Padding(
+                                  padding: const EdgeInsets.only(right: 14),
+                                  child: Icon(
+                                    Icons.pie_chart_rounded,
+                                    size: 17,
+                                    color: context.colors.muted,
+                                  ),
+                                ),
+                              ),
                               GestureDetector(
                                 onTap: () => _manageCategories(
                                   context,
@@ -449,89 +591,196 @@ class _BudgetPlannerContent extends StatelessWidget {
                             final r = planned <= 0
                                 ? (spent > 0 ? 1.0 : 0.0)
                                 : (spent / planned).clamp(0.0, 1.0);
-                            return Material(
-                              color: context.colors.card,
-                              borderRadius: BorderRadius.circular(16),
-                              child: InkWell(
+                            final isOverBudget = planned > 0 && spent > planned;
+                            final barColor = isOverBudget
+                                ? Colors.redAccent
+                                : visuals.color;
+                            return Container(
+                              margin: EdgeInsets.only(bottom: 12),
+                              decoration: BoxDecoration(
+                                color: context.colors.card,
                                 borderRadius: BorderRadius.circular(16),
-                                onTap: () => _editCategoryBudget(
-                                  context,
-                                  label,
-                                  planned,
-                                  totalBudget,
-                                  plannedByLabel,
-                                ),
-                                child: Container(
-                                  margin: EdgeInsets.only(bottom: 12),
-                                  padding: EdgeInsets.all(14),
-                                  decoration: BoxDecoration(
-                                    borderRadius: BorderRadius.circular(16),
-                                    boxShadow: [
-                                      BoxShadow(
-                                        color: context.colors.ink.withValues(
-                                          alpha: 0.05,
-                                        ),
-                                        blurRadius: 10,
-                                        offset: Offset(0, 4),
-                                      ),
-                                    ],
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: context.colors.ink.withValues(
+                                      alpha: 0.05,
+                                    ),
+                                    blurRadius: 10,
+                                    offset: Offset(0, 4),
                                   ),
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      Row(
-                                        children: [
-                                          Icon(
-                                            visuals.icon,
-                                            color: visuals.color,
-                                            size: 18,
+                                ],
+                              ),
+                              child: Row(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Expanded(
+                                    child: Material(
+                                      color: Colors.transparent,
+                                      borderRadius: BorderRadius.circular(16),
+                                      child: InkWell(
+                                        borderRadius: BorderRadius.circular(16),
+                                        onTap: () => Navigator.of(context).push(
+                                          MaterialPageRoute(
+                                            builder: (_) =>
+                                                CategoryExpensesScreen(
+                                                  tripId: tripId,
+                                                  label: label,
+                                                  planned: planned,
+                                                ),
                                           ),
-                                          SizedBox(width: 10),
-                                          Expanded(
-                                            child: Text(
-                                              label,
-                                              style: TextStyle(
-                                                color: context.colors.ink,
-                                                fontWeight: FontWeight.w700,
-                                                fontSize: 13,
+                                        ),
+                                        child: Padding(
+                                          padding: EdgeInsets.all(14),
+                                          child: Column(
+                                            crossAxisAlignment:
+                                                CrossAxisAlignment.start,
+                                            children: [
+                                              Row(
+                                                children: [
+                                                  Icon(
+                                                    visuals.icon,
+                                                    color: visuals.color,
+                                                    size: 18,
+                                                  ),
+                                                  SizedBox(width: 10),
+                                                  Expanded(
+                                                    child: Text(
+                                                      label,
+                                                      style: TextStyle(
+                                                        color:
+                                                            context.colors.ink,
+                                                        fontWeight:
+                                                            FontWeight.w700,
+                                                        fontSize: 13,
+                                                      ),
+                                                    ),
+                                                  ),
+                                                  Text(
+                                                    planned <= 0
+                                                        ? 'RM ${formatAmount(spent)} spent · no budget set'
+                                                        : 'RM ${formatAmount(spent)} / ${formatAmount(planned)} · ${(spent / planned * 100).round()}%',
+                                                    style: TextStyle(
+                                                      color: isOverBudget
+                                                          ? Colors.redAccent
+                                                          : context
+                                                                .colors
+                                                                .muted,
+                                                      fontSize: 11.5,
+                                                      fontWeight:
+                                                          FontWeight.w700,
+                                                    ),
+                                                  ),
+                                                  SizedBox(width: 4),
+                                                  Icon(
+                                                    Icons.chevron_right_rounded,
+                                                    size: 16,
+                                                    color: context.colors.muted,
+                                                  ),
+                                                ],
                                               ),
-                                            ),
+                                              SizedBox(height: 10),
+                                              ClipRRect(
+                                                borderRadius:
+                                                    BorderRadius.circular(4),
+                                                child: LinearProgressIndicator(
+                                                  value: r,
+                                                  minHeight: 6,
+                                                  backgroundColor:
+                                                      context.colors.surface,
+                                                  valueColor:
+                                                      AlwaysStoppedAnimation(
+                                                        barColor,
+                                                      ),
+                                                ),
+                                              ),
+                                              if (isOverBudget) ...[
+                                                SizedBox(height: 6),
+                                                Row(
+                                                  children: [
+                                                    Icon(
+                                                      Icons
+                                                          .warning_amber_rounded,
+                                                      size: 12,
+                                                      color: Colors.redAccent,
+                                                    ),
+                                                    SizedBox(width: 4),
+                                                    Text(
+                                                      'Over budget by RM ${formatAmount(spent - planned)}',
+                                                      style: TextStyle(
+                                                        color: Colors.redAccent,
+                                                        fontSize: 11,
+                                                        fontWeight:
+                                                            FontWeight.w700,
+                                                      ),
+                                                    ),
+                                                  ],
+                                                ),
+                                              ],
+                                            ],
                                           ),
-                                          Text(
-                                            planned <= 0
-                                                ? 'RM ${formatAmount(spent)} spent · no budget set'
-                                                : 'RM ${formatAmount(spent)} / ${formatAmount(planned)}',
-                                            style: TextStyle(
-                                              color: context.colors.muted,
-                                              fontSize: 11.5,
-                                              fontWeight: FontWeight.w600,
-                                            ),
-                                          ),
-                                          SizedBox(width: 4),
-                                          Icon(
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                  Padding(
+                                    padding: EdgeInsets.only(
+                                      top: 10,
+                                      right: isOrganizer ? 0 : 8,
+                                    ),
+                                    child: Material(
+                                      color: Colors.transparent,
+                                      borderRadius: BorderRadius.circular(8),
+                                      child: InkWell(
+                                        borderRadius: BorderRadius.circular(8),
+                                        onTap: () => _editCategoryBudget(
+                                          context,
+                                          label,
+                                          planned,
+                                          totalBudget,
+                                          plannedByLabel,
+                                        ),
+                                        child: Padding(
+                                          padding: const EdgeInsets.all(6),
+                                          child: Icon(
                                             Icons.edit_rounded,
-                                            size: 13,
+                                            size: 16,
                                             color: context.colors.muted,
                                           ),
-                                        ],
+                                        ),
                                       ),
-                                      SizedBox(height: 10),
-                                      ClipRRect(
-                                        borderRadius: BorderRadius.circular(4),
-                                        child: LinearProgressIndicator(
-                                          value: r,
-                                          minHeight: 6,
-                                          backgroundColor:
-                                              context.colors.surface,
-                                          valueColor: AlwaysStoppedAnimation(
-                                            visuals.color,
+                                    ),
+                                  ),
+                                  if (isOrganizer)
+                                    Padding(
+                                      padding: const EdgeInsets.only(
+                                        top: 10,
+                                        right: 8,
+                                      ),
+                                      child: Material(
+                                        color: Colors.transparent,
+                                        borderRadius: BorderRadius.circular(8),
+                                        child: InkWell(
+                                          borderRadius: BorderRadius.circular(
+                                            8,
+                                          ),
+                                          onTap: () => _confirmDeleteCategory(
+                                            context,
+                                            label,
+                                            spent,
+                                          ),
+                                          child: Padding(
+                                            padding: const EdgeInsets.all(6),
+                                            child: Icon(
+                                              Icons.delete_outline_rounded,
+                                              size: 18,
+                                              color: Colors.redAccent
+                                                  .withValues(alpha: 0.85),
+                                            ),
                                           ),
                                         ),
                                       ),
-                                    ],
-                                  ),
-                                ),
+                                    ),
+                                ],
                               ),
                             );
                           }),
@@ -962,6 +1211,63 @@ class _ManageCategoriesSheetState extends State<_ManageCategoriesSheet> {
           ),
         ),
       ),
+    );
+  }
+}
+
+/// One column of the Trip Budget card's "Total Budget · Spent ·
+/// Remaining" row — same label/value shape for all three so they read
+/// as one glanceable stat strip instead of a paragraph.
+class _BudgetStat extends StatelessWidget {
+  const _BudgetStat({
+    required this.label,
+    required this.amount,
+    this.valueColor,
+  });
+
+  final String label;
+  final double amount;
+  final Color? valueColor;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: TextStyle(
+            color: Colors.white.withValues(alpha: 0.75),
+            fontSize: 11,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          'RM ${formatAmount(amount)}',
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: TextStyle(
+            color: valueColor ?? Colors.white,
+            fontSize: 16.5,
+            fontWeight: FontWeight.w800,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _StatDivider extends StatelessWidget {
+  const _StatDivider();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 1,
+      height: 32,
+      margin: const EdgeInsets.symmetric(horizontal: 12),
+      color: Colors.white.withValues(alpha: 0.18),
     );
   }
 }

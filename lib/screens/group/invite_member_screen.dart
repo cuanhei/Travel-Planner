@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -7,8 +9,8 @@ import '../../theme/app_theme.dart';
 import '../../widgets/detail_header.dart';
 
 /// Organizer-side "invite a member" flow: generates a real invite code
-/// (`trip_invites`, valid 24h) the traveler can share, and shows/decides
-/// pending join requests live via Supabase Realtime.
+/// (`trip_invites`, valid 1 minute) the traveler can share, and
+/// shows/decides pending join requests live via Supabase Realtime.
 class InviteMemberScreen extends StatefulWidget {
   const InviteMemberScreen({
     super.key,
@@ -23,10 +25,15 @@ class InviteMemberScreen extends StatefulWidget {
   State<InviteMemberScreen> createState() => _InviteMemberScreenState();
 }
 
+const _inviteCodeValidity = Duration(minutes: 1);
+
 class _InviteMemberScreenState extends State<InviteMemberScreen> {
   final _groupService = GroupService();
   String? _code;
   bool _generating = false;
+  DateTime? _expiresAt;
+  Duration _remaining = Duration.zero;
+  Timer? _countdownTimer;
 
   @override
   void initState() {
@@ -34,7 +41,38 @@ class _InviteMemberScreenState extends State<InviteMemberScreen> {
     _regenerate();
   }
 
+  @override
+  void dispose() {
+    _countdownTimer?.cancel();
+    super.dispose();
+  }
+
+  void _startCountdown() {
+    _countdownTimer?.cancel();
+    _tickCountdown();
+    _countdownTimer = Timer.periodic(
+      const Duration(seconds: 1),
+      (_) => _tickCountdown(),
+    );
+  }
+
+  void _tickCountdown() {
+    final expiresAt = _expiresAt;
+    if (expiresAt == null) return;
+    final remaining = expiresAt.difference(DateTime.now());
+    setState(() => _remaining = remaining.isNegative ? Duration.zero : remaining);
+    if (remaining.isNegative || remaining == Duration.zero) {
+      _countdownTimer?.cancel();
+    }
+  }
+
+  String _formatRemaining(Duration d) {
+    final seconds = d.inSeconds;
+    return '${seconds ~/ 60}:${(seconds % 60).toString().padLeft(2, '0')}';
+  }
+
   Future<void> _regenerate() async {
+    _countdownTimer?.cancel();
     setState(() => _generating = true);
     try {
       final code = await _groupService.generateInviteCode(widget.tripId);
@@ -42,7 +80,10 @@ class _InviteMemberScreenState extends State<InviteMemberScreen> {
       setState(() {
         _code = code;
         _generating = false;
+        _expiresAt = DateTime.now().add(_inviteCodeValidity);
+        _remaining = _inviteCodeValidity;
       });
+      _startCountdown();
     } catch (e) {
       if (!mounted) return;
       setState(() => _generating = false);
@@ -228,10 +269,19 @@ class _InviteMemberScreenState extends State<InviteMemberScreen> {
                               ),
                         const SizedBox(height: 4),
                         Text(
-                          'Expires in 24 hours',
+                          _generating
+                              ? ' '
+                              : (_remaining == Duration.zero
+                                    ? 'Code expired — tap refresh for a new one'
+                                    : 'Expires in ${_formatRemaining(_remaining)}'),
                           style: TextStyle(
-                            color: Colors.white.withValues(alpha: 0.75),
+                            color: _remaining == Duration.zero
+                                ? const Color(0xFFFFD54F)
+                                : Colors.white.withValues(alpha: 0.75),
                             fontSize: 11.5,
+                            fontWeight: _remaining == Duration.zero
+                                ? FontWeight.w700
+                                : FontWeight.w400,
                           ),
                         ),
                         const SizedBox(height: 24),

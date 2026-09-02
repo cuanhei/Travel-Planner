@@ -10,6 +10,7 @@ class Expense {
     required this.spentAt,
     required this.createdAt,
     this.stopPlace,
+    this.photoUrls = const [],
   });
 
   final String id;
@@ -21,6 +22,7 @@ class Expense {
   final DateTime spentAt;
   final DateTime createdAt;
   final String? stopPlace;
+  final List<String> photoUrls;
 
   factory Expense.fromMap(Map<String, dynamic> map) {
     return Expense(
@@ -33,6 +35,8 @@ class Expense {
       spentAt: DateTime.parse(map['spent_at'] as String),
       createdAt: DateTime.parse(map['created_at'] as String),
       stopPlace: map['stop_place'] as String?,
+      photoUrls:
+          (map['photo_urls'] as List<dynamic>?)?.cast<String>() ?? const [],
     );
   }
 
@@ -44,5 +48,6 @@ class Expense {
     'amount': amount,
     'spent_at': spentAt.toIso8601String().split('T').first,
     if (stopPlace != null) 'stop_place': stopPlace,
+    'photo_urls': photoUrls,
   };
 }
