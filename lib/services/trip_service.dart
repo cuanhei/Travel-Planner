@@ -106,6 +106,10 @@ class TripService {
     required double totalBudget,
     required bool autoRecommend,
   }) async {
+    final trimmedName = name.trim();
+    if (trimmedName.isEmpty) {
+      throw ArgumentError.value(name, 'name', 'Trip name cannot be empty.');
+    }
     final session = _client.auth.currentSession;
     debugPrint(
       'createTrip: uid=$_uid session=${session != null} '
@@ -114,7 +118,7 @@ class TripService {
     final row = await _client
         .from('trips')
         .insert({
-          'name': name,
+          'name': trimmedName,
           'description': description,
           'destination': destination ?? '',
           'start_city': startCity,
