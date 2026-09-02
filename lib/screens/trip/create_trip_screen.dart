@@ -5,13 +5,14 @@ import 'package:flutter/services.dart'
     show FilteringTextInputFormatter, TextInputFormatter;
 
 import '../../models/trip.dart';
+import '../../models/trip_stop_location.dart';
 import '../../services/trip_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/detail_header.dart';
 import '../../widgets/gradient_button.dart';
 import '../explore/explore_tab.dart' show Place, places;
-import 'location_map_picker.dart';
 import 'optimized_itinerary_screen.dart';
+import 'trip_location_picker.dart';
 
 /// A Malaysian city/state pair for the Starting From / Ending At pickers —
 /// a small fixed list standing in for what used to be a live postcode
@@ -115,8 +116,9 @@ const _interestOptions = [
   ),
 ];
 
-/// Trip creation form: name/description, trip logistics, a catalog-based
-/// location picker for picking stops, interest categories, and an optional
+/// Trip creation form: name/description, trip logistics, a real
+/// map/search location picker for picking stops (see
+/// [TripLocationPicker]), interest categories, and an optional
 /// "auto-recommend more places" toggle that supplements the traveler's
 /// picks from Explore's curated catalog — all in one page.
 class CreateTripScreen extends StatefulWidget {
@@ -147,13 +149,34 @@ class _CreateTripScreenState extends State<CreateTripScreen> {
   TimeOfDay _startTime = const TimeOfDay(hour: 9, minute: 0);
   TimeOfDay _endTime = const TimeOfDay(hour: 18, minute: 0);
   final Set<String> _selectedInterests = {'Shopping', 'Food'};
-  final Set<Place> _selectedPlaces = {};
+  final Set<TripStopLocation> _selectedStops = {};
   bool _autoRecommend = true;
   bool _isSubmitting = false;
   bool _hasTriedSubmitting = false;
 
   @override
+  void initState() {
+    super.initState();
+    // Typing into these text fields doesn't otherwise trigger a rebuild
+    // of this screen — without these listeners, PopScope's `canPop`
+    // (computed from `_hasUnsavedInput`) would stay stale until some
+    // *other* change (e.g. picking a city) happened to rebuild the
+    // screen, letting a back-navigation slip through right after typing
+    // a name/description/budget with nothing else filled in yet.
+    _nameController.addListener(_onUnsavedInputChanged);
+    _descriptionController.addListener(_onUnsavedInputChanged);
+    _budgetController.addListener(_onUnsavedInputChanged);
+  }
+
+  void _onUnsavedInputChanged() {
+    if (mounted) setState(() {});
+  }
+
+  @override
   void dispose() {
+    _nameController.removeListener(_onUnsavedInputChanged);
+    _descriptionController.removeListener(_onUnsavedInputChanged);
+    _budgetController.removeListener(_onUnsavedInputChanged);
     _nameController.dispose();
     _descriptionController.dispose();
     _budgetController.dispose();
@@ -229,16 +252,74 @@ class _CreateTripScreenState extends State<CreateTripScreen> {
     _dateRangeFieldKey.currentState?.didChange(result.dateRange);
   }
 
-  void _togglePlace(Place place) {
-    setState(() {
-      _selectedPlaces.contains(place)
-          ? _selectedPlaces.remove(place)
-          : _selectedPlaces.add(place);
-    });
+  void _addStop(TripStopLocation stop) {
+    setState(() => _selectedStops.add(stop));
     _locationsFieldKey.currentState?.didChange(
-      _selectedPlaces.isNotEmpty || _autoRecommend,
+      _selectedStops.isNotEmpty || _autoRecommend,
     );
   }
+
+  void _removeStop(TripStopLocation stop) {
+    setState(() => _selectedStops.remove(stop));
+    _locationsFieldKey.currentState?.didChange(
+      _selectedStops.isNotEmpty || _autoRecommend,
+    );
+  }
+
+  Future<void> _confirmClearAllStops() async {
+    if (_selectedStops.isEmpty) return;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        backgroundColor: dialogContext.colors.card,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Text(
+          'Clear all locations?',
+          style: TextStyle(
+            color: dialogContext.colors.ink,
+            fontWeight: FontWeight.w800,
+          ),
+        ),
+        content: Text(
+          'All ${_selectedStops.length} location${_selectedStops.length == 1 ? '' : 's'} '
+          "you've added will be removed from this trip.",
+          style: TextStyle(color: dialogContext.colors.muted),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            style: FilledButton.styleFrom(backgroundColor: Colors.redAccent),
+            child: const Text('Clear All'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    setState(() => _selectedStops.clear());
+    _locationsFieldKey.currentState?.didChange(
+      _selectedStops.isNotEmpty || _autoRecommend,
+    );
+  }
+
+  /// A catalog-flavored [Place] standing in for a real, geocoded stop —
+  /// lets picked stops flow through the existing (catalog-only)
+  /// itinerary-generation screens without those screens needing to know
+  /// about real coordinates.
+  Place _placeFromStop(TripStopLocation stop) => Place(
+    name: stop.name,
+    area: stop.address,
+    category: stop.category,
+    rating: 0,
+    reviews: 0,
+    gradient: AppColors.dusk,
+    icon: stop.categoryIcon,
+    description: '',
+    avgBudget: 'Varies',
+  );
 
   bool get _canSubmit => !_isSubmitting;
 
@@ -365,14 +446,16 @@ class _CreateTripScreenState extends State<CreateTripScreen> {
         ? places
               .where(
                 (p) =>
-                    !_selectedPlaces.contains(p) &&
-                    _selectedInterests.contains(p.category),
+                    _selectedInterests.contains(p.category) &&
+                    !_selectedStops.any(
+                      (s) => s.name.toLowerCase() == p.name.toLowerCase(),
+                    ),
               )
               .take(2)
               .toList()
         : <Place>[];
 
-    final finalPlaces = [..._selectedPlaces, ...recommended];
+    final finalPlaces = [..._selectedStops.map(_placeFromStop), ...recommended];
     if (finalPlaces.isEmpty) {
       _showRequiredMessage(
         'No matching places found for your interests — try different '
@@ -432,378 +515,478 @@ class _CreateTripScreenState extends State<CreateTripScreen> {
     );
   }
 
+  /// Whether the traveler has entered anything worth confirming before
+  /// discarding — the Budget field always has a default value, so it only
+  /// counts once changed from that default.
+  bool get _hasUnsavedInput =>
+      _nameController.text.trim().isNotEmpty ||
+      _descriptionController.text.trim().isNotEmpty ||
+      _startCity != null ||
+      _endCity != null ||
+      _dateRange != null ||
+      _budgetController.text.trim() != '1000' ||
+      _selectedStops.isNotEmpty;
+
+  Future<bool> _confirmDiscard() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        backgroundColor: dialogContext.colors.card,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Text(
+          'Discard this trip?',
+          style: TextStyle(
+            color: dialogContext.colors.ink,
+            fontWeight: FontWeight.w800,
+          ),
+        ),
+        content: Text(
+          "Are you sure you want to exit? What you've entered so far "
+          "won't be saved.",
+          style: TextStyle(color: dialogContext.colors.muted),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: const Text('Keep Editing'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            style: FilledButton.styleFrom(backgroundColor: Colors.redAccent),
+            child: const Text('Discard'),
+          ),
+        ],
+      ),
+    );
+    return confirmed ?? false;
+  }
+
+  Future<void> _handlePopInvoked(bool didPop, Object? result) async {
+    if (didPop) return;
+    final shouldExit = await _confirmDiscard();
+    if (shouldExit && mounted) Navigator.of(context).pop();
+  }
+
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: context.colors.surface,
-      body: SafeArea(
-        child: Column(
-          children: [
-            const DetailHeader(
-              title: 'Create Trip',
-              subtitle: 'Name it, pick your spots, we\'ll plan the rest',
-            ),
-            Expanded(
-              child: Form(
-                key: _formKey,
-                child: ListView(
-                  controller: _listScrollController,
-                  padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
-                  children: [
-                    _SectionCard(
-                      icon: Icons.edit_note_rounded,
-                      title: 'Trip Details',
-                      children: [
-                        _FieldLabel('Trip Name *'),
-                        _InputBox(
-                          controller: _nameController,
-                          icon: Icons.edit_rounded,
-                          hintText: 'e.g. Penang Adventure',
-                          validator: _validateName,
-                          fieldKey: _nameFieldKey,
-                          autovalidateMode: _hasTriedSubmitting
-                              ? AutovalidateMode.always
-                              : AutovalidateMode.onUserInteraction,
-                        ),
-                        const SizedBox(height: 18),
-                        _FieldLabel('Description (optional)'),
-                        _InputBox(
-                          controller: _descriptionController,
-                          icon: Icons.notes_rounded,
-                          maxLines: 3,
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 16),
-                    _SectionCard(
-                      icon: Icons.map_rounded,
-                      title: 'Travel Information',
-                      children: [
-                        _FieldLabel('Starting From *'),
-                        FormField<_City>(
-                          key: _startCityFieldKey,
-                          initialValue: _startCity,
-                          autovalidateMode: AutovalidateMode.onUserInteraction,
-                          validator: (value) =>
-                              value == null ? 'Choose a starting city' : null,
-                          builder: (field) => Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              _CityField(
-                                city: _startCity,
-                                onTap: _pickStartCity,
-                              ),
-                              _FieldError(field.errorText),
-                            ],
+    return PopScope(
+      canPop: !_hasUnsavedInput,
+      onPopInvokedWithResult: _handlePopInvoked,
+      child: Scaffold(
+        backgroundColor: context.colors.surface,
+        body: SafeArea(
+          child: Column(
+            children: [
+              const DetailHeader(
+                title: 'Create Trip',
+                subtitle: 'Name it, pick your spots, we\'ll plan the rest',
+              ),
+              Expanded(
+                child: Form(
+                  key: _formKey,
+                  child: ListView(
+                    controller: _listScrollController,
+                    padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
+                    children: [
+                      _SectionCard(
+                        icon: Icons.edit_note_rounded,
+                        title: 'Trip Details',
+                        children: [
+                          _FieldLabel('Trip Name *'),
+                          _InputBox(
+                            controller: _nameController,
+                            icon: Icons.edit_rounded,
+                            hintText: 'e.g. Penang Adventure',
+                            validator: _validateName,
+                            fieldKey: _nameFieldKey,
+                            autovalidateMode: _hasTriedSubmitting
+                                ? AutovalidateMode.always
+                                : AutovalidateMode.onUserInteraction,
                           ),
-                        ),
-                        const SizedBox(height: 18),
-                        _FieldLabel('Ending At *'),
-                        FormField<_City>(
-                          key: _endCityFieldKey,
-                          initialValue: _endCity,
-                          autovalidateMode: AutovalidateMode.onUserInteraction,
-                          validator: (value) =>
-                              value == null ? 'Choose an ending city' : null,
-                          builder: (field) => Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              _CityField(city: _endCity, onTap: _pickEndCity),
-                              _FieldError(field.errorText),
-                            ],
+                          const SizedBox(height: 18),
+                          _FieldLabel('Description (optional)'),
+                          _InputBox(
+                            controller: _descriptionController,
+                            icon: Icons.notes_rounded,
+                            maxLines: 3,
                           ),
-                        ),
-                        const SizedBox(height: 18),
-                        _FieldLabel('Travel Dates & Time *'),
-                        FormField<DateTimeRange>(
-                          key: _dateRangeFieldKey,
-                          initialValue: _dateRange,
-                          autovalidateMode: AutovalidateMode.onUserInteraction,
-                          validator: (value) => value == null
-                              ? 'Pick your travel dates and time'
-                              : null,
-                          builder: (field) => Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              _ScheduleField(
-                                dateRange: _dateRange,
-                                startTime: _startTime,
-                                endTime: _endTime,
-                                onTap: _pickDatesAndTimes,
-                              ),
-                              _FieldError(field.errorText),
-                            ],
-                          ),
-                        ),
-                        const SizedBox(height: 18),
-                        _FieldLabel('Budget *'),
-                        _InputBox(
-                          controller: _budgetController,
-                          icon: Icons.account_balance_wallet_rounded,
-                          keyboardType: TextInputType.number,
-                          inputFormatters: [
-                            FilteringTextInputFormatter.digitsOnly,
-                          ],
-                          prefixText: 'RM ',
-                          validator: _validateBudget,
-                          fieldKey: _budgetFieldKey,
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 16),
-                    _SectionCard(
-                      icon: Icons.pin_drop_rounded,
-                      title: 'Locations',
-                      trailing: Text(
-                        '${_selectedPlaces.length} selected',
-                        style: TextStyle(
-                          color: context.colors.muted,
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
-                        ),
+                        ],
                       ),
-                      children: [
-                        Text(
-                          'Search or tap a pin to pick your stops.',
-                          style: TextStyle(
-                            color: context.colors.muted,
-                            fontSize: 12,
+                      const SizedBox(height: 16),
+                      _SectionCard(
+                        icon: Icons.map_rounded,
+                        title: 'Travel Information',
+                        children: [
+                          _FieldLabel('Starting From *'),
+                          FormField<_City>(
+                            key: _startCityFieldKey,
+                            initialValue: _startCity,
+                            autovalidateMode:
+                                AutovalidateMode.onUserInteraction,
+                            validator: (value) =>
+                                value == null ? 'Choose a starting city' : null,
+                            builder: (field) => Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                _CityField(
+                                  city: _startCity,
+                                  onTap: _pickStartCity,
+                                ),
+                                _FieldError(field.errorText),
+                              ],
+                            ),
                           ),
+                          const SizedBox(height: 18),
+                          _FieldLabel('Ending At *'),
+                          FormField<_City>(
+                            key: _endCityFieldKey,
+                            initialValue: _endCity,
+                            autovalidateMode:
+                                AutovalidateMode.onUserInteraction,
+                            validator: (value) =>
+                                value == null ? 'Choose an ending city' : null,
+                            builder: (field) => Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                _CityField(city: _endCity, onTap: _pickEndCity),
+                                _FieldError(field.errorText),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(height: 18),
+                          _FieldLabel('Travel Dates & Time *'),
+                          FormField<DateTimeRange>(
+                            key: _dateRangeFieldKey,
+                            initialValue: _dateRange,
+                            autovalidateMode:
+                                AutovalidateMode.onUserInteraction,
+                            validator: (value) => value == null
+                                ? 'Pick your travel dates and time'
+                                : null,
+                            builder: (field) => Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                _ScheduleField(
+                                  dateRange: _dateRange,
+                                  startTime: _startTime,
+                                  endTime: _endTime,
+                                  onTap: _pickDatesAndTimes,
+                                ),
+                                _FieldError(field.errorText),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(height: 18),
+                          _FieldLabel('Budget *'),
+                          _InputBox(
+                            controller: _budgetController,
+                            icon: Icons.account_balance_wallet_rounded,
+                            keyboardType: TextInputType.number,
+                            inputFormatters: [
+                              FilteringTextInputFormatter.digitsOnly,
+                            ],
+                            prefixText: 'RM ',
+                            validator: _validateBudget,
+                            fieldKey: _budgetFieldKey,
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 16),
+                      _SectionCard(
+                        icon: Icons.pin_drop_rounded,
+                        title: 'Locations',
+                        trailing: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              '${_selectedStops.length} selected',
+                              style: TextStyle(
+                                color: context.colors.muted,
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                            if (_selectedStops.isNotEmpty) ...[
+                              const SizedBox(width: 8),
+                              GestureDetector(
+                                onTap: _confirmClearAllStops,
+                                child: const Text(
+                                  'Clear All',
+                                  style: TextStyle(
+                                    color: Colors.redAccent,
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ],
                         ),
-                        const SizedBox(height: 10),
-                        LocationMapPicker(
-                          selected: _selectedPlaces,
-                          onToggle: _togglePlace,
-                          onAddCustom: () {},
-                        ),
-                        const SizedBox(height: 12),
-                        if (_selectedPlaces.isEmpty)
+                        children: [
                           Text(
-                            'No locations picked yet.',
+                            'Search for a real place and add it — every stop '
+                            'you add is plotted on the map below.',
                             style: TextStyle(
                               color: context.colors.muted,
                               fontSize: 12,
                             ),
-                          )
-                        else
-                          Wrap(
-                            spacing: 10,
-                            runSpacing: 10,
-                            children: _selectedPlaces.map((place) {
-                              return Container(
-                                padding: const EdgeInsets.only(
-                                  left: 12,
-                                  right: 6,
-                                  top: 6,
-                                  bottom: 6,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: context.colors.surface,
-                                  borderRadius: BorderRadius.circular(20),
-                                  border: Border.all(
-                                    color: context.colors.muted.withValues(
-                                      alpha: 0.2,
-                                    ),
-                                  ),
-                                ),
-                                child: Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    Icon(
-                                      place.icon,
-                                      size: 14,
-                                      color: context.colors.ink,
-                                    ),
-                                    const SizedBox(width: 6),
-                                    Text(
-                                      place.name,
-                                      style: TextStyle(
-                                        color: context.colors.ink,
-                                        fontWeight: FontWeight.w600,
-                                        fontSize: 12.5,
-                                      ),
-                                    ),
-                                    const SizedBox(width: 4),
-                                    GestureDetector(
-                                      onTap: () => _togglePlace(place),
-                                      child: Icon(
-                                        Icons.close_rounded,
-                                        size: 16,
-                                        color: context.colors.muted,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              );
-                            }).toList(),
                           ),
-                        FormField<bool>(
-                          key: _locationsFieldKey,
-                          initialValue:
-                              _selectedPlaces.isNotEmpty || _autoRecommend,
-                          autovalidateMode: AutovalidateMode.onUserInteraction,
-                          validator: (ok) => ok == true
-                              ? null
-                              : 'No locations selected — enable '
-                                    '"Auto-recommend more places", or pick at '
-                                    'least one location.',
-                          builder: (field) => _FieldError(field.errorText),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 16),
-                    _SectionCard(
-                      icon: Icons.tune_rounded,
-                      title: 'Preferences',
-                      children: [
-                        Row(
-                          children: [
-                            Container(
-                              width: 40,
-                              height: 40,
-                              decoration: BoxDecoration(
-                                color: AppColors.accent.withValues(alpha: 0.12),
-                                shape: BoxShape.circle,
+                          const SizedBox(height: 10),
+                          TripLocationPicker(
+                            stops: _selectedStops.toList(),
+                            onAdd: _addStop,
+                          ),
+                          const SizedBox(height: 12),
+                          if (_selectedStops.isEmpty)
+                            Text(
+                              'No locations picked yet.',
+                              style: TextStyle(
+                                color: context.colors.muted,
+                                fontSize: 12,
                               ),
-                              alignment: Alignment.center,
-                              child: const Icon(
-                                Icons.auto_awesome_rounded,
-                                color: AppColors.accent,
-                                size: 19,
-                              ),
-                            ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    'Auto-recommend more places',
-                                    style: TextStyle(
-                                      color: context.colors.ink,
-                                      fontWeight: FontWeight.w700,
-                                      fontSize: 13,
+                            )
+                          else
+                            Wrap(
+                              spacing: 10,
+                              runSpacing: 10,
+                              children: _selectedStops.map((stop) {
+                                return Container(
+                                  padding: const EdgeInsets.only(
+                                    left: 12,
+                                    right: 6,
+                                    top: 6,
+                                    bottom: 6,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: context.colors.surface,
+                                    borderRadius: BorderRadius.circular(20),
+                                    border: Border.all(
+                                      color: context.colors.muted.withValues(
+                                        alpha: 0.2,
+                                      ),
                                     ),
                                   ),
-                                  const SizedBox(height: 2),
-                                  Text(
-                                    'Add AI-suggested spots that match your interests',
-                                    style: TextStyle(
-                                      color: context.colors.muted,
-                                      fontSize: 11.5,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                            Switch(
-                              value: _autoRecommend,
-                              onChanged: (v) {
-                                setState(() => _autoRecommend = v);
-                                _locationsFieldKey.currentState?.didChange(
-                                  _selectedPlaces.isNotEmpty || v,
-                                );
-                              },
-                              activeThumbColor: Colors.white,
-                              activeTrackColor: context.colors.ink,
-                            ),
-                          ],
-                        ),
-                        AnimatedSize(
-                          duration: const Duration(milliseconds: 220),
-                          curve: Curves.easeOut,
-                          alignment: Alignment.topCenter,
-                          child: _autoRecommend
-                              ? Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    const SizedBox(height: 18),
-                                    _FieldLabel('Interests'),
-                                    const SizedBox(height: 4),
-                                    Wrap(
-                                      spacing: 10,
-                                      runSpacing: 10,
-                                      children: _interestOptions.map((opt) {
-                                        final isSelected = _selectedInterests
-                                            .contains(opt.category);
-                                        return GestureDetector(
-                                          onTap: () => setState(() {
-                                            isSelected
-                                                ? _selectedInterests.remove(
-                                                    opt.category,
-                                                  )
-                                                : _selectedInterests.add(
-                                                    opt.category,
-                                                  );
-                                          }),
-                                          child: AnimatedContainer(
-                                            duration: const Duration(
-                                              milliseconds: 200,
-                                            ),
-                                            padding: const EdgeInsets.symmetric(
-                                              horizontal: 16,
-                                              vertical: 10,
-                                            ),
-                                            decoration: BoxDecoration(
-                                              color: isSelected
-                                                  ? context.colors.ink
-                                                  : context.colors.surface,
-                                              borderRadius:
-                                                  BorderRadius.circular(20),
-                                              border: Border.all(
-                                                color: isSelected
-                                                    ? context.colors.ink
-                                                    : context.colors.muted
-                                                          .withValues(
-                                                            alpha: 0.25,
-                                                          ),
-                                              ),
-                                            ),
-                                            child: Row(
-                                              mainAxisSize: MainAxisSize.min,
-                                              children: [
-                                                Icon(
-                                                  opt.icon,
-                                                  size: 14,
-                                                  color: isSelected
-                                                      ? Colors.white
-                                                      : context.colors.muted,
-                                                ),
-                                                const SizedBox(width: 6),
-                                                Text(
-                                                  opt.label,
-                                                  style: TextStyle(
-                                                    color: isSelected
-                                                        ? Colors.white
-                                                        : context.colors.ink,
-                                                    fontWeight: FontWeight.w600,
-                                                    fontSize: 13,
-                                                  ),
-                                                ),
-                                              ],
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Icon(
+                                        stop.categoryIcon,
+                                        size: 14,
+                                        color: context.colors.ink,
+                                      ),
+                                      const SizedBox(width: 6),
+                                      Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          Text(
+                                            stop.name,
+                                            style: TextStyle(
+                                              color: context.colors.ink,
+                                              fontWeight: FontWeight.w600,
+                                              fontSize: 12.5,
                                             ),
                                           ),
-                                        );
-                                      }).toList(),
+                                          Text(
+                                            stop.address,
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                            style: TextStyle(
+                                              color: context.colors.muted,
+                                              fontSize: 10,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                      const SizedBox(width: 4),
+                                      GestureDetector(
+                                        onTap: () => _removeStop(stop),
+                                        child: Icon(
+                                          Icons.close_rounded,
+                                          size: 16,
+                                          color: context.colors.muted,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                );
+                              }).toList(),
+                            ),
+                          FormField<bool>(
+                            key: _locationsFieldKey,
+                            initialValue:
+                                _selectedStops.isNotEmpty || _autoRecommend,
+                            autovalidateMode:
+                                AutovalidateMode.onUserInteraction,
+                            validator: (ok) => ok == true
+                                ? null
+                                : 'No locations selected — enable '
+                                      '"Auto-recommend more places", or pick at '
+                                      'least one location.',
+                            builder: (field) => _FieldError(field.errorText),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 16),
+                      _SectionCard(
+                        icon: Icons.tune_rounded,
+                        title: 'Preferences',
+                        children: [
+                          Row(
+                            children: [
+                              Container(
+                                width: 40,
+                                height: 40,
+                                decoration: BoxDecoration(
+                                  color: AppColors.accent.withValues(
+                                    alpha: 0.12,
+                                  ),
+                                  shape: BoxShape.circle,
+                                ),
+                                alignment: Alignment.center,
+                                child: const Icon(
+                                  Icons.auto_awesome_rounded,
+                                  color: AppColors.accent,
+                                  size: 19,
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      'Auto-recommend more places',
+                                      style: TextStyle(
+                                        color: context.colors.ink,
+                                        fontWeight: FontWeight.w700,
+                                        fontSize: 13,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 2),
+                                    Text(
+                                      'Add AI-suggested spots that match your interests',
+                                      style: TextStyle(
+                                        color: context.colors.muted,
+                                        fontSize: 11.5,
+                                      ),
                                     ),
                                   ],
-                                )
-                              : const SizedBox(width: double.infinity),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 32),
-                    GradientButton(
-                      label: 'Plan My Trip',
-                      icon: Icons.route_rounded,
-                      loading: _isSubmitting,
-                      onPressed: _canSubmit ? _submit : () {},
-                    ),
-                  ],
+                                ),
+                              ),
+                              Switch(
+                                value: _autoRecommend,
+                                onChanged: (v) {
+                                  setState(() => _autoRecommend = v);
+                                  _locationsFieldKey.currentState?.didChange(
+                                    _selectedStops.isNotEmpty || v,
+                                  );
+                                },
+                                activeThumbColor: Colors.white,
+                                activeTrackColor: context.colors.ink,
+                              ),
+                            ],
+                          ),
+                          AnimatedSize(
+                            duration: const Duration(milliseconds: 220),
+                            curve: Curves.easeOut,
+                            alignment: Alignment.topCenter,
+                            child: _autoRecommend
+                                ? Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      const SizedBox(height: 18),
+                                      _FieldLabel('Interests'),
+                                      const SizedBox(height: 4),
+                                      Wrap(
+                                        spacing: 10,
+                                        runSpacing: 10,
+                                        children: _interestOptions.map((opt) {
+                                          final isSelected = _selectedInterests
+                                              .contains(opt.category);
+                                          return GestureDetector(
+                                            onTap: () => setState(() {
+                                              isSelected
+                                                  ? _selectedInterests.remove(
+                                                      opt.category,
+                                                    )
+                                                  : _selectedInterests.add(
+                                                      opt.category,
+                                                    );
+                                            }),
+                                            child: AnimatedContainer(
+                                              duration: const Duration(
+                                                milliseconds: 200,
+                                              ),
+                                              padding:
+                                                  const EdgeInsets.symmetric(
+                                                    horizontal: 16,
+                                                    vertical: 10,
+                                                  ),
+                                              decoration: BoxDecoration(
+                                                color: isSelected
+                                                    ? context.colors.ink
+                                                    : context.colors.surface,
+                                                borderRadius:
+                                                    BorderRadius.circular(20),
+                                                border: Border.all(
+                                                  color: isSelected
+                                                      ? context.colors.ink
+                                                      : context.colors.muted
+                                                            .withValues(
+                                                              alpha: 0.25,
+                                                            ),
+                                                ),
+                                              ),
+                                              child: Row(
+                                                mainAxisSize: MainAxisSize.min,
+                                                children: [
+                                                  Icon(
+                                                    opt.icon,
+                                                    size: 14,
+                                                    color: isSelected
+                                                        ? Colors.white
+                                                        : context.colors.muted,
+                                                  ),
+                                                  const SizedBox(width: 6),
+                                                  Text(
+                                                    opt.label,
+                                                    style: TextStyle(
+                                                      color: isSelected
+                                                          ? Colors.white
+                                                          : context.colors.ink,
+                                                      fontWeight:
+                                                          FontWeight.w600,
+                                                      fontSize: 13,
+                                                    ),
+                                                  ),
+                                                ],
+                                              ),
+                                            ),
+                                          );
+                                        }).toList(),
+                                      ),
+                                    ],
+                                  )
+                                : const SizedBox(width: double.infinity),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 32),
+                      GradientButton(
+                        label: 'Plan My Trip',
+                        icon: Icons.route_rounded,
+                        loading: _isSubmitting,
+                        onPressed: _canSubmit ? _submit : () {},
+                      ),
+                    ],
+                  ),
                 ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
