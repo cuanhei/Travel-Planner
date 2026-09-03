@@ -43,13 +43,15 @@ class TripService {
     // opened Budget/Group once before joining someone else's trip via
     // code) — always resolves to whichever trip they've belonged to
     // longest, so repeated calls never flip between trips.
-    final membership = await _client
-        .from('trip_members')
-        .select('trip_id')
-        .eq('user_id', _uid)
-        .order('joined_at')
-        .limit(1)
-        .maybeSingle();
+    final membership = await retryOnJwtClockSkew(
+      () => _client
+          .from('trip_members')
+          .select('trip_id')
+          .eq('user_id', _uid)
+          .order('joined_at')
+          .limit(1)
+          .maybeSingle(),
+    );
     if (membership != null) {
       final tripId = membership['trip_id'] as String;
       _cachedTripId = tripId;
@@ -57,31 +59,35 @@ class TripService {
     }
 
     final today = DateTime.now();
-    final trip = await _client
-        .from('trips')
-        .insert({
-          'name': 'Penang Adventure',
-          'destination': 'Penang, Malaysia',
-          'start_date': today.toIso8601String().split('T').first,
-          'end_date': today
-              .add(const Duration(days: 2))
-              .toIso8601String()
-              .split('T')
-              .first,
-          'created_by': _uid,
-          'total_budget': _defaultCategoryPlan.values.fold<double>(
-            0,
-            (sum, v) => sum + v,
-          ),
-        })
-        .select()
-        .single();
+    final trip = await retryOnJwtClockSkew(
+      () => _client
+          .from('trips')
+          .insert({
+            'name': 'Penang Adventure',
+            'destination': 'Penang, Malaysia',
+            'start_date': today.toIso8601String().split('T').first,
+            'end_date': today
+                .add(const Duration(days: 2))
+                .toIso8601String()
+                .split('T')
+                .first,
+            'created_by': _uid,
+            'total_budget': _defaultCategoryPlan.values.fold<double>(
+              0,
+              (sum, v) => sum + v,
+            ),
+          })
+          .select()
+          .single(),
+    );
     final tripId = trip['id'] as String;
 
-    await _client.from('budget_categories').insert([
-      for (final entry in _defaultCategoryPlan.entries)
-        {'trip_id': tripId, 'label': entry.key, 'planned_amount': entry.value},
-    ]);
+    await retryOnJwtClockSkew(
+      () => _client.from('budget_categories').insert([
+        for (final entry in _defaultCategoryPlan.entries)
+          {'trip_id': tripId, 'label': entry.key, 'planned_amount': entry.value},
+      ]),
+    );
 
     _cachedTripId = tripId;
     return tripId;
@@ -115,26 +121,28 @@ class TripService {
       'createTrip: uid=$_uid session=${session != null} '
       'expired=${session?.isExpired}',
     );
-    final row = await _client
-        .from('trips')
-        .insert({
-          'name': trimmedName,
-          'description': description,
-          'destination': destination ?? '',
-          'start_city': startCity,
-          'start_state': startState,
-          'end_city': endCity,
-          'end_state': endState,
-          'start_date': startDate?.toIso8601String().split('T').first,
-          'end_date': endDate?.toIso8601String().split('T').first,
-          'start_time': startTime,
-          'end_time': endTime,
-          'created_by': _uid,
-          'total_budget': totalBudget,
-          'auto_recommend': autoRecommend,
-        })
-        .select()
-        .single();
+    final row = await retryOnJwtClockSkew(
+      () => _client
+          .from('trips')
+          .insert({
+            'name': trimmedName,
+            'description': description,
+            'destination': destination ?? '',
+            'start_city': startCity,
+            'start_state': startState,
+            'end_city': endCity,
+            'end_state': endState,
+            'start_date': startDate?.toIso8601String().split('T').first,
+            'end_date': endDate?.toIso8601String().split('T').first,
+            'start_time': startTime,
+            'end_time': endTime,
+            'created_by': _uid,
+            'total_budget': totalBudget,
+            'auto_recommend': autoRecommend,
+          })
+          .select()
+          .single(),
+    );
     return row['id'] as String;
   }
 
@@ -145,11 +153,13 @@ class TripService {
   /// is visible here too: every creator is added as `organizer` by the
   /// `on_trip_created` trigger, so this covers both cases with one join.
   Future<List<Trip>> myTrips() async {
-    final rows = await _client
-        .from('trips')
-        .select('*, trip_members!inner(user_id)')
-        .eq('trip_members.user_id', _uid)
-        .order('created_at', ascending: false);
+    final rows = await retryOnJwtClockSkew(
+      () => _client
+          .from('trips')
+          .select('*, trip_members!inner(user_id)')
+          .eq('trip_members.user_id', _uid)
+          .order('created_at', ascending: false),
+    );
     return [for (final row in rows) Trip.fromMap(row)];
   }
 
@@ -157,22 +167,22 @@ class TripService {
   /// dummy data before, so every trip showed the same 4 Penang landmarks
   /// regardless of [tripId].
   Future<List<TripStopLocation>> getTripStops(String tripId) async {
-    final rows = await _client
-        .from('trip_stops')
-        .select()
-        .eq('trip_id', tripId)
-        .order('created_at');
+    final rows = await retryOnJwtClockSkew(
+      () => _client
+          .from('trip_stops')
+          .select()
+          .eq('trip_id', tripId)
+          .order('created_at'),
+    );
     return [for (final row in rows) TripStopLocation.fromMap(row)];
   }
 
   /// Fetches a trip's current name, for screens that only hold its id
   /// (Budget/Group screens no longer hardcode "Penang Adventure").
   Future<String> getTripName(String tripId) async {
-    final row = await _client
-        .from('trips')
-        .select('name')
-        .eq('id', tripId)
-        .single();
+    final row = await retryOnJwtClockSkew(
+      () => _client.from('trips').select('name').eq('id', tripId).single(),
+    );
     return row['name'] as String;
   }
 
@@ -180,7 +190,9 @@ class TripService {
   /// Trips, Travel History) that still only resolve "the current trip"
   /// via [ensureDemoTrip] rather than holding a real [Trip] already.
   Future<Trip> getTrip(String tripId) async {
-    final row = await _client.from('trips').select().eq('id', tripId).single();
+    final row = await retryOnJwtClockSkew(
+      () => _client.from('trips').select().eq('id', tripId).single(),
+    );
     return Trip.fromMap(row);
   }
 
