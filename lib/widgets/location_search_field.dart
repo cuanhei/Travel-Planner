@@ -2,19 +2,22 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
-import '../models/transport_location.dart';
-import '../services/transport_location_service.dart';
+import '../models/trip_stop_location.dart';
+import '../services/photon_service.dart';
 
 const _debounceDuration = Duration(milliseconds: 400);
 
-/// Controlled search-as-you-type field for picking a Malaysia-only
-/// transport location via Photon geocoding — autocomplete dropdown,
-/// loading/empty/error states, and a read-only display once a location
-/// is selected. Shared by the Transport screen's "Depart From" and
-/// "Destination" fields so both reuse the exact same search logic; the
-/// parent owns [value] (e.g. to seed it with a GPS-derived location).
-class TransportLocationSearchField extends StatefulWidget {
-  const TransportLocationSearchField({
+/// Controlled search-as-you-type field for picking a Malaysia-only place
+/// via Photon geocoding — autocomplete dropdown, loading/empty/error
+/// states, and a read-only display once a location is selected. The one
+/// shared search UI + service for every Photon-backed location picker in
+/// the app (Transport's "Depart From"/"Destination", the Trip Map
+/// picker's search bar); the parent owns [value] and decides what
+/// "selecting" means — e.g. [TripLocationPicker] always passes `value:
+/// null` and stages its own pending-stop UI outside this widget entirely,
+/// rather than ever marking a result "selected" here.
+class LocationSearchField extends StatefulWidget {
+  const LocationSearchField({
     super.key,
     required this.value,
     required this.onChanged,
@@ -26,16 +29,18 @@ class TransportLocationSearchField extends StatefulWidget {
     this.quickActionLabel,
     this.quickActionIcon = Icons.my_location_rounded,
     this.onQuickAction,
+    this.isResultDisabled,
+    this.emptyResultsText = 'No results found',
   });
 
   /// The currently selected location, owned by the parent. When non-null
   /// the field shows it read-only; when null the field is an editable
   /// search box.
-  final TransportLocation? value;
+  final TripStopLocation? value;
 
   /// Called with the picked location, or null when the selection is
   /// cleared.
-  final ValueChanged<TransportLocation?> onChanged;
+  final ValueChanged<TripStopLocation?> onChanged;
   final String hintText;
   final IconData selectedIcon;
   final double maxDropdownHeight;
@@ -52,25 +57,28 @@ class TransportLocationSearchField extends StatefulWidget {
 
   /// Label for an optional quick-select row shown whenever the field is
   /// empty and idle (no selection, no query typed) — e.g. "Use current
-  /// location" for the "Depart From" field, so re-selecting it after
-  /// tapping the clear button doesn't require typing a search. Null
-  /// hides the row (the Destination field has no such shortcut).
+  /// location". Null hides the row.
   final String? quickActionLabel;
   final IconData quickActionIcon;
   final VoidCallback? onQuickAction;
 
+  /// Marks a result as already picked elsewhere (e.g. already added to
+  /// the trip) — shown with a checkmark instead of being tappable. Null
+  /// means no result is ever disabled.
+  final bool Function(TripStopLocation)? isResultDisabled;
+
+  final String emptyResultsText;
+
   @override
-  State<TransportLocationSearchField> createState() =>
-      _TransportLocationSearchFieldState();
+  State<LocationSearchField> createState() => _LocationSearchFieldState();
 }
 
-class _TransportLocationSearchFieldState
-    extends State<TransportLocationSearchField> {
-  final _service = TransportLocationService();
+class _LocationSearchFieldState extends State<LocationSearchField> {
+  final _photon = PhotonService();
   final _controller = TextEditingController();
   Timer? _debounce;
 
-  List<TransportLocation> _results = const [];
+  List<TripStopLocation> _results = const [];
   bool _searching = false;
   String? _error;
   bool _hasSearched = false;
@@ -82,7 +90,7 @@ class _TransportLocationSearchFieldState
   }
 
   @override
-  void didUpdateWidget(covariant TransportLocationSearchField oldWidget) {
+  void didUpdateWidget(covariant LocationSearchField oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (widget.value != oldWidget.value) {
       _controller.text = widget.value?.name ?? '';
@@ -96,7 +104,7 @@ class _TransportLocationSearchFieldState
     super.dispose();
   }
 
-  void _onChanged(String value) {
+  void _onQueryChanged(String value) {
     _debounce?.cancel();
     final trimmed = value.trim();
     if (trimmed.isEmpty) {
@@ -114,7 +122,7 @@ class _TransportLocationSearchFieldState
 
   Future<void> _search(String query) async {
     try {
-      final results = await _service.search(query);
+      final results = await _photon.search(query);
       if (!mounted) return;
       setState(() {
         _results = results;
@@ -127,13 +135,14 @@ class _TransportLocationSearchFieldState
       setState(() {
         _results = const [];
         _searching = false;
-        _error = 'Could not search locations. Check your connection and try again.';
+        _error =
+            'Could not search locations. Check your connection and try again.';
         _hasSearched = true;
       });
     }
   }
 
-  void _select(TransportLocation location) {
+  void _select(TripStopLocation location) {
     FocusScope.of(context).unfocus();
     setState(() {
       _results = const [];
@@ -191,7 +200,7 @@ class _TransportLocationSearchFieldState
                 Expanded(
                   child: TextField(
                     controller: _controller,
-                    onChanged: _onChanged,
+                    onChanged: _onQueryChanged,
                     readOnly: selected || widget.externalLoading,
                     textInputAction: TextInputAction.search,
                     style: const TextStyle(
@@ -236,6 +245,8 @@ class _TransportLocationSearchFieldState
             error: _error,
             results: _results,
             maxHeight: widget.maxDropdownHeight,
+            emptyText: widget.emptyResultsText,
+            isResultDisabled: widget.isResultDisabled,
             onPick: _select,
           ),
         ] else if (!selected &&
@@ -315,14 +326,18 @@ class _ResultsDropdown extends StatelessWidget {
     required this.error,
     required this.results,
     required this.maxHeight,
+    required this.emptyText,
+    required this.isResultDisabled,
     required this.onPick,
   });
 
   final bool loading;
   final String? error;
-  final List<TransportLocation> results;
+  final List<TripStopLocation> results;
   final double maxHeight;
-  final ValueChanged<TransportLocation> onPick;
+  final String emptyText;
+  final bool Function(TripStopLocation)? isResultDisabled;
+  final ValueChanged<TripStopLocation> onPick;
 
   @override
   Widget build(BuildContext context) {
@@ -373,11 +388,11 @@ class _ResultsDropdown extends StatelessWidget {
       );
     }
     if (results.isEmpty) {
-      return const Padding(
-        padding: EdgeInsets.all(16),
+      return Padding(
+        padding: const EdgeInsets.all(16),
         child: Text(
-          'No destinations found',
-          style: TextStyle(color: Color(0xFF6E7A93), fontSize: 12.5),
+          emptyText,
+          style: const TextStyle(color: Color(0xFF6E7A93), fontSize: 12.5),
         ),
       );
     }
@@ -387,14 +402,11 @@ class _ResultsDropdown extends StatelessWidget {
       itemCount: results.length,
       itemBuilder: (context, i) {
         final r = results[i];
+        final disabled = isResultDisabled?.call(r) ?? false;
         return ListTile(
           dense: true,
           visualDensity: VisualDensity.compact,
-          leading: const Icon(
-            Icons.location_on_rounded,
-            size: 18,
-            color: Color(0xFF11998E),
-          ),
+          leading: Icon(r.categoryIcon, size: 18, color: const Color(0xFF11998E)),
           title: Text(
             r.name,
             maxLines: 1,
@@ -411,7 +423,14 @@ class _ResultsDropdown extends StatelessWidget {
             overflow: TextOverflow.ellipsis,
             style: const TextStyle(color: Color(0xFF6E7A93), fontSize: 11),
           ),
-          onTap: () => onPick(r),
+          trailing: disabled
+              ? const Icon(
+                  Icons.check_circle_rounded,
+                  size: 18,
+                  color: Color(0xFF11998E),
+                )
+              : null,
+          onTap: disabled ? null : () => onPick(r),
         );
       },
     );

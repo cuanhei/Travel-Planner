@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:latlong2/latlong.dart';
 
 import '../../models/transit_route.dart';
-import '../../models/transport_location.dart';
+import '../../models/trip_stop_location.dart';
 import '../../theme/app_theme.dart';
 import '../../utils/format.dart';
 import '../../utils/transit_vehicle_display.dart';
@@ -65,8 +65,8 @@ class TransitRouteDetailsScreen extends StatelessWidget {
   });
 
   final TransitRoute route;
-  final TransportLocation departure;
-  final TransportLocation destination;
+  final TripStopLocation departure;
+  final TripStopLocation destination;
 
   @override
   Widget build(BuildContext context) {

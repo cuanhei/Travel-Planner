@@ -4,17 +4,17 @@ import 'package:latlong2/latlong.dart';
 
 import '../../models/drive_route.dart';
 import '../../models/transit_route.dart';
-import '../../models/transport_location.dart';
+import '../../models/trip_stop_location.dart';
 import '../../services/route_service.dart';
 import '../../theme/app_theme.dart';
 import '../../utils/format.dart';
 import '../../utils/transit_vehicle_display.dart';
 import '../../widgets/current_location_marker.dart';
 import '../../widgets/detail_header.dart';
+import '../../widgets/location_search_field.dart';
 import '../../widgets/map_label_pill.dart';
 import '../../widgets/route_map_view.dart';
 import '../../widgets/street_map_painter.dart';
-import '../../widgets/transport_location_search_field.dart';
 import '../explore/explore_tab.dart' show Place, places;
 import 'route_details_screen.dart';
 import 'transit_route_details_screen.dart';
@@ -127,8 +127,8 @@ class _TransportRoutesScreenState extends State<TransportRoutesScreen> {
 
   final _favoriteStops = [places[3], places[4]];
 
-  TransportLocation? _departure;
-  TransportLocation? _selectedDestination;
+  TripStopLocation? _departure;
+  TripStopLocation? _selectedDestination;
   bool _locatingDeparture = false;
   String? _departureError;
 
@@ -190,7 +190,7 @@ class _TransportRoutesScreenState extends State<TransportRoutesScreen> {
       );
       if (!mounted) return;
       setState(() {
-        _departure = TransportLocation(
+        _departure = TripStopLocation(
           name: 'Current Location',
           address: '',
           latitude: position.latitude,
@@ -504,7 +504,7 @@ class _TransportRoutesScreenState extends State<TransportRoutesScreen> {
                   ] else ...[
                     const _FieldLabel('Depart From'),
                     const SizedBox(height: 8),
-                    TransportLocationSearchField(
+                    LocationSearchField(
                       value: _departure,
                       onChanged: (loc) {
                         setState(() {
@@ -525,7 +525,7 @@ class _TransportRoutesScreenState extends State<TransportRoutesScreen> {
                     const SizedBox(height: 18),
                     const _FieldLabel('Destination'),
                     const SizedBox(height: 8),
-                    TransportLocationSearchField(
+                    LocationSearchField(
                       value: _selectedDestination,
                       onChanged: (d) {
                         setState(() => _selectedDestination = d);
@@ -1320,9 +1320,9 @@ class _RouteEndpointsCard extends StatelessWidget {
     required this.destination,
   });
 
-  final TransportLocation? departure;
+  final TripStopLocation? departure;
   final bool locatingDeparture;
-  final TransportLocation destination;
+  final TripStopLocation destination;
 
   @override
   Widget build(BuildContext context) {
