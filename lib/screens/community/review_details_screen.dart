@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../models/place_review.dart';
 import '../../services/community_service.dart';
+import '../../services/trip_service.dart';
 import '../../theme/app_theme.dart';
 import '../../utils/time_ago.dart';
 import '../../widgets/detail_header.dart';
@@ -20,6 +21,19 @@ class ReviewDetailsScreen extends StatefulWidget {
 
 class _ReviewDetailsScreenState extends State<ReviewDetailsScreen> {
   final _service = CommunityService();
+
+  /// Whether the user can review this place — see [PlaceDetailsScreen]'s
+  /// identically-named field for why (only after visiting it on a
+  /// completed trip, via [TripService.hasVisited]).
+  bool _canReview = false;
+
+  @override
+  void initState() {
+    super.initState();
+    TripService().hasVisited(widget.placeName).then((canReview) {
+      if (mounted) setState(() => _canReview = canReview);
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -158,23 +172,40 @@ class _ReviewDetailsScreenState extends State<ReviewDetailsScreen> {
                 ),
                 Padding(
                   padding: const EdgeInsets.fromLTRB(24, 0, 24, 16),
-                  child: SizedBox(
-                    width: double.infinity,
-                    child: OutlinedButton.icon(
-                      onPressed: () => Navigator.of(context).push(
-                        MaterialPageRoute(
-                          builder: (_) =>
-                              AddReviewScreen(placeName: widget.placeName),
-                        ),
-                      ),
-                      icon: const Icon(Icons.rate_review_rounded, size: 18),
-                      label: const Text('Write a Review'),
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: context.colors.ink,
-                        side: BorderSide(color: context.colors.ink),
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(16),
+                  child: Opacity(
+                    opacity: _canReview ? 1 : 0.5,
+                    child: SizedBox(
+                      width: double.infinity,
+                      child: OutlinedButton.icon(
+                        onPressed: () {
+                          if (!_canReview) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                behavior: SnackBarBehavior.floating,
+                                content: Text(
+                                  'You can review a destination after '
+                                  "visiting it on a trip that's finished.",
+                                ),
+                              ),
+                            );
+                            return;
+                          }
+                          Navigator.of(context).push(
+                            MaterialPageRoute(
+                              builder: (_) =>
+                                  AddReviewScreen(placeName: widget.placeName),
+                            ),
+                          );
+                        },
+                        icon: const Icon(Icons.rate_review_rounded, size: 18),
+                        label: const Text('Write a Review'),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: context.colors.ink,
+                          side: BorderSide(color: context.colors.ink),
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(16),
+                          ),
                         ),
                       ),
                     ),

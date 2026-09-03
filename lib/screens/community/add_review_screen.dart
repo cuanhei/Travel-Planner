@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../services/community_service.dart';
+import '../../services/trip_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/detail_header.dart';
 import '../../widgets/gradient_button.dart';
@@ -8,6 +9,10 @@ import '../../widgets/gradient_button.dart';
 /// Star rating plus a written review submission form. Backed by
 /// `reviews` (one review per user per place — resubmitting updates
 /// your existing review).
+///
+/// Only reachable from `PlaceDetailsScreen`/`ReviewDetailsScreen` once
+/// [TripService.hasVisited] says so, but re-checked here too as a safety
+/// net in case something ever routes here directly.
 class AddReviewScreen extends StatefulWidget {
   const AddReviewScreen({super.key, required this.placeName});
 
@@ -22,6 +27,17 @@ class _AddReviewScreenState extends State<AddReviewScreen> {
   int _rating = 0;
   final _controller = TextEditingController();
   bool _submitting = false;
+
+  /// `null` while the visit check is still in flight.
+  bool? _canReview;
+
+  @override
+  void initState() {
+    super.initState();
+    TripService().hasVisited(widget.placeName).then((canReview) {
+      if (mounted) setState(() => _canReview = canReview);
+    });
+  }
 
   @override
   void dispose() {
@@ -65,6 +81,59 @@ class _AddReviewScreenState extends State<AddReviewScreen> {
 
   @override
   Widget build(BuildContext context) {
+    if (_canReview != true) {
+      return Scaffold(
+        backgroundColor: context.colors.surface,
+        body: SafeArea(
+          child: Column(
+            children: [
+              DetailHeader(title: 'Write a Review', subtitle: widget.placeName),
+              Expanded(
+                child: _canReview == null
+                    ? const Center(child: CircularProgressIndicator())
+                    : Center(
+                        child: Padding(
+                          padding: const EdgeInsets.all(32),
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                Icons.flight_takeoff_rounded,
+                                color: context.colors.muted,
+                                size: 40,
+                              ),
+                              const SizedBox(height: 12),
+                              Text(
+                                "You haven't visited ${widget.placeName} yet",
+                                textAlign: TextAlign.center,
+                                style: TextStyle(
+                                  color: context.colors.ink,
+                                  fontWeight: FontWeight.w700,
+                                  fontSize: 15,
+                                ),
+                              ),
+                              const SizedBox(height: 8),
+                              Text(
+                                'You can review a destination once you\'ve '
+                                "visited it on a trip that's finished.",
+                                textAlign: TextAlign.center,
+                                style: TextStyle(
+                                  color: context.colors.muted,
+                                  fontSize: 13,
+                                  height: 1.4,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
     return Scaffold(
       backgroundColor: context.colors.surface,
       resizeToAvoidBottomInset: true,

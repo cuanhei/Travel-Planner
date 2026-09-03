@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../services/community_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/destination_search_bar.dart';
 import '../../widgets/section_header.dart';
@@ -24,6 +25,10 @@ class Place {
   final String name;
   final String area;
   final String category;
+
+  /// Seed values shown until real review data loads (see
+  /// [_ExploreTabState._ratings]) — kept as a reasonable-looking fallback
+  /// rather than starting every destination at "no reviews yet".
   final double rating;
   final int reviews;
   final List<Color> gradient;
@@ -144,6 +149,21 @@ class ExploreTab extends StatefulWidget {
 class _ExploreTabState extends State<ExploreTab> {
   String? _selectedCategory;
 
+  /// Live average rating + review count per destination name, from the
+  /// `reviews` table submitted via [AddReviewScreen] — overrides each
+  /// [Place]'s seed `rating`/`reviews` once a place has any real reviews.
+  Map<String, ({double average, int count})> _ratings = {};
+
+  @override
+  void initState() {
+    super.initState();
+    CommunityService()
+        .fetchRatingSummaries(places.map((p) => p.name).toList())
+        .then((ratings) {
+          if (mounted) setState(() => _ratings = ratings);
+        });
+  }
+
   @override
   Widget build(BuildContext context) {
     final filtered = _selectedCategory == null
@@ -236,7 +256,7 @@ class _ExploreTabState extends State<ExploreTab> {
             ),
           ),
           SizedBox(height: 14),
-          ...filtered.map((p) => _PlaceListCard(place: p)),
+          ...filtered.map((p) => _PlaceListCard(place: p, rating: _ratings[p.name])),
         ],
       ),
     );
@@ -341,12 +361,19 @@ class _NearbyChip extends StatelessWidget {
 }
 
 class _PlaceListCard extends StatelessWidget {
-  const _PlaceListCard({required this.place});
+  const _PlaceListCard({required this.place, this.rating});
 
   final Place place;
 
+  /// Live rating summary from real reviews, if any exist yet for this
+  /// place — falls back to [Place.rating]/[Place.reviews] otherwise (see
+  /// [_ExploreTabState._ratings]).
+  final ({double average, int count})? rating;
+
   @override
   Widget build(BuildContext context) {
+    final displayRating = rating?.average ?? place.rating;
+    final displayCount = rating?.count ?? place.reviews;
     return Material(
       color: context.colors.card,
       borderRadius: BorderRadius.circular(18),
@@ -411,7 +438,7 @@ class _PlaceListCard extends StatelessWidget {
                         ),
                         SizedBox(width: 2),
                         Text(
-                          '${place.rating} (${place.reviews})',
+                          '${displayRating.toStringAsFixed(1)} ($displayCount)',
                           style: TextStyle(
                             color: context.colors.ink,
                             fontSize: 11.5,

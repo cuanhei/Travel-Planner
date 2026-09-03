@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 
+import '../../models/place_review.dart';
+import '../../services/community_service.dart';
+import '../../services/trip_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/gradient_button.dart';
 import '../community/add_review_screen.dart';
@@ -8,7 +11,10 @@ import '../trip/add_to_trip_screen.dart';
 import 'explore_tab.dart';
 
 /// Full place profile: hero, tags, description, opening hours, and a
-/// reviews preview linking into the Community module.
+/// reviews preview linking into the Community module. The rating shown
+/// throughout is the live average from `reviews` (via [CommunityService
+/// .watchReviews]) once this place has any, falling back to [Place]'s seed
+/// rating/count until then (see [_PlaceDetailsScreenState.build]).
 class PlaceDetailsScreen extends StatefulWidget {
   const PlaceDetailsScreen({super.key, required this.place});
 
@@ -20,10 +26,72 @@ class PlaceDetailsScreen extends StatefulWidget {
 
 class _PlaceDetailsScreenState extends State<PlaceDetailsScreen> {
   bool _saved = false;
+  final _service = CommunityService();
+
+  /// Whether the user can review this place — only once they've actually
+  /// visited it on a completed trip (see [TripService.hasVisited]).
+  /// Defaults to not-yet-eligible while loading, so the button doesn't
+  /// briefly flash enabled before the check comes back.
+  bool _canReview = false;
+
+  @override
+  void initState() {
+    super.initState();
+    TripService().hasVisited(widget.place.name).then((canReview) {
+      if (mounted) setState(() => _canReview = canReview);
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
     final place = widget.place;
+    return StreamBuilder<List<PlaceReview>>(
+      stream: _service.watchReviews(place.name),
+      builder: (context, snapshot) {
+        // Falls back to the destination's seed rating/count until real
+        // reviews load, and forever if it has none yet — see
+        // [_ExploreTabState._ratings] for why (an empty "0.0 · 0 reviews"
+        // header would look broken for a place nobody's reviewed yet).
+        final reviews = snapshot.data;
+        final rating = reviews == null || reviews.isEmpty
+            ? place.rating
+            : reviews.map((r) => r.rating).reduce((a, b) => a + b) /
+                  reviews.length;
+        final reviewCount = reviews == null || reviews.isEmpty
+            ? place.reviews
+            : reviews.length;
+        return _PlaceDetailsBody(
+          place: place,
+          rating: rating,
+          reviewCount: reviewCount,
+          saved: _saved,
+          onToggleSaved: () => setState(() => _saved = !_saved),
+          canReview: _canReview,
+        );
+      },
+    );
+  }
+}
+
+class _PlaceDetailsBody extends StatelessWidget {
+  const _PlaceDetailsBody({
+    required this.place,
+    required this.rating,
+    required this.reviewCount,
+    required this.saved,
+    required this.canReview,
+    required this.onToggleSaved,
+  });
+
+  final Place place;
+  final double rating;
+  final int reviewCount;
+  final bool saved;
+  final bool canReview;
+  final VoidCallback onToggleSaved;
+
+  @override
+  Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: context.colors.surface,
       body: CustomScrollView(
@@ -52,9 +120,9 @@ class _PlaceDetailsScreenState extends State<PlaceDetailsScreen> {
                 child: CircleAvatar(
                   backgroundColor: Colors.black.withValues(alpha: 0.25),
                   child: IconButton(
-                    onPressed: () => setState(() => _saved = !_saved),
+                    onPressed: onToggleSaved,
                     icon: Icon(
-                      _saved
+                      saved
                           ? Icons.bookmark_rounded
                           : Icons.bookmark_border_rounded,
                       color: Colors.white,
@@ -126,7 +194,7 @@ class _PlaceDetailsScreenState extends State<PlaceDetailsScreen> {
                       ),
                       SizedBox(width: 2),
                       Text(
-                        '${place.rating}',
+                        rating.toStringAsFixed(1),
                         style: TextStyle(
                           color: context.colors.ink,
                           fontWeight: FontWeight.w800,
@@ -134,7 +202,7 @@ class _PlaceDetailsScreenState extends State<PlaceDetailsScreen> {
                         ),
                       ),
                       Text(
-                        ' (${place.reviews})',
+                        ' ($reviewCount)',
                         style: TextStyle(
                           color: context.colors.muted,
                           fontSize: 12,
@@ -262,7 +330,7 @@ class _PlaceDetailsScreenState extends State<PlaceDetailsScreen> {
                       ),
                       SizedBox(width: 6),
                       Text(
-                        '${place.rating} out of 5',
+                        '${rating.toStringAsFixed(1)} out of 5',
                         style: TextStyle(
                           color: context.colors.ink,
                           fontWeight: FontWeight.w700,
@@ -270,7 +338,7 @@ class _PlaceDetailsScreenState extends State<PlaceDetailsScreen> {
                         ),
                       ),
                       Text(
-                        ' from ${place.reviews} reviews',
+                        ' from $reviewCount reviews',
                         style: TextStyle(
                           color: context.colors.muted,
                           fontSize: 12,
@@ -282,16 +350,34 @@ class _PlaceDetailsScreenState extends State<PlaceDetailsScreen> {
                   Row(
                     children: [
                       Expanded(
-                        child: GradientButton(
-                          label: 'Add Review',
-                          icon: Icons.rate_review_rounded,
-                          colors: AppColors.dusk,
-                          height: 48,
-                          onPressed: () => Navigator.of(context).push(
-                            MaterialPageRoute(
-                              builder: (_) =>
-                                  AddReviewScreen(placeName: place.name),
-                            ),
+                        child: Opacity(
+                          opacity: canReview ? 1 : 0.5,
+                          child: GradientButton(
+                            label: 'Add Review',
+                            icon: Icons.rate_review_rounded,
+                            colors: AppColors.dusk,
+                            height: 48,
+                            onPressed: () {
+                              if (!canReview) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                    behavior: SnackBarBehavior.floating,
+                                    content: Text(
+                                      'You can review a destination after '
+                                      "visiting it on a trip that's "
+                                      'finished.',
+                                    ),
+                                  ),
+                                );
+                                return;
+                              }
+                              Navigator.of(context).push(
+                                MaterialPageRoute(
+                                  builder: (_) =>
+                                      AddReviewScreen(placeName: place.name),
+                                ),
+                              );
+                            },
                           ),
                         ),
                       ),

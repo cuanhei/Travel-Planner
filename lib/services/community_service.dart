@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../models/community_post.dart';
@@ -11,8 +13,12 @@ import 'supabase_config.dart';
 /// hand on the shared Supabase project (not created by any file in this
 /// repo), so every column name here was reverse-engineered against the
 /// live schema rather than designed from scratch; see
-/// `supabase/migrations/0010_community_module_repair.sql` for the RLS/
-/// trigger/realtime setup that goes with them.
+/// `supabase/migrations/0009_community_module.sql` for the RLS/
+/// trigger/realtime setup that goes with them, and
+/// `supabase/migrations/0010_add_post_media.sql` for the post media
+/// columns + storage bucket [addPost] uploads to, and
+/// `supabase/migrations/0011_add_post_reactions.sql` for the
+/// `reaction_type`/`reaction_counts` columns [setReaction] reads/writes.
 class CommunityService {
   CommunityService({SupabaseClient? client})
     : _client = client ?? SupabaseConfig.client;
@@ -33,10 +39,10 @@ class CommunityService {
 
   // ---- Feed ---------------------------------------------------------
 
-  /// Joins raw `posts` rows with their author's profile and whether the
-  /// current user has liked each one. Shared by [watchFeed] (every post)
-  /// and [watchPost] (a single post, for a shared-link deep link landing
-  /// on `PostDetailScreen`).
+  /// Joins raw `posts` rows with their author's profile and the current
+  /// user's own reaction on each one (if any). Shared by [watchFeed]
+  /// (every post) and [watchPost] (a single post, for a shared-link deep
+  /// link landing on `PostDetailScreen`).
   Future<List<CommunityPost>> _hydratePosts(List<Map<String, dynamic>> rows) async {
     if (rows.isEmpty) return <CommunityPost>[];
 
@@ -53,11 +59,12 @@ class CommunityService {
 
     final myLikes = await _client
         .from('post_likes')
-        .select('post_id')
+        .select('post_id, reaction_type')
         .eq('user_id', _uid)
         .inFilter('post_id', postIds);
-    final likedPostIds = {
-      for (final l in myLikes as List) l['post_id'] as String,
+    final myReactionByPostId = {
+      for (final l in myLikes as List)
+        l['post_id'] as String: l['reaction_type'] as String,
     };
 
     return rows
@@ -65,7 +72,7 @@ class CommunityService {
         .map(
           (r) => CommunityPost.fromMap(
             {...r, 'profiles': profileById[r['author_id']]},
-            likedByMe: likedPostIds.contains(r['id']),
+            myReaction: myReactionByPostId[r['id']],
           ),
         )
         .toList();
@@ -97,42 +104,122 @@ class CommunityService {
     required String caption,
     required String category,
     required String coverGradient,
+    Uint8List? mediaBytes,
+    String? mediaExtension,
+    String? mediaType,
   }) async {
+    String? mediaUrl;
+    if (mediaBytes != null && mediaExtension != null && mediaType != null) {
+      mediaUrl = await _uploadPostMedia(
+        bytes: mediaBytes,
+        extension: mediaExtension,
+        mediaType: mediaType,
+      );
+    }
+
     await _client.from('posts').insert({
       'author_id': _uid,
       'place_name': placeName.trim(),
       'caption': caption.trim(),
       'category': category,
       'cover_gradient': coverGradient,
+      if (mediaUrl != null) ...{'media_url': mediaUrl, 'media_type': mediaType},
     });
   }
 
-  /// Toggles the current user's like on [postId]. [currentlyLiked] is the
-  /// state before this call, from the [CommunityPost] shown in the UI.
-  Future<void> toggleLike(String postId, {required bool currentlyLiked}) async {
-    if (currentlyLiked) {
+  /// Uploads a post's photo/video to the `post-media` bucket under
+  /// `<uid>/<timestamp>.<ext>` (the folder-per-user layout the storage RLS
+  /// policies check ownership against) and returns its public URL.
+  Future<String> _uploadPostMedia({
+    required Uint8List bytes,
+    required String extension,
+    required String mediaType,
+  }) async {
+    final path =
+        '$_uid/${DateTime.now().millisecondsSinceEpoch}.$extension';
+    await _client.storage
+        .from('post-media')
+        .uploadBinary(
+          path,
+          bytes,
+          fileOptions: FileOptions(
+            contentType: _contentTypeFor(extension, mediaType),
+          ),
+        );
+    return _client.storage.from('post-media').getPublicUrl(path);
+  }
+
+  String _contentTypeFor(String extension, String mediaType) {
+    switch (extension.toLowerCase()) {
+      case 'jpg':
+      case 'jpeg':
+        return 'image/jpeg';
+      case 'png':
+        return 'image/png';
+      case 'gif':
+        return 'image/gif';
+      case 'webp':
+        return 'image/webp';
+      case 'heic':
+        return 'image/heic';
+      case 'mp4':
+        return 'video/mp4';
+      case 'mov':
+        return 'video/quicktime';
+      case 'webm':
+        return 'video/webm';
+      case 'm4v':
+        return 'video/x-m4v';
+      default:
+        return mediaType == 'video' ? 'video/mp4' : 'image/jpeg';
+    }
+  }
+
+  /// Sets, changes, or clears the current user's reaction on [postId].
+  /// [reactionType] is one of 'like'/'love'/'wow', or `null` to remove
+  /// whatever reaction they currently have. [currentReaction] is the state
+  /// before this call, from the [CommunityPost] shown in the UI — passed in
+  /// rather than re-fetched so a rapid tap doesn't round-trip twice.
+  Future<void> setReaction(
+    String postId, {
+    required String? reactionType,
+    required String? currentReaction,
+  }) async {
+    if (reactionType == currentReaction) return;
+
+    if (reactionType == null) {
       await _client
           .from('post_likes')
           .delete()
           .eq('post_id', postId)
           .eq('user_id', _uid);
-    } else {
-      // Plain insert, not upsert: unlike `posts`/`comments`/`reviews`,
-      // `post_likes` wasn't a table this repo defined, so there's no
-      // confirmed unique constraint on (post_id, user_id) to upsert
-      // against — an insert either succeeds once or fails safely if a
-      // like already exists, rather than assuming a constraint shape we
-      // can't verify.
-      try {
-        await _client.from('post_likes').insert({
-          'post_id': postId,
-          'user_id': _uid,
-        });
-      } on PostgrestException catch (e) {
-        // 23505 = unique_violation — already liked (e.g. a double-tap
-        // race), not a real failure.
-        if (e.code != '23505') rethrow;
-      }
+      return;
+    }
+
+    if (currentReaction != null) {
+      await _client
+          .from('post_likes')
+          .update({'reaction_type': reactionType})
+          .eq('post_id', postId)
+          .eq('user_id', _uid);
+      return;
+    }
+
+    // Plain insert, not upsert: unlike `posts`/`comments`/`reviews`,
+    // `post_likes` wasn't a table this repo defined, so there's no
+    // confirmed unique constraint on (post_id, user_id) to upsert
+    // against — an insert either succeeds once or fails safely if a
+    // reaction already exists (e.g. a double-tap race), rather than
+    // assuming a constraint shape we can't verify.
+    try {
+      await _client.from('post_likes').insert({
+        'post_id': postId,
+        'user_id': _uid,
+        'reaction_type': reactionType,
+      });
+    } on PostgrestException catch (e) {
+      // 23505 = unique_violation — already reacted, not a real failure.
+      if (e.code != '23505') rethrow;
     }
   }
 
@@ -181,6 +268,35 @@ class CommunityService {
   }
 
   // ---- Reviews --------------------------------------------------------
+
+  /// One-shot average rating + review count for each of [placeNames], from
+  /// `reviews` — for Explore's destination list, which shows a summary per
+  /// place rather than the full live list a single place's screen needs
+  /// (see [watchReviews]). A place with no reviews yet is simply absent
+  /// from the result map.
+  Future<Map<String, ({double average, int count})>> fetchRatingSummaries(
+    List<String> placeNames,
+  ) async {
+    if (placeNames.isEmpty) return {};
+    final rows = await _client
+        .from('reviews')
+        .select('place_name, rating')
+        .inFilter('place_name', placeNames);
+
+    final ratingsByPlace = <String, List<int>>{};
+    for (final r in rows as List) {
+      (ratingsByPlace[r['place_name'] as String] ??= []).add(
+        r['rating'] as int,
+      );
+    }
+    return {
+      for (final entry in ratingsByPlace.entries)
+        entry.key: (
+          average: entry.value.reduce((a, b) => a + b) / entry.value.length,
+          count: entry.value.length,
+        ),
+    };
+  }
 
   Stream<List<PlaceReview>> watchReviews(String placeName) {
     return _client
@@ -235,14 +351,40 @@ class CommunityService {
         'body': body.trim(),
       });
     } else {
-      await _client
+      // `.select()` forces this to report the row it actually changed —
+      // without it, an UPDATE whose WHERE clause matches nothing (e.g. an
+      // RLS policy silently hiding the row from this write, even though
+      // [existing] just saw it via SELECT) still returns success with zero
+      // rows affected, and the caller would wrongly report the review as
+      // saved.
+      final updated = await _client
           .from('reviews')
           .update({'rating': rating, 'body': body.trim()})
-          .eq('id', existing['id'] as String);
+          .eq('id', existing['id'] as String)
+          .select('id');
+      if (updated.isEmpty) {
+        throw StateError(
+          'Review update for "$placeName" matched no row — it may have '
+          'been deleted, or an RLS policy is blocking the write.',
+        );
+      }
     }
   }
 
   Future<void> deleteReview(String reviewId) async {
-    await _client.from('reviews').delete().eq('id', reviewId);
+    // Same "did this actually match a row" check as [upsertReview]'s
+    // update — a DELETE an RLS policy silently hides also just returns
+    // success with nothing deleted.
+    final deleted = await _client
+        .from('reviews')
+        .delete()
+        .eq('id', reviewId)
+        .select('id');
+    if (deleted.isEmpty) {
+      throw StateError(
+        'Review delete for "$reviewId" matched no row — it may already be '
+        'gone, or an RLS policy is blocking the write.',
+      );
+    }
   }
 }

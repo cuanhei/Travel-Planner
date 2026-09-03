@@ -3,11 +3,13 @@ import 'package:flutter/material.dart';
 import '../../models/community_post.dart';
 import '../../theme/app_theme.dart';
 import '../../utils/time_ago.dart';
-import '../explore/explore_tab.dart' show categories;
+import 'post_media_view.dart';
 
-/// Cover-gradient options a post can be tagged with, keyed by the text
-/// value stored in `posts.cover_gradient`. Shared by the feed,
-/// [AddPostScreen]'s picker, and [PostCard].
+/// Cover-gradient key options a post can be tagged with, keyed by the text
+/// value stored in `posts.cover_gradient` — no longer rendered anywhere
+/// (a post with no photo/video just shows no cover), but the column is
+/// still `not null` on `posts`, so [AddPostScreen] still picks one of
+/// these keys to submit.
 const communityGradients = <String, List<Color>>{
   'horizon': AppColors.horizon,
   'dusk': AppColors.dusk,
@@ -15,36 +17,57 @@ const communityGradients = <String, List<Color>>{
   'lagoon': AppColors.lagoon,
 };
 
-List<Color> gradientFor(String key) =>
-    communityGradients[key] ?? communityGradients['horizon']!;
+/// Reaction types a post can carry, keyed to the emoji shown for each —
+/// matches the `reaction_type` check constraint on `post_likes`. Order here
+/// is the order they appear in both the picker and the summary chips.
+const _reactionEmojis = <String, String>{
+  'like': '👍',
+  'love': '❤️',
+  'wow': '😮',
+};
 
-IconData iconForCategory(String label) {
-  for (final c in categories) {
-    if (c.label == label) return c.icon;
-  }
-  return categories.first.icon;
-}
+/// Explicit color-emoji styling for the reaction emoji above:
+/// - `fontFamilyFallback` forces a real color-emoji font — without it,
+///   some renderers (seen on both Flutter web and Android) fall back to a
+///   plain monochrome glyph for characters like ❤️ (which has both a
+///   text-style and an emoji-style form) instead of its full-color form.
+/// - `color: Colors.black` pins full opacity. Text without an explicit
+///   color inherits the ambient `DefaultTextStyle`, and in [_openPicker]
+///   that ancestor is a `PopupMenuItem` deliberately marked
+///   `enabled: false` (so it doesn't itself intercept taps meant for the
+///   emoji buttons inside it) — Flutter renders disabled menu items with
+///   a dimmed, translucent text style, which otherwise washes out even a
+///   correctly-colored emoji glyph. The color's RGB is irrelevant to a
+///   true color-glyph emoji (that comes from the font), only its opacity
+///   matters here.
+const _emojiTextStyle = TextStyle(
+  color: Colors.black,
+  fontFamilyFallback: ['Noto Color Emoji', 'Apple Color Emoji', 'Segoe UI Emoji'],
+);
 
-/// One Community post card — author, place, caption, cover, and the
-/// like/comment/share action row. Used by the feed (`CommunityTab`) and by
+/// One Community post card — author, place, caption, cover, reactions, and
+/// the comment/share action row. Used by the feed (`CommunityTab`) and by
 /// `PostDetailScreen` (the landing screen for a shared post link).
 class PostCard extends StatelessWidget {
   const PostCard({
     super.key,
     required this.post,
-    required this.onToggleLike,
+    required this.onReact,
     required this.onComment,
     required this.onShare,
   });
 
   final CommunityPost post;
-  final VoidCallback onToggleLike;
+
+  /// Called with the reaction type to set ('like'/'love'/'wow'), or `null`
+  /// to clear the current user's reaction.
+  final ValueChanged<String?> onReact;
   final VoidCallback onComment;
   final VoidCallback onShare;
 
   @override
   Widget build(BuildContext context) {
-    final gradient = gradientFor(post.coverGradient);
+    final hasReactions = post.reactionCounts.values.any((c) => c > 0);
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
       padding: const EdgeInsets.all(16),
@@ -89,7 +112,7 @@ class PostCard extends StatelessWidget {
                       ),
                     ),
                     Text(
-                      '${post.placeName} · ${timeAgo(post.createdAt)}',
+                      '${post.placeName} · ${post.category} · ${timeAgo(post.createdAt)}',
                       style: TextStyle(
                         color: context.colors.muted,
                         fontSize: 11.5,
@@ -109,32 +132,21 @@ class PostCard extends StatelessWidget {
               height: 1.4,
             ),
           ),
-          const SizedBox(height: 12),
-          Container(
-            height: 140,
-            width: double.infinity,
-            decoration: BoxDecoration(
-              gradient: LinearGradient(colors: gradient),
+          if (post.mediaUrl != null) ...[
+            const SizedBox(height: 12),
+            ClipRRect(
               borderRadius: BorderRadius.circular(16),
+              child: PostMediaView(url: post.mediaUrl!, mediaType: post.mediaType!),
             ),
-            alignment: Alignment.center,
-            child: Icon(
-              iconForCategory(post.category),
-              color: Colors.white.withValues(alpha: 0.9),
-              size: 40,
-            ),
-          ),
+          ],
+          if (hasReactions) ...[
+            const SizedBox(height: 10),
+            _ReactionSummary(counts: post.reactionCounts),
+          ],
           const SizedBox(height: 10),
           Row(
             children: [
-              _PostAction(
-                icon: post.likedByMe
-                    ? Icons.favorite_rounded
-                    : Icons.favorite_border_rounded,
-                iconColor: post.likedByMe ? const Color(0xFFFF7A59) : null,
-                label: '${post.likesCount}',
-                onTap: onToggleLike,
-              ),
+              _ReactionButton(myReaction: post.myReaction, onReact: onReact),
               const SizedBox(width: 18),
               _PostAction(
                 icon: Icons.mode_comment_outlined,
@@ -158,18 +170,140 @@ class PostCard extends StatelessWidget {
   }
 }
 
+/// Small read-only "👍 3 ❤️ 1" row summarizing every reaction type that has
+/// at least one count, in [_reactionEmojis] order.
+class _ReactionSummary extends StatelessWidget {
+  const _ReactionSummary({required this.counts});
+
+  final Map<String, int> counts;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        for (final entry in _reactionEmojis.entries)
+          if ((counts[entry.key] ?? 0) > 0)
+            Padding(
+              padding: const EdgeInsets.only(right: 10),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(entry.value, style: _emojiTextStyle.copyWith(fontSize: 13)),
+                  const SizedBox(width: 3),
+                  Text(
+                    '${counts[entry.key]}',
+                    style: TextStyle(
+                      color: context.colors.muted,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+      ],
+    );
+  }
+}
+
+/// The tappable reaction control: shows the user's current reaction (emoji
+/// + name) or a neutral "React" prompt when they haven't reacted. A plain
+/// tap toggles the default 👍 on/off; a long-press opens a small emoji
+/// picker (like/love/wow) at the touch point to pick — or switch to — a
+/// specific reaction.
+class _ReactionButton extends StatelessWidget {
+  const _ReactionButton({required this.myReaction, required this.onReact});
+
+  final String? myReaction;
+  final ValueChanged<String?> onReact;
+
+  Future<void> _openPicker(BuildContext context, Offset globalPosition) async {
+    final overlay = Overlay.of(context).context.findRenderObject() as RenderBox;
+    final position = RelativeRect.fromRect(
+      Rect.fromCenter(center: globalPosition, width: 0, height: 0),
+      Offset.zero & overlay.size,
+    );
+    final selected = await showMenu<String>(
+      context: context,
+      position: position,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
+      color: context.colors.card,
+      items: [
+        PopupMenuItem<String>(
+          padding: EdgeInsets.zero,
+          enabled: false,
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              for (final entry in _reactionEmojis.entries)
+                InkResponse(
+                  onTap: () => Navigator.of(context).pop(entry.key),
+                  radius: 26,
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 6,
+                    ),
+                    child: Text(
+                      entry.value,
+                      style: _emojiTextStyle.copyWith(fontSize: 26),
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ],
+    );
+    if (selected != null) onReact(selected);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final active = myReaction != null;
+    final emoji = active ? _reactionEmojis[myReaction] : null;
+    final label = active
+        ? '${myReaction![0].toUpperCase()}${myReaction!.substring(1)}'
+        : 'React';
+
+    return GestureDetector(
+      // A plain tap is a simple on/off toggle: react 👍 if you haven't,
+      // clear whatever reaction you have if you already did. Picking a
+      // *different* reaction type is what long-press is for (below) — that
+      // already sets it directly in one tap, no need to clear first.
+      onTap: () => onReact(active ? null : 'like'),
+      onLongPressStart: (details) => _openPicker(context, details.globalPosition),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          emoji != null
+              ? Text(emoji, style: _emojiTextStyle.copyWith(fontSize: 16))
+              : Icon(
+                  Icons.thumb_up_outlined,
+                  color: context.colors.muted,
+                  size: 18,
+                ),
+          const SizedBox(width: 5),
+          Text(
+            label,
+            style: TextStyle(
+              color: active ? context.colors.ink : context.colors.muted,
+              fontSize: 12.5,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _PostAction extends StatelessWidget {
-  const _PostAction({
-    required this.icon,
-    required this.label,
-    required this.onTap,
-    this.iconColor,
-  });
+  const _PostAction({required this.icon, required this.label, required this.onTap});
 
   final IconData icon;
   final String label;
   final VoidCallback onTap;
-  final Color? iconColor;
 
   @override
   Widget build(BuildContext context) {
@@ -177,7 +311,7 @@ class _PostAction extends StatelessWidget {
       onTap: onTap,
       child: Row(
         children: [
-          Icon(icon, color: iconColor ?? context.colors.muted, size: 19),
+          Icon(icon, color: context.colors.muted, size: 19),
           const SizedBox(width: 5),
           Text(
             label,

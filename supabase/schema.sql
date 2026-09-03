@@ -373,6 +373,8 @@ create table public.trip_balances (
 -- missing RLS/triggers/realtime), run
 -- supabase/migrations/0009_community_module.sql instead — it's an
 -- idempotent repair script safe to run against what's already there.
+-- 0010 and 0011 layer on post media and reactions respectively, same
+-- idempotent-migration approach.
 
 create table public.posts (
   id uuid primary key default gen_random_uuid(),
@@ -382,14 +384,25 @@ create table public.posts (
   category text not null,
   cover_gradient text not null default 'horizon'
     check (cover_gradient in ('horizon', 'dusk', 'sunset', 'lagoon')),
+  media_url text,
+  media_type text check (media_type is null or media_type in ('image', 'video')),
   likes_count integer not null default 0,
+  -- `{reaction_type: count}` breakdown, e.g. `{"like": 3, "love": 1}` — lets
+  -- the feed render small per-emoji counts without a join/count query on
+  -- every row. Kept in sync by handle_post_like_change().
+  reaction_counts jsonb not null default '{}'::jsonb,
   comments_count integer not null default 0,
   created_at timestamptz not null default now()
 );
 
+-- One row per (post, user) — a user has at most one reaction per post;
+-- picking a different one updates reaction_type in place rather than
+-- adding a second row (see CommunityService.setReaction).
 create table public.post_likes (
   post_id uuid not null references public.posts (id) on delete cascade,
   user_id uuid not null references auth.users (id) on delete cascade,
+  reaction_type text not null default 'like'
+    check (reaction_type in ('like', 'love', 'wow')),
   created_at timestamptz not null default now(),
   primary key (post_id, user_id)
 );
@@ -426,17 +439,46 @@ security definer set search_path = public
 as $$
 begin
   if tg_op = 'INSERT' then
-    update public.posts set likes_count = likes_count + 1 where id = new.post_id;
+    update public.posts
+    set likes_count = likes_count + 1,
+        reaction_counts = jsonb_set(
+          reaction_counts,
+          array[new.reaction_type],
+          to_jsonb(coalesce((reaction_counts ->> new.reaction_type)::int, 0) + 1)
+        )
+    where id = new.post_id;
+    return new;
+  elsif tg_op = 'UPDATE' then
+    if new.reaction_type is distinct from old.reaction_type then
+      update public.posts
+      set reaction_counts = jsonb_set(
+            jsonb_set(
+              reaction_counts,
+              array[old.reaction_type],
+              to_jsonb(greatest(coalesce((reaction_counts ->> old.reaction_type)::int, 0) - 1, 0))
+            ),
+            array[new.reaction_type],
+            to_jsonb(coalesce((reaction_counts ->> new.reaction_type)::int, 0) + 1)
+          )
+      where id = new.post_id;
+    end if;
     return new;
   else
-    update public.posts set likes_count = greatest(likes_count - 1, 0) where id = old.post_id;
+    update public.posts
+    set likes_count = greatest(likes_count - 1, 0),
+        reaction_counts = jsonb_set(
+          reaction_counts,
+          array[old.reaction_type],
+          to_jsonb(greatest(coalesce((reaction_counts ->> old.reaction_type)::int, 0) - 1, 0))
+        )
+    where id = old.post_id;
     return old;
   end if;
 end;
 $$;
 
 create trigger on_post_like_change
-  after insert or delete on public.post_likes
+  after insert or update or delete on public.post_likes
   for each row execute function public.handle_post_like_change();
 
 create function public.handle_post_comment_change()
@@ -639,13 +681,18 @@ create policy "posts_update_own" on public.posts
 create policy "posts_delete_own" on public.posts
   for delete to authenticated using (author_id = auth.uid());
 
--- post_likes: anyone can see who liked what; you can only like/unlike as
--- yourself (insert/delete your own row — toggling is add-or-remove, there's
--- no "update" concept for a like).
+-- post_likes: anyone can see who reacted with what; you can only
+-- add/change/remove your own row (insert on first react, update when
+-- switching reaction types, delete to clear it — see
+-- CommunityService.setReaction).
 create policy "post_likes_select_authenticated" on public.post_likes
   for select to authenticated using (true);
 create policy "post_likes_insert_self" on public.post_likes
   for insert to authenticated with check (user_id = auth.uid());
+create policy "post_likes_update_own" on public.post_likes
+  for update to authenticated
+  using (user_id = auth.uid())
+  with check (user_id = auth.uid());
 create policy "post_likes_delete_self" on public.post_likes
   for delete to authenticated using (user_id = auth.uid());
 
@@ -668,6 +715,28 @@ create policy "reviews_update_own" on public.reviews
   for update to authenticated using (author_id = auth.uid());
 create policy "reviews_delete_own" on public.reviews
   for delete to authenticated using (author_id = auth.uid());
+
+-- Storage: `post-media` holds the photo/video a post can optionally attach
+-- (AddPostScreen). Public bucket (feed images load unauthenticated via a
+-- plain URL); write access is restricted by folder — every object is
+-- uploaded under `<author_id>/...`, so ownership is just the first path
+-- segment.
+insert into storage.buckets (id, name, public)
+values ('post-media', 'post-media', true)
+on conflict (id) do nothing;
+
+create policy "post_media_select_public" on storage.objects
+  for select to public using (bucket_id = 'post-media');
+create policy "post_media_insert_own_folder" on storage.objects
+  for insert to authenticated with check (
+    bucket_id = 'post-media'
+    and (storage.foldername(name))[1] = auth.uid()::text
+  );
+create policy "post_media_delete_own_folder" on storage.objects
+  for delete to authenticated using (
+    bucket_id = 'post-media'
+    and (storage.foldername(name))[1] = auth.uid()::text
+  );
 
 -- ============================================================
 -- Realtime: every table the Flutter services read via `.stream()`

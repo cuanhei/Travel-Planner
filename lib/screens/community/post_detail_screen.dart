@@ -2,11 +2,11 @@ import 'package:flutter/material.dart';
 
 import '../../models/community_post.dart';
 import '../../services/community_service.dart';
-import '../../services/deep_link.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/detail_header.dart';
 import 'comments_screen.dart';
 import 'post_card.dart';
+import 'share_post_sheet.dart';
 
 /// Landing screen for a shared post link (`/post/<id>` — see
 /// [parseSharedPostId] and `SplashScreen`). Shows the post itself plus its
@@ -53,12 +53,13 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
                     padding: const EdgeInsets.fromLTRB(24, 8, 24, 0),
                     child: PostCard(
                       post: post,
-                      onToggleLike: () => _service.toggleLike(
+                      onReact: (reactionType) => _service.setReaction(
                         post.id,
-                        currentlyLiked: post.likedByMe,
+                        reactionType: reactionType,
+                        currentReaction: post.myReaction,
                       ),
                       onComment: () {},
-                      onShare: () => shareCommunityPost(post),
+                      onShare: () => showSharePostSheet(context, post),
                     ),
                   ),
                   Expanded(child: CommentsSection(postId: post.id)),

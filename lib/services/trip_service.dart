@@ -299,6 +299,49 @@ class TripService {
         );
   }
 
+  /// Whether the signed-in user has actually visited [placeName] — it
+  /// appears as a stop on a trip they belong to whose dates have already
+  /// finished (see [Trip.status]). Gates Community's "Add Review" (see
+  /// `AddReviewScreen`) to destinations that were really visited, rather
+  /// than every trip a user has merely planned.
+  ///
+  /// Matches loosely (case-insensitive, either name containing the other)
+  /// since a trip stop's name comes from geocoded place search (e.g. "Penang
+  /// Hill, Air Itam, Penang") while Explore's destinations use a shorter
+  /// catalog name ("Penang Hill") — an exact match would almost never hit.
+  Future<bool> hasVisited(String placeName) async {
+    final memberRows = await _client
+        .from('trip_members')
+        .select('trip_id')
+        .eq('user_id', _uid);
+    final tripIds = memberRows
+        .map((r) => r['trip_id'] as String)
+        .toSet()
+        .toList();
+    if (tripIds.isEmpty) return false;
+
+    final tripRows = await _client
+        .from('trips')
+        .select()
+        .inFilter('id', tripIds);
+    final pastTripIds = tripRows
+        .map(Trip.fromMap)
+        .where((t) => t.status == TripStatus.past)
+        .map((t) => t.id)
+        .toList();
+    if (pastTripIds.isEmpty) return false;
+
+    final stopRows = await _client
+        .from('trip_stops')
+        .select('name')
+        .inFilter('trip_id', pastTripIds);
+    final target = placeName.trim().toLowerCase();
+    return stopRows.any((r) {
+      final name = (r['name'] as String).trim().toLowerCase();
+      return name == target || name.contains(target) || target.contains(name);
+    });
+  }
+
   /// Call on sign-out so a different account doesn't inherit the
   /// previous user's cached trip id.
   static void resetCache() {
