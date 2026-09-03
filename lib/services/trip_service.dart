@@ -163,6 +163,39 @@ class TripService {
     return [for (final row in rows) Trip.fromMap(row)];
   }
 
+  /// Current + upcoming trips the signed-in user *organizes* (not just
+  /// belongs to) — backs "Add to Trip" on a place's details screen, where
+  /// only an organizer is allowed to add a place. Past trips are excluded
+  /// since there's nothing to add to anymore. Ongoing trip(s) always
+  /// sort first, then upcoming trips nearest start date to farthest —
+  /// the trip about to need this place soonest is the one worth seeing
+  /// first, not just whichever was created most recently.
+  Future<List<Trip>> organizerCurrentAndUpcomingTrips() async {
+    final rows = await retryOnJwtClockSkew(
+      () => _client
+          .from('trips')
+          .select('*, trip_members!inner(user_id, role)')
+          .eq('trip_members.user_id', _uid)
+          .eq('trip_members.role', 'organizer')
+          .order('created_at', ascending: false),
+    );
+    final trips = [
+      for (final row in rows) Trip.fromMap(row),
+    ].where((trip) => trip.status != TripStatus.past).toList();
+    trips.sort((a, b) {
+      final aCurrent = a.status == TripStatus.current;
+      final bCurrent = b.status == TripStatus.current;
+      if (aCurrent != bCurrent) return aCurrent ? -1 : 1;
+      final aDate = a.startDate;
+      final bDate = b.startDate;
+      if (aDate == null && bDate == null) return 0;
+      if (aDate == null) return 1;
+      if (bDate == null) return -1;
+      return aDate.compareTo(bDate);
+    });
+    return trips;
+  }
+
   /// Every stop saved to a trip, for [TripMapScreen] — was hardcoded
   /// dummy data before, so every trip showed the same 4 Penang landmarks
   /// regardless of [tripId].

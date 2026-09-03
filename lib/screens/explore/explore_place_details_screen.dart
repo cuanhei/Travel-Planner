@@ -3,7 +3,11 @@ import 'package:geolocator/geolocator.dart';
 import 'package:latlong2/latlong.dart';
 
 import '../../models/nearby_place.dart';
+import '../../models/trip.dart';
+import '../../services/trip_service.dart';
 import '../../theme/app_theme.dart';
+import '../../widgets/coming_soon.dart';
+import '../../widgets/gradient_button.dart';
 import '../../widgets/route_map_view.dart';
 
 /// Full profile for a real place — currently only reached from Explore's
@@ -235,7 +239,263 @@ class _ExplorePlaceDetailsScreenState
                     height: 160,
                     borderRadius: 16,
                   ),
+                  const SizedBox(height: 28),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          onPressed: () =>
+                              showComingSoon(context, 'Add Review'),
+                          icon: const Icon(Icons.rate_review_outlined, size: 18),
+                          label: const Text('Add Review'),
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: context.colors.ink,
+                            side: BorderSide(
+                              color: context.colors.muted.withValues(alpha: 0.3),
+                            ),
+                            padding: const EdgeInsets.symmetric(vertical: 14),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(28),
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: GradientButton(
+                          label: 'Add to Trip',
+                          icon: Icons.playlist_add_rounded,
+                          height: 48,
+                          onPressed: () => _openAddToTripSheet(context, place),
+                        ),
+                      ),
+                    ],
+                  ),
                 ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _openAddToTripSheet(BuildContext context, NearbyPlace place) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (_) => _AddToTripSheet(place: place),
+    );
+  }
+}
+
+/// "Add to Trip" bottom sheet — lists the signed-in traveler's current +
+/// upcoming trips where they're the organizer, since only an organizer
+/// can add a place to a trip (a plain member can't). [place] is carried
+/// through ready for the next step; actually saving it to a picked trip
+/// isn't wired up yet, so a trip row isn't tappable — this sheet only
+/// covers listing the eligible trips.
+class _AddToTripSheet extends StatefulWidget {
+  const _AddToTripSheet({required this.place});
+
+  // ignore: unused_field
+  final NearbyPlace place;
+
+  @override
+  State<_AddToTripSheet> createState() => _AddToTripSheetState();
+}
+
+class _AddToTripSheetState extends State<_AddToTripSheet> {
+  final _tripService = TripService();
+  List<Trip>? _trips;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    setState(() {
+      _trips = null;
+      _error = null;
+    });
+    try {
+      final trips = await _tripService.organizerCurrentAndUpcomingTrips();
+      if (!mounted) return;
+      setState(() => _trips = trips);
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _error = 'Could not load your trips. Try again.');
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
+      child: SafeArea(
+        child: Container(
+          margin: const EdgeInsets.all(12),
+          padding: const EdgeInsets.all(20),
+          constraints: const BoxConstraints(maxHeight: 480),
+          decoration: BoxDecoration(
+            color: context.colors.card,
+            borderRadius: BorderRadius.circular(24),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Add to Trip',
+                style: TextStyle(
+                  color: context.colors.ink,
+                  fontWeight: FontWeight.w800,
+                  fontSize: 16,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Icon(
+                    Icons.info_outline_rounded,
+                    size: 15,
+                    color: context.colors.muted,
+                  ),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: Text(
+                      'Only the trip organizer can add a place — members '
+                      "can't do this.",
+                      style: TextStyle(
+                        color: context.colors.muted,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              Flexible(child: _buildBody(context)),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildBody(BuildContext context) {
+    final error = _error;
+    if (error != null) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: 24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              error,
+              textAlign: TextAlign.center,
+              style: TextStyle(color: context.colors.muted, fontSize: 12.5),
+            ),
+            const SizedBox(height: 8),
+            TextButton(onPressed: _load, child: const Text('Retry')),
+          ],
+        ),
+      );
+    }
+    final trips = _trips;
+    if (trips == null) {
+      return const Padding(
+        padding: EdgeInsets.symmetric(vertical: 28),
+        child: Center(
+          child: SizedBox(
+            width: 22,
+            height: 22,
+            child: CircularProgressIndicator(strokeWidth: 2.4),
+          ),
+        ),
+      );
+    }
+    if (trips.isEmpty) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: 24),
+        child: Text(
+          "You don't organize any current or upcoming trips yet.",
+          style: TextStyle(color: context.colors.muted, fontSize: 12.5),
+        ),
+      );
+    }
+    return ListView.separated(
+      shrinkWrap: true,
+      itemCount: trips.length,
+      separatorBuilder: (_, _) => const SizedBox(height: 10),
+      itemBuilder: (context, i) => _TripOptionTile(trip: trips[i]),
+    );
+  }
+}
+
+/// One organizer trip in the "Add to Trip" list — display only for now
+/// (see [_AddToTripSheet]'s doc comment); not tappable until saving a
+/// place to a trip is implemented.
+class _TripOptionTile extends StatelessWidget {
+  const _TripOptionTile({required this.trip});
+
+  final Trip trip;
+
+  @override
+  Widget build(BuildContext context) {
+    final isOngoing = trip.status == TripStatus.current;
+    final badgeLabel = isOngoing ? 'Ongoing' : 'Upcoming';
+    final badgeColor = isOngoing ? const Color(0xFF11998E) : AppColors.accent;
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: context.colors.surface,
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  trip.name,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: context.colors.ink,
+                    fontWeight: FontWeight.w700,
+                    fontSize: 13.5,
+                  ),
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  trip.routeLabel ?? trip.dateRangeLabel,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(color: context.colors.muted, fontSize: 11.5),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            decoration: BoxDecoration(
+              color: badgeColor.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: Text(
+              badgeLabel,
+              style: TextStyle(
+                color: badgeColor,
+                fontWeight: FontWeight.w700,
+                fontSize: 10.5,
               ),
             ),
           ),
