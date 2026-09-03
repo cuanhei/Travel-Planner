@@ -596,9 +596,7 @@ class _TripCard extends StatelessWidget {
                           const SizedBox(width: 4),
                           Expanded(
                             child: Text(
-                              trip.destination.isEmpty
-                                  ? 'No destination set'
-                                  : trip.destination,
+                              trip.routeLabel ?? 'No destination set',
                               overflow: TextOverflow.ellipsis,
                               style: TextStyle(
                                 color: Colors.white.withValues(alpha: 0.85),

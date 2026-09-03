@@ -22,6 +22,8 @@ class Trip {
     required this.totalBudget,
     required this.createdBy,
     required this.createdAt,
+    this.startCity,
+    this.endCity,
   });
 
   final String id;
@@ -32,6 +34,8 @@ class Trip {
   final double totalBudget;
   final String createdBy;
   final DateTime createdAt;
+  final String? startCity;
+  final String? endCity;
 
   factory Trip.fromMap(Map<String, dynamic> map) {
     return Trip(
@@ -47,7 +51,26 @@ class Trip {
       totalBudget: (map['total_budget'] as num).toDouble(),
       createdBy: map['created_by'] as String,
       createdAt: DateTime.parse(map['created_at'] as String),
+      startCity: map['start_city'] as String?,
+      endCity: map['end_city'] as String?,
     );
+  }
+
+  /// Brief "Start → End" route (city names only, no state) — e.g.
+  /// "George Town → Kuala Lumpur", collapsed to just "George Town" when
+  /// both ends are the same city. Falls back to [destination], then null
+  /// if neither city nor destination is set.
+  String? get routeLabel {
+    final start = startCity?.trim();
+    final end = endCity?.trim();
+    final hasStart = start != null && start.isNotEmpty;
+    final hasEnd = end != null && end.isNotEmpty;
+    if (hasStart && hasEnd) {
+      return start == end ? start : '$start → $end';
+    }
+    if (hasStart) return start;
+    if (hasEnd) return end;
+    return destination.isEmpty ? null : destination;
   }
 
   TripStatus get status {

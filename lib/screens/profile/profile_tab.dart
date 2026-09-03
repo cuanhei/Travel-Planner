@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../../models/profile.dart';
 import '../../services/auth_service.dart';
+import '../../services/profile_service.dart';
 import '../../services/trip_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/list_tile_card.dart';
@@ -19,31 +20,16 @@ import 'travel_history_screen.dart';
 class ProfileTab extends StatelessWidget {
   const ProfileTab({super.key});
 
-  Future<Map<String, dynamic>?> _loadProfile() async {
-    final uid = Supabase.instance.client.auth.currentUser?.id;
-    if (uid == null) return null;
-    return Supabase.instance.client
-        .from('profiles')
-        .select('display_name, full_name, email, avatar_color')
-        .eq('id', uid)
-        .maybeSingle();
-  }
-
   @override
   Widget build(BuildContext context) {
     return SafeArea(
-      child: FutureBuilder<Map<String, dynamic>?>(
-        future: _loadProfile(),
+      child: FutureBuilder<Profile?>(
+        future: ProfileService().getCurrentProfile(),
         builder: (context, snapshot) {
           final profile = snapshot.data;
-          final name =
-              (profile?['full_name'] as String?)?.trim().isNotEmpty == true
-              ? profile!['full_name'] as String
-              : (profile?['display_name'] as String? ?? 'Traveler');
-          final email = (profile?['email'] as String?) ??
-              Supabase.instance.client.auth.currentUser?.email ??
-              '';
-          final avatarColor = profile?['avatar_color'] as int?;
+          final name = profile?.name ?? 'Traveler';
+          final email = profile?.email ?? '';
+          final avatarColor = profile?.avatarColor;
 
           return ListView(
             padding: EdgeInsets.fromLTRB(24, 24, 24, 24),
