@@ -22,6 +22,18 @@ final _malaysiaBounds = LatLngBounds(
 
 const _closeZoom = 16.0;
 
+/// Guards against malformed coordinates (e.g. a corrupted polyline point
+/// from a routing API response) reaching [LatLngBounds], whose
+/// constructor throws an assertion error outside the valid lat/lng range
+/// instead of failing gracefully.
+bool _isValidLatLng(LatLng point) =>
+    point.latitude.isFinite &&
+    point.longitude.isFinite &&
+    point.latitude >= -90 &&
+    point.latitude <= 90 &&
+    point.longitude >= -180 &&
+    point.longitude <= 180;
+
 /// Read-only OpenStreetMap view (via flutter_map), constrained to
 /// Malaysia. Renders whichever of [source]/[destination] are known — so
 /// the same widget instance can stay mounted for the Transport screen's
@@ -91,7 +103,12 @@ class RouteMapView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final points = [?source, ?destination, ...polylinePoints];
+    final validSource = source != null && _isValidLatLng(source!) ? source : null;
+    final validDestination =
+        destination != null && _isValidLatLng(destination!) ? destination : null;
+    final validPolylinePoints = polylinePoints.where(_isValidLatLng).toList();
+
+    final points = [?validSource, ?validDestination, ...validPolylinePoints];
     final bounds = points.isEmpty ? null : LatLngBounds.fromPoints(points);
 
     final map = FlutterMap(
@@ -118,11 +135,11 @@ class RouteMapView extends StatelessWidget {
           urlTemplate: _osmTileUrl,
           userAgentPackageName: _osmUserAgent,
         ),
-        if (polylinePoints.length > 1)
+        if (validPolylinePoints.length > 1)
           PolylineLayer(
             polylines: [
               Polyline(
-                points: polylinePoints,
+                points: validPolylinePoints,
                 strokeWidth: 4.5,
                 color: polylineColor,
               ),
@@ -130,9 +147,9 @@ class RouteMapView extends StatelessWidget {
           ),
         MarkerLayer(
           markers: [
-            if (source != null)
+            if (validSource != null)
               Marker(
-                point: source!,
+                point: validSource,
                 width: sourceIsCurrentLocation ? 54 : 34,
                 height: sourceIsCurrentLocation ? 54 : 34,
                 child: sourceIsCurrentLocation
@@ -143,9 +160,9 @@ class RouteMapView extends StatelessWidget {
                         size: 28,
                       ),
               ),
-            if (destination != null)
+            if (validDestination != null)
               Marker(
-                point: destination!,
+                point: validDestination,
                 width: 40,
                 height: 40,
                 child: const Icon(
