@@ -13,42 +13,39 @@ class DestinationSearchBar extends StatelessWidget {
   Widget build(BuildContext context) {
     return Material(
       color: context.colors.card,
-      borderRadius: BorderRadius.circular(18),
+      borderRadius: BorderRadius.circular(16),
       child: InkWell(
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: BorderRadius.circular(16),
         onTap: () => Navigator.of(
           context,
         ).push(MaterialPageRoute(builder: (_) => SearchDestinationScreen())),
         child: Container(
-          height: 54,
-          padding: const EdgeInsets.symmetric(horizontal: 18),
+          height: 50,
+          padding: const EdgeInsets.symmetric(horizontal: 16),
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(18),
+            borderRadius: BorderRadius.circular(16),
             boxShadow: [
               BoxShadow(
                 color: context.colors.ink.withValues(alpha: 0.05),
-                blurRadius: 16,
-                offset: const Offset(0, 6),
+                blurRadius: 12,
+                offset: const Offset(0, 5),
               ),
             ],
           ),
           child: Row(
             children: [
-              Icon(Icons.search_rounded, color: context.colors.muted, size: 22),
-              const SizedBox(width: 12),
+              Icon(Icons.search_rounded, color: context.colors.muted, size: 20),
+              const SizedBox(width: 10),
               Expanded(
                 child: Text(
                   'Search destinations…',
-                  style: TextStyle(color: context.colors.muted, fontSize: 14.5),
+                  style: TextStyle(
+                    color: context.colors.muted,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w500,
+                  ),
                 ),
               ),
-              Container(
-                width: 1,
-                height: 22,
-                color: context.colors.muted.withValues(alpha: 0.2),
-              ),
-              const SizedBox(width: 12),
-              Icon(Icons.tune_rounded, color: context.colors.ink, size: 20),
             ],
           ),
         ),

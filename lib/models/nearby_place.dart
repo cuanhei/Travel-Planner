@@ -13,6 +13,12 @@ class NearbyPlace {
     required this.primaryType,
     required this.photoUrl,
     required this.businessStatus,
+    required this.editorialSummary,
+    required this.priceLevel,
+    required this.priceRangeLabel,
+    required this.regularOpeningHours,
+    required this.currentOpeningHours,
+    required this.openNow,
     this.distanceKm,
   });
 
@@ -35,6 +41,32 @@ class NearbyPlace {
 
   final String? businessStatus;
 
+  /// Google's short editorial description of the place, when it has one
+  /// (most places don't) — shown as the details screen's "About" text.
+  final String? editorialSummary;
+
+  /// Raw `priceLevel` enum from Places (e.g. `PRICE_LEVEL_MODERATE`) —
+  /// see [priceLevelLabel] for the display form.
+  final String? priceLevel;
+
+  /// Pre-formatted "MYR10 – MYR30" style range from `priceRange`, or
+  /// null if Places didn't return one (most places don't).
+  final String? priceRangeLabel;
+
+  /// One line per weekday (Places' `weekdayDescriptions`, e.g. "Monday:
+  /// 9:00 AM – 6:00 PM") from `regularOpeningHours` — the place's normal
+  /// schedule, unaffected by today's holidays/exceptions.
+  final List<String>? regularOpeningHours;
+
+  /// Same shape as [regularOpeningHours] but from `currentOpeningHours`
+  /// — accounts for today's actual exceptions (holiday hours, etc.).
+  /// Preferred over [regularOpeningHours] for display when present.
+  final List<String>? currentOpeningHours;
+
+  /// `currentOpeningHours.openNow` — whether the place is open right
+  /// now, per Google. Null if Places didn't return hours at all.
+  final bool? openNow;
+
   /// Straight-line distance from the search center, in kilometers. Null
   /// until [withDistanceKm] sets it.
   final double? distanceKm;
@@ -45,6 +77,30 @@ class NearbyPlace {
 
   IconData get icon => _iconForPrimaryType(primaryType);
 
+  /// [currentOpeningHours] if Places returned it, else the fallback
+  /// [regularOpeningHours] — whichever is more specific to display as
+  /// "Opening Hours" on the details screen.
+  List<String>? get openingHours => currentOpeningHours ?? regularOpeningHours;
+
+  /// "Free" / "$" / "$$" / "$$$" / "$$$$", or null if Places didn't
+  /// return a price level for this place.
+  String? get priceLevelLabel {
+    switch (priceLevel) {
+      case 'PRICE_LEVEL_FREE':
+        return 'Free';
+      case 'PRICE_LEVEL_INEXPENSIVE':
+        return '\$';
+      case 'PRICE_LEVEL_MODERATE':
+        return '\$\$';
+      case 'PRICE_LEVEL_EXPENSIVE':
+        return '\$\$\$';
+      case 'PRICE_LEVEL_VERY_EXPENSIVE':
+        return '\$\$\$\$';
+      default:
+        return null;
+    }
+  }
+
   NearbyPlace withDistanceKm(double km) => NearbyPlace(
     id: id,
     name: name,
@@ -54,6 +110,12 @@ class NearbyPlace {
     primaryType: primaryType,
     photoUrl: photoUrl,
     businessStatus: businessStatus,
+    editorialSummary: editorialSummary,
+    priceLevel: priceLevel,
+    priceRangeLabel: priceRangeLabel,
+    regularOpeningHours: regularOpeningHours,
+    currentOpeningHours: currentOpeningHours,
+    openNow: openNow,
     distanceKm: km,
   );
 
@@ -68,6 +130,9 @@ class NearbyPlace {
     final firstPhotoName = (photos != null && photos.isNotEmpty)
         ? (photos.first as Map<String, dynamic>)['name'] as String?
         : null;
+    final editorialSummary = json['editorialSummary'] as Map<String, dynamic>?;
+    final regularHours = json['regularOpeningHours'] as Map<String, dynamic>?;
+    final currentHours = json['currentOpeningHours'] as Map<String, dynamic>?;
     return NearbyPlace(
       id: json['id'] as String,
       name: (displayName?['text'] as String?) ?? 'Unnamed place',
@@ -80,8 +145,36 @@ class NearbyPlace {
           : 'https://places.googleapis.com/v1/$firstPhotoName/media'
                 '?maxWidthPx=$photoMaxWidthPx&key=$apiKey',
       businessStatus: json['businessStatus'] as String?,
+      editorialSummary: editorialSummary?['text'] as String?,
+      priceLevel: json['priceLevel'] as String?,
+      priceRangeLabel: _priceRangeLabel(json['priceRange'] as Map<String, dynamic>?),
+      regularOpeningHours: _weekdayDescriptions(regularHours),
+      currentOpeningHours: _weekdayDescriptions(currentHours),
+      openNow: (currentHours?['openNow'] ?? regularHours?['openNow']) as bool?,
     );
   }
+}
+
+List<String>? _weekdayDescriptions(Map<String, dynamic>? hours) {
+  final list = hours?['weekdayDescriptions'] as List?;
+  if (list == null) return null;
+  return [for (final d in list) d as String];
+}
+
+String? _priceRangeLabel(Map<String, dynamic>? range) {
+  if (range == null) return null;
+  final start = range['startPrice'] as Map<String, dynamic>?;
+  final end = range['endPrice'] as Map<String, dynamic>?;
+  final currency = (start?['currencyCode'] as String?) ??
+      (end?['currencyCode'] as String?) ??
+      '';
+  final startUnits = start?['units'] as String?;
+  final endUnits = end?['units'] as String?;
+  if (startUnits != null && endUnits != null) {
+    return '$currency$startUnits – $currency$endUnits';
+  }
+  final single = startUnits ?? endUnits;
+  return single == null ? null : '$currency$single';
 }
 
 IconData _iconForPrimaryType(String? type) {
@@ -102,7 +195,14 @@ IconData _iconForPrimaryType(String? type) {
     case 'clothing_store':
       return Icons.shopping_bag_rounded;
     case 'museum':
+    case 'art_museum':
+    case 'history_museum':
     case 'art_gallery':
+    case 'historical_place':
+    case 'historical_landmark':
+    case 'cultural_landmark':
+    case 'monument':
+    case 'performing_arts_theater':
       return Icons.museum_rounded;
     case 'hotel':
     case 'lodging':

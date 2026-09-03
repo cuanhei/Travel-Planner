@@ -9,13 +9,17 @@ import '../utils/geo.dart';
 
 const _nearbySearchEndpoint =
     'https://places.googleapis.com/v1/places:searchNearby';
+const _textSearchEndpoint = 'https://places.googleapis.com/v1/places:searchText';
 
 const _fieldMask =
     'places.id,places.displayName,places.formattedAddress,'
-    'places.location,places.primaryType,places.photos,places.businessStatus';
+    'places.location,places.primaryType,places.photos,places.businessStatus,'
+    'places.editorialSummary,places.priceLevel,places.priceRange,'
+    'places.regularOpeningHours,places.currentOpeningHours';
 
 const _defaultRadiusMeters = 3000.0;
 const _maxResultCount = 20;
+const _textSearchResultCount = 10;
 const _photoMaxWidthPx = 400;
 
 /// Thrown when [GooglePlacesService] can't complete a request — a
@@ -41,9 +45,18 @@ class GooglePlacesService {
 
   /// Real places within [radiusMeters] of [center], each with
   /// [NearbyPlace.distanceKm] already computed from [center].
+  ///
+  /// [includedTypes], when given, restricts the search server-side to
+  /// those Google Places types (e.g. a category filter) — this matters:
+  /// a plain nearby search only returns Google's top [_maxResultCount]
+  /// results by relevance, so filtering *client-side* by type afterward
+  /// can show zero results for a real category just because none of
+  /// those places happened to rank into that capped top-20 generic
+  /// list. Asking Google to search for the type directly avoids that.
   Future<List<NearbyPlace>> nearbySearch({
     required LatLng center,
     double radiusMeters = _defaultRadiusMeters,
+    Set<String>? includedTypes,
   }) async {
     final apiKey = _apiKey;
     if (apiKey.isEmpty) {
@@ -60,6 +73,8 @@ class GooglePlacesService {
       },
       body: jsonEncode({
         'maxResultCount': _maxResultCount,
+        if (includedTypes != null && includedTypes.isNotEmpty)
+          'includedTypes': includedTypes.toList(),
         'locationRestriction': {
           'circle': {
             'center': {
@@ -76,20 +91,58 @@ class GooglePlacesService {
         'Nearby places request failed (${response.statusCode})',
       );
     }
-    final decoded = jsonDecode(response.body) as Map<String, dynamic>;
+    final places = _parsePlaces(response.body, apiKey);
+    return [
+      for (final p in places)
+        p.withDistanceKm(
+          haversineMeters(center, LatLng(p.latitude, p.longitude)) / 1000,
+        ),
+    ];
+  }
+
+  /// Free-text destination search (Text Search (New)) — for the Home/
+  /// Explore "Search destinations" screen, where the traveler is naming
+  /// a place rather than browsing what's around a fixed point, so there
+  /// is no [NearbyPlace.distanceKm] to compute here (stays null).
+  /// Biased to Malaysia via `regionCode`, matching every other search
+  /// backend in this app (Photon's Malaysia bbox).
+  Future<List<NearbyPlace>> textSearch(String query) async {
+    final apiKey = _apiKey;
+    if (apiKey.isEmpty) {
+      throw GooglePlacesRequestException(
+        'Google Places API key is not configured.',
+      );
+    }
+    final response = await http.post(
+      Uri.parse(_textSearchEndpoint),
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Goog-Api-Key': apiKey,
+        'X-Goog-FieldMask': _fieldMask,
+      },
+      body: jsonEncode({
+        'textQuery': query,
+        'regionCode': 'MY',
+        'maxResultCount': _textSearchResultCount,
+      }),
+    );
+    if (response.statusCode != 200) {
+      throw GooglePlacesRequestException(
+        'Destination search failed (${response.statusCode})',
+      );
+    }
+    return _parsePlaces(response.body, apiKey);
+  }
+
+  List<NearbyPlace> _parsePlaces(String responseBody, String apiKey) {
+    final decoded = jsonDecode(responseBody) as Map<String, dynamic>;
     final results = (decoded['places'] as List?) ?? const [];
-    final places = [
+    return [
       for (final r in results)
         NearbyPlace.fromJson(
           r as Map<String, dynamic>,
           apiKey: apiKey,
           photoMaxWidthPx: _photoMaxWidthPx,
-        ),
-    ];
-    return [
-      for (final p in places)
-        p.withDistanceKm(
-          haversineMeters(center, LatLng(p.latitude, p.longitude)) / 1000,
         ),
     ];
   }
