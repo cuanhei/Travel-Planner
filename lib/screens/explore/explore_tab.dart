@@ -1,5 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:geolocator/geolocator.dart';
+import 'package:latlong2/latlong.dart';
 
+import '../../models/nearby_place.dart';
+import '../../services/google_places_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/destination_search_bar.dart';
 import '../../widgets/section_header.dart';
@@ -144,6 +148,59 @@ class ExploreTab extends StatefulWidget {
 class _ExploreTabState extends State<ExploreTab> {
   String? _selectedCategory;
 
+  final _placesService = GooglePlacesService();
+  List<NearbyPlace> _nearbyPlaces = [];
+  bool _nearbyLoading = true;
+  String? _nearbyError;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadNearby();
+  }
+
+  /// Fetches real places around the traveler's current GPS position via
+  /// Google Places API (New) Nearby Search — mirrors the permission
+  /// handling other GPS-driven sections (Weather, Map View) already use.
+  Future<void> _loadNearby() async {
+    setState(() {
+      _nearbyLoading = true;
+      _nearbyError = null;
+    });
+    try {
+      if (!await Geolocator.isLocationServiceEnabled()) {
+        throw Exception('Location services are turned off.');
+      }
+      var permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
+      }
+      if (permission == LocationPermission.deniedForever) {
+        throw Exception('Location permission is permanently denied.');
+      }
+      if (permission == LocationPermission.denied) {
+        throw Exception('Location permission is needed to find nearby places.');
+      }
+      final position = await Geolocator.getCurrentPosition(
+        locationSettings: const LocationSettings(accuracy: LocationAccuracy.high),
+      );
+      final results = await _placesService.nearbySearch(
+        center: LatLng(position.latitude, position.longitude),
+      );
+      if (!mounted) return;
+      setState(() {
+        _nearbyPlaces = results;
+        _nearbyLoading = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _nearbyLoading = false;
+        _nearbyError = e.toString();
+      });
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final filtered = _selectedCategory == null
@@ -212,17 +269,11 @@ class _ExploreTabState extends State<ExploreTab> {
             ).push(MaterialPageRoute(builder: (_) => NearbyPlacesScreen())),
           ),
           SizedBox(height: 14),
-          SizedBox(
-            height: 130,
-            child: ListView.separated(
-              scrollDirection: Axis.horizontal,
-              itemCount: places.length,
-              separatorBuilder: (_, _) => SizedBox(width: 12),
-              itemBuilder: (context, index) {
-                final p = places[index];
-                return _NearbyChip(place: p);
-              },
-            ),
+          _NearbyPlacesSection(
+            loading: _nearbyLoading,
+            error: _nearbyError,
+            places: _nearbyPlaces,
+            onRetry: _loadNearby,
           ),
           SizedBox(height: 28),
           Text(
@@ -292,49 +343,161 @@ class _CategoryChip extends StatelessWidget {
   }
 }
 
-class _NearbyChip extends StatelessWidget {
-  const _NearbyChip({required this.place});
+/// Same 130-height horizontal strip the dummy version always occupied —
+/// loading/error/empty states fill that same footprint so the page
+/// doesn't jump around while GPS/the API resolve.
+class _NearbyPlacesSection extends StatelessWidget {
+  const _NearbyPlacesSection({
+    required this.loading,
+    required this.error,
+    required this.places,
+    required this.onRetry,
+  });
 
-  final Place place;
+  final bool loading;
+  final String? error;
+  final List<NearbyPlace> places;
+  final VoidCallback onRetry;
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: () => Navigator.of(context).push(
-        MaterialPageRoute(builder: (_) => PlaceDetailsScreen(place: place)),
+    if (loading) {
+      return const SizedBox(
+        height: 130,
+        child: Center(child: CircularProgressIndicator()),
+      );
+    }
+    if (error != null) {
+      return SizedBox(
+        height: 130,
+        child: Center(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                Icons.error_outline_rounded,
+                color: context.colors.muted,
+                size: 26,
+              ),
+              const SizedBox(height: 6),
+              Text(
+                error!,
+                textAlign: TextAlign.center,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(color: context.colors.muted, fontSize: 12),
+              ),
+              const SizedBox(height: 4),
+              TextButton(
+                onPressed: onRetry,
+                child: const Text('Retry'),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+    if (places.isEmpty) {
+      return SizedBox(
+        height: 130,
+        child: Center(
+          child: Text(
+            'No nearby places found',
+            style: TextStyle(color: context.colors.muted, fontSize: 12.5),
+          ),
+        ),
+      );
+    }
+    return SizedBox(
+      height: 130,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        itemCount: places.length,
+        separatorBuilder: (_, _) => SizedBox(width: 12),
+        itemBuilder: (context, index) => _NearbyPlaceCard(place: places[index]),
       ),
-      child: Container(
-        width: 108,
-        padding: EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          gradient: LinearGradient(colors: place.gradient),
-          borderRadius: BorderRadius.circular(18),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Icon(place.icon, color: Colors.white, size: 22),
-            Spacer(),
-            Text(
-              place.name,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                color: Colors.white,
-                fontWeight: FontWeight.w800,
-                fontSize: 12.5,
+    );
+  }
+}
+
+class _NearbyPlaceCard extends StatelessWidget {
+  const _NearbyPlaceCard({required this.place});
+
+  final NearbyPlace place;
+
+  static const _placeholderGradient = AppColors.horizon;
+
+  @override
+  Widget build(BuildContext context) {
+    final hasPhoto = place.photoUrl != null;
+    return Container(
+      width: 108,
+      clipBehavior: Clip.antiAlias,
+      decoration: BoxDecoration(
+        gradient: hasPhoto
+            ? null
+            : const LinearGradient(colors: _placeholderGradient),
+        borderRadius: BorderRadius.circular(18),
+      ),
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          if (hasPhoto)
+            Image.network(
+              place.photoUrl!,
+              fit: BoxFit.cover,
+              errorBuilder: (context, error, stackTrace) => const DecoratedBox(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(colors: _placeholderGradient),
+                ),
+              ),
+              loadingBuilder: (context, child, progress) => progress == null
+                  ? child
+                  : const DecoratedBox(
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(colors: _placeholderGradient),
+                      ),
+                    ),
+            ),
+          if (hasPhoto)
+            const DecoratedBox(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [Colors.transparent, Color(0x8C000000)],
+                ),
               ),
             ),
-            SizedBox(height: 2),
-            Text(
-              '${place.distanceKm} km',
-              style: TextStyle(
-                color: Colors.white.withValues(alpha: 0.8),
-                fontSize: 10.5,
-              ),
+          Padding(
+            padding: EdgeInsets.all(12),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Icon(place.icon, color: Colors.white, size: 22),
+                Spacer(),
+                Text(
+                  place.name,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w800,
+                    fontSize: 12.5,
+                  ),
+                ),
+                SizedBox(height: 2),
+                Text(
+                  place.distanceLabel,
+                  style: TextStyle(
+                    color: Colors.white.withValues(alpha: 0.8),
+                    fontSize: 10.5,
+                  ),
+                ),
+              ],
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
