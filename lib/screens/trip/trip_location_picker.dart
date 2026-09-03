@@ -1,8 +1,11 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 
 import '../../models/trip_stop_location.dart';
+import '../../services/google_places_service.dart';
 import '../../utils/malaysia_bounds.dart';
 import '../../widgets/location_search_field.dart';
 
@@ -11,17 +14,23 @@ const _osmUserAgent = 'com.example.travelplanner';
 const _stopMarkerColor = Color(0xFFFF7A59);
 const _pendingMarkerColor = Color(0xFF1E88E5);
 const _closeZoom = 15.0;
+const _searchDebounce = Duration(milliseconds: 400);
 
-/// Real map + fuzzy place search for picking a trip's stops, built on
-/// the same shared [LocationSearchField] every Photon-backed location
-/// picker in the app uses, adapted here for picking *multiple* stops
-/// instead of a single destination. Tapping a
-/// search result doesn't add it right away: it's plotted on the map as a
-/// pending pin (distinct color) with an "Add to Trip" button next to its
-/// name, so the traveler can see exactly where it is before committing —
-/// tapping Add calls [onAdd] and the map re-fits to show every stop
-/// picked so far. Removing a stop (via the chip list below this widget,
-/// in the parent) is reflected the next time [stops] changes.
+/// Real map + place search for picking a trip's stops — search is via
+/// Google Places API (New) Text Search (see [GooglePlacesService]), the
+/// same backend Explore's Nearby Places uses, rather than Photon: a
+/// picked stop carries its Google category and opening-hours data
+/// (regular hours, near-term hours reflecting holiday closures, and
+/// open-now) alongside name/coordinates (see
+/// [TripStopLocation.fromNearbyPlace]) — Photon never had any of that.
+/// Adapted here for picking *multiple* stops instead of a single
+/// destination. Tapping a search result doesn't add it right away: it's
+/// plotted on the map as a pending pin (distinct color) with an "Add to
+/// Trip" button next to its name, so the traveler can see exactly where
+/// it is before committing — tapping Add calls [onAdd] and the map
+/// re-fits to show every stop picked so far. Removing a stop (via the
+/// chip list below this widget, in the parent) is reflected the next
+/// time [stops] changes.
 class TripLocationPicker extends StatefulWidget {
   const TripLocationPicker({
     super.key,
@@ -39,7 +48,7 @@ class TripLocationPicker extends StatefulWidget {
 class _TripLocationPickerState extends State<TripLocationPicker> {
   /// The result the traveler just tapped, plotted on the map but not yet
   /// added to the trip — cleared either by confirming (Add to Trip) or
-  /// dismissing it. While non-null, [LocationSearchField] is unmounted
+  /// dismissing it. While non-null, [_GoogleStopSearchField] is unmounted
   /// (swapped for [_PendingStopRow]) rather than merely hidden, so it
   /// starts fresh — empty query, no stale results — the next time a
   /// traveler searches again.
@@ -63,13 +72,8 @@ class _TripLocationPickerState extends State<TripLocationPicker> {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         if (pending == null)
-          LocationSearchField(
-            value: null,
-            onChanged: (stop) {
-              if (stop != null) setState(() => _pendingStop = stop);
-            },
-            hintText: 'Search for a place to add…',
-            emptyResultsText: 'No places found',
+          _GoogleStopSearchField(
+            onChanged: (stop) => setState(() => _pendingStop = stop),
             isResultDisabled: widget.stops.contains,
           )
         else
@@ -91,9 +95,9 @@ class _TripLocationPickerState extends State<TripLocationPicker> {
   }
 }
 
-/// Replaces [LocationSearchField] while a search result is staged but not
-/// yet added — same 46px white pill chrome, showing the pending stop's
-/// name plus Add/dismiss actions instead of the search box.
+/// Replaces [_GoogleStopSearchField] while a search result is staged but
+/// not yet added — same 46px white pill chrome, showing the pending
+/// stop's name plus Add/dismiss actions instead of the search box.
 class _PendingStopRow extends StatelessWidget {
   const _PendingStopRow({
     required this.stop,
@@ -177,6 +181,190 @@ class _PendingStopRow extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+/// Search-as-you-type field for picking a stop via Google Places Text
+/// Search — same 46px white pill chrome and [LocationResultsDropdown] as
+/// the shared Photon-backed [LocationSearchField], but never shows a
+/// "selected" read-only state: picking a result here immediately calls
+/// [onChanged] with the converted [TripStopLocation] (see
+/// [TripStopLocation.fromNearbyPlace]) and the parent stages it as a
+/// pending pin rather than this field holding a selection itself.
+class _GoogleStopSearchField extends StatefulWidget {
+  const _GoogleStopSearchField({
+    required this.onChanged,
+    required this.isResultDisabled,
+  });
+
+  final ValueChanged<TripStopLocation> onChanged;
+  final bool Function(TripStopLocation) isResultDisabled;
+
+  @override
+  State<_GoogleStopSearchField> createState() => _GoogleStopSearchFieldState();
+}
+
+class _GoogleStopSearchFieldState extends State<_GoogleStopSearchField> {
+  final _placesService = GooglePlacesService();
+  final _controller = TextEditingController();
+  Timer? _debounce;
+
+  List<TripStopLocation> _results = const [];
+  bool _searching = false;
+  String? _error;
+  bool _hasSearched = false;
+
+  @override
+  void dispose() {
+    _debounce?.cancel();
+    _controller.dispose();
+    super.dispose();
+  }
+
+  void _onQueryChanged(String value) {
+    _debounce?.cancel();
+    final trimmed = value.trim();
+    if (trimmed.isEmpty) {
+      setState(() {
+        _results = const [];
+        _searching = false;
+        _error = null;
+        _hasSearched = false;
+      });
+      return;
+    }
+    setState(() => _searching = true);
+    _debounce = Timer(_searchDebounce, () => _search(trimmed));
+  }
+
+  Future<void> _search(String query) async {
+    try {
+      final places = await _placesService.textSearch(query);
+      if (!mounted) return;
+      setState(() {
+        _results = [
+          for (final p in places) TripStopLocation.fromNearbyPlace(p),
+        ];
+        _searching = false;
+        _error = null;
+        _hasSearched = true;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _results = const [];
+        _searching = false;
+        _error =
+            'Could not search places. Check your connection and try again.';
+        _hasSearched = true;
+      });
+    }
+  }
+
+  void _select(TripStopLocation stop) {
+    FocusScope.of(context).unfocus();
+    _debounce?.cancel();
+    _controller.clear();
+    setState(() {
+      _results = const [];
+      _error = null;
+      _hasSearched = false;
+      _searching = false;
+    });
+    widget.onChanged(stop);
+  }
+
+  void _clear() {
+    _debounce?.cancel();
+    _controller.clear();
+    setState(() {
+      _results = const [];
+      _error = null;
+      _hasSearched = false;
+      _searching = false;
+    });
+  }
+
+  bool get _showDropdown => _searching || _hasSearched || _error != null;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Material(
+          elevation: 3,
+          shadowColor: Colors.black.withValues(alpha: 0.2),
+          borderRadius: BorderRadius.circular(14),
+          child: Container(
+            height: 46,
+            padding: const EdgeInsets.symmetric(horizontal: 14),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: Row(
+              children: [
+                const Icon(
+                  Icons.search_rounded,
+                  color: Color(0xFF6E7A93),
+                  size: 20,
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: TextField(
+                    controller: _controller,
+                    onChanged: _onQueryChanged,
+                    textInputAction: TextInputAction.search,
+                    style: const TextStyle(
+                      color: Color(0xFF0B1D3A),
+                      fontSize: 13.5,
+                      fontWeight: FontWeight.w600,
+                    ),
+                    decoration: const InputDecoration(
+                      hintText: 'Search for a place to add…',
+                      hintStyle: TextStyle(
+                        color: Color(0xFF6E7A93),
+                        fontWeight: FontWeight.w500,
+                      ),
+                      border: InputBorder.none,
+                      isDense: true,
+                    ),
+                  ),
+                ),
+                if (_searching)
+                  const SizedBox(
+                    width: 16,
+                    height: 16,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                else if (_controller.text.isNotEmpty)
+                  GestureDetector(
+                    onTap: _clear,
+                    child: const Icon(
+                      Icons.close_rounded,
+                      color: Color(0xFF6E7A93),
+                      size: 18,
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ),
+        if (_showDropdown) ...[
+          const SizedBox(height: 8),
+          LocationResultsDropdown(
+            loading: _searching,
+            error: _error,
+            results: _results,
+            maxHeight: 220,
+            emptyText: 'No places found',
+            isResultDisabled: widget.isResultDisabled,
+            onPick: _select,
+          ),
+        ],
+      ],
     );
   }
 }

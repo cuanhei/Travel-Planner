@@ -429,10 +429,27 @@ class _CreateTripScreenState extends State<CreateTripScreen> {
       // Scrolling/validating right after the setState calls above would
       // read stale (pre-rebuild) layout — this field's new error text
       // hasn't been laid out yet. Defer to the frame after that rebuild
-      // lands, so every required field (name included) scrolls into
-      // view exactly like the rest.
+      // lands.
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted) return;
+        // Trip Name is always the top validation priority: whenever it's
+        // blank, jump straight to it via its own field context rather
+        // than going through the generic first-error scan below — that
+        // scan still runs the same top-to-bottom order and would reach
+        // Name first regardless, but going direct here means a blank
+        // name is never second-guessed by another field's error state.
+        if (nameIsBlank) {
+          final nameContext = _nameFieldKey.currentContext;
+          if (nameContext != null) {
+            Scrollable.ensureVisible(
+              nameContext,
+              duration: const Duration(milliseconds: 300),
+              curve: Curves.easeOut,
+              alignment: 0.2,
+            );
+            return;
+          }
+        }
         final scrolledToError = _scrollToFirstError();
         if (!scrolledToError && _listScrollController.hasClients) {
           _listScrollController.animateTo(
@@ -785,29 +802,39 @@ class _CreateTripScreenState extends State<CreateTripScreen> {
                                         color: context.colors.ink,
                                       ),
                                       const SizedBox(width: 6),
-                                      Column(
-                                        crossAxisAlignment:
-                                            CrossAxisAlignment.start,
-                                        mainAxisSize: MainAxisSize.min,
-                                        children: [
-                                          Text(
-                                            stop.name,
-                                            style: TextStyle(
-                                              color: context.colors.ink,
-                                              fontWeight: FontWeight.w600,
-                                              fontSize: 12.5,
+                                      // Google Places names/addresses run
+                                      // much longer than Photon's did —
+                                      // without Flexible here, the Row (its
+                                      // own width sized to fit its
+                                      // unconstrained children) overflowed
+                                      // the chip whenever a name was long.
+                                      Flexible(
+                                        child: Column(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            Text(
+                                              stop.name,
+                                              maxLines: 1,
+                                              overflow: TextOverflow.ellipsis,
+                                              style: TextStyle(
+                                                color: context.colors.ink,
+                                                fontWeight: FontWeight.w600,
+                                                fontSize: 12.5,
+                                              ),
                                             ),
-                                          ),
-                                          Text(
-                                            stop.address,
-                                            maxLines: 1,
-                                            overflow: TextOverflow.ellipsis,
-                                            style: TextStyle(
-                                              color: context.colors.muted,
-                                              fontSize: 10,
+                                            Text(
+                                              stop.address,
+                                              maxLines: 1,
+                                              overflow: TextOverflow.ellipsis,
+                                              style: TextStyle(
+                                                color: context.colors.muted,
+                                                fontSize: 10,
+                                              ),
                                             ),
-                                          ),
-                                        ],
+                                          ],
+                                        ),
                                       ),
                                       const SizedBox(width: 4),
                                       GestureDetector(

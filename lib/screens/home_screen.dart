@@ -2,19 +2,23 @@ import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:latlong2/latlong.dart';
 
+import '../models/nearby_place.dart';
 import '../models/profile.dart';
 import '../models/trip.dart';
+import '../services/google_places_service.dart';
+import '../services/photon_service.dart';
 import '../services/profile_service.dart';
 import '../services/trip_service.dart';
 import '../services/weather_service.dart';
 import '../theme/app_theme.dart';
 import '../utils/weather_display.dart';
-import '../widgets/coming_soon.dart';
 import '../widgets/destination_search_bar.dart';
 import '../widgets/section_header.dart';
 import 'activity_log_screen.dart';
 import 'community/community_tab.dart';
+import 'explore/explore_place_details_screen.dart';
 import 'explore/explore_tab.dart';
+import 'explore/nearby_places_screen.dart';
 import 'group/join_trip_screen.dart';
 import 'notifications_screen.dart';
 import 'profile/profile_tab.dart';
@@ -51,6 +55,7 @@ class _HomeScreenState extends State<HomeScreen> {
   // Not `static` — needs to reference this State's own key below, and a
   // GlobalKey is only ever meant to belong to one live State anyway.
   final _tripCardKey = GlobalKey<_UpcomingTripCardState>();
+  final _destinationsKey = GlobalKey<_DestinationsCarouselState>();
 
   static final _tabs = [
     (icon: Icons.home_rounded, label: 'Home'),
@@ -61,7 +66,7 @@ class _HomeScreenState extends State<HomeScreen> {
   ];
 
   late final _bodies = [
-    _DashboardBody(tripCardKey: _tripCardKey),
+    _DashboardBody(tripCardKey: _tripCardKey, destinationsKey: _destinationsKey),
     TripsTab(),
     ExploreTab(),
     CommunityTab(),
@@ -94,9 +99,10 @@ class _HomeScreenState extends State<HomeScreen> {
 }
 
 class _DashboardBody extends StatelessWidget {
-  const _DashboardBody({required this.tripCardKey});
+  const _DashboardBody({required this.tripCardKey, required this.destinationsKey});
 
   final GlobalKey<_UpcomingTripCardState> tripCardKey;
+  final GlobalKey<_DestinationsCarouselState> destinationsKey;
 
   @override
   Widget build(BuildContext context) {
@@ -146,13 +152,20 @@ class _DashboardBody extends StatelessWidget {
               padding: EdgeInsets.only(right: 24),
               child: SectionHeader(
                 title: 'Explore Destinations',
-                onAction: () => showComingSoon(context, 'Explore'),
+                onAction: () => Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) => NearbyPlacesScreen(
+                      places: destinationsKey.currentState?.destinations ?? const [],
+                      category: 'Tourist Attractions',
+                    ),
+                  ),
+                ),
               ),
             ),
           ),
         ),
         SliverToBoxAdapter(child: SizedBox(height: 14)),
-        SliverToBoxAdapter(child: _DestinationsCarousel()),
+        SliverToBoxAdapter(child: _DestinationsCarousel(key: destinationsKey)),
         SliverPadding(
           padding: EdgeInsets.fromLTRB(24, 28, 24, 0),
           sliver: SliverToBoxAdapter(
@@ -1059,58 +1072,126 @@ class _PeriodTile extends StatelessWidget {
   }
 }
 
-class _Destination {
-  _Destination({
-    required this.name,
-    required this.country,
-    required this.rating,
-    required this.gradient,
-    required this.icon,
-  });
+/// Real tourist attractions near the traveler's current GPS position, via
+/// Google Places API (New) Nearby Search (see [GooglePlacesService]) —
+/// replaces what used to be 4 hardcoded Penang landmarks. Restricted
+/// server-side to `tourist_attraction`, sorted client-side by distance,
+/// and capped to the top 10 closest. Like [_WeatherCard], hides itself
+/// behind an explanatory notice rather than showing anything when the
+/// traveler's current location is confirmed to be outside Malaysia.
+class _DestinationsCarousel extends StatefulWidget {
+  const _DestinationsCarousel({super.key});
 
-  final String name;
-  final String country;
-  final double rating;
-  final List<Color> gradient;
-  final IconData icon;
+  @override
+  State<_DestinationsCarousel> createState() => _DestinationsCarouselState();
 }
 
-final _destinations = [
-  _Destination(
-    name: 'Penang Hill',
-    country: 'Air Itam',
-    rating: 4.8,
-    gradient: AppColors.lagoon,
-    icon: Icons.terrain_rounded,
-  ),
-  _Destination(
-    name: 'Batu Ferringhi',
-    country: 'Tanjung Bungah',
-    rating: 4.6,
-    gradient: AppColors.sunset,
-    icon: Icons.beach_access_rounded,
-  ),
-  _Destination(
-    name: 'Chew Jetty',
-    country: 'George Town',
-    rating: 4.7,
-    gradient: AppColors.horizon,
-    icon: Icons.holiday_village_rounded,
-  ),
-  _Destination(
-    name: 'The Top Komtar',
-    country: 'George Town',
-    rating: 4.5,
-    gradient: AppColors.dusk,
-    icon: Icons.visibility_rounded,
-  ),
-];
+class _DestinationsCarouselState extends State<_DestinationsCarousel> {
+  final _placesService = GooglePlacesService();
+  final _photon = PhotonService();
 
-class _DestinationsCarousel extends StatelessWidget {
-  const _DestinationsCarousel();
+  List<NearbyPlace> _destinations = const [];
+  bool _loading = true;
+  String? _error;
+  bool _outsideMalaysia = false;
+
+  /// Exposed so [_DashboardBody]'s "See all" action can hand the same
+  /// already-fetched list to [NearbyPlacesScreen] without re-fetching.
+  List<NearbyPlace> get destinations => _destinations;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    setState(() {
+      _loading = true;
+      _error = null;
+      _outsideMalaysia = false;
+    });
+    try {
+      if (!await Geolocator.isLocationServiceEnabled()) {
+        throw Exception('Location services are turned off.');
+      }
+      var permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
+      }
+      if (permission == LocationPermission.deniedForever) {
+        throw Exception('Location permission is permanently denied.');
+      }
+      if (permission == LocationPermission.denied) {
+        throw Exception(
+          'Location permission is needed to suggest nearby destinations.',
+        );
+      }
+      final position = await Geolocator.getCurrentPosition(
+        locationSettings: const LocationSettings(accuracy: LocationAccuracy.high),
+      );
+      final center = LatLng(position.latitude, position.longitude);
+
+      final area = await _photon.reverseAdministrative(center);
+      if (area != null &&
+          area.countryCode != null &&
+          area.countryCode != 'MY') {
+        if (!mounted) return;
+        setState(() {
+          _loading = false;
+          _outsideMalaysia = true;
+        });
+        return;
+      }
+
+      final results = await _placesService.nearbySearch(
+        center: center,
+        includedTypes: const {'tourist_attraction'},
+      );
+      results.sort(
+        (a, b) =>
+            (a.distanceKm ?? double.infinity).compareTo(b.distanceKm ?? double.infinity),
+      );
+      if (!mounted) return;
+      setState(() {
+        _destinations = results.take(10).toList();
+        _loading = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _loading = false;
+        _error = e.toString();
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
+    if (_outsideMalaysia) {
+      return const _DestinationsOutsideMalaysiaNotice();
+    }
+    if (_loading) {
+      return const SizedBox(
+        height: 200,
+        child: Center(
+          child: SizedBox(
+            width: 22,
+            height: 22,
+            child: CircularProgressIndicator(strokeWidth: 2.4),
+          ),
+        ),
+      );
+    }
+    final error = _error;
+    if (error != null) {
+      return _DestinationsMessage(message: error, onRetry: _load);
+    }
+    if (_destinations.isEmpty) {
+      return const _DestinationsMessage(
+        message: 'No tourist attractions found nearby.',
+      );
+    }
     return SizedBox(
       height: 200,
       child: ListView.separated(
@@ -1118,120 +1199,183 @@ class _DestinationsCarousel extends StatelessWidget {
         padding: EdgeInsets.symmetric(horizontal: 24),
         itemCount: _destinations.length,
         separatorBuilder: (_, _) => SizedBox(width: 14),
-        itemBuilder: (context, index) =>
-            _DestinationCard(destination: _destinations[index]),
+        itemBuilder: (context, index) => _DestinationCard(
+          destination: _destinations[index],
+          onTap: () => Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (_) =>
+                  ExplorePlaceDetailsScreen(place: _destinations[index]),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Shown instead of the carousel when the traveler's current location is
+/// confirmed to be outside Malaysia — this section only suggests places
+/// around their current position, so there's nothing nearby to rank.
+class _DestinationsOutsideMalaysiaNotice extends StatelessWidget {
+  const _DestinationsOutsideMalaysiaNotice();
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: EdgeInsets.symmetric(horizontal: 24),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(Icons.info_outline_rounded, size: 16, color: context.colors.muted),
+          SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              "Oops, you're not in Malaysia right now — we can't suggest "
+              'any nearby destinations.',
+              style: TextStyle(color: context.colors.muted, fontSize: 12.5),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _DestinationsMessage extends StatelessWidget {
+  const _DestinationsMessage({required this.message, this.onRetry});
+
+  final String message;
+  final VoidCallback? onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: EdgeInsets.symmetric(horizontal: 24),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(Icons.info_outline_rounded, size: 16, color: context.colors.muted),
+          SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              message,
+              style: TextStyle(color: context.colors.muted, fontSize: 12.5),
+            ),
+          ),
+          if (onRetry != null)
+            GestureDetector(
+              onTap: onRetry,
+              child: Padding(
+                padding: EdgeInsets.only(left: 8),
+                child: Text(
+                  'Retry',
+                  style: TextStyle(
+                    color: AppColors.accent,
+                    fontWeight: FontWeight.w700,
+                    fontSize: 12.5,
+                  ),
+                ),
+              ),
+            ),
+        ],
       ),
     );
   }
 }
 
 class _DestinationCard extends StatelessWidget {
-  const _DestinationCard({required this.destination});
+  const _DestinationCard({required this.destination, required this.onTap});
 
-  final _Destination destination;
+  final NearbyPlace destination;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final photoUrl = destination.photoUrl;
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        width: 150,
+        decoration: BoxDecoration(
+          color: context.colors.card,
+          borderRadius: BorderRadius.circular(22),
+          boxShadow: [
+            BoxShadow(
+              color: context.colors.ink.withValues(alpha: 0.06),
+              blurRadius: 14,
+              offset: Offset(0, 6),
+            ),
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            ClipRRect(
+              borderRadius: BorderRadius.vertical(top: Radius.circular(22)),
+              child: SizedBox(
+                height: 120,
+                width: double.infinity,
+                child: photoUrl == null
+                    ? _DestinationPlaceholder(icon: destination.icon)
+                    : Image.network(
+                        photoUrl,
+                        fit: BoxFit.cover,
+                        errorBuilder: (context, error, stackTrace) =>
+                            _DestinationPlaceholder(icon: destination.icon),
+                        loadingBuilder: (context, child, progress) =>
+                            progress == null
+                            ? child
+                            : _DestinationPlaceholder(icon: destination.icon),
+                      ),
+              ),
+            ),
+            Padding(
+              padding: EdgeInsets.fromLTRB(12, 10, 12, 12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    destination.name,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: context.colors.ink,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                  SizedBox(height: 2),
+                  Text(
+                    destination.distanceLabel,
+                    style: TextStyle(
+                      color: AppColors.accent,
+                      fontSize: 11.5,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _DestinationPlaceholder extends StatelessWidget {
+  const _DestinationPlaceholder({required this.icon});
+
+  final IconData icon;
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      width: 150,
       decoration: BoxDecoration(
-        color: context.colors.card,
-        borderRadius: BorderRadius.circular(22),
-        boxShadow: [
-          BoxShadow(
-            color: context.colors.ink.withValues(alpha: 0.06),
-            blurRadius: 14,
-            offset: Offset(0, 6),
-          ),
-        ],
+        gradient: LinearGradient(colors: AppColors.horizon),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Stack(
-            children: [
-              Container(
-                height: 120,
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: destination.gradient,
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                  ),
-                  borderRadius: BorderRadius.vertical(top: Radius.circular(22)),
-                ),
-                alignment: Alignment.center,
-                child: Icon(
-                  destination.icon,
-                  color: Colors.white.withValues(alpha: 0.9),
-                  size: 34,
-                ),
-              ),
-              Positioned(
-                top: 8,
-                right: 8,
-                child: Container(
-                  width: 26,
-                  height: 26,
-                  decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.85),
-                    shape: BoxShape.circle,
-                  ),
-                  child: Icon(
-                    Icons.favorite_border_rounded,
-                    size: 14,
-                    color: context.colors.ink,
-                  ),
-                ),
-              ),
-            ],
-          ),
-          Padding(
-            padding: EdgeInsets.fromLTRB(12, 10, 12, 12),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  destination.name,
-                  style: TextStyle(
-                    color: context.colors.ink,
-                    fontSize: 14,
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-                SizedBox(height: 2),
-                Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        destination.country,
-                        style: TextStyle(
-                          color: context.colors.muted,
-                          fontSize: 11.5,
-                        ),
-                      ),
-                    ),
-                    Icon(
-                      Icons.star_rounded,
-                      color: Color(0xFFFFB347),
-                      size: 14,
-                    ),
-                    SizedBox(width: 2),
-                    Text(
-                      destination.rating.toStringAsFixed(1),
-                      style: TextStyle(
-                        color: context.colors.ink,
-                        fontSize: 11.5,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
+      alignment: Alignment.center,
+      child: Icon(icon, color: Colors.white.withValues(alpha: 0.9), size: 34),
     );
   }
 }

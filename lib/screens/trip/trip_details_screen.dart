@@ -324,9 +324,11 @@ class _ToolsGrid extends StatelessWidget {
         label: 'Transport',
         icon: Icons.directions_bus_filled_rounded,
         color: Color(0xFF8E63CE),
-        onTap: () => Navigator.of(
-          context,
-        ).push(MaterialPageRoute(builder: (_) => TransportRoutesScreen())),
+        onTap: () => Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (_) => TransportRoutesScreen(tripId: tripId),
+          ),
+        ),
       ),
       (
         label: 'Budget',

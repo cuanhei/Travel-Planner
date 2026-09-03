@@ -177,6 +177,53 @@ class TripService {
     return [for (final row in rows) TripStopLocation.fromMap(row)];
   }
 
+  /// A trip's saved "quick" stops — places like a nearby 7-Eleven or
+  /// pharmacy a traveler wants fast directions to, distinct from
+  /// [getTripStops]'s itinerary stops. Each trip has its own independent
+  /// list, backed by `trip_favorite_stops`.
+  Future<List<TripStopLocation>> getFavoriteStops(String tripId) async {
+    final rows = await retryOnJwtClockSkew(
+      () => _client
+          .from('trip_favorite_stops')
+          .select()
+          .eq('trip_id', tripId)
+          .order('created_at'),
+    );
+    return [for (final row in rows) TripStopLocation.fromMap(row)];
+  }
+
+  Future<TripStopLocation> addFavoriteStop(
+    String tripId,
+    TripStopLocation stop,
+  ) async {
+    final row = await retryOnJwtClockSkew(
+      () => _client
+          .from('trip_favorite_stops')
+          .insert({
+            'trip_id': tripId,
+            'name': stop.name,
+            'address': stop.address,
+            'latitude': stop.latitude,
+            'longitude': stop.longitude,
+            'osm_id': stop.osmId,
+            'category': stop.category,
+            'created_by': _uid,
+          })
+          .select()
+          .single(),
+    );
+    return TripStopLocation.fromMap(row);
+  }
+
+  Future<void> removeFavoriteStop(String favoriteStopId) async {
+    await retryOnJwtClockSkew(
+      () => _client
+          .from('trip_favorite_stops')
+          .delete()
+          .eq('id', favoriteStopId),
+    );
+  }
+
   /// Fetches a trip's current name, for screens that only hold its id
   /// (Budget/Group screens no longer hardcode "Penang Adventure").
   Future<String> getTripName(String tripId) async {

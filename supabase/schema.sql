@@ -163,6 +163,23 @@ create table public.trip_stops (
   created_at timestamptz not null default now()
 );
 
+-- Per-trip "quick" stops a traveler saves for fast directions — e.g. a
+-- nearby 7-Eleven or pharmacy they'll want to nip to, not a must-visit
+-- itinerary stop. Same row shape as `trip_stops` but deliberately a
+-- separate table: these must never show up on the trip map or schedule.
+create table public.trip_favorite_stops (
+  id uuid primary key default gen_random_uuid(),
+  trip_id uuid not null references public.trips (id) on delete cascade,
+  name text not null,
+  address text not null default '',
+  latitude double precision not null,
+  longitude double precision not null,
+  osm_id text,
+  category text not null default 'Other',
+  created_by uuid not null references auth.users (id),
+  created_at timestamptz not null default now()
+);
+
 -- One row per selected "auto-recommend" interest category.
 create table public.trip_interests (
   trip_id uuid not null references public.trips (id) on delete cascade,
@@ -374,6 +391,7 @@ alter table public.budget_categories enable row level security;
 alter table public.expenses enable row level security;
 alter table public.trip_balances enable row level security;
 alter table public.trip_stops enable row level security;
+alter table public.trip_favorite_stops enable row level security;
 alter table public.trip_interests enable row level security;
 alter table public.trip_schedule_stops enable row level security;
 
@@ -507,6 +525,12 @@ create policy "balances_write_organizer" on public.trip_balances
 create policy "trip_stops_select_members" on public.trip_stops
   for select to authenticated using (public.is_trip_member(trip_id));
 create policy "trip_stops_write_members" on public.trip_stops
+  for all to authenticated using (public.is_trip_member(trip_id))
+  with check (public.is_trip_member(trip_id));
+
+create policy "trip_favorite_stops_select_members" on public.trip_favorite_stops
+  for select to authenticated using (public.is_trip_member(trip_id));
+create policy "trip_favorite_stops_write_members" on public.trip_favorite_stops
   for all to authenticated using (public.is_trip_member(trip_id))
   with check (public.is_trip_member(trip_id));
 

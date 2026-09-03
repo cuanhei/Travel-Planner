@@ -240,7 +240,7 @@ class _LocationSearchFieldState extends State<LocationSearchField> {
         ),
         if (_showDropdown) ...[
           const SizedBox(height: 8),
-          _ResultsDropdown(
+          LocationResultsDropdown(
             loading: _searching,
             error: _error,
             results: _results,
@@ -320,8 +320,14 @@ class _QuickActionRow extends StatelessWidget {
   }
 }
 
-class _ResultsDropdown extends StatelessWidget {
-  const _ResultsDropdown({
+/// Shared results-list chrome for a [TripStopLocation] search dropdown —
+/// used by [LocationSearchField] itself (Photon-backed) and reused as-is
+/// by Create Trip's Google-Places-backed stop picker, so both search
+/// experiences look identical regardless of which backend found the
+/// results.
+class LocationResultsDropdown extends StatelessWidget {
+  const LocationResultsDropdown({
+    super.key,
     required this.loading,
     required this.error,
     required this.results,
