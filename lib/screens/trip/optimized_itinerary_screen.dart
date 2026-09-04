@@ -4,9 +4,13 @@ import '../../models/day_schedule.dart';
 import '../../models/pending_trip_draft.dart';
 import '../../models/trip_day.dart';
 import '../../models/trip_stop_location.dart';
+import '../../models/unscheduled_stop.dart';
 import '../../services/day_schedule_service.dart';
+import '../../services/gap_filling_service.dart';
 import '../../services/geographic_assignment_service.dart';
+import '../../services/itinerary_validation_service.dart';
 import '../../services/trip_service.dart';
+import '../../services/weather_adjustment_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/detail_header.dart';
 import '../../widgets/gradient_button.dart';
@@ -68,6 +72,8 @@ class OptimizedItineraryScreen extends StatefulWidget {
 class _OptimizedItineraryScreenState extends State<OptimizedItineraryScreen> {
   final _assignmentService = GeographicAssignmentService();
   final _scheduleService = DayScheduleService();
+  final _weatherAdjustmentService = WeatherAdjustmentService();
+  final _gapFillingService = GapFillingService();
   late final List<TripDay> _tripDays = buildTripDays(widget.draft);
   late final Future<List<DaySchedule>> _scheduleFuture = _computeSchedules();
 
@@ -83,7 +89,7 @@ class _OptimizedItineraryScreenState extends State<OptimizedItineraryScreen> {
       assignment = _assignmentService.assignPlacesToDays(detours);
     }
 
-    return [
+    final baseSchedules = [
       for (final day in _tripDays)
         await _scheduleService.scheduleDay(
           day: day,
@@ -92,6 +98,29 @@ class _OptimizedItineraryScreenState extends State<OptimizedItineraryScreen> {
           dayEnd: widget.draft.endTime,
         ),
     ];
+
+    final weatherAdjusted = await _weatherAdjustmentService.adjust(
+      baseSchedules: baseSchedules,
+      dayStart: widget.draft.startTime,
+      dayEnd: widget.draft.endTime,
+    );
+
+    final gapFilled = await _gapFillingService.fillGaps(
+      schedules: weatherAdjusted,
+      dayStart: widget.draft.startTime,
+    );
+
+    final issues = validateItinerary(gapFilled);
+    if (issues.isEmpty) {
+      debugPrint('[ItineraryValidation] All checks passed.');
+    } else {
+      debugPrint('[ItineraryValidation] ${issues.length} issue(s) found:');
+      for (final issue in issues) {
+        debugPrint('[ItineraryValidation] - $issue');
+      }
+    }
+
+    return gapFilled;
   }
 
   @override
@@ -153,7 +182,7 @@ class _OptimizedItineraryScreenState extends State<OptimizedItineraryScreen> {
                         for (final schedule in schedules)
                           _TripDaySection(schedule: schedule),
                         if (unscheduled.isNotEmpty)
-                          _UnscheduledSection(stops: unscheduled),
+                          _UnscheduledSection(entries: unscheduled),
                       ],
                       const SizedBox(height: 8),
                       _SaveTripButton(
@@ -577,13 +606,28 @@ class _ScheduledStopCard extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      stop.name,
-                      style: TextStyle(
-                        color: context.colors.ink,
-                        fontWeight: FontWeight.w700,
-                        fontSize: 14,
-                      ),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            stop.name,
+                            style: TextStyle(
+                              color: context.colors.ink,
+                              fontWeight: FontWeight.w700,
+                              fontSize: 14,
+                            ),
+                          ),
+                        ),
+                        if (scheduledStop.hasWeatherConcern)
+                          const Padding(
+                            padding: EdgeInsets.only(left: 6),
+                            child: Icon(
+                              Icons.umbrella_rounded,
+                              size: 16,
+                              color: Colors.orange,
+                            ),
+                          ),
+                      ],
                     ),
                     const SizedBox(height: 3),
                     Text(
@@ -626,13 +670,14 @@ class _ScheduledStopCard extends StatelessWidget {
   }
 }
 
-/// Every stop that couldn't be fit into any order tried for its
-/// assigned day — see [DaySchedule.unscheduledStops]. Not deleted, just
-/// not on the timeline; a traveler can still manually work one in later.
+/// Every stop that couldn't be fit anywhere — not its assigned day, not
+/// another day with better weather, not a leftover gap on any day — see
+/// [DaySchedule.unscheduledStops]. Not deleted, just not on the
+/// timeline; a traveler can still manually work one in later.
 class _UnscheduledSection extends StatelessWidget {
-  const _UnscheduledSection({required this.stops});
+  const _UnscheduledSection({required this.entries});
 
-  final List<TripStopLocation> stops;
+  final List<UnscheduledStop> entries;
 
   @override
   Widget build(BuildContext context) {
@@ -673,21 +718,38 @@ class _UnscheduledSection extends StatelessWidget {
             style: TextStyle(color: context.colors.muted, fontSize: 11.5),
           ),
           const SizedBox(height: 12),
-          for (final stop in stops)
+          for (final entry in entries)
             Padding(
-              padding: const EdgeInsets.only(bottom: 6),
+              padding: const EdgeInsets.only(bottom: 10),
               child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Icon(stop.categoryIcon, size: 16, color: context.colors.muted),
+                  Icon(
+                    entry.stop.categoryIcon,
+                    size: 16,
+                    color: context.colors.muted,
+                  ),
                   const SizedBox(width: 8),
                   Expanded(
-                    child: Text(
-                      stop.name,
-                      style: TextStyle(
-                        color: context.colors.ink,
-                        fontWeight: FontWeight.w600,
-                        fontSize: 13,
-                      ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          entry.stop.name,
+                          style: TextStyle(
+                            color: context.colors.ink,
+                            fontWeight: FontWeight.w600,
+                            fontSize: 13,
+                          ),
+                        ),
+                        Text(
+                          entry.reason,
+                          style: TextStyle(
+                            color: context.colors.muted,
+                            fontSize: 11,
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                 ],

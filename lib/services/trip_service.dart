@@ -28,6 +28,17 @@ class TripService {
 
   final SupabaseClient _client;
 
+  /// Bumped whenever a trip is created — [TripsTab] (and anywhere else
+  /// that lists trips) listens to this instead of only reloading right
+  /// after its own "Create Trip" push, so a trip created from a
+  /// different entry point (Home dashboard, Add to Trip, ...) still
+  /// shows up without the traveler needing to manually pull-to-refresh.
+  /// Static because the trips list lives in a bottom-nav tab kept alive
+  /// in an `IndexedStack` — it isn't re-pushed/popped when a trip is
+  /// created elsewhere, so there's no navigation event for it to react
+  /// to otherwise.
+  static final ValueNotifier<int> tripsChanged = ValueNotifier<int>(0);
+
   static String? _cachedTripId;
   static Future<String>? _inFlight;
 
@@ -91,6 +102,7 @@ class TripService {
     );
 
     _cachedTripId = tripId;
+    tripsChanged.value++;
     return tripId;
   }
 
@@ -174,6 +186,7 @@ class TripService {
       );
     }
 
+    tripsChanged.value++;
     return tripId;
   }
 
