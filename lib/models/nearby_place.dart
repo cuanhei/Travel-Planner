@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import 'opening_period.dart';
+
 /// A real place from Google Places API (New) Nearby Search — backs the
 /// Explore tab's "Nearby Places" section. Distinct from the dummy
 /// `Place` catalog Popular Destinations/Categories still use.
@@ -19,6 +21,10 @@ class NearbyPlace {
     required this.regularOpeningHours,
     required this.currentOpeningHours,
     required this.openNow,
+    required this.rating,
+    required this.userRatingCount,
+    required this.regularOpeningPeriods,
+    required this.currentOpeningPeriods,
     this.distanceKm,
   });
 
@@ -66,6 +72,29 @@ class NearbyPlace {
   /// `currentOpeningHours.openNow` — whether the place is open right
   /// now, per Google. Null if Places didn't return hours at all.
   final bool? openNow;
+
+  /// Google's 1.0–5.0 average rating, or null if Places has none for
+  /// this place.
+  final double? rating;
+
+  /// How many ratings [rating] is based on, or null.
+  final int? userRatingCount;
+
+  /// Structured open/close windows from `regularOpeningHours.periods` —
+  /// machine-checkable, unlike [regularOpeningHours]'s display strings.
+  /// See [OpeningPeriod].
+  final List<OpeningPeriod>? regularOpeningPeriods;
+
+  /// Same as [regularOpeningPeriods] but from `currentOpeningHours`,
+  /// reflecting near-term exceptions (e.g. a holiday closure) rather
+  /// than just the typical weekly schedule.
+  final List<OpeningPeriod>? currentOpeningPeriods;
+
+  /// [currentOpeningPeriods] if present (more specific), else
+  /// [regularOpeningPeriods] — mirrors [openingHours]'s same preference,
+  /// but as machine-checkable periods rather than display strings.
+  List<OpeningPeriod>? get openingPeriods =>
+      currentOpeningPeriods ?? regularOpeningPeriods;
 
   /// Straight-line distance from the search center, in kilometers. Null
   /// until [withDistanceKm] sets it.
@@ -116,6 +145,10 @@ class NearbyPlace {
     regularOpeningHours: regularOpeningHours,
     currentOpeningHours: currentOpeningHours,
     openNow: openNow,
+    rating: rating,
+    userRatingCount: userRatingCount,
+    regularOpeningPeriods: regularOpeningPeriods,
+    currentOpeningPeriods: currentOpeningPeriods,
     distanceKm: km,
   );
 
@@ -137,8 +170,8 @@ class NearbyPlace {
       id: json['id'] as String,
       name: (displayName?['text'] as String?) ?? 'Unnamed place',
       address: (json['formattedAddress'] as String?) ?? '',
-      latitude: (location?['latitude'] as num?)?.toDouble() ?? 0,
-      longitude: (location?['longitude'] as num?)?.toDouble() ?? 0,
+      latitude: (location?['latitude'] as num?)?.toDouble() ?? double.nan,
+      longitude: (location?['longitude'] as num?)?.toDouble() ?? double.nan,
       primaryType: json['primaryType'] as String?,
       photoUrl: firstPhotoName == null
           ? null
@@ -147,10 +180,16 @@ class NearbyPlace {
       businessStatus: json['businessStatus'] as String?,
       editorialSummary: editorialSummary?['text'] as String?,
       priceLevel: json['priceLevel'] as String?,
-      priceRangeLabel: _priceRangeLabel(json['priceRange'] as Map<String, dynamic>?),
+      priceRangeLabel: _priceRangeLabel(
+        json['priceRange'] as Map<String, dynamic>?,
+      ),
       regularOpeningHours: _weekdayDescriptions(regularHours),
       currentOpeningHours: _weekdayDescriptions(currentHours),
       openNow: (currentHours?['openNow'] ?? regularHours?['openNow']) as bool?,
+      rating: (json['rating'] as num?)?.toDouble(),
+      userRatingCount: json['userRatingCount'] as int?,
+      regularOpeningPeriods: parseOpeningPeriods(regularHours),
+      currentOpeningPeriods: parseOpeningPeriods(currentHours),
     );
   }
 }
@@ -165,7 +204,8 @@ String? _priceRangeLabel(Map<String, dynamic>? range) {
   if (range == null) return null;
   final start = range['startPrice'] as Map<String, dynamic>?;
   final end = range['endPrice'] as Map<String, dynamic>?;
-  final currency = (start?['currencyCode'] as String?) ??
+  final currency =
+      (start?['currencyCode'] as String?) ??
       (end?['currencyCode'] as String?) ??
       '';
   final startUnits = start?['units'] as String?;

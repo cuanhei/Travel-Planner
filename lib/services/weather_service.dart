@@ -44,6 +44,38 @@ class ResolvedWeather {
   final String areaLabel;
 }
 
+/// The full multi-day forecast window for a resolved area, plus the name
+/// it was matched under — see [ResolvedWeather] and
+/// [WeatherService.getForecastWindowForPosition]. Sorted ascending by
+/// date; how many days out this actually reaches depends entirely on
+/// what `api.data.gov.my` currently publishes for that town (typically
+/// under two weeks, but not a guaranteed fixed number) — a caller
+/// planning a trip day beyond the last entry here has no forecast for
+/// that date, full stop, rather than an assumed/extrapolated one.
+class ResolvedWeatherWindow {
+  const ResolvedWeatherWindow({
+    required this.forecasts,
+    required this.areaLabel,
+  });
+
+  final List<WeatherForecast> forecasts;
+  final String areaLabel;
+
+  /// The forecast for [date] (matched by calendar day), or null if that
+  /// date falls outside this window — the per-trip-day
+  /// "weatherAvailable" check the scheduling engine needs.
+  WeatherForecast? forecastForDate(DateTime date) {
+    for (final forecast in forecasts) {
+      if (forecast.date.year == date.year &&
+          forecast.date.month == date.month &&
+          forecast.date.day == date.day) {
+        return forecast;
+      }
+    }
+    return null;
+  }
+}
+
 /// Forecast data for Malaysia via the government's open API
 /// (`api.data.gov.my`, sourced from MET Malaysia) — no API key needed.
 /// Town-level ("Tn") is the finest granularity the API offers; there's
@@ -72,6 +104,35 @@ class WeatherService {
   /// other failure — a network error, no reverse-geocode result at all,
   /// or no confident town match.
   Future<ResolvedWeather> getForecastForPosition(LatLng point) async {
+    final match = await _resolveTown(point);
+    final forecast = await getForecastForLocationId(match.locationId);
+    if (forecast == null) {
+      throw WeatherServiceException('No forecast available for ${match.name}.');
+    }
+    return ResolvedWeather(forecast: forecast, areaLabel: match.name);
+  }
+
+  /// Same GPS→town resolution as [getForecastForPosition], but returns
+  /// the *entire* published forecast window instead of collapsing it to
+  /// a single day — for the trip-scheduling engine, which needs to check
+  /// weather availability independently for every date in a trip, not
+  /// just today. Throws the same [LocationNotInMalaysiaException]/
+  /// [WeatherServiceException] cases.
+  Future<ResolvedWeatherWindow> getForecastWindowForPosition(
+    LatLng point,
+  ) async {
+    final match = await _resolveTown(point);
+    final forecasts = await getForecastWindowForLocationId(match.locationId);
+    if (forecasts.isEmpty) {
+      throw WeatherServiceException('No forecast available for ${match.name}.');
+    }
+    return ResolvedWeatherWindow(forecasts: forecasts, areaLabel: match.name);
+  }
+
+  /// Resolves [point] to the nearest MET Malaysia town — the shared
+  /// GPS→town step behind both [getForecastForPosition] and
+  /// [getForecastWindowForPosition].
+  Future<({String locationId, String name})> _resolveTown(LatLng point) async {
     final ({String? city, String? district, String? state, String? countryCode})?
     area;
     try {
@@ -100,12 +161,7 @@ class WeatherService {
         'Could not match your location to a forecast area.',
       );
     }
-
-    final forecast = await getForecastForLocationId(match.locationId);
-    if (forecast == null) {
-      throw WeatherServiceException('No forecast available for ${match.name}.');
-    }
-    return ResolvedWeather(forecast: forecast, areaLabel: match.name);
+    return match;
   }
 
   /// Today's forecast for a specific `location_id` (e.g. `"Tn013"`), or
@@ -117,6 +173,23 @@ class WeatherService {
   /// so this fetches the whole window and explicitly picks the entry
   /// whose `date` matches today, rather than assuming a fixed position.
   Future<WeatherForecast?> getForecastForLocationId(String locationId) async {
+    final forecasts = await _fetchWindow(locationId);
+    return _pickTodayOrNearest(forecasts);
+  }
+
+  /// The *entire* published forecast window for a `location_id`, sorted
+  /// ascending by date, instead of [getForecastForLocationId]'s
+  /// single-day pick — for the trip-scheduling engine, which needs to
+  /// check every trip date independently against whatever window MET
+  /// Malaysia currently publishes (see [ResolvedWeatherWindow]).
+  Future<List<WeatherForecast>> getForecastWindowForLocationId(
+    String locationId,
+  ) async {
+    final forecasts = await _fetchWindow(locationId);
+    return [...forecasts]..sort((a, b) => a.date.compareTo(b.date));
+  }
+
+  Future<List<WeatherForecast>> _fetchWindow(String locationId) async {
     final uri = Uri.parse('$_baseUrl/weather/forecast').replace(
       queryParameters: {
         'contains': '$locationId@location__location_id',
@@ -130,12 +203,10 @@ class WeatherService {
       );
     }
     final decoded = jsonDecode(response.body) as List;
-    if (decoded.isEmpty) return null;
-    final forecasts = [
+    return [
       for (final row in decoded)
         WeatherForecast.fromJson(row as Map<String, dynamic>),
     ];
-    return _pickTodayOrNearest(forecasts);
   }
 
   /// The entry dated today, or — if the API hasn't published today's row

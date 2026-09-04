@@ -9,13 +9,21 @@ import '../utils/geo.dart';
 
 const _nearbySearchEndpoint =
     'https://places.googleapis.com/v1/places:searchNearby';
-const _textSearchEndpoint = 'https://places.googleapis.com/v1/places:searchText';
+const _textSearchEndpoint =
+    'https://places.googleapis.com/v1/places:searchText';
 
+// `places.regularOpeningHours`/`places.currentOpeningHours` below are
+// requested unnarrowed (no `.periods`/`.weekdayDescriptions` suffix), so
+// Places already returns the full OpeningHours object for each — that's
+// where `NearbyPlace`'s structured `regularOpeningPeriods`/
+// `currentOpeningPeriods` (see opening_period.dart) come from, no
+// separate field-mask entry needed for them.
 const _fieldMask =
     'places.id,places.displayName,places.formattedAddress,'
     'places.location,places.primaryType,places.photos,places.businessStatus,'
     'places.editorialSummary,places.priceLevel,places.priceRange,'
-    'places.regularOpeningHours,places.currentOpeningHours';
+    'places.regularOpeningHours,places.currentOpeningHours,'
+    'places.rating,places.userRatingCount';
 
 const _defaultRadiusMeters = 3000.0;
 const _maxResultCount = 20;
@@ -106,7 +114,18 @@ class GooglePlacesService {
   /// is no [NearbyPlace.distanceKm] to compute here (stays null).
   /// Biased to Malaysia via `regionCode`, matching every other search
   /// backend in this app (Photon's Malaysia bbox).
-  Future<List<NearbyPlace>> textSearch(String query) async {
+  ///
+  /// [includedType] restricts results to one Places "Table A" type (e.g.
+  /// `'lodging'` for Create Trip's accommodation picker, so searching
+  /// "Grand Hyatt" doesn't also surface an unrelated clinic or bank of
+  /// the same name) — a hint by default; pass [strictTypeFiltering] to
+  /// exclude non-matching types outright rather than just deprioritizing
+  /// them. Both are ignored (no restriction) when [includedType] is null.
+  Future<List<NearbyPlace>> textSearch(
+    String query, {
+    String? includedType,
+    bool strictTypeFiltering = false,
+  }) async {
     final apiKey = _apiKey;
     if (apiKey.isEmpty) {
       throw GooglePlacesRequestException(
@@ -124,6 +143,10 @@ class GooglePlacesService {
         'textQuery': query,
         'regionCode': 'MY',
         'maxResultCount': _textSearchResultCount,
+        if (includedType != null) ...{
+          'includedType': includedType,
+          'strictTypeFiltering': strictTypeFiltering,
+        },
       }),
     );
     if (response.statusCode != 200) {
@@ -138,12 +161,22 @@ class GooglePlacesService {
     final decoded = jsonDecode(responseBody) as Map<String, dynamic>;
     final results = (decoded['places'] as List?) ?? const [];
     return [
-      for (final r in results)
-        NearbyPlace.fromJson(
-          r as Map<String, dynamic>,
-          apiKey: apiKey,
-          photoMaxWidthPx: _photoMaxWidthPx,
-        ),
-    ];
+          for (final r in results)
+            NearbyPlace.fromJson(
+              r as Map<String, dynamic>,
+              apiKey: apiKey,
+              photoMaxWidthPx: _photoMaxWidthPx,
+            ),
+        ]
+        .where(
+          (p) =>
+              p.latitude.isFinite &&
+              p.longitude.isFinite &&
+              p.latitude >= -90 &&
+              p.latitude <= 90 &&
+              p.longitude >= -180 &&
+              p.longitude <= 180,
+        )
+        .toList();
   }
 }

@@ -5,22 +5,34 @@ import '../../widgets/detail_header.dart';
 import '../../widgets/gradient_button.dart';
 import 'stop_form_screen.dart';
 import 'trip_data.dart';
+import 'real_edit_schedule_view.dart';
 
-/// UI-only trip editor, styled like the Daily Timeline: day tabs up top,
-/// a vertical timeline of that day's stops below. Stops can be added,
-/// edited, removed, and dragged to override the visiting order — except
-/// on days before [_currentDay], which are already complete and shown
-/// grayed out, view-only. The original order is treated as
-/// route/weather-optimized, so overriding it (on editable days) prompts
-/// a confirmation warning before the change is allowed to stick.
+/// Editor for a trip's itinerary: day tabs up top, a vertical timeline
+/// of that day's stops below. [tripId] set (the normal case, reached
+/// from Trip Details) loads and edits the real, persisted schedule —
+/// see [RealEditScheduleView]. With [tripId] null this instead renders a
+/// UI-only preview over an itinerary that doesn't exist in the database
+/// yet ([previewMode]'s pre-trip-creation "Review Schedule" step, or a
+/// caller-supplied [initialItems]/[dayCount] more generally) — the rest
+/// of this class handles that mock path. Stops can be added, edited,
+/// removed, and dragged to override the visiting order — except on days
+/// before [_currentDay], which are already complete and shown grayed
+/// out, view-only. The original order is treated as route/weather-
+/// optimized, so overriding it (on editable days) prompts a confirmation
+/// warning before the change is allowed to stick.
 class EditScheduleScreen extends StatefulWidget {
   const EditScheduleScreen({
     super.key,
+    this.tripId,
     this.initialItems,
     this.dayCount,
     this.previewMode = false,
     this.onConfirm,
   });
+
+  /// A real, already-created trip to load and edit. When set, every
+  /// other field below is ignored — see [RealEditScheduleView].
+  final String? tripId;
 
   /// An optimized itinerary supplied before a trip exists. In preview mode
   /// the route is intentionally read-only: go back to Create Trip to change
@@ -374,6 +386,9 @@ class _EditScheduleScreenState extends State<EditScheduleScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final tripId = widget.tripId;
+    if (tripId != null) return RealEditScheduleView(tripId: tripId);
+
     final reordered = _isReordered;
     final maxDay = _maxDay;
     final selectedDay = _selectedDay.clamp(1, maxDay);

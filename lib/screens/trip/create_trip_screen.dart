@@ -5,42 +5,15 @@ import 'package:flutter/services.dart'
     show FilteringTextInputFormatter, TextInputFormatter;
 
 import '../../models/trip.dart';
+import '../../models/trip_draft.dart';
 import '../../models/trip_stop_location.dart';
 import '../../services/trip_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/detail_header.dart';
+import '../../widgets/google_place_search_field.dart';
 import '../../widgets/gradient_button.dart';
-import '../explore/explore_tab.dart' show Place, places;
-import 'optimized_itinerary_screen.dart';
+import 'ai_planner_screen.dart';
 import 'trip_location_picker.dart';
-
-/// A Malaysian city/state pair for the Starting From / Ending At pickers —
-/// a small fixed list standing in for what used to be a live postcode
-/// lookup; the picker UI itself is unchanged.
-class _City {
-  const _City(this.city, this.state);
-  final String city;
-  final String state;
-  String get label => '$city, $state';
-}
-
-const _dummyCities = [
-  _City('George Town', 'Penang'),
-  _City('Butterworth', 'Penang'),
-  _City('Kuala Lumpur', 'Federal Territory'),
-  _City('Petaling Jaya', 'Selangor'),
-  _City('Shah Alam', 'Selangor'),
-  _City('Johor Bahru', 'Johor'),
-  _City('Malacca City', 'Malacca'),
-  _City('Ipoh', 'Perak'),
-  _City('Kota Kinabalu', 'Sabah'),
-  _City('Kuching', 'Sarawak'),
-  _City('Alor Setar', 'Kedah'),
-  _City('Kota Bharu', 'Kelantan'),
-  _City('Kuantan', 'Pahang'),
-  _City('Seremban', 'Negeri Sembilan'),
-  _City('Kangar', 'Perlis'),
-];
 
 const _monthNames = [
   'Jan',
@@ -116,6 +89,40 @@ const _interestOptions = [
   ),
 ];
 
+/// The transport-mode choices from the trip-planning spec (§2.1's
+/// "Preferred transportation mode") — [value] matches
+/// `trips.transport_mode`'s check constraint (also 'mixed', but that's
+/// not offered here: the scheduling engine only supports one mode for
+/// the whole trip today, see `RouteServiceTravelMatrix`).
+const _transportModeOptions = [
+  (label: 'Driving', icon: Icons.directions_car_rounded, value: 'drive'),
+  (
+    label: 'Public Transport',
+    icon: Icons.directions_bus_filled_rounded,
+    value: 'public_transport',
+  ),
+  (label: 'Walking', icon: Icons.directions_walk_rounded, value: 'walk'),
+];
+
+/// The 3 accommodation choices from the trip-planning spec (§4) — how
+/// `trips.accommodation_mode` gets set. [addMine] additionally captures
+/// one hotel (see [_CreateTripScreenState._accommodationStop]) applied
+/// to every night of the trip; assigning a *different* hotel to
+/// individual nights is a future enhancement (`trip_accommodations` is
+/// already shaped per-night to support it once that UI exists).
+enum _AccommodationChoice {
+  addMine,
+  recommend,
+  skip;
+
+  /// Matches `trips.accommodation_mode`'s check constraint values.
+  String get dbValue => switch (this) {
+    _AccommodationChoice.addMine => 'add_mine',
+    _AccommodationChoice.recommend => 'recommend',
+    _AccommodationChoice.skip => 'skip',
+  };
+}
+
 /// Trip creation form: name/description, trip logistics, a real
 /// map/search location picker for picking stops (see
 /// [TripLocationPicker]), interest categories, and an optional
@@ -131,11 +138,13 @@ class CreateTripScreen extends StatefulWidget {
 class _CreateTripScreenState extends State<CreateTripScreen> {
   final _formKey = GlobalKey<FormState>();
   final _nameFieldKey = GlobalKey<FormFieldState<String>>();
-  final _startCityFieldKey = GlobalKey<FormFieldState<_City>>();
-  final _endCityFieldKey = GlobalKey<FormFieldState<_City>>();
+  final _startLocationFieldKey = GlobalKey<FormFieldState<TripStopLocation>>();
+  final _endLocationFieldKey = GlobalKey<FormFieldState<TripStopLocation>>();
   final _dateRangeFieldKey = GlobalKey<FormFieldState<DateTimeRange>>();
   final _budgetFieldKey = GlobalKey<FormFieldState<String>>();
   final _locationsFieldKey = GlobalKey<FormFieldState<bool>>();
+  final _accommodationFieldKey =
+      GlobalKey<FormFieldState<Map<DateTime, TripStopLocation>>>();
   final _listScrollController = ScrollController();
 
   final _nameController = TextEditingController();
@@ -143,14 +152,35 @@ class _CreateTripScreenState extends State<CreateTripScreen> {
   final _budgetController = TextEditingController(text: '1000');
   final _tripService = TripService();
   late final Future<List<Trip>> _myTripsFuture = _tripService.myTrips();
-  _City? _startCity;
-  _City? _endCity;
+
+  /// The real, geocoded Starting-From / Ending-At places (spec §2.1's
+  /// "Starting location") — anchor Day 1's start and the last day's end
+  /// (spec §16) when no accommodation covers that side of the trip. Saved
+  /// as their own `trip_stops` rows and linked via
+  /// `trips.start_location_stop_id`/`end_location_stop_id` (see
+  /// [_saveTripLocations]), distinct from [_selectedStops] (places to
+  /// actually visit).
+  TripStopLocation? _startLocation;
+  TripStopLocation? _endLocation;
   DateTimeRange? _dateRange;
   TimeOfDay _startTime = const TimeOfDay(hour: 9, minute: 0);
   TimeOfDay _endTime = const TimeOfDay(hour: 18, minute: 0);
   final Set<String> _selectedInterests = {'Shopping', 'Food'};
   final Set<TripStopLocation> _selectedStops = {};
+
+  /// Defaults to driving — a real, always-set choice (not left null)
+  /// same as [_startTime]/[_endTime], so there's never a "not yet
+  /// chosen" state for the scheduler to fall back from.
+  String _transportMode = 'drive';
   bool _autoRecommend = true;
+  _AccommodationChoice _accommodationChoice = _AccommodationChoice.skip;
+
+  /// One accommodation stop per night — spec §4.1's "accommodation can
+  /// be assigned by night" (e.g. `10 Sep night -> Hotel A`, `11 Sep
+  /// night -> Hotel B`), not a single stop applied blindly to the whole
+  /// trip. Keyed by the night's date (the date the traveler *leaves
+  /// from* the next morning, matching [_tripNights]).
+  final Map<DateTime, TripStopLocation> _accommodationByNight = {};
   bool _isSubmitting = false;
   bool _hasTriedSubmitting = false;
 
@@ -192,26 +222,36 @@ class _CreateTripScreenState extends State<CreateTripScreen> {
     super.dispose();
   }
 
-  Future<void> _pickStartCity() async {
-    final picked = await _pickCity(context);
-    if (picked == null) return;
-    setState(() => _startCity = picked);
-    _startCityFieldKey.currentState?.didChange(picked);
+  Future<void> _pickStartLocation() async {
+    final picked = await _pickTripLocation(
+      title: 'Starting From',
+      hintText: 'Search for a city, airport, or address…',
+    );
+    if (picked == null || !mounted) return;
+    setState(() => _startLocation = picked);
+    _startLocationFieldKey.currentState?.didChange(picked);
   }
 
-  Future<void> _pickEndCity() async {
-    final picked = await _pickCity(context);
-    if (picked == null) return;
-    setState(() => _endCity = picked);
-    _endCityFieldKey.currentState?.didChange(picked);
+  Future<void> _pickEndLocation() async {
+    final picked = await _pickTripLocation(
+      title: 'Ending At',
+      hintText: 'Search for a city, airport, or address…',
+    );
+    if (picked == null || !mounted) return;
+    setState(() => _endLocation = picked);
+    _endLocationFieldKey.currentState?.didChange(picked);
   }
 
-  Future<_City?> _pickCity(BuildContext context) {
-    return showModalBottomSheet<_City>(
+  Future<TripStopLocation?> _pickTripLocation({
+    required String title,
+    required String hintText,
+  }) {
+    return showModalBottomSheet<TripStopLocation>(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (_) => const _CityPickerSheet(),
+      builder: (_) =>
+          _TripLocationPickerSheet(title: title, hintText: hintText),
     );
   }
 
@@ -258,6 +298,59 @@ class _CreateTripScreenState extends State<CreateTripScreen> {
       _endTime = result.endTime;
     });
     _dateRangeFieldKey.currentState?.didChange(result.dateRange);
+    // Nights are derived from the date range — a night no longer in
+    // range (trip shortened) shouldn't keep a stale accommodation entry.
+    setState(() {
+      _accommodationByNight.removeWhere(
+        (night, _) => !_tripNights.contains(night),
+      );
+    });
+  }
+
+  /// Every night of the trip — spec §4.1: `numberOfNights = endDate -
+  /// startDate`, e.g. a 10–12 Sep trip has 2 nights (10th, 11th), not 3.
+  /// Empty until [_dateRange] is set.
+  List<DateTime> get _tripNights {
+    final range = _dateRange;
+    if (range == null) return const [];
+    final nights = <DateTime>[];
+    for (
+      var night = range.start;
+      night.isBefore(range.end);
+      night = night.add(const Duration(days: 1))
+    ) {
+      nights.add(night);
+    }
+    return nights;
+  }
+
+  Future<void> _pickAccommodationForNight(DateTime night) async {
+    final picked = await showModalBottomSheet<TripStopLocation>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (_) => _AccommodationPickerSheet(night: night),
+    );
+    if (picked == null || !mounted) return;
+    setState(() => _accommodationByNight[night] = picked);
+    _accommodationFieldKey.currentState?.didChange(_accommodationByNight);
+  }
+
+  void _clearAccommodationNight(DateTime night) {
+    setState(() => _accommodationByNight.remove(night));
+    _accommodationFieldKey.currentState?.didChange(_accommodationByNight);
+  }
+
+  /// Copies [stop] onto every night that doesn't already have one — the
+  /// common case (one hotel for the whole trip) in a single tap, without
+  /// overwriting nights the traveler already assigned something else to.
+  void _applyAccommodationToAllNights(TripStopLocation stop) {
+    setState(() {
+      for (final night in _tripNights) {
+        _accommodationByNight.putIfAbsent(night, () => stop);
+      }
+    });
+    _accommodationFieldKey.currentState?.didChange(_accommodationByNight);
   }
 
   void _addStop(TripStopLocation stop) {
@@ -313,22 +406,6 @@ class _CreateTripScreenState extends State<CreateTripScreen> {
     );
   }
 
-  /// A catalog-flavored [Place] standing in for a real, geocoded stop —
-  /// lets picked stops flow through the existing (catalog-only)
-  /// itinerary-generation screens without those screens needing to know
-  /// about real coordinates.
-  Place _placeFromStop(TripStopLocation stop) => Place(
-    name: stop.name,
-    area: stop.address,
-    category: stop.category,
-    rating: 0,
-    reviews: 0,
-    gradient: AppColors.dusk,
-    icon: stop.categoryIcon,
-    description: '',
-    avgBudget: 'Varies',
-  );
-
   bool get _canSubmit => !_isSubmitting;
 
   /// Parses the Budget field down to a plain number for
@@ -367,12 +444,12 @@ class _CreateTripScreenState extends State<CreateTripScreen> {
         hasError: () => _nameFieldKey.currentState?.hasError ?? false,
       ),
       (
-        context: () => _startCityFieldKey.currentContext,
-        hasError: () => _startCityFieldKey.currentState?.hasError ?? false,
+        context: () => _startLocationFieldKey.currentContext,
+        hasError: () => _startLocationFieldKey.currentState?.hasError ?? false,
       ),
       (
-        context: () => _endCityFieldKey.currentContext,
-        hasError: () => _endCityFieldKey.currentState?.hasError ?? false,
+        context: () => _endLocationFieldKey.currentContext,
+        hasError: () => _endLocationFieldKey.currentState?.hasError ?? false,
       ),
       (
         context: () => _dateRangeFieldKey.currentContext,
@@ -385,6 +462,10 @@ class _CreateTripScreenState extends State<CreateTripScreen> {
       (
         context: () => _locationsFieldKey.currentContext,
         hasError: () => _locationsFieldKey.currentState?.hasError ?? false,
+      ),
+      (
+        context: () => _accommodationFieldKey.currentContext,
+        hasError: () => _accommodationFieldKey.currentState?.hasError ?? false,
       ),
     ];
 
@@ -467,76 +548,45 @@ class _CreateTripScreenState extends State<CreateTripScreen> {
       return;
     }
 
-    final recommended = _autoRecommend
-        ? places
-              .where(
-                (p) =>
-                    _selectedInterests.contains(p.category) &&
-                    !_selectedStops.any(
-                      (s) => s.name.toLowerCase() == p.name.toLowerCase(),
-                    ),
-              )
-              .take(2)
-              .toList()
-        : <Place>[];
-
-    final finalPlaces = [..._selectedStops.map(_placeFromStop), ...recommended];
-    if (finalPlaces.isEmpty) {
-      _showRequiredMessage(
-        'No matching places found for your interests — try different '
-        'interests, or pick locations manually.',
-      );
-      return;
-    }
-
     final budget = _parseBudget(_budgetController.text);
     setState(() => _isSubmitting = true);
-    try {
-      // Trip details + travel information only, for now — no stops,
-      // interests, or day-by-day schedule yet.
-      await _tripService.createTrip(
-        name: name,
-        description: _descriptionController.text.trim(),
-        destination: _endCity?.label ?? _startCity?.label,
-        startCity: _startCity?.city,
-        startState: _startCity?.state,
-        endCity: _endCity?.city,
-        endState: _endCity?.state,
-        startDate: _dateRange?.start,
-        endDate: _dateRange?.end,
-        startTime: _formatTimeOfDay(_startTime),
-        endTime: _formatTimeOfDay(_endTime),
-        totalBudget: budget,
-        autoRecommend: _autoRecommend,
-      );
-    } catch (e) {
-      // Full exception (PostgrestException's message/code/details/hint)
-      // printed to the console — the SnackBar alone can truncate or get
-      // dismissed before it's readable.
-      debugPrint('Create trip failed: $e');
-      if (!mounted) return;
-      setState(() => _isSubmitting = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          behavior: SnackBarBehavior.floating,
-          duration: const Duration(seconds: 8),
-          content: Text('Could not create trip: $e'),
-        ),
-      );
-      return;
-    }
-    if (!mounted) return;
-    setState(() => _isSubmitting = false);
 
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (_) => OptimizedItineraryScreen(
-          tripName: name,
-          description: _descriptionController.text.trim(),
-          places: finalPlaces,
-          recommendedNames: recommended.map((p) => p.name).toSet(),
-        ),
-      ),
+    // Nothing about this trip touches the database from here — spec:
+    // "Plan My Trip" shouldn't create a trip row itself. AiPlannerScreen
+    // is the one that actually creates it (stops, interests,
+    // accommodation, the works), and only once its own generation run
+    // finishes successfully; if that fails partway through, it rolls
+    // back whatever it already wrote rather than leaving a broken trip
+    // behind. This screen's job ends at handing over everything it
+    // collected.
+    final draft = TripDraft(
+      name: name,
+      description: _descriptionController.text.trim(),
+      destination: _endLocation?.name ?? _startLocation?.name,
+      startCity: _startLocation?.name,
+      endCity: _endLocation?.name,
+      startDate: _dateRange?.start,
+      endDate: _dateRange?.end,
+      startTime: _formatTimeOfDay(_startTime),
+      endTime: _formatTimeOfDay(_endTime),
+      totalBudget: budget,
+      autoRecommend: _autoRecommend,
+      transportMode: _transportMode,
+      accommodationMode: _accommodationChoice.dbValue,
+      selectedStops: Set.of(_selectedStops),
+      selectedInterests: Set.of(_selectedInterests),
+      accommodationByNight: _accommodationChoice == _AccommodationChoice.addMine
+          ? Map.of(_accommodationByNight)
+          : const {},
+      startLocation: _startLocation,
+      endLocation: _endLocation,
+    );
+
+    // Replaces Create Trip in the stack — going back from the itinerary
+    // should return to wherever the traveler was before starting this
+    // form, not back into a stale, already-submitted form.
+    Navigator.of(context).pushReplacement(
+      MaterialPageRoute(builder: (_) => AiPlannerScreen(draft: draft)),
     );
   }
 
@@ -546,11 +596,12 @@ class _CreateTripScreenState extends State<CreateTripScreen> {
   bool get _hasUnsavedInput =>
       _nameController.text.trim().isNotEmpty ||
       _descriptionController.text.trim().isNotEmpty ||
-      _startCity != null ||
-      _endCity != null ||
+      _startLocation != null ||
+      _endLocation != null ||
       _dateRange != null ||
       _budgetController.text.trim() != '1000' ||
-      _selectedStops.isNotEmpty;
+      _selectedStops.isNotEmpty ||
+      _accommodationChoice != _AccommodationChoice.skip;
 
   Future<bool> _confirmDiscard() async {
     final confirmed = await showDialog<bool>(
@@ -611,414 +662,665 @@ class _CreateTripScreenState extends State<CreateTripScreen> {
               Expanded(
                 child: Form(
                   key: _formKey,
-                  child: ListView(
+                  // A plain ListView lazily unmounts children that scroll
+                  // out of the viewport (+ cache extent) — every FormField
+                  // in this list is small enough that virtualization buys
+                  // nothing, but it silently broke Form.validate(): a
+                  // field scrolled far above the "Plan My Trip" button
+                  // (e.g. Starting From/Ending At/Travel Dates & Time) had
+                  // already been disposed and unregistered from the Form
+                  // by the time the traveler scrolled down and tapped
+                  // submit, so validate() skipped it entirely and let a
+                  // blank required field through. SingleChildScrollView +
+                  // Column keeps every field mounted regardless of scroll
+                  // position, so Form.validate() always sees all of them.
+                  child: SingleChildScrollView(
                     controller: _listScrollController,
                     padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
-                    children: [
-                      _SectionCard(
-                        icon: Icons.edit_note_rounded,
-                        title: 'Trip Details',
-                        children: [
-                          _FieldLabel('Trip Name *'),
-                          _InputBox(
-                            controller: _nameController,
-                            icon: Icons.edit_rounded,
-                            hintText: 'e.g. Penang Adventure',
-                            validator: _validateName,
-                            fieldKey: _nameFieldKey,
-                            autovalidateMode: _hasTriedSubmitting
-                                ? AutovalidateMode.always
-                                : AutovalidateMode.onUserInteraction,
-                          ),
-                          const SizedBox(height: 18),
-                          _FieldLabel('Description (optional)'),
-                          _InputBox(
-                            controller: _descriptionController,
-                            icon: Icons.notes_rounded,
-                            maxLines: 3,
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 16),
-                      _SectionCard(
-                        icon: Icons.map_rounded,
-                        title: 'Travel Information',
-                        children: [
-                          _FieldLabel('Starting From *'),
-                          FormField<_City>(
-                            key: _startCityFieldKey,
-                            initialValue: _startCity,
-                            autovalidateMode:
-                                AutovalidateMode.onUserInteraction,
-                            validator: (value) =>
-                                value == null ? 'Choose a starting city' : null,
-                            builder: (field) => Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                _CityField(
-                                  city: _startCity,
-                                  onTap: _pickStartCity,
-                                ),
-                                _FieldError(field.errorText),
-                              ],
-                            ),
-                          ),
-                          const SizedBox(height: 18),
-                          _FieldLabel('Ending At *'),
-                          FormField<_City>(
-                            key: _endCityFieldKey,
-                            initialValue: _endCity,
-                            autovalidateMode:
-                                AutovalidateMode.onUserInteraction,
-                            validator: (value) =>
-                                value == null ? 'Choose an ending city' : null,
-                            builder: (field) => Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                _CityField(city: _endCity, onTap: _pickEndCity),
-                                _FieldError(field.errorText),
-                              ],
-                            ),
-                          ),
-                          const SizedBox(height: 18),
-                          _FieldLabel('Travel Dates & Time *'),
-                          FormField<DateTimeRange>(
-                            key: _dateRangeFieldKey,
-                            initialValue: _dateRange,
-                            autovalidateMode:
-                                AutovalidateMode.onUserInteraction,
-                            validator: (value) => value == null
-                                ? 'Pick your travel dates and time'
-                                : null,
-                            builder: (field) => Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                _ScheduleField(
-                                  dateRange: _dateRange,
-                                  startTime: _startTime,
-                                  endTime: _endTime,
-                                  onTap: _pickDatesAndTimes,
-                                ),
-                                _FieldError(field.errorText),
-                              ],
-                            ),
-                          ),
-                          const SizedBox(height: 18),
-                          _FieldLabel('Budget *'),
-                          _InputBox(
-                            controller: _budgetController,
-                            icon: Icons.account_balance_wallet_rounded,
-                            keyboardType: TextInputType.number,
-                            inputFormatters: [
-                              FilteringTextInputFormatter.digitsOnly,
-                            ],
-                            prefixText: 'RM ',
-                            validator: _validateBudget,
-                            fieldKey: _budgetFieldKey,
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 16),
-                      _SectionCard(
-                        icon: Icons.pin_drop_rounded,
-                        title: 'Locations',
-                        trailing: Row(
-                          mainAxisSize: MainAxisSize.min,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        _SectionCard(
+                          icon: Icons.edit_note_rounded,
+                          title: 'Trip Details',
                           children: [
-                            Text(
-                              '${_selectedStops.length} selected',
-                              style: TextStyle(
-                                color: context.colors.muted,
-                                fontSize: 12,
-                                fontWeight: FontWeight.w600,
-                              ),
+                            _FieldLabel('Trip Name *'),
+                            _InputBox(
+                              controller: _nameController,
+                              icon: Icons.edit_rounded,
+                              hintText: 'e.g. Penang Adventure',
+                              validator: _validateName,
+                              fieldKey: _nameFieldKey,
+                              autovalidateMode: _hasTriedSubmitting
+                                  ? AutovalidateMode.always
+                                  : AutovalidateMode.onUserInteraction,
                             ),
-                            if (_selectedStops.isNotEmpty) ...[
-                              const SizedBox(width: 8),
-                              GestureDetector(
-                                onTap: _confirmClearAllStops,
-                                child: const Text(
-                                  'Clear All',
-                                  style: TextStyle(
-                                    color: Colors.redAccent,
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w700,
-                                  ),
-                                ),
-                              ),
-                            ],
+                            const SizedBox(height: 18),
+                            _FieldLabel('Description (optional)'),
+                            _InputBox(
+                              controller: _descriptionController,
+                              icon: Icons.notes_rounded,
+                              maxLines: 3,
+                            ),
                           ],
                         ),
-                        children: [
-                          Text(
-                            'Search for a real place and add it — every stop '
-                            'you add is plotted on the map below.',
-                            style: TextStyle(
-                              color: context.colors.muted,
-                              fontSize: 12,
-                            ),
-                          ),
-                          const SizedBox(height: 10),
-                          TripLocationPicker(
-                            stops: _selectedStops.toList(),
-                            onAdd: _addStop,
-                          ),
-                          const SizedBox(height: 12),
-                          if (_selectedStops.isEmpty)
-                            Text(
-                              'No locations picked yet.',
-                              style: TextStyle(
-                                color: context.colors.muted,
-                                fontSize: 12,
+                        const SizedBox(height: 16),
+                        _SectionCard(
+                          icon: Icons.map_rounded,
+                          title: 'Travel Information',
+                          children: [
+                            _FieldLabel('Starting From *'),
+                            FormField<TripStopLocation>(
+                              key: _startLocationFieldKey,
+                              initialValue: _startLocation,
+                              autovalidateMode:
+                                  AutovalidateMode.onUserInteraction,
+                              validator: (value) => value == null
+                                  ? 'Choose a starting location'
+                                  : null,
+                              builder: (field) => Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  _LocationField(
+                                    location: _startLocation,
+                                    placeholder: 'Select a starting location',
+                                    onTap: _pickStartLocation,
+                                  ),
+                                  _FieldError(field.errorText),
+                                ],
                               ),
-                            )
-                          else
+                            ),
+                            const SizedBox(height: 18),
+                            _FieldLabel('Ending At *'),
+                            FormField<TripStopLocation>(
+                              key: _endLocationFieldKey,
+                              initialValue: _endLocation,
+                              autovalidateMode:
+                                  AutovalidateMode.onUserInteraction,
+                              validator: (value) => value == null
+                                  ? 'Choose an ending location'
+                                  : null,
+                              builder: (field) => Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  _LocationField(
+                                    location: _endLocation,
+                                    placeholder: 'Select an ending location',
+                                    onTap: _pickEndLocation,
+                                  ),
+                                  _FieldError(field.errorText),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(height: 18),
+                            _FieldLabel('Travel Dates & Time *'),
+                            FormField<DateTimeRange>(
+                              key: _dateRangeFieldKey,
+                              initialValue: _dateRange,
+                              autovalidateMode:
+                                  AutovalidateMode.onUserInteraction,
+                              validator: (value) => value == null
+                                  ? 'Pick your travel dates and time'
+                                  : null,
+                              builder: (field) => Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  _ScheduleField(
+                                    dateRange: _dateRange,
+                                    startTime: _startTime,
+                                    endTime: _endTime,
+                                    onTap: _pickDatesAndTimes,
+                                  ),
+                                  _FieldError(field.errorText),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(height: 18),
+                            _FieldLabel('Transport Mode *'),
                             Wrap(
                               spacing: 10,
                               runSpacing: 10,
-                              children: _selectedStops.map((stop) {
-                                return Container(
-                                  padding: const EdgeInsets.only(
-                                    left: 12,
-                                    right: 6,
-                                    top: 6,
-                                    bottom: 6,
+                              children: _transportModeOptions.map((opt) {
+                                final isSelected = _transportMode == opt.value;
+                                return GestureDetector(
+                                  onTap: () => setState(
+                                    () => _transportMode = opt.value,
                                   ),
-                                  decoration: BoxDecoration(
-                                    color: context.colors.surface,
-                                    borderRadius: BorderRadius.circular(20),
-                                    border: Border.all(
-                                      color: context.colors.muted.withValues(
-                                        alpha: 0.2,
+                                  child: AnimatedContainer(
+                                    duration: const Duration(milliseconds: 200),
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 16,
+                                      vertical: 10,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: isSelected
+                                          ? context.colors.ink
+                                          : context.colors.surface,
+                                      borderRadius: BorderRadius.circular(20),
+                                      border: Border.all(
+                                        color: isSelected
+                                            ? context.colors.ink
+                                            : context.colors.muted.withValues(
+                                                alpha: 0.25,
+                                              ),
                                       ),
                                     ),
-                                  ),
-                                  child: Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      Icon(
-                                        stop.categoryIcon,
-                                        size: 14,
-                                        color: context.colors.ink,
-                                      ),
-                                      const SizedBox(width: 6),
-                                      // Google Places names/addresses run
-                                      // much longer than Photon's did —
-                                      // without Flexible here, the Row (its
-                                      // own width sized to fit its
-                                      // unconstrained children) overflowed
-                                      // the chip whenever a name was long.
-                                      Flexible(
-                                        child: Column(
-                                          crossAxisAlignment:
-                                              CrossAxisAlignment.start,
-                                          mainAxisSize: MainAxisSize.min,
-                                          children: [
-                                            Text(
-                                              stop.name,
-                                              maxLines: 1,
-                                              overflow: TextOverflow.ellipsis,
-                                              style: TextStyle(
-                                                color: context.colors.ink,
-                                                fontWeight: FontWeight.w600,
-                                                fontSize: 12.5,
-                                              ),
-                                            ),
-                                            Text(
-                                              stop.address,
-                                              maxLines: 1,
-                                              overflow: TextOverflow.ellipsis,
-                                              style: TextStyle(
-                                                color: context.colors.muted,
-                                                fontSize: 10,
-                                              ),
-                                            ),
-                                          ],
+                                    child: Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        Icon(
+                                          opt.icon,
+                                          size: 14,
+                                          color: isSelected
+                                              ? Colors.white
+                                              : context.colors.muted,
                                         ),
-                                      ),
-                                      const SizedBox(width: 4),
-                                      GestureDetector(
-                                        onTap: () => _removeStop(stop),
-                                        child: Icon(
-                                          Icons.close_rounded,
-                                          size: 16,
-                                          color: context.colors.muted,
+                                        const SizedBox(width: 6),
+                                        Text(
+                                          opt.label,
+                                          style: TextStyle(
+                                            color: isSelected
+                                                ? Colors.white
+                                                : context.colors.ink,
+                                            fontWeight: FontWeight.w600,
+                                            fontSize: 13,
+                                          ),
                                         ),
-                                      ),
-                                    ],
+                                      ],
+                                    ),
                                   ),
                                 );
                               }).toList(),
                             ),
-                          FormField<bool>(
-                            key: _locationsFieldKey,
-                            initialValue:
-                                _selectedStops.isNotEmpty || _autoRecommend,
-                            autovalidateMode:
-                                AutovalidateMode.onUserInteraction,
-                            validator: (ok) => ok == true
-                                ? null
-                                : 'No locations selected — enable '
-                                      '"Auto-recommend more places", or pick at '
-                                      'least one location.',
-                            builder: (field) => _FieldError(field.errorText),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 16),
-                      _SectionCard(
-                        icon: Icons.tune_rounded,
-                        title: 'Preferences',
-                        children: [
-                          Row(
+                            const SizedBox(height: 18),
+                            _FieldLabel('Budget *'),
+                            _InputBox(
+                              controller: _budgetController,
+                              icon: Icons.account_balance_wallet_rounded,
+                              keyboardType: TextInputType.number,
+                              inputFormatters: [
+                                FilteringTextInputFormatter.digitsOnly,
+                              ],
+                              prefixText: 'RM ',
+                              validator: _validateBudget,
+                              fieldKey: _budgetFieldKey,
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 16),
+                        _SectionCard(
+                          icon: Icons.pin_drop_rounded,
+                          title: 'Locations',
+                          trailing: Row(
+                            mainAxisSize: MainAxisSize.min,
                             children: [
-                              Container(
-                                width: 40,
-                                height: 40,
-                                decoration: BoxDecoration(
-                                  color: AppColors.accent.withValues(
-                                    alpha: 0.12,
+                              Text(
+                                '${_selectedStops.length} selected',
+                                style: TextStyle(
+                                  color: context.colors.muted,
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                              if (_selectedStops.isNotEmpty) ...[
+                                const SizedBox(width: 8),
+                                GestureDetector(
+                                  onTap: _confirmClearAllStops,
+                                  child: const Text(
+                                    'Clear All',
+                                    style: TextStyle(
+                                      color: Colors.redAccent,
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w700,
+                                    ),
                                   ),
-                                  shape: BoxShape.circle,
                                 ),
-                                alignment: Alignment.center,
-                                child: const Icon(
-                                  Icons.auto_awesome_rounded,
-                                  color: AppColors.accent,
-                                  size: 19,
-                                ),
-                              ),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      'Auto-recommend more places',
-                                      style: TextStyle(
-                                        color: context.colors.ink,
-                                        fontWeight: FontWeight.w700,
-                                        fontSize: 13,
-                                      ),
-                                    ),
-                                    const SizedBox(height: 2),
-                                    Text(
-                                      'Add AI-suggested spots that match your interests',
-                                      style: TextStyle(
-                                        color: context.colors.muted,
-                                        fontSize: 11.5,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                              Switch(
-                                value: _autoRecommend,
-                                onChanged: (v) {
-                                  setState(() => _autoRecommend = v);
-                                  _locationsFieldKey.currentState?.didChange(
-                                    _selectedStops.isNotEmpty || v,
-                                  );
-                                },
-                                activeThumbColor: Colors.white,
-                                activeTrackColor: context.colors.ink,
-                              ),
+                              ],
                             ],
                           ),
-                          AnimatedSize(
-                            duration: const Duration(milliseconds: 220),
-                            curve: Curves.easeOut,
-                            alignment: Alignment.topCenter,
-                            child: _autoRecommend
-                                ? Column(
+                          children: [
+                            Text(
+                              'Search for a real place and add it — every stop '
+                              'you add is plotted on the map below.',
+                              style: TextStyle(
+                                color: context.colors.muted,
+                                fontSize: 12,
+                              ),
+                            ),
+                            const SizedBox(height: 10),
+                            TripLocationPicker(
+                              stops: _selectedStops.toList(),
+                              onAdd: _addStop,
+                            ),
+                            const SizedBox(height: 12),
+                            if (_selectedStops.isEmpty)
+                              Text(
+                                'No locations picked yet.',
+                                style: TextStyle(
+                                  color: context.colors.muted,
+                                  fontSize: 12,
+                                ),
+                              )
+                            else
+                              Wrap(
+                                spacing: 10,
+                                runSpacing: 10,
+                                children: _selectedStops.map((stop) {
+                                  return Container(
+                                    padding: const EdgeInsets.only(
+                                      left: 12,
+                                      right: 6,
+                                      top: 6,
+                                      bottom: 6,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: context.colors.surface,
+                                      borderRadius: BorderRadius.circular(20),
+                                      border: Border.all(
+                                        color: context.colors.muted.withValues(
+                                          alpha: 0.2,
+                                        ),
+                                      ),
+                                    ),
+                                    child: Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        Icon(
+                                          stop.categoryIcon,
+                                          size: 14,
+                                          color: context.colors.ink,
+                                        ),
+                                        const SizedBox(width: 6),
+                                        // Google Places names/addresses run
+                                        // much longer than Photon's did —
+                                        // without Flexible here, the Row (its
+                                        // own width sized to fit its
+                                        // unconstrained children) overflowed
+                                        // the chip whenever a name was long.
+                                        Flexible(
+                                          child: Column(
+                                            crossAxisAlignment:
+                                                CrossAxisAlignment.start,
+                                            mainAxisSize: MainAxisSize.min,
+                                            children: [
+                                              Text(
+                                                stop.name,
+                                                maxLines: 1,
+                                                overflow: TextOverflow.ellipsis,
+                                                style: TextStyle(
+                                                  color: context.colors.ink,
+                                                  fontWeight: FontWeight.w600,
+                                                  fontSize: 12.5,
+                                                ),
+                                              ),
+                                              Text(
+                                                stop.address,
+                                                maxLines: 1,
+                                                overflow: TextOverflow.ellipsis,
+                                                style: TextStyle(
+                                                  color: context.colors.muted,
+                                                  fontSize: 10,
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                        const SizedBox(width: 4),
+                                        GestureDetector(
+                                          onTap: () => _removeStop(stop),
+                                          child: Icon(
+                                            Icons.close_rounded,
+                                            size: 16,
+                                            color: context.colors.muted,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  );
+                                }).toList(),
+                              ),
+                            FormField<bool>(
+                              key: _locationsFieldKey,
+                              initialValue:
+                                  _selectedStops.isNotEmpty || _autoRecommend,
+                              autovalidateMode:
+                                  AutovalidateMode.onUserInteraction,
+                              validator: (ok) => ok == true
+                                  ? null
+                                  : 'No locations selected — enable '
+                                        '"Auto-recommend more places", or pick at '
+                                        'least one location.',
+                              builder: (field) => _FieldError(field.errorText),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 16),
+                        _SectionCard(
+                          icon: Icons.hotel_rounded,
+                          title: 'Accommodation',
+                          children: [
+                            Text(
+                              "How should we handle where you're staying?",
+                              style: TextStyle(
+                                color: context.colors.muted,
+                                fontSize: 12,
+                              ),
+                            ),
+                            const SizedBox(height: 12),
+                            _AccommodationOptionTile(
+                              icon: Icons.add_home_rounded,
+                              title: 'Add my accommodation',
+                              subtitle:
+                                  "Search for the hotel, apartment, or stay you've already booked",
+                              selected:
+                                  _accommodationChoice ==
+                                  _AccommodationChoice.addMine,
+                              onTap: () {
+                                setState(
+                                  () => _accommodationChoice =
+                                      _AccommodationChoice.addMine,
+                                );
+                                _accommodationFieldKey.currentState?.didChange(
+                                  _accommodationByNight,
+                                );
+                              },
+                            ),
+                            const SizedBox(height: 10),
+                            _AccommodationOptionTile(
+                              icon: Icons.auto_awesome_rounded,
+                              title: 'Recommend accommodation',
+                              subtitle: "We'll suggest a place to stay for you",
+                              selected:
+                                  _accommodationChoice ==
+                                  _AccommodationChoice.recommend,
+                              onTap: () {
+                                setState(
+                                  () => _accommodationChoice =
+                                      _AccommodationChoice.recommend,
+                                );
+                                _accommodationFieldKey.currentState?.didChange(
+                                  _accommodationByNight,
+                                );
+                              },
+                            ),
+                            const SizedBox(height: 10),
+                            _AccommodationOptionTile(
+                              icon: Icons.not_interested_rounded,
+                              title: "I don't need accommodation planning",
+                              subtitle: "Skip this — I'll sort my own stay",
+                              selected:
+                                  _accommodationChoice ==
+                                  _AccommodationChoice.skip,
+                              onTap: () {
+                                setState(
+                                  () => _accommodationChoice =
+                                      _AccommodationChoice.skip,
+                                );
+                                _accommodationFieldKey.currentState?.didChange(
+                                  _accommodationByNight,
+                                );
+                              },
+                            ),
+                            AnimatedSize(
+                              duration: const Duration(milliseconds: 220),
+                              curve: Curves.easeOut,
+                              alignment: Alignment.topCenter,
+                              child:
+                                  _accommodationChoice ==
+                                      _AccommodationChoice.addMine
+                                  ? Padding(
+                                      padding: const EdgeInsets.only(top: 14),
+                                      child: _tripNights.isEmpty
+                                          ? Text(
+                                              'Pick your travel dates first to assign accommodation by night.',
+                                              style: TextStyle(
+                                                color: context.colors.muted,
+                                                fontSize: 12,
+                                              ),
+                                            )
+                                          : Column(
+                                              crossAxisAlignment:
+                                                  CrossAxisAlignment.start,
+                                              children: [
+                                                for (final night in _tripNights)
+                                                  Padding(
+                                                    padding:
+                                                        const EdgeInsets.only(
+                                                          bottom: 8,
+                                                        ),
+                                                    child: _NightAccommodationRow(
+                                                      night: night,
+                                                      stop:
+                                                          _accommodationByNight[night],
+                                                      onTap: () =>
+                                                          _pickAccommodationForNight(
+                                                            night,
+                                                          ),
+                                                      onClear:
+                                                          _accommodationByNight[night] ==
+                                                              null
+                                                          ? null
+                                                          : () =>
+                                                                _clearAccommodationNight(
+                                                                  night,
+                                                                ),
+                                                    ),
+                                                  ),
+                                                if (_accommodationByNight
+                                                        .isNotEmpty &&
+                                                    _accommodationByNight
+                                                            .length <
+                                                        _tripNights.length)
+                                                  TextButton.icon(
+                                                    onPressed: () =>
+                                                        _applyAccommodationToAllNights(
+                                                          _accommodationByNight
+                                                              .values
+                                                              .first,
+                                                        ),
+                                                    icon: const Icon(
+                                                      Icons.copy_all_rounded,
+                                                      size: 16,
+                                                    ),
+                                                    label: const Text(
+                                                      'Use this for every remaining night',
+                                                    ),
+                                                  ),
+                                              ],
+                                            ),
+                                    )
+                                  : const SizedBox(width: double.infinity),
+                            ),
+                            FormField<Map<DateTime, TripStopLocation>>(
+                              key: _accommodationFieldKey,
+                              initialValue: _accommodationByNight,
+                              autovalidateMode:
+                                  AutovalidateMode.onUserInteraction,
+                              validator: (_) {
+                                if (_accommodationChoice !=
+                                    _AccommodationChoice.addMine) {
+                                  return null;
+                                }
+                                if (_tripNights.isEmpty) {
+                                  return 'Pick your travel dates before adding accommodation.';
+                                }
+                                final missing = _tripNights
+                                    .where(
+                                      (n) =>
+                                          !_accommodationByNight.containsKey(n),
+                                    )
+                                    .isNotEmpty;
+                                return missing
+                                    ? "Assign a place to stay for every night, or choose a different accommodation option."
+                                    : null;
+                              },
+                              builder: (field) => _FieldError(field.errorText),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 16),
+                        _SectionCard(
+                          icon: Icons.tune_rounded,
+                          title: 'Preferences',
+                          children: [
+                            Row(
+                              children: [
+                                Container(
+                                  width: 40,
+                                  height: 40,
+                                  decoration: BoxDecoration(
+                                    color: AppColors.accent.withValues(
+                                      alpha: 0.12,
+                                    ),
+                                    shape: BoxShape.circle,
+                                  ),
+                                  alignment: Alignment.center,
+                                  child: const Icon(
+                                    Icons.auto_awesome_rounded,
+                                    color: AppColors.accent,
+                                    size: 19,
+                                  ),
+                                ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: Column(
                                     crossAxisAlignment:
                                         CrossAxisAlignment.start,
                                     children: [
-                                      const SizedBox(height: 18),
-                                      _FieldLabel('Interests'),
-                                      const SizedBox(height: 4),
-                                      Wrap(
-                                        spacing: 10,
-                                        runSpacing: 10,
-                                        children: _interestOptions.map((opt) {
-                                          final isSelected = _selectedInterests
-                                              .contains(opt.category);
-                                          return GestureDetector(
-                                            onTap: () => setState(() {
-                                              isSelected
-                                                  ? _selectedInterests.remove(
-                                                      opt.category,
-                                                    )
-                                                  : _selectedInterests.add(
-                                                      opt.category,
-                                                    );
-                                            }),
-                                            child: AnimatedContainer(
-                                              duration: const Duration(
-                                                milliseconds: 200,
-                                              ),
-                                              padding:
-                                                  const EdgeInsets.symmetric(
-                                                    horizontal: 16,
-                                                    vertical: 10,
-                                                  ),
-                                              decoration: BoxDecoration(
-                                                color: isSelected
-                                                    ? context.colors.ink
-                                                    : context.colors.surface,
-                                                borderRadius:
-                                                    BorderRadius.circular(20),
-                                                border: Border.all(
-                                                  color: isSelected
-                                                      ? context.colors.ink
-                                                      : context.colors.muted
-                                                            .withValues(
-                                                              alpha: 0.25,
-                                                            ),
-                                                ),
-                                              ),
-                                              child: Row(
-                                                mainAxisSize: MainAxisSize.min,
-                                                children: [
-                                                  Icon(
-                                                    opt.icon,
-                                                    size: 14,
-                                                    color: isSelected
-                                                        ? Colors.white
-                                                        : context.colors.muted,
-                                                  ),
-                                                  const SizedBox(width: 6),
-                                                  Text(
-                                                    opt.label,
-                                                    style: TextStyle(
-                                                      color: isSelected
-                                                          ? Colors.white
-                                                          : context.colors.ink,
-                                                      fontWeight:
-                                                          FontWeight.w600,
-                                                      fontSize: 13,
-                                                    ),
-                                                  ),
-                                                ],
-                                              ),
-                                            ),
-                                          );
-                                        }).toList(),
+                                      Text(
+                                        'Auto-recommend more places',
+                                        style: TextStyle(
+                                          color: context.colors.ink,
+                                          fontWeight: FontWeight.w700,
+                                          fontSize: 13,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 2),
+                                      Text(
+                                        'Add AI-suggested spots that match your interests',
+                                        style: TextStyle(
+                                          color: context.colors.muted,
+                                          fontSize: 11.5,
+                                        ),
                                       ),
                                     ],
-                                  )
-                                : const SizedBox(width: double.infinity),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 32),
-                      GradientButton(
-                        label: 'Plan My Trip',
-                        icon: Icons.route_rounded,
-                        loading: _isSubmitting,
-                        onPressed: _canSubmit ? _submit : () {},
-                      ),
-                    ],
+                                  ),
+                                ),
+                                Switch(
+                                  value: _autoRecommend,
+                                  onChanged: (v) {
+                                    setState(() => _autoRecommend = v);
+                                    _locationsFieldKey.currentState?.didChange(
+                                      _selectedStops.isNotEmpty || v,
+                                    );
+                                  },
+                                  activeThumbColor: Colors.white,
+                                  activeTrackColor: context.colors.ink,
+                                ),
+                              ],
+                            ),
+                            AnimatedSize(
+                              duration: const Duration(milliseconds: 220),
+                              curve: Curves.easeOut,
+                              alignment: Alignment.topCenter,
+                              child: _autoRecommend
+                                  ? Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        const SizedBox(height: 18),
+                                        _FieldLabel('Interests'),
+                                        const SizedBox(height: 4),
+                                        Wrap(
+                                          spacing: 10,
+                                          runSpacing: 10,
+                                          children: _interestOptions.map((opt) {
+                                            final isSelected =
+                                                _selectedInterests.contains(
+                                                  opt.category,
+                                                );
+                                            return GestureDetector(
+                                              onTap: () => setState(() {
+                                                isSelected
+                                                    ? _selectedInterests.remove(
+                                                        opt.category,
+                                                      )
+                                                    : _selectedInterests.add(
+                                                        opt.category,
+                                                      );
+                                              }),
+                                              child: AnimatedContainer(
+                                                duration: const Duration(
+                                                  milliseconds: 200,
+                                                ),
+                                                padding:
+                                                    const EdgeInsets.symmetric(
+                                                      horizontal: 16,
+                                                      vertical: 10,
+                                                    ),
+                                                decoration: BoxDecoration(
+                                                  color: isSelected
+                                                      ? context.colors.ink
+                                                      : context.colors.surface,
+                                                  borderRadius:
+                                                      BorderRadius.circular(20),
+                                                  border: Border.all(
+                                                    color: isSelected
+                                                        ? context.colors.ink
+                                                        : context.colors.muted
+                                                              .withValues(
+                                                                alpha: 0.25,
+                                                              ),
+                                                  ),
+                                                ),
+                                                child: Row(
+                                                  mainAxisSize:
+                                                      MainAxisSize.min,
+                                                  children: [
+                                                    Icon(
+                                                      opt.icon,
+                                                      size: 14,
+                                                      color: isSelected
+                                                          ? Colors.white
+                                                          : context
+                                                                .colors
+                                                                .muted,
+                                                    ),
+                                                    const SizedBox(width: 6),
+                                                    Text(
+                                                      opt.label,
+                                                      style: TextStyle(
+                                                        color: isSelected
+                                                            ? Colors.white
+                                                            : context
+                                                                  .colors
+                                                                  .ink,
+                                                        fontWeight:
+                                                            FontWeight.w600,
+                                                        fontSize: 13,
+                                                      ),
+                                                    ),
+                                                  ],
+                                                ),
+                                              ),
+                                            );
+                                          }).toList(),
+                                        ),
+                                      ],
+                                    )
+                                  : const SizedBox(width: double.infinity),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 32),
+                        GradientButton(
+                          label: 'Plan My Trip',
+                          icon: Icons.route_rounded,
+                          loading: _isSubmitting,
+                          onPressed: _canSubmit ? _submit : () {},
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               ),
@@ -1100,6 +1402,237 @@ class _FieldLabel extends StatelessWidget {
           color: context.colors.ink,
           fontWeight: FontWeight.w700,
           fontSize: 13.5,
+        ),
+      ),
+    );
+  }
+}
+
+/// One of the 3 accommodation choices — a tappable card, radio-style
+/// (only one is ever [selected] at a time, toggled by the parent).
+class _AccommodationOptionTile extends StatelessWidget {
+  const _AccommodationOptionTile({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: selected
+          ? AppColors.accent.withValues(alpha: 0.1)
+          : context.colors.surface,
+      borderRadius: BorderRadius.circular(16),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(16),
+        onTap: onTap,
+        child: Container(
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+              color: selected
+                  ? AppColors.accent
+                  : context.colors.muted.withValues(alpha: 0.2),
+              width: selected ? 1.5 : 1,
+            ),
+          ),
+          child: Row(
+            children: [
+              Icon(
+                icon,
+                size: 20,
+                color: selected ? AppColors.accent : context.colors.muted,
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: TextStyle(
+                        color: context.colors.ink,
+                        fontWeight: FontWeight.w700,
+                        fontSize: 13,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      subtitle,
+                      style: TextStyle(
+                        color: context.colors.muted,
+                        fontSize: 11.5,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Icon(
+                selected
+                    ? Icons.radio_button_checked_rounded
+                    : Icons.radio_button_unchecked_rounded,
+                color: selected ? AppColors.accent : context.colors.muted,
+                size: 20,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// One night's accommodation row — a night with a stop assigned shows
+/// its name/address (tap to change, X to clear); an unassigned night
+/// shows a "Tap to add" placeholder instead.
+class _NightAccommodationRow extends StatelessWidget {
+  const _NightAccommodationRow({
+    required this.night,
+    required this.stop,
+    required this.onTap,
+    required this.onClear,
+  });
+
+  final DateTime night;
+  final TripStopLocation? stop;
+  final VoidCallback onTap;
+  final VoidCallback? onClear;
+
+  String get _nightLabel =>
+      '${_monthNames[night.month - 1]} ${night.day} night';
+
+  @override
+  Widget build(BuildContext context) {
+    final stop = this.stop;
+    return Material(
+      color: context.colors.surface,
+      borderRadius: BorderRadius.circular(14),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(14),
+        onTap: onTap,
+        child: Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(
+              color: context.colors.muted.withValues(alpha: 0.2),
+            ),
+          ),
+          child: Row(
+            children: [
+              Icon(
+                Icons.hotel_rounded,
+                size: 18,
+                color: stop == null ? context.colors.muted : AppColors.accent,
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      _nightLabel,
+                      style: TextStyle(
+                        color: context.colors.muted,
+                        fontSize: 10.5,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      stop?.name ?? 'Tap to add a place to stay',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: stop == null
+                            ? context.colors.muted
+                            : context.colors.ink,
+                        fontWeight: FontWeight.w700,
+                        fontSize: 13,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              if (onClear != null)
+                GestureDetector(
+                  onTap: onClear,
+                  child: Icon(
+                    Icons.close_rounded,
+                    size: 18,
+                    color: context.colors.muted,
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Bottom sheet for assigning [night]'s accommodation — a lodging-only
+/// [GooglePlaceSearchField] (hotels, guesthouses, serviced apartments,
+/// etc. — restricted via `includedType: 'lodging'` so an unrelated
+/// business of the same name, e.g. a clinic, can't be picked by
+/// accident) rather than the general-purpose stop search.
+class _AccommodationPickerSheet extends StatelessWidget {
+  const _AccommodationPickerSheet({required this.night});
+
+  final DateTime night;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: EdgeInsets.only(
+        bottom: MediaQuery.of(context).viewInsets.bottom,
+      ),
+      child: SafeArea(
+        child: Container(
+          margin: const EdgeInsets.all(12),
+          padding: const EdgeInsets.all(20),
+          constraints: const BoxConstraints(maxHeight: 420),
+          decoration: BoxDecoration(
+            color: context.colors.card,
+            borderRadius: BorderRadius.circular(24),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Accommodation for ${_monthNames[night.month - 1]} ${night.day}',
+                style: TextStyle(
+                  color: context.colors.ink,
+                  fontWeight: FontWeight.w800,
+                  fontSize: 16,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                'Search for a hotel, guesthouse, or apartment — not '
+                'compulsory to be a hotel chain.',
+                style: TextStyle(color: context.colors.muted, fontSize: 12.5),
+              ),
+              const SizedBox(height: 16),
+              GooglePlaceSearchField(
+                hintText: 'Search for a place to stay…',
+                includedType: 'lodging',
+                strictTypeFiltering: true,
+                onChanged: (stop) => Navigator.of(context).pop(stop),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -1220,16 +1753,22 @@ class _InputBox extends StatelessWidget {
   }
 }
 
-/// Tappable field showing the selected Malaysian city, or a placeholder
-/// until one is picked. Opens [_CityPickerSheet] on tap.
-class _CityField extends StatelessWidget {
-  const _CityField({required this.city, required this.onTap});
+/// Tappable field showing the selected real place (name + address), or a
+/// placeholder until one is picked. Opens [_TripLocationPickerSheet] on tap.
+class _LocationField extends StatelessWidget {
+  const _LocationField({
+    required this.location,
+    required this.placeholder,
+    required this.onTap,
+  });
 
-  final _City? city;
+  final TripStopLocation? location;
+  final String placeholder;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
+    final location = this.location;
     return InkWell(
       borderRadius: BorderRadius.circular(16),
       onTap: onTap,
@@ -1248,18 +1787,41 @@ class _CityField extends StatelessWidget {
             ),
             const SizedBox(width: 12),
             Expanded(
-              child: Text(
-                city?.label ?? 'Select a city',
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  color: city == null
-                      ? context.colors.muted
-                      : context.colors.ink,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
+              child: location == null
+                  ? Text(
+                      placeholder,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: context.colors.muted,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    )
+                  : Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          location.name,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            color: context.colors.ink,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        Text(
+                          location.address,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            color: context.colors.muted,
+                            fontSize: 11,
+                          ),
+                        ),
+                      ],
+                    ),
             ),
-            const Spacer(),
+            const SizedBox(width: 8),
             Icon(Icons.expand_more_rounded, color: context.colors.muted),
           ],
         ),
@@ -1268,128 +1830,58 @@ class _CityField extends StatelessWidget {
   }
 }
 
-/// Searchable bottom sheet listing Malaysian cities from [_dummyCities],
-/// filtered as the user types. Returns the tapped [_City] via
-/// `Navigator.pop`.
-class _CityPickerSheet extends StatefulWidget {
-  const _CityPickerSheet();
+/// Bottom sheet for picking Starting From / Ending At — a real Google
+/// Places search (spec §2.1/§16's "Starting location" needs coordinates,
+/// not just a city name), same pattern as [_AccommodationPickerSheet] but
+/// unrestricted by place type: a starting/ending point can be an airport,
+/// a hotel, a landmark, or a plain address, not just lodging.
+class _TripLocationPickerSheet extends StatelessWidget {
+  const _TripLocationPickerSheet({required this.title, required this.hintText});
 
-  @override
-  State<_CityPickerSheet> createState() => _CityPickerSheetState();
-}
-
-class _CityPickerSheetState extends State<_CityPickerSheet> {
-  final _searchController = TextEditingController();
-  String _query = '';
-
-  @override
-  void dispose() {
-    _searchController.dispose();
-    super.dispose();
-  }
+  final String title;
+  final String hintText;
 
   @override
   Widget build(BuildContext context) {
-    return DraggableScrollableSheet(
-      initialChildSize: 0.75,
-      minChildSize: 0.5,
-      maxChildSize: 0.92,
-      expand: false,
-      builder: (context, scrollController) {
-        return Material(
-          color: context.colors.card,
-          clipBehavior: Clip.antiAlias,
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+    return Padding(
+      padding: EdgeInsets.only(
+        bottom: MediaQuery.of(context).viewInsets.bottom,
+      ),
+      child: SafeArea(
+        child: Container(
+          margin: const EdgeInsets.all(12),
+          padding: const EdgeInsets.all(20),
+          constraints: const BoxConstraints(maxHeight: 420),
+          decoration: BoxDecoration(
+            color: context.colors.card,
+            borderRadius: BorderRadius.circular(24),
+          ),
           child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const SizedBox(height: 12),
-              Container(
-                width: 40,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: context.colors.muted.withValues(alpha: 0.3),
-                  borderRadius: BorderRadius.circular(2),
+              Text(
+                title,
+                style: TextStyle(
+                  color: context.colors.ink,
+                  fontWeight: FontWeight.w800,
+                  fontSize: 16,
                 ),
               ),
-              Padding(
-                padding: const EdgeInsets.fromLTRB(20, 16, 20, 12),
-                child: TextField(
-                  controller: _searchController,
-                  autofocus: true,
-                  onChanged: (v) => setState(() => _query = v),
-                  style: TextStyle(color: context.colors.ink),
-                  decoration: InputDecoration(
-                    hintText: 'Search city or state…',
-                    hintStyle: TextStyle(color: context.colors.muted),
-                    prefixIcon: Icon(
-                      Icons.search_rounded,
-                      color: context.colors.muted,
-                    ),
-                    filled: true,
-                    fillColor: context.colors.surface,
-                    isDense: true,
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(14),
-                      borderSide: BorderSide.none,
-                    ),
-                  ),
-                ),
+              const SizedBox(height: 4),
+              Text(
+                'Search for a city, airport, landmark, or address.',
+                style: TextStyle(color: context.colors.muted, fontSize: 12.5),
               ),
-              Expanded(
-                child: Builder(
-                  builder: (context) {
-                    final q = _query.trim().toLowerCase();
-                    final filtered = q.isEmpty
-                        ? _dummyCities
-                        : _dummyCities
-                              .where(
-                                (c) =>
-                                    c.city.toLowerCase().contains(q) ||
-                                    c.state.toLowerCase().contains(q),
-                              )
-                              .toList();
-
-                    if (filtered.isEmpty) {
-                      return Center(
-                        child: Text(
-                          'No matching city',
-                          style: TextStyle(color: context.colors.muted),
-                        ),
-                      );
-                    }
-
-                    return ListView.builder(
-                      controller: scrollController,
-                      padding: const EdgeInsets.only(bottom: 16),
-                      itemCount: filtered.length,
-                      itemBuilder: (context, i) {
-                        final c = filtered[i];
-                        return ListTile(
-                          title: Text(
-                            c.city,
-                            style: TextStyle(
-                              color: context.colors.ink,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                          subtitle: Text(
-                            c.state,
-                            style: TextStyle(
-                              color: context.colors.muted,
-                              fontSize: 12,
-                            ),
-                          ),
-                          onTap: () => Navigator.of(context).pop(c),
-                        );
-                      },
-                    );
-                  },
-                ),
+              const SizedBox(height: 16),
+              GooglePlaceSearchField(
+                hintText: hintText,
+                onChanged: (stop) => Navigator.of(context).pop(stop),
               ),
             ],
           ),
-        );
-      },
+        ),
+      ),
     );
   }
 }
@@ -1479,10 +1971,11 @@ class _TripSchedule {
   final TimeOfDay endTime;
 }
 
-/// Bottom-sheet date + time picker, in the same visual style as
-/// [_CityPickerSheet] — everything happens in one popup on the same page,
-/// no separate dialog/screen. Two calendars (start/end date) plus two
-/// scrollable time wheels (start/end time), with a "Done" button to confirm.
+/// Bottom-sheet date + time picker, in the same visual style as the
+/// other picker sheets on this page — everything happens in one popup on
+/// the same page, no separate dialog/screen. Two calendars (start/end
+/// date) plus two scrollable time wheels (start/end time), with a "Done"
+/// button to confirm.
 class _DatesPickerSheet extends StatefulWidget {
   const _DatesPickerSheet({
     required this.initialRange,

@@ -56,6 +56,7 @@ class _HomeScreenState extends State<HomeScreen> {
   // GlobalKey is only ever meant to belong to one live State anyway.
   final _tripCardKey = GlobalKey<_UpcomingTripCardState>();
   final _destinationsKey = GlobalKey<_DestinationsCarouselState>();
+  final _tripsTabKey = GlobalKey<TripsTabState>();
 
   static final _tabs = [
     (icon: Icons.home_rounded, label: 'Home'),
@@ -66,20 +67,25 @@ class _HomeScreenState extends State<HomeScreen> {
   ];
 
   late final _bodies = [
-    _DashboardBody(tripCardKey: _tripCardKey, destinationsKey: _destinationsKey),
-    TripsTab(),
+    _DashboardBody(
+      tripCardKey: _tripCardKey,
+      destinationsKey: _destinationsKey,
+    ),
+    TripsTab(key: _tripsTabKey),
     ExploreTab(),
     CommunityTab(),
     ProfileTab(),
   ];
 
-  /// The dashboard's featured-trip card is inside an `IndexedStack`, which
-  /// keeps it mounted (and its fetched trip cached) for the app's whole
-  /// session — it would otherwise never notice trips created/changed
-  /// elsewhere. Re-fetch whenever the traveler switches back to Home.
+  /// Both the dashboard's featured-trip card and the Trips tab are kept
+  /// mounted for the app's whole session inside an `IndexedStack` (see
+  /// `build` below), which keeps their fetched trips cached — neither
+  /// would otherwise ever notice trips created/changed elsewhere. Re-fetch
+  /// whichever one the traveler is switching to.
   void _onNavChanged(int i) {
     setState(() => _navIndex = i);
     if (i == 0) _tripCardKey.currentState?.reload();
+    if (i == 1) _tripsTabKey.currentState?.reload();
   }
 
   @override
@@ -99,7 +105,10 @@ class _HomeScreenState extends State<HomeScreen> {
 }
 
 class _DashboardBody extends StatelessWidget {
-  const _DashboardBody({required this.tripCardKey, required this.destinationsKey});
+  const _DashboardBody({
+    required this.tripCardKey,
+    required this.destinationsKey,
+  });
 
   final GlobalKey<_UpcomingTripCardState> tripCardKey;
   final GlobalKey<_DestinationsCarouselState> destinationsKey;
@@ -118,7 +127,9 @@ class _DashboardBody extends StatelessWidget {
         ),
         SliverPadding(
           padding: EdgeInsets.fromLTRB(24, 24, 24, 0),
-          sliver: SliverToBoxAdapter(child: _UpcomingTripCard(key: tripCardKey)),
+          sliver: SliverToBoxAdapter(
+            child: _UpcomingTripCard(key: tripCardKey),
+          ),
         ),
         SliverPadding(
           padding: EdgeInsets.fromLTRB(24, 28, 24, 0),
@@ -155,7 +166,9 @@ class _DashboardBody extends StatelessWidget {
                 onAction: () => Navigator.of(context).push(
                   MaterialPageRoute(
                     builder: (_) => NearbyPlacesScreen(
-                      places: destinationsKey.currentState?.destinations ?? const [],
+                      places:
+                          destinationsKey.currentState?.destinations ??
+                          const [],
                       category: 'Tourist Attractions',
                     ),
                   ),
@@ -228,9 +241,9 @@ class _GreetingBar extends StatelessWidget {
             _IconBadgeButton(
               icon: Icons.notifications_none_rounded,
               hasBadge: true,
-              onTap: () => Navigator.of(context).push(
-                MaterialPageRoute(builder: (_) => NotificationsScreen()),
-              ),
+              onTap: () => Navigator.of(
+                context,
+              ).push(MaterialPageRoute(builder: (_) => NotificationsScreen())),
             ),
             SizedBox(width: 12),
             Container(
@@ -330,7 +343,6 @@ class _IconBadgeButton extends StatelessWidget {
   }
 }
 
-
 /// Featured trip on the dashboard: whichever trip is happening right now
 /// (an "ongoing" ie. [TripStatus.current] one), or failing that the
 /// soonest trip yet to start, or — if the traveler has neither — a
@@ -349,7 +361,9 @@ class _UpcomingTripCardState extends State<_UpcomingTripCard> {
   /// `GlobalKey`) whenever a trip may have changed elsewhere: switching
   /// back to the Home tab, or returning from Create Trip.
   void reload() {
-    setState(() => _tripFuture = _loadFeaturedTrip());
+    setState(() {
+      _tripFuture = _loadFeaturedTrip();
+    });
   }
 
   Future<Trip?> _loadFeaturedTrip() async {
@@ -788,7 +802,9 @@ class _WeatherCardState extends State<_WeatherCard> {
         throw Exception('Location permission is needed for local weather.');
       }
       final position = await Geolocator.getCurrentPosition(
-        locationSettings: const LocationSettings(accuracy: LocationAccuracy.high),
+        locationSettings: const LocationSettings(
+          accuracy: LocationAccuracy.high,
+        ),
       );
       final result = await _weatherService.getForecastForPosition(
         LatLng(position.latitude, position.longitude),
@@ -897,7 +913,10 @@ class _WeatherLoading extends StatelessWidget {
             SizedBox(
               width: 16,
               height: 16,
-              child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                color: Colors.white,
+              ),
             ),
             SizedBox(width: 10),
             Text(
@@ -1048,10 +1067,7 @@ class _PeriodTile extends StatelessWidget {
   Widget build(BuildContext context) {
     return Column(
       children: [
-        Text(
-          label,
-          style: TextStyle(color: Colors.white70, fontSize: 11),
-        ),
+        Text(label, style: TextStyle(color: Colors.white70, fontSize: 11)),
         SizedBox(height: 6),
         Icon(weatherIconFor(forecastText), color: Colors.white, size: 18),
         SizedBox(height: 6),
@@ -1128,7 +1144,9 @@ class _DestinationsCarouselState extends State<_DestinationsCarousel> {
         );
       }
       final position = await Geolocator.getCurrentPosition(
-        locationSettings: const LocationSettings(accuracy: LocationAccuracy.high),
+        locationSettings: const LocationSettings(
+          accuracy: LocationAccuracy.high,
+        ),
       );
       final center = LatLng(position.latitude, position.longitude);
 
@@ -1149,8 +1167,9 @@ class _DestinationsCarouselState extends State<_DestinationsCarousel> {
         includedTypes: const {'tourist_attraction'},
       );
       results.sort(
-        (a, b) =>
-            (a.distanceKm ?? double.infinity).compareTo(b.distanceKm ?? double.infinity),
+        (a, b) => (a.distanceKm ?? double.infinity).compareTo(
+          b.distanceKm ?? double.infinity,
+        ),
       );
       if (!mounted) return;
       setState(() {
@@ -1226,7 +1245,11 @@ class _DestinationsOutsideMalaysiaNotice extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(Icons.info_outline_rounded, size: 16, color: context.colors.muted),
+          Icon(
+            Icons.info_outline_rounded,
+            size: 16,
+            color: context.colors.muted,
+          ),
           SizedBox(width: 8),
           Expanded(
             child: Text(
@@ -1254,7 +1277,11 @@ class _DestinationsMessage extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(Icons.info_outline_rounded, size: 16, color: context.colors.muted),
+          Icon(
+            Icons.info_outline_rounded,
+            size: 16,
+            color: context.colors.muted,
+          ),
           SizedBox(width: 8),
           Expanded(
             child: Text(

@@ -1,9 +1,54 @@
 import 'package:flutter/foundation.dart';
+import 'package:uuid/uuid.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../models/trip.dart';
 import '../models/trip_stop_location.dart';
 import 'supabase_config.dart';
+
+/// One `trip_schedule_stops` row joined back to its real stop — see
+/// [TripService.getSchedule]/[TripService.saveSchedule]. Shared here
+/// (rather than declared per-screen) since every screen that reads or
+/// writes the persisted schedule (Trip Details, Daily Timeline, Edit
+/// Schedule) needs the exact same shape.
+typedef TripScheduleRow = ({
+  int dayNumber,
+  int sequence,
+  TripStopLocation stop,
+  bool isHotel,
+  String? scheduledArrival,
+  String? scheduledDeparture,
+  String? scheduledVisitStart,
+  String? travelMode,
+  int? travelMinutes,
+});
+
+typedef ScheduleWriteRow = ({
+  int dayNumber,
+  int sequence,
+  String stopId,
+  bool isHotel,
+  DateTime? scheduledArrival,
+  DateTime? scheduledVisitStart,
+  DateTime? scheduledDeparture,
+  String? travelMode,
+  int? travelMinutes,
+});
+
+List<Map<String, dynamic>> scheduleRowsToJson(List<ScheduleWriteRow> rows) => [
+  for (final row in rows)
+    {
+      'stop_id': row.stopId,
+      'day_number': row.dayNumber,
+      'sequence': row.sequence,
+      'is_hotel': row.isHotel,
+      'scheduled_arrival': _timeOfDayString(row.scheduledArrival),
+      'scheduled_visit_start': _timeOfDayString(row.scheduledVisitStart),
+      'scheduled_departure': _timeOfDayString(row.scheduledDeparture),
+      'travel_mode': row.travelMode,
+      'travel_minutes': row.travelMinutes,
+    },
+];
 
 /// Default category plan seeded onto a freshly created demo trip —
 /// mirrors the numbers the UI used to hardcode as mock data.
@@ -85,7 +130,11 @@ class TripService {
     await retryOnJwtClockSkew(
       () => _client.from('budget_categories').insert([
         for (final entry in _defaultCategoryPlan.entries)
-          {'trip_id': tripId, 'label': entry.key, 'planned_amount': entry.value},
+          {
+            'trip_id': tripId,
+            'label': entry.key,
+            'planned_amount': entry.value,
+          },
       ]),
     );
 
@@ -111,6 +160,8 @@ class TripService {
     String? endTime,
     required double totalBudget,
     required bool autoRecommend,
+    String? transportMode,
+    String accommodationMode = 'none',
   }) async {
     final trimmedName = name.trim();
     if (trimmedName.isEmpty) {
@@ -139,11 +190,159 @@ class TripService {
             'created_by': _uid,
             'total_budget': totalBudget,
             'auto_recommend': autoRecommend,
+            'transport_mode': transportMode,
+            'accommodation_mode': accommodationMode,
           })
           .select()
           .single(),
     );
     return row['id'] as String;
+  }
+
+  /// Permanently removes [tripId] and everything under it — every child
+  /// table (`trip_stops`, `trip_schedule_stops`, `trip_accommodations`,
+  /// `trip_interests`, `trip_members`, etc.) references `trips (id) on
+  /// delete cascade` (see schema.sql), so this one delete is enough.
+  /// Used to roll back a trip [AiPlannerScreen] created but couldn't
+  /// finish planning for (spec: nothing about a trip should persist
+  /// until the AI Planner actually succeeds) — never called for a real,
+  /// already-planned trip the traveler is done with.
+  Future<void> deleteTrip(String tripId) async {
+    await retryOnJwtClockSkew(
+      () => _client.from('trips').delete().eq('id', tripId),
+    );
+  }
+
+  /// Saves Create Trip's picked locations to `trip_stops` —
+  /// [TripStopLocation.toInsertMap] carries every scheduling-relevant
+  /// field (visitPurpose, category, opening periods, estimated visit
+  /// duration, etc.), not just name/coordinates. Returns the saved rows,
+  /// each now carrying a real `trip_stops.id` (needed to later reference
+  /// a stop from `trip_accommodations`/`trip_schedule_stops`).
+  Future<List<TripStopLocation>> addStops(
+    String tripId,
+    Iterable<TripStopLocation> stops,
+  ) async {
+    if (stops.isEmpty) return const [];
+    final rows = await retryOnJwtClockSkew(
+      () => _client.from('trip_stops').insert([
+        for (final stop in stops) stop.toInsertMap(tripId),
+      ]).select(),
+    );
+    return [for (final row in rows) TripStopLocation.fromMap(row)];
+  }
+
+  /// Permanently removes one stop from [tripId] — cascades to its
+  /// `trip_schedule_stops`/`trip_accommodations` rows automatically (see
+  /// schema.sql's `on delete cascade`), so Edit Schedule's "Remove from
+  /// trip" doesn't need a separate schedule cleanup call; a
+  /// `trips.start_location_stop_id`/`end_location_stop_id` pointing at
+  /// this stop is set null rather than blocking the delete. Meant for a
+  /// traveler's own visit stop — to *change* accommodation or the trip's
+  /// start/end location, use the dedicated flows for those instead of
+  /// deleting and re-adding.
+  Future<void> deleteStop(String tripId, String stopId) async {
+    await retryOnJwtClockSkew(
+      () => _client
+          .from('trip_stops')
+          .delete()
+          .eq('trip_id', tripId)
+          .eq('id', stopId),
+    );
+  }
+
+  /// Replaces `trip_interests` for [tripId] — Create Trip's "Interests"
+  /// category chips, used by the auto-recommend flow.
+  Future<void> setInterests(String tripId, Iterable<String> categories) async {
+    await retryOnJwtClockSkew(
+      () => _client.from('trip_interests').delete().eq('trip_id', tripId),
+    );
+    if (categories.isEmpty) return;
+    await retryOnJwtClockSkew(
+      () => _client.from('trip_interests').insert([
+        for (final category in categories)
+          {'trip_id': tripId, 'category': category},
+      ]),
+    );
+  }
+
+  Future<List<String>> getInterests(String tripId) async {
+    final rows = await retryOnJwtClockSkew(
+      () => _client
+          .from('trip_interests')
+          .select('category')
+          .eq('trip_id', tripId),
+    );
+    return [for (final row in rows) row['category'] as String];
+  }
+
+  /// Every night's accommodation anchor for [tripId], oldest night
+  /// first — the [TripStopLocation] is joined in from `trip_stops` via
+  /// `trip_accommodations.stop_id`. See [setAccommodations].
+  Future<List<({DateTime nightDate, TripStopLocation stop})>> getAccommodations(
+    String tripId,
+  ) async {
+    final rows = await retryOnJwtClockSkew(
+      () => _client
+          .from('trip_accommodations')
+          .select('night_date, trip_stops(*)')
+          .eq('trip_id', tripId)
+          .order('night_date'),
+    );
+    return [
+      for (final row in rows)
+        (
+          nightDate: DateTime.parse(row['night_date'] as String),
+          stop: TripStopLocation.fromMap(
+            row['trip_stops'] as Map<String, dynamic>,
+          ),
+        ),
+    ];
+  }
+
+  /// Replaces every night's accommodation anchor for [tripId] with
+  /// [nightsToStopId] (night date → `trip_stops.id`, which must already
+  /// exist — save the stop via [addStops] first).
+  Future<void> setAccommodations(
+    String tripId,
+    Map<DateTime, String> nightsToStopId,
+  ) async {
+    await retryOnJwtClockSkew(
+      () => _client.from('trip_accommodations').delete().eq('trip_id', tripId),
+    );
+    if (nightsToStopId.isEmpty) return;
+    await retryOnJwtClockSkew(
+      () => _client.from('trip_accommodations').insert([
+        for (final entry in nightsToStopId.entries)
+          {
+            'trip_id': tripId,
+            'stop_id': entry.value,
+            'night_date': entry.key.toIso8601String().split('T').first,
+          },
+      ]),
+    );
+  }
+
+  /// Links [tripId]'s real Starting-From/Ending-At locations (spec
+  /// §2.1/§16 — the coordinates the scheduling engine anchors Day 1's
+  /// start / the last day's end to when no accommodation covers that
+  /// side) to already-saved `trip_stops` rows — save the stop(s) via
+  /// [addStops] first, same order as [setAccommodations]. Either id may
+  /// be null to leave that side unset without touching the other.
+  Future<void> setTripLocations(
+    String tripId, {
+    String? startStopId,
+    String? endStopId,
+  }) async {
+    await retryOnJwtClockSkew(
+      () => _client
+          .from('trips')
+          .update({
+            'start_location_stop_id': ?startStopId,
+            'end_location_stop_id': ?endStopId,
+          })
+          .eq('id', tripId),
+    );
   }
 
   /// All trips the signed-in user is a member of (as organizer or plain
@@ -250,10 +449,8 @@ class TripService {
 
   Future<void> removeFavoriteStop(String favoriteStopId) async {
     await retryOnJwtClockSkew(
-      () => _client
-          .from('trip_favorite_stops')
-          .delete()
-          .eq('id', favoriteStopId),
+      () =>
+          _client.from('trip_favorite_stops').delete().eq('id', favoriteStopId),
     );
   }
 
@@ -276,10 +473,138 @@ class TripService {
     return Trip.fromMap(row);
   }
 
+  /// One database transaction; a stale revision fails without changing rows.
+  /// The operation ID must be reused when retrying an uncertain response.
+  Future<int> saveSchedule(
+    String tripId,
+    List<ScheduleWriteRow> rows, {
+    required int expectedRevision,
+    String? operationId,
+    List<TripStopLocation> newStops = const [],
+    Set<String> deletedStopIds = const {},
+    bool recommendation = false,
+    List<Map<String, dynamic>> days = const [],
+  }) async {
+    final params = {
+      'p_trip_id': tripId,
+      'p_expected_revision': expectedRevision,
+      'p_operation_id': operationId ?? const Uuid().v4(),
+      'p_rows': scheduleRowsToJson(rows),
+      'p_new_stops': [
+        for (final stop in newStops)
+          {...stop.toInsertMap(tripId), 'id': stop.id},
+      ],
+      'p_deleted_stop_ids': deletedStopIds.toList(),
+      'p_recommendation': recommendation,
+      'p_days': days,
+    };
+    final revision = await retryOnJwtClockSkew(
+      () => _client.rpc('commit_trip_schedule', params: params),
+    );
+    return revision as int;
+  }
+
+  /// Called only after planning has finished successfully in memory.
+  Future<String> createPlannedTrip({
+    required String tripId,
+    required Map<String, dynamic> trip,
+    required List<TripStopLocation> stops,
+    required List<ScheduleWriteRow> rows,
+    required Set<String> interests,
+    required List<Map<String, dynamic>> days,
+    required Map<DateTime, TripStopLocation> accommodationByNight,
+  }) async {
+    final result = await retryOnJwtClockSkew(
+      () => _client.rpc(
+        'create_planned_trip',
+        params: {
+          'p_trip_id': tripId,
+          'p_trip': trip,
+          'p_stops': [
+            for (final stop in stops)
+              {...stop.toInsertMap(tripId), 'id': stop.id},
+          ],
+          'p_rows': scheduleRowsToJson(rows),
+          'p_interests': interests.toList(),
+          'p_days': days,
+          'p_accommodations': [
+            for (final entry in accommodationByNight.entries)
+              {
+                'night_date': entry.key.toIso8601String().split('T').first,
+                'stop_id': entry.value.id,
+              },
+          ],
+        },
+      ),
+    );
+    return result as String;
+  }
+
+  /// The persisted schedule for [tripId], oldest day/sequence first,
+  /// each row's stop joined in from `trip_stops`. Empty until
+  /// `TripSchedulerService.run` has saved one via [saveSchedule].
+  Future<List<TripScheduleRow>> getSchedule(String tripId) async {
+    final rows = await retryOnJwtClockSkew(
+      () => _client
+          .from('trip_schedule_stops')
+          .select(
+            'day_number, sequence, is_hotel, scheduled_arrival, scheduled_visit_start, '
+            'scheduled_departure, travel_mode, travel_minutes, trip_stops(*)',
+          )
+          .eq('trip_id', tripId)
+          .order('day_number')
+          .order('sequence'),
+    );
+    return [
+      for (final row in rows)
+        (
+          dayNumber: row['day_number'] as int,
+          sequence: row['sequence'] as int,
+          stop: TripStopLocation.fromMap(
+            row['trip_stops'] as Map<String, dynamic>,
+          ),
+          isHotel: row['is_hotel'] as bool,
+          scheduledArrival: row['scheduled_arrival'] as String?,
+          scheduledVisitStart: row['scheduled_visit_start'] as String?,
+          scheduledDeparture: row['scheduled_departure'] as String?,
+          travelMode: row['travel_mode'] as String?,
+          travelMinutes: row['travel_minutes'] as int?,
+        ),
+    ];
+  }
+
+  Future<List<Map<String, dynamic>>> getScheduleDays(String tripId) async {
+    final rows = await retryOnJwtClockSkew(
+      () => _client
+          .from('trip_schedule_days')
+          .select(
+            '*, start_stop:trip_stops!start_stop_id(*), end_stop:trip_stops!end_stop_id(*)',
+          )
+          .eq('trip_id', tripId)
+          .order('day_number'),
+    );
+    return rows;
+  }
+
+  Future<void> clearSchedule(String tripId) async {
+    final trip = await getTrip(tripId);
+    await saveSchedule(tripId, [], expectedRevision: trip.scheduleRevision);
+  }
+
   /// Call on sign-out so a different account doesn't inherit the
   /// previous user's cached trip id.
   static void resetCache() {
     _cachedTripId = null;
     _inFlight = null;
   }
+}
+
+/// Formats a [DateTime]'s wall-clock time as `"HH:mm:ss"`, matching
+/// `trip_schedule_stops.scheduled_arrival`/`scheduled_departure`'s
+/// Postgres `time` column type — only the time-of-day matters, the
+/// date part of [dt] is discarded.
+String? _timeOfDayString(DateTime? dt) {
+  if (dt == null) return null;
+  String pad(int n) => n.toString().padLeft(2, '0');
+  return '${pad(dt.hour)}:${pad(dt.minute)}:${pad(dt.second)}';
 }

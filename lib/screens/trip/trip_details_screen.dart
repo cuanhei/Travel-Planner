@@ -1,7 +1,12 @@
 import 'package:flutter/material.dart';
 
+import '../../models/group_member.dart';
 import '../../models/trip.dart';
+import '../../models/trip_stop_location.dart';
+import '../../services/group_service.dart';
+import '../../services/trip_service.dart';
 import '../../theme/app_theme.dart';
+import '../../utils/format.dart';
 import '../../widgets/section_header.dart';
 import '../budget/budget_planner_screen.dart';
 import '../group/group_dashboard_screen.dart';
@@ -13,31 +18,15 @@ import 'edit_schedule_screen.dart';
 import 'edit_trip_screen.dart';
 import 'trip_map_screen.dart';
 
-/// A single itinerary stop. Mutable `completed` flag so the "Activity"
-/// section's Complete button can check a stop off — UI-only, no
-/// persistence.
-class _Stop {
-  _Stop({
-    required this.name,
-    required this.time,
-    required this.subtitle,
-    required this.icon,
-    required this.gradient,
-    this.completed = false,
-  });
-
-  final String name;
-  final String time;
-  final String subtitle;
-  final IconData icon;
-  final List<Color> gradient;
-  bool completed;
-}
-
 /// Trip hub: overview, itinerary stops, and a tools grid linking out to
-/// scheduling, map, weather, transport, budget, and group screens. The
-/// itinerary stops/activity feed below are still UI-only mock data; the
-/// Budget and Group tools are wired live to [trip].
+/// scheduling, map, weather, transport, budget, and group screens. Stop
+/// counts and the "Activity" preview are now backed by the real
+/// AI-Planner-generated schedule (`trip_schedule_stops`) and the real
+/// traveler count (`trip_members`) rather than mock data; a stop's
+/// "completed" checkmark is still local-only (there's no persisted
+/// completion state in the schema yet), and the day-by-day timeline
+/// itself (reached via "Activity"'s See All / the Tools Grid) is still
+/// the old UI-only screen — not rebuilt here.
 class TripDetailsScreen extends StatefulWidget {
   const TripDetailsScreen({super.key, required this.trip});
 
@@ -48,42 +37,50 @@ class TripDetailsScreen extends StatefulWidget {
 }
 
 class _TripDetailsScreenState extends State<TripDetailsScreen> {
-  final _stops = [
-    _Stop(
-      name: 'Komtar, George Town',
-      time: 'Day 1 · 10:00 AM',
-      subtitle: 'Shopping & observation deck',
-      icon: Icons.location_city_rounded,
-      gradient: AppColors.horizon,
-      completed: true,
-    ),
-    _Stop(
-      name: 'Gurney Drive & Plaza',
-      time: 'Day 2 · 1:00 PM',
-      subtitle: 'Shopping and seaside walk',
-      icon: Icons.shopping_bag_rounded,
-      gradient: AppColors.dusk,
-    ),
-    _Stop(
-      name: 'Queensbay Mall',
-      time: 'Day 3 · 4:00 PM',
-      subtitle: 'Final shopping & souvenirs',
-      icon: Icons.storefront_rounded,
-      gradient: AppColors.sunset,
-    ),
-  ];
+  final _tripService = TripService();
+  late Future<List<TripStopLocation>> _stopsFuture = _tripService
+      .getTripStops(widget.trip.id)
+      .then(
+        (stops) => stops
+            .where(
+              (s) =>
+                  s.visitPurpose != VisitPurpose.accommodation &&
+                  s.id != widget.trip.startLocationStopId &&
+                  s.id != widget.trip.endLocationStopId,
+            )
+            .toList(),
+      );
+  late Future<List<TripScheduleRow>> _scheduleFuture = _tripService.getSchedule(
+    widget.trip.id,
+  );
 
-  /// The next stop that hasn't happened yet — falls back to the last
-  /// stop if the whole trip is already complete.
-  _Stop get _upcomingStop =>
-      _stops.firstWhere((s) => !s.completed, orElse: () => _stops.last);
+  void _reloadSchedule() {
+    if (!mounted) return;
+    setState(() {
+      _stopsFuture = _tripService
+          .getTripStops(widget.trip.id)
+          .then(
+            (stops) => stops
+                .where(
+                  (s) =>
+                      s.visitPurpose != VisitPurpose.accommodation &&
+                      s.id != widget.trip.startLocationStopId &&
+                      s.id != widget.trip.endLocationStopId,
+                )
+                .toList(),
+          );
+      _scheduleFuture = _tripService.getSchedule(widget.trip.id);
+      _completedIndices.clear();
+    });
+  }
 
-  /// The most recently completed stop — falls back to the first stop
-  /// if nothing has been marked complete yet.
-  _Stop get _completedStop =>
-      _stops.lastWhere((s) => s.completed, orElse: () => _stops.first);
+  /// Which schedule rows (by index into the fetched list) the traveler
+  /// has checked off — local-only, since `trip_schedule_stops` has no
+  /// completion column yet; resets if this screen is rebuilt/reopened.
+  final Set<int> _completedIndices = {};
 
-  void _completeStop(_Stop stop) => setState(() => stop.completed = true);
+  void _toggleComplete(int index) =>
+      setState(() => _completedIndices.add(index));
 
   @override
   Widget build(BuildContext context) {
@@ -120,9 +117,7 @@ class _TripDetailsScreenState extends State<TripDetailsScreen> {
                       Spacer(),
                       IconButton(
                         onPressed: () => Navigator.of(context).push(
-                          MaterialPageRoute(
-                            builder: (_) => EditTripScreen(),
-                          ),
+                          MaterialPageRoute(builder: (_) => EditTripScreen()),
                         ),
                         icon: Icon(
                           Icons.edit_rounded,
@@ -182,26 +177,68 @@ class _TripDetailsScreenState extends State<TripDetailsScreen> {
                     ),
                     child: ListView(
                       children: [
-                        _StatsRow(trip: widget.trip),
+                        _StatsRow(trip: widget.trip, stopsFuture: _stopsFuture),
                         SizedBox(height: 28),
                         SectionHeader(title: 'Trip Tools'),
                         SizedBox(height: 14),
-                        _ToolsGrid(tripId: widget.trip.id),
+                        _ToolsGrid(
+                          tripId: widget.trip.id,
+                          onScheduleEdited: _reloadSchedule,
+                        ),
                         SizedBox(height: 28),
                         SectionHeader(
                           title: 'Activity',
                           onAction: () => Navigator.of(context).push(
                             MaterialPageRoute(
-                              builder: (_) => DailyTimelineScreen(),
+                              builder: (_) =>
+                                  DailyTimelineScreen(tripId: widget.trip.id),
                             ),
                           ),
                         ),
                         SizedBox(height: 14),
-                        _ActivityTile(
-                          stop: _upcomingStop,
-                          onComplete: () => _completeStop(_upcomingStop),
+                        FutureBuilder<List<TripScheduleRow>>(
+                          future: _scheduleFuture,
+                          builder: (context, snapshot) {
+                            if (snapshot.connectionState !=
+                                ConnectionState.done) {
+                              return const _ActivityLoading();
+                            }
+                            final schedule = snapshot.data;
+                            if (snapshot.hasError ||
+                                schedule == null ||
+                                schedule.isEmpty) {
+                              return const _ActivityEmpty();
+                            }
+                            int? upcomingIndex;
+                            int? completedIndex;
+                            for (var i = 0; i < schedule.length; i++) {
+                              if (upcomingIndex == null &&
+                                  !_completedIndices.contains(i)) {
+                                upcomingIndex = i;
+                              }
+                              if (_completedIndices.contains(i)) {
+                                completedIndex = i;
+                              }
+                            }
+                            final upcoming = upcomingIndex;
+                            final completedAt = completedIndex;
+                            return Column(
+                              children: [
+                                if (upcoming != null)
+                                  _ActivityTile(
+                                    row: schedule[upcoming],
+                                    completed: false,
+                                    onComplete: () => _toggleComplete(upcoming),
+                                  ),
+                                if (completedAt != null)
+                                  _ActivityTile(
+                                    row: schedule[completedAt],
+                                    completed: true,
+                                  ),
+                              ],
+                            );
+                          },
                         ),
-                        _ActivityTile(stop: _completedStop),
                       ],
                     ),
                   ),
@@ -215,75 +252,110 @@ class _TripDetailsScreenState extends State<TripDetailsScreen> {
   }
 }
 
+/// "Stops" (real `trip_stops`, accommodation excluded) and "Travelers"
+/// (real `trip_members`, live via [GroupService.watchMembers]) are
+/// resolved asynchronously; "Days"/"Budget" come straight off [trip],
+/// already real.
 class _StatsRow extends StatelessWidget {
-  const _StatsRow({required this.trip});
+  const _StatsRow({required this.trip, required this.stopsFuture});
 
   final Trip trip;
+  final Future<List<TripStopLocation>> stopsFuture;
 
   @override
   Widget build(BuildContext context) {
-    final stats = [
-      (label: 'Stops', value: '3', icon: Icons.flag_rounded),
-      (
-        label: 'Days',
-        value: '${trip.days == 0 ? 3 : trip.days}',
-        icon: Icons.calendar_today_rounded,
-      ),
-      (
-        label: 'Budget',
-        value: 'RM${trip.totalBudget.toStringAsFixed(0)}',
-        icon: Icons.account_balance_wallet_rounded,
-      ),
-      (label: 'Travelers', value: '2', icon: Icons.people_alt_rounded),
-    ];
-
     return Row(
-      children: stats.map((s) {
-        return Expanded(
-          child: Container(
-            margin: EdgeInsets.only(right: 10),
-            padding: EdgeInsets.symmetric(vertical: 14),
-            decoration: BoxDecoration(
-              color: context.colors.card,
-              borderRadius: BorderRadius.circular(16),
-              boxShadow: [
-                BoxShadow(
-                  color: context.colors.ink.withValues(alpha: 0.05),
-                  blurRadius: 10,
-                  offset: Offset(0, 4),
-                ),
-              ],
-            ),
-            child: Column(
-              children: [
-                Icon(s.icon, color: AppColors.accent, size: 18),
-                SizedBox(height: 6),
-                Text(
-                  s.value,
-                  style: TextStyle(
-                    color: context.colors.ink,
-                    fontWeight: FontWeight.w800,
-                    fontSize: 14,
-                  ),
-                ),
-                SizedBox(height: 2),
-                Text(
-                  s.label,
-                  style: TextStyle(color: context.colors.muted, fontSize: 10.5),
-                ),
-              ],
-            ),
+      children: [
+        FutureBuilder<List<TripStopLocation>>(
+          future: stopsFuture,
+          builder: (context, snapshot) => _StatTile(
+            icon: Icons.flag_rounded,
+            label: 'Stops',
+            value: snapshot.connectionState == ConnectionState.done
+                ? '${snapshot.data?.length ?? 0}'
+                : '—',
           ),
-        );
-      }).toList(),
+        ),
+        _StatTile(
+          icon: Icons.calendar_today_rounded,
+          label: 'Days',
+          value: '${trip.days}',
+        ),
+        _StatTile(
+          icon: Icons.account_balance_wallet_rounded,
+          label: 'Budget',
+          value: 'RM${trip.totalBudget.toStringAsFixed(0)}',
+        ),
+        StreamBuilder<List<GroupMember>>(
+          stream: GroupService().watchMembers(trip.id),
+          builder: (context, snapshot) => _StatTile(
+            icon: Icons.people_alt_rounded,
+            label: 'Travelers',
+            value: snapshot.hasData ? '${snapshot.data!.length}' : '—',
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _StatTile extends StatelessWidget {
+  const _StatTile({
+    required this.icon,
+    required this.label,
+    required this.value,
+  });
+
+  final IconData icon;
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    return Expanded(
+      child: Container(
+        margin: EdgeInsets.only(right: 10),
+        padding: EdgeInsets.symmetric(vertical: 14),
+        decoration: BoxDecoration(
+          color: context.colors.card,
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: [
+            BoxShadow(
+              color: context.colors.ink.withValues(alpha: 0.05),
+              blurRadius: 10,
+              offset: Offset(0, 4),
+            ),
+          ],
+        ),
+        child: Column(
+          children: [
+            Icon(icon, color: AppColors.accent, size: 18),
+            SizedBox(height: 6),
+            Text(
+              value,
+              style: TextStyle(
+                color: context.colors.ink,
+                fontWeight: FontWeight.w800,
+                fontSize: 14,
+              ),
+            ),
+            SizedBox(height: 2),
+            Text(
+              label,
+              style: TextStyle(color: context.colors.muted, fontSize: 10.5),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
 
 class _ToolsGrid extends StatelessWidget {
-  const _ToolsGrid({required this.tripId});
+  const _ToolsGrid({required this.tripId, required this.onScheduleEdited});
 
   final String tripId;
+  final VoidCallback onScheduleEdited;
 
   @override
   Widget build(BuildContext context) {
@@ -292,17 +364,24 @@ class _ToolsGrid extends StatelessWidget {
         label: 'Daily\nTimeline',
         icon: Icons.timeline_rounded,
         color: Color(0xFF5C6BC0),
-        onTap: () => Navigator.of(
-          context,
-        ).push(MaterialPageRoute(builder: (_) => DailyTimelineScreen())),
+        onTap: () => Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (_) => DailyTimelineScreen(tripId: tripId),
+          ),
+        ),
       ),
       (
         label: 'Edit\nSchedule',
         icon: Icons.edit_calendar_rounded,
         color: Color(0xFF11998E),
-        onTap: () => Navigator.of(
-          context,
-        ).push(MaterialPageRoute(builder: (_) => EditScheduleScreen())),
+        onTap: () async {
+          await Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (_) => EditScheduleScreen(tripId: tripId),
+            ),
+          );
+          onScheduleEdited();
+        },
       ),
       (
         label: 'Map\nView',
@@ -405,21 +484,74 @@ class _ToolsGrid extends StatelessWidget {
   }
 }
 
+class _ActivityLoading extends StatelessWidget {
+  const _ActivityLoading();
+
+  @override
+  Widget build(BuildContext context) {
+    return const Padding(
+      padding: EdgeInsets.symmetric(vertical: 20),
+      child: Center(
+        child: SizedBox(
+          width: 22,
+          height: 22,
+          child: CircularProgressIndicator(strokeWidth: 2.4),
+        ),
+      ),
+    );
+  }
+}
+
+class _ActivityEmpty extends StatelessWidget {
+  const _ActivityEmpty();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: context.colors.card,
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Text(
+        'No itinerary generated yet — this trip may not have travel '
+        'dates set, or the AI Planner hasn\'t run for it.',
+        style: TextStyle(color: context.colors.muted, fontSize: 12.5),
+      ),
+    );
+  }
+}
+
 /// A simplified version of the Daily Timeline's activity row: status
 /// tag + time, title, subtitle, a checkmark once done, and — only for
-/// the upcoming stop — a Complete button.
+/// the upcoming stop — a Complete button. Backed by a real
+/// [TripScheduleRow] from the AI-Planner-generated schedule.
 class _ActivityTile extends StatelessWidget {
-  const _ActivityTile({required this.stop, this.onComplete});
+  const _ActivityTile({
+    required this.row,
+    required this.completed,
+    this.onComplete,
+  });
 
-  final _Stop stop;
+  final TripScheduleRow row;
+  final bool completed;
 
   /// Present only for the stop that can currently be marked complete.
   final VoidCallback? onComplete;
 
+  String get _timeLabel {
+    final time = _parseTimeOfDay(
+      row.scheduledVisitStart ?? row.scheduledArrival,
+    );
+    final dayLabel = 'Day ${row.dayNumber}';
+    return time == null ? dayLabel : '$dayLabel · ${formatClockTime(time)}';
+  }
+
   @override
   Widget build(BuildContext context) {
     const done = Color(0xFF11998E);
-    final completed = stop.completed;
+    final stop = row.stop;
     return Container(
       width: double.infinity,
       margin: EdgeInsets.only(bottom: 14),
@@ -444,13 +576,13 @@ class _ActivityTile extends StatelessWidget {
             decoration: BoxDecoration(
               gradient: completed
                   ? null
-                  : LinearGradient(colors: stop.gradient),
+                  : const LinearGradient(colors: AppColors.horizon),
               color: completed ? done.withValues(alpha: 0.15) : null,
               borderRadius: BorderRadius.circular(14),
             ),
             alignment: Alignment.center,
             child: Icon(
-              completed ? Icons.check_rounded : stop.icon,
+              completed ? Icons.check_rounded : stop.categoryIcon,
               color: completed ? done : Colors.white,
               size: 20,
             ),
@@ -463,13 +595,11 @@ class _ActivityTile extends StatelessWidget {
                 Row(
                   children: [
                     Container(
-                      padding: EdgeInsets.symmetric(
-                        horizontal: 8,
-                        vertical: 3,
-                      ),
+                      padding: EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                       decoration: BoxDecoration(
-                        color: (completed ? done : AppColors.accent)
-                            .withValues(alpha: 0.12),
+                        color: (completed ? done : AppColors.accent).withValues(
+                          alpha: 0.12,
+                        ),
                         borderRadius: BorderRadius.circular(8),
                       ),
                       child: Text(
@@ -485,7 +615,7 @@ class _ActivityTile extends StatelessWidget {
                     SizedBox(width: 8),
                     Expanded(
                       child: Text(
-                        stop.time,
+                        _timeLabel,
                         overflow: TextOverflow.ellipsis,
                         style: TextStyle(
                           color: context.colors.muted,
@@ -507,7 +637,7 @@ class _ActivityTile extends StatelessWidget {
                 ),
                 SizedBox(height: 3),
                 Text(
-                  stop.subtitle,
+                  stop.address,
                   style: TextStyle(color: context.colors.muted, fontSize: 12),
                 ),
                 if (onComplete != null) ...[
@@ -553,4 +683,18 @@ class _ActivityTile extends StatelessWidget {
       ),
     );
   }
+}
+
+/// Parses `trip_schedule_stops.scheduled_arrival`'s Postgres `time`
+/// string (`"HH:mm:ss"`) into a [DateTime] carrying just that
+/// time-of-day (date part is meaningless, only used with
+/// [formatClockTime]) — null if [raw] is null or unparseable.
+DateTime? _parseTimeOfDay(String? raw) {
+  if (raw == null) return null;
+  final parts = raw.split(':');
+  if (parts.length < 2) return null;
+  final hour = int.tryParse(parts[0]);
+  final minute = int.tryParse(parts[1]);
+  if (hour == null || minute == null) return null;
+  return DateTime(2000, 1, 1, hour, minute);
 }

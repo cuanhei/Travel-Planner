@@ -43,10 +43,17 @@ class TripsTab extends StatefulWidget {
   const TripsTab({super.key});
 
   @override
-  State<TripsTab> createState() => _TripsTabState();
+  State<TripsTab> createState() => TripsTabState();
 }
 
-class _TripsTabState extends State<TripsTab> {
+/// Public (unlike most private State classes in this codebase) so
+/// [HomeScreen] can hold a `GlobalKey<TripsTabState>` and call [reload]
+/// directly — this tab is kept alive inside an `IndexedStack` for the
+/// whole app session, so it never re-runs `initState` on its own when a
+/// trip is created from somewhere else (the Home dashboard's quick
+/// actions, or switching back to this tab after creating one via its
+/// own "+" button already handles the same-screen case itself).
+class TripsTabState extends State<TripsTab> {
   final _searchController = TextEditingController();
   final _tripService = TripService();
   List<Trip> _trips = [];
@@ -85,6 +92,29 @@ class _TripsTabState extends State<TripsTab> {
         _error = '$e';
         _loading = false;
       });
+    }
+  }
+
+  /// Re-fetches trips — called via [HomeScreen]'s `GlobalKey` whenever a
+  /// trip may have changed elsewhere (created from the Home dashboard's
+  /// quick actions, or simply switching back to this tab), since this
+  /// tab is kept alive in an `IndexedStack` and never re-runs `initState`
+  /// on its own. Skips the full loading-spinner state once trips are
+  /// already showing, so switching tabs doesn't flash the screen empty —
+  /// the list just swaps in fresh data once it arrives. A background
+  /// refresh failing here isn't surfaced; the visible "Try again" state
+  /// stays reserved for a genuine first-load failure.
+  Future<void> reload() async {
+    if (_trips.isEmpty && _error == null) {
+      await _load();
+      return;
+    }
+    try {
+      final trips = await _tripService.myTrips();
+      if (!mounted) return;
+      setState(() => _trips = trips);
+    } catch (_) {
+      // Ignored — see doc comment above.
     }
   }
 

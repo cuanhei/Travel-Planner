@@ -8,23 +8,41 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:travelplanner/main.dart';
+import 'package:travelplanner/widgets/recommendation_status.dart';
 
 void main() {
-  testWidgets('Counter increments smoke test', (WidgetTester tester) async {
-    // Build our app and trigger a frame.
-    await tester.pumpWidget(const MyApp());
-
-    // Verify that our counter starts at 0.
-    expect(find.text('0'), findsOneWidget);
-    expect(find.text('1'), findsNothing);
-
-    // Tap the '+' icon and trigger a frame.
-    await tester.tap(find.byIcon(Icons.add));
-    await tester.pump();
-
-    // Verify that our counter has incremented.
-    expect(find.text('0'), findsNothing);
-    expect(find.text('1'), findsOneWidget);
+  testWidgets('failed nearby search offers a working retry', (tester) async {
+    var retries = 0;
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: RecommendationStatus(
+            message: 'Nearby places could not be loaded.',
+            onRetry: () => retries++,
+          ),
+        ),
+      ),
+    );
+    expect(find.text('Nearby places could not be loaded.'), findsOneWidget);
+    await tester.tap(find.text('Retry nearby places'));
+    expect(retries, 1);
+  });
+  testWidgets('missing origin explains how to enable recommendations', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: Scaffold(
+          body: RecommendationStatus(
+            message: 'Add a starting location or accommodation.',
+          ),
+        ),
+      ),
+    );
+    expect(
+      find.text('Add a starting location or accommodation.'),
+      findsOneWidget,
+    );
+    expect(find.byType(TextButton), findsNothing);
   });
 }
