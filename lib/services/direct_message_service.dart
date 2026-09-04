@@ -4,6 +4,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../models/chat_attachment.dart';
 import '../models/direct_message.dart';
+import '../models/reaction_event.dart';
 import 'chat_media_service.dart';
 import 'supabase_config.dart';
 
@@ -161,12 +162,26 @@ class DirectMessageService {
         .map((rows) {
           final byMessage = <String, Map<String, String>>{};
           for (final r in rows) {
-            byMessage.putIfAbsent(r['message_id'] as String, () => {})[r['user_id']
-                    as String] =
-                r['emoji'] as String;
+            byMessage.putIfAbsent(
+              r['message_id'] as String,
+              () => {},
+            )[r['user_id'] as String] = r['emoji'] as String;
           }
           return byMessage;
         });
+  }
+
+  /// Same reactions as [watchReactions], but as a flat list of events
+  /// with `createdAt` — used to tell a genuinely new reaction from one
+  /// that already existed, for the "reacted to your message" toast.
+  /// [watchReactions] itself drops the timestamp since none of its
+  /// callers (rendering reaction pills) need it.
+  Stream<List<ReactionEvent>> watchReactionEvents(String tripId) {
+    return _client
+        .from('direct_message_reactions')
+        .stream(primaryKey: ['message_id', 'user_id'])
+        .eq('trip_id', tripId)
+        .map((rows) => rows.map(ReactionEvent.fromMap).toList());
   }
 
   /// Sets (replacing any previous one) the signed-in member's reaction

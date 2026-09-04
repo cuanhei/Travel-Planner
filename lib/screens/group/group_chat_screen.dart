@@ -6,14 +6,17 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../models/chat_attachment.dart';
 import '../../models/group_member.dart';
 import '../../models/group_message.dart';
+import '../../models/reaction_event.dart';
 import '../../services/chat_service.dart';
 import '../../services/group_service.dart';
+import '../../services/reaction_seen_service.dart';
 import '../../services/trip_service.dart';
 import '../../theme/app_theme.dart';
 import '../../utils/chat_time.dart';
 import '../../widgets/chat/chat_attachment_view.dart';
 import '../../widgets/chat/chat_background.dart';
 import '../../widgets/chat/chat_composer.dart';
+import '../../widgets/chat/jump_to_latest_button.dart';
 import '../../widgets/chat/reaction_picker.dart';
 import '../../widgets/detail_header.dart';
 import 'chat_media_screen.dart';
@@ -53,15 +56,14 @@ class _GroupChatScreenState extends State<GroupChatScreen> {
   // new Supabase stream object on every call, so building these inline
   // would make each nested StreamBuilder below tear down and
   // resubscribe (briefly emitting null/empty data) on *every* rebuild
-  // of this screen, not just when it first opens. For
-  // _notifyNewReactions that resubscribe blip reset its "previous
-  // reactions" baseline to empty, so the next real emission looked
-  // like every existing reaction was brand new — showing the "X
-  // reacted to your message" toast again each time the chat reopened.
+  // of this screen, not just when it first opens.
   late final _membersStream = _groupService.watchMembers(widget.tripId);
   late final _messagesStream = _chatService.watchMessages(widget.tripId);
   late final _readsStream = _chatService.watchReadReceipts(widget.tripId);
   late final _reactionsStream = _chatService.watchReactions(widget.tripId);
+  late final _reactionEventsStream = _chatService.watchReactionEvents(
+    widget.tripId,
+  );
 
   /// Message ids already reported as read this screen session — avoids
   /// re-sending the same read receipt on every rebuild of the messages
@@ -97,13 +99,20 @@ class _GroupChatScreenState extends State<GroupChatScreen> {
     );
   }
 
-  /// The last reactions snapshot seen, so a new emission can be diffed
-  /// against it to notice a fresh reaction landing on one of *my*
-  /// messages — the source for [_notifyNewReactions]'s in-chat toast.
-  /// This only fires while the chat is actually open, not as a
-  /// persistent notification the recipient sees later.
-  Map<String, Map<String, String>> _previousReactions = {};
-  bool _reactionsInitialized = false;
+  /// Cutoff up to which the "so-and-so reacted to your message" toast
+  /// has already run — persisted server-side (chat_reaction_seen_state)
+  /// so it survives leaving and reopening the chat, or switching
+  /// devices, instead of resetting every time this screen is rebuilt.
+  /// `null` until [_initReactionsSeenState] has loaded it (or bootstrapped
+  /// it for a conversation that's never used this feature before) —
+  /// [_notifyNewReactions] stays a no-op until [_reactionsSeenAtReady].
+  DateTime? _reactionsSeenAt;
+  bool _reactionsSeenAtReady = false;
+
+  /// WhatsApp-style "jump to latest" — shown once the user has scrolled
+  /// away from the bottom, so a new message doesn't yank them back down
+  /// mid-read (see [_maybeScrollToBottom]).
+  bool _showJumpToLatest = false;
 
   @override
   void initState() {
@@ -115,10 +124,52 @@ class _GroupChatScreenState extends State<GroupChatScreen> {
         .catchError((_) {
           // Fall through with the default background.
         });
+    _initReactionsSeenState();
+    _scrollController.addListener(_onScroll);
+  }
+
+  Future<void> _initReactionsSeenState() async {
+    DateTime? seenAt;
+    try {
+      seenAt = await loadReactionsSeenAt(widget.tripId);
+    } catch (_) {
+      // Fall through — treat as "never seen", same as a brand new
+      // conversation.
+    }
+    // First time this feature has run for this conversation: bootstrap
+    // to the epoch (not now) so any reaction that already landed on one
+    // of my messages — including while I hadn't opened this chat yet —
+    // still gets notified once, instead of being silently treated as
+    // already-seen.
+    seenAt ??= DateTime.fromMillisecondsSinceEpoch(0);
+    if (!mounted) return;
+    setState(() {
+      _reactionsSeenAt = seenAt;
+      _reactionsSeenAtReady = true;
+    });
+  }
+
+  void _onScroll() {
+    if (!_scrollController.hasClients) return;
+    final position = _scrollController.position;
+    final shouldShow = position.maxScrollExtent - position.pixels > 300;
+    if (shouldShow != _showJumpToLatest) {
+      setState(() => _showJumpToLatest = shouldShow);
+    }
+  }
+
+  void _scrollToLatest() {
+    if (!_scrollController.hasClients) return;
+    _scrollController.animateTo(
+      _scrollController.position.maxScrollExtent,
+      duration: const Duration(milliseconds: 300),
+      curve: Curves.easeOut,
+    );
   }
 
   @override
   void dispose() {
+    _scrollController.removeListener(_onScroll);
     _scrollController.dispose();
     _highlightTimer?.cancel();
     super.dispose();
@@ -152,62 +203,70 @@ class _GroupChatScreenState extends State<GroupChatScreen> {
   }
 
   /// Toasts "{name} reacted {emoji} to your message" the moment
-  /// someone else reacts to a message the signed-in user sent, by
-  /// diffing this reactions snapshot against the last one seen. Only
-  /// fires while this screen is open and subscribed — there's no
-  /// persistent notification for it beyond that.
+  /// someone else reacts to a message the signed-in user sent, then
+  /// jumps to and highlights that message — like tapping a
+  /// notification. Each reaction only ever triggers this once:
+  /// [_reactionsSeenAt] is the persisted (chat_reaction_seen_state)
+  /// cutoff, advanced past the newest notified reaction's timestamp
+  /// every time this runs, so re-opening the chat later (even on
+  /// another device) never replays it.
   void _notifyNewReactions(
     List<GroupMessage> rawMessages,
-    Map<String, Map<String, String>> reactionsByMessage,
+    List<ReactionEvent> events,
     String? myUid,
     List<GroupMember> members,
   ) {
-    if (myUid == null) {
-      _previousReactions = reactionsByMessage;
-      return;
-    }
-    if (!_reactionsInitialized) {
-      _reactionsInitialized = true;
-      _previousReactions = reactionsByMessage;
-      return;
-    }
+    if (myUid == null || !_reactionsSeenAtReady) return;
+    final cutoff = _reactionsSeenAt;
     final messageById = {for (final m in rawMessages) m.id: m};
-    final toNotify = <String>[];
-    for (final entry in reactionsByMessage.entries) {
-      final message = messageById[entry.key];
+    final newEvents = <ReactionEvent>[];
+    for (final e in events) {
+      if (e.userId == myUid) continue;
+      if (cutoff != null && !e.createdAt.isAfter(cutoff)) continue;
+      final message = messageById[e.messageId];
       if (message == null || message.userId != myUid) continue;
-      final oldReactions = _previousReactions[entry.key] ?? const {};
-      for (final reactorEntry in entry.value.entries) {
-        if (reactorEntry.key == myUid) continue;
-        if (oldReactions[reactorEntry.key] == reactorEntry.value) continue;
-        var reactorName = 'Someone';
-        for (final member in members) {
-          if (member.userId == reactorEntry.key) {
-            reactorName = member.label;
-            break;
-          }
-        }
-        toNotify.add(
-          '$reactorName reacted ${reactorEntry.value} to your message',
-        );
-      }
+      newEvents.add(e);
     }
-    _previousReactions = reactionsByMessage;
-    if (toNotify.isEmpty) return;
-    WidgetsBinding.instance.addPostFrameCallback((_) {
+    if (newEvents.isEmpty) return;
+    newEvents.sort((a, b) => a.createdAt.compareTo(b.createdAt));
+    final newCutoff = newEvents.last.createdAt;
+    // Advance the in-memory cutoff synchronously (not via setState) so a
+    // rebuild triggered before the save below completes doesn't re-toast
+    // the same events.
+    _reactionsSeenAt = newCutoff;
+    unawaited(saveReactionsSeenAt(widget.tripId, newCutoff));
+
+    final toNotify = <String>[];
+    for (final e in newEvents) {
+      var reactorName = 'Someone';
+      for (final member in members) {
+        if (member.userId == e.userId) {
+          reactorName = member.label;
+          break;
+        }
+      }
+      toNotify.add('$reactorName reacted ${e.emoji} to your message');
+    }
+    final jumpToMessageId = newEvents.last.messageId;
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
       if (!mounted) return;
       for (final message in toNotify) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(behavior: SnackBarBehavior.floating, content: Text(message)),
         );
       }
+      await _jumpToMessage(jumpToMessageId);
     });
   }
 
   /// Opening the chat (or a new message landing) should show the
-  /// latest message, not leave the view sitting at the oldest one.
+  /// latest message — but only when already at the bottom. A message
+  /// arriving while the user has scrolled up to read older ones leaves
+  /// their scroll position alone (the [_showJumpToLatest] button is how
+  /// they get back down when they're ready), instead of yanking them
+  /// away from what they were reading.
   void _maybeScrollToBottom(int newCount) {
-    final shouldScroll = newCount > _lastMessageCount;
+    final shouldScroll = newCount > _lastMessageCount && !_showJumpToLatest;
     _lastMessageCount = newCount;
     if (!shouldScroll) return;
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -864,273 +923,336 @@ class _GroupChatScreenState extends State<GroupChatScreen> {
                               builder: (context, reactionsSnapshot) {
                                 final reactionsByMessage =
                                     reactionsSnapshot.data ?? const {};
-                                _notifyNewReactions(
-                                  rawMessages,
-                                  reactionsByMessage,
-                                  myUid,
-                                  members,
-                                );
-                                final messages = [
-                                  for (final m in rawMessages)
-                                    m
-                                        .withReadBy(reads[m.id] ?? const {})
-                                        .withReactions(
-                                          reactionsByMessage[m.id] ?? const {},
-                                        ),
-                                ];
-                                _latestMessages = messages;
-                                return ListView.builder(
-                                  controller: _scrollController,
-                                  // Wider than the default 250 so
-                                  // _jumpToMessage's estimated jump
-                                  // lands somewhere ensureVisible can
-                                  // already find built, even when the
-                                  // 70px/message guess is off.
-                                  cacheExtent: 3000,
-                                  padding: EdgeInsets.fromLTRB(20, 8, 20, 8),
-                                  itemCount: messages.length,
-                                  itemBuilder: (context, index) {
-                                    final m = messages[index];
-                                    final mine = m.userId == myUid;
-                                    final otherMemberIds = members
-                                        .map((mem) => mem.userId)
-                                        .where((id) => id != m.userId);
-                                    final seenByAll = m.seenByAll(
-                                      otherMemberIds,
+                                return StreamBuilder<List<ReactionEvent>>(
+                                  stream: _reactionEventsStream,
+                                  builder: (context, eventsSnapshot) {
+                                    _notifyNewReactions(
+                                      rawMessages,
+                                      eventsSnapshot.data ??
+                                          const <ReactionEvent>[],
+                                      myUid,
+                                      members,
                                     );
-                                    return AnimatedContainer(
-                                      key: _keyFor(m.id),
-                                      duration: const Duration(
-                                        milliseconds: 400,
-                                      ),
-                                      color: _highlightedMessageId == m.id
-                                          ? _highlightColor
-                                          : Colors.transparent,
-                                      child: Padding(
-                                        padding: EdgeInsets.only(bottom: 12),
-                                        child: Row(
-                                          mainAxisAlignment: mine
-                                              ? MainAxisAlignment.end
-                                              : MainAxisAlignment.start,
-                                          crossAxisAlignment:
-                                              CrossAxisAlignment.end,
-                                          children: [
-                                            if (!mine) ...[
-                                              GestureDetector(
-                                                onTap: () =>
-                                                    _showMemberProfile(m),
-                                                child: CircleAvatar(
-                                                  radius: 14,
-                                                  backgroundColor: Color(
-                                                    m.senderColor,
-                                                  ),
-                                                  child: Text(
-                                                    m.senderName[0]
-                                                        .toUpperCase(),
-                                                    style: TextStyle(
-                                                      color: Colors.white,
-                                                      fontSize: 11,
-                                                      fontWeight:
-                                                          FontWeight.w800,
-                                                    ),
-                                                  ),
-                                                ),
+                                    final messages = [
+                                      for (final m in rawMessages)
+                                        m
+                                            .withReadBy(reads[m.id] ?? const {})
+                                            .withReactions(
+                                              reactionsByMessage[m.id] ??
+                                                  const {},
+                                            ),
+                                    ];
+                                    _latestMessages = messages;
+                                    return Stack(
+                                      children: [
+                                        ListView.builder(
+                                          controller: _scrollController,
+                                          // Wider than the default 250 so
+                                          // _jumpToMessage's estimated jump
+                                          // lands somewhere ensureVisible can
+                                          // already find built, even when the
+                                          // 70px/message guess is off.
+                                          cacheExtent: 3000,
+                                          padding: EdgeInsets.fromLTRB(
+                                            20,
+                                            8,
+                                            20,
+                                            8,
+                                          ),
+                                          itemCount: messages.length,
+                                          itemBuilder: (context, index) {
+                                            final m = messages[index];
+                                            final mine = m.userId == myUid;
+                                            final otherMemberIds = members
+                                                .map((mem) => mem.userId)
+                                                .where((id) => id != m.userId);
+                                            final seenByAll = m.seenByAll(
+                                              otherMemberIds,
+                                            );
+                                            return AnimatedContainer(
+                                              key: _keyFor(m.id),
+                                              duration: const Duration(
+                                                milliseconds: 400,
                                               ),
-                                              SizedBox(width: 8),
-                                            ],
-                                            Flexible(
-                                              child: Column(
-                                                crossAxisAlignment: mine
-                                                    ? CrossAxisAlignment.end
-                                                    : CrossAxisAlignment.start,
-                                                children: [
-                                                  if (!mine)
-                                                    GestureDetector(
-                                                      onTap: () =>
-                                                          _showMemberProfile(m),
-                                                      child: Padding(
-                                                        padding:
-                                                            EdgeInsets.only(
-                                                              bottom: 3,
-                                                              left: 4,
+                                              color:
+                                                  _highlightedMessageId == m.id
+                                                  ? _highlightColor
+                                                  : Colors.transparent,
+                                              child: Padding(
+                                                padding: EdgeInsets.only(
+                                                  bottom: 12,
+                                                ),
+                                                child: Row(
+                                                  mainAxisAlignment: mine
+                                                      ? MainAxisAlignment.end
+                                                      : MainAxisAlignment.start,
+                                                  crossAxisAlignment:
+                                                      CrossAxisAlignment.end,
+                                                  children: [
+                                                    if (!mine) ...[
+                                                      GestureDetector(
+                                                        onTap: () =>
+                                                            _showMemberProfile(
+                                                              m,
                                                             ),
-                                                        child: Text(
-                                                          m.senderName,
-                                                          style: TextStyle(
-                                                            color: context
-                                                                .colors
-                                                                .muted,
-                                                            fontSize: 10.5,
-                                                            fontWeight:
-                                                                FontWeight.w600,
+                                                        child: CircleAvatar(
+                                                          radius: 14,
+                                                          backgroundColor:
+                                                              Color(
+                                                                m.senderColor,
+                                                              ),
+                                                          child: Text(
+                                                            m.senderName[0]
+                                                                .toUpperCase(),
+                                                            style: TextStyle(
+                                                              color:
+                                                                  Colors.white,
+                                                              fontSize: 11,
+                                                              fontWeight:
+                                                                  FontWeight
+                                                                      .w800,
+                                                            ),
                                                           ),
                                                         ),
                                                       ),
-                                                    ),
-                                                  GestureDetector(
-                                                    onTap: myUid == null
-                                                        ? null
-                                                        : mine
-                                                        ? () =>
-                                                              _showMessageInfo(
-                                                                m,
-                                                                members,
-                                                              )
-                                                        // Tapping someone
-                                                        // else's message
-                                                        // reacts directly —
-                                                        // long-press also
-                                                        // still works, but
-                                                        // holding a mouse
-                                                        // button on desktop
-                                                        // isn't discoverable
-                                                        // the way it is on
-                                                        // a touchscreen.
-                                                        : () => _reactTo(
-                                                            m,
-                                                            myUid,
-                                                          ),
-                                                    onLongPress: myUid == null
-                                                        ? null
-                                                        : () => _reactTo(
-                                                            m,
-                                                            myUid,
-                                                          ),
-                                                    child: Container(
-                                                      padding:
-                                                          EdgeInsets.symmetric(
-                                                            horizontal: 14,
-                                                            vertical: 10,
-                                                          ),
-                                                      decoration: BoxDecoration(
-                                                        color: mine
-                                                            ? context.colors.ink
-                                                            : context
-                                                                  .colors
-                                                                  .card,
-                                                        borderRadius:
-                                                            BorderRadius.circular(
-                                                              16,
-                                                            ),
-                                                      ),
+                                                      SizedBox(width: 8),
+                                                    ],
+                                                    Flexible(
                                                       child: Column(
-                                                        crossAxisAlignment:
-                                                            CrossAxisAlignment
-                                                                .start,
-                                                        mainAxisSize:
-                                                            MainAxisSize.min,
+                                                        crossAxisAlignment: mine
+                                                            ? CrossAxisAlignment
+                                                                  .end
+                                                            : CrossAxisAlignment
+                                                                  .start,
                                                         children: [
-                                                          if (m.attachment !=
-                                                              null) ...[
-                                                            ChatAttachmentView(
-                                                              attachment:
-                                                                  m.attachment!,
-                                                            ),
-                                                            if (m.body != null)
-                                                              const SizedBox(
-                                                                height: 6,
-                                                              ),
-                                                          ],
-                                                          if (m.body != null)
-                                                            Text(
-                                                              m.body!,
-                                                              style: TextStyle(
-                                                                color: mine
-                                                                    ? Colors
-                                                                          .white
-                                                                    : context
-                                                                          .colors
-                                                                          .ink,
-                                                                fontSize: 13,
-                                                                height: 1.35,
-                                                              ),
-                                                            ),
-                                                        ],
-                                                      ),
-                                                    ),
-                                                  ),
-                                                  if (m.reactions.isNotEmpty)
-                                                    Padding(
-                                                      padding: EdgeInsets.only(
-                                                        top: 4,
-                                                        left: mine ? 0 : 4,
-                                                        right: mine ? 4 : 0,
-                                                      ),
-                                                      child: ReactionsBar(
-                                                        reactionsByUser:
-                                                            m.reactions,
-                                                        onTap: () =>
-                                                            _showReactionDetails(
-                                                              m,
-                                                              members,
-                                                            ),
-                                                      ),
-                                                    ),
-                                                  GestureDetector(
-                                                    // A photo bubble has its
-                                                    // own tap target (open
-                                                    // fullscreen preview)
-                                                    // that wins the gesture
-                                                    // arena over the bubble's
-                                                    // tap, so it can never
-                                                    // reach _showMessageInfo.
-                                                    // This ticks row sits
-                                                    // below the image and is
-                                                    // always free, so it's
-                                                    // the reliable way to
-                                                    // open "Seen by" for
-                                                    // photo messages too.
-                                                    onTap: mine && myUid != null
-                                                        ? () =>
-                                                              _showMessageInfo(
-                                                                m,
-                                                                members,
-                                                              )
-                                                        : null,
-                                                    child: Padding(
-                                                      padding: EdgeInsets.only(
-                                                        top: 4,
-                                                        left: mine ? 0 : 4,
-                                                        right: mine ? 4 : 0,
-                                                      ),
-                                                      child: Row(
-                                                        mainAxisSize:
-                                                            MainAxisSize.min,
-                                                        children: [
-                                                          Text(
-                                                            formatChatDateTime(
-                                                              m.createdAt,
-                                                            ),
-                                                            style: TextStyle(
-                                                              color: context
-                                                                  .colors
-                                                                  .muted,
-                                                              fontSize: 10,
-                                                            ),
-                                                          ),
-                                                          if (mine) ...[
-                                                            SizedBox(width: 4),
-                                                            Icon(
-                                                              Icons
-                                                                  .done_all_rounded,
-                                                              size: 14,
-                                                              color: seenByAll
-                                                                  ? _seenBlue
-                                                                  : context
+                                                          if (!mine)
+                                                            GestureDetector(
+                                                              onTap: () =>
+                                                                  _showMemberProfile(
+                                                                    m,
+                                                                  ),
+                                                              child: Padding(
+                                                                padding:
+                                                                    EdgeInsets.only(
+                                                                      bottom: 3,
+                                                                      left: 4,
+                                                                    ),
+                                                                child: Text(
+                                                                  m.senderName,
+                                                                  style: TextStyle(
+                                                                    color: context
                                                                         .colors
                                                                         .muted,
+                                                                    fontSize:
+                                                                        10.5,
+                                                                    fontWeight:
+                                                                        FontWeight
+                                                                            .w600,
+                                                                  ),
+                                                                ),
+                                                              ),
                                                             ),
-                                                          ],
+                                                          GestureDetector(
+                                                            onTap: myUid == null
+                                                                ? null
+                                                                : mine
+                                                                ? () =>
+                                                                      _showMessageInfo(
+                                                                        m,
+                                                                        members,
+                                                                      )
+                                                                // Tapping someone
+                                                                // else's message
+                                                                // reacts directly —
+                                                                // long-press also
+                                                                // still works, but
+                                                                // holding a mouse
+                                                                // button on desktop
+                                                                // isn't discoverable
+                                                                // the way it is on
+                                                                // a touchscreen.
+                                                                : () =>
+                                                                      _reactTo(
+                                                                        m,
+                                                                        myUid,
+                                                                      ),
+                                                            onLongPress:
+                                                                myUid == null
+                                                                ? null
+                                                                : () =>
+                                                                      _reactTo(
+                                                                        m,
+                                                                        myUid,
+                                                                      ),
+                                                            child: Container(
+                                                              padding:
+                                                                  EdgeInsets.symmetric(
+                                                                    horizontal:
+                                                                        14,
+                                                                    vertical:
+                                                                        10,
+                                                                  ),
+                                                              decoration: BoxDecoration(
+                                                                color: mine
+                                                                    ? context
+                                                                          .colors
+                                                                          .ink
+                                                                    : context
+                                                                          .colors
+                                                                          .card,
+                                                                borderRadius:
+                                                                    BorderRadius.circular(
+                                                                      16,
+                                                                    ),
+                                                              ),
+                                                              child: Column(
+                                                                crossAxisAlignment:
+                                                                    CrossAxisAlignment
+                                                                        .start,
+                                                                mainAxisSize:
+                                                                    MainAxisSize
+                                                                        .min,
+                                                                children: [
+                                                                  if (m.attachment !=
+                                                                      null) ...[
+                                                                    ChatAttachmentView(
+                                                                      attachment:
+                                                                          m.attachment!,
+                                                                    ),
+                                                                    if (m.body !=
+                                                                        null)
+                                                                      const SizedBox(
+                                                                        height:
+                                                                            6,
+                                                                      ),
+                                                                  ],
+                                                                  if (m.body !=
+                                                                      null)
+                                                                    Text(
+                                                                      m.body!,
+                                                                      style: TextStyle(
+                                                                        color:
+                                                                            mine
+                                                                            ? Colors.white
+                                                                            : context.colors.ink,
+                                                                        fontSize:
+                                                                            13,
+                                                                        height:
+                                                                            1.35,
+                                                                      ),
+                                                                    ),
+                                                                ],
+                                                              ),
+                                                            ),
+                                                          ),
+                                                          if (m
+                                                              .reactions
+                                                              .isNotEmpty)
+                                                            Padding(
+                                                              padding:
+                                                                  EdgeInsets.only(
+                                                                    top: 4,
+                                                                    left: mine
+                                                                        ? 0
+                                                                        : 4,
+                                                                    right: mine
+                                                                        ? 4
+                                                                        : 0,
+                                                                  ),
+                                                              child: ReactionsBar(
+                                                                reactionsByUser:
+                                                                    m.reactions,
+                                                                onTap: () =>
+                                                                    _showReactionDetails(
+                                                                      m,
+                                                                      members,
+                                                                    ),
+                                                              ),
+                                                            ),
+                                                          GestureDetector(
+                                                            // A photo bubble has its
+                                                            // own tap target (open
+                                                            // fullscreen preview)
+                                                            // that wins the gesture
+                                                            // arena over the bubble's
+                                                            // tap, so it can never
+                                                            // reach _showMessageInfo.
+                                                            // This ticks row sits
+                                                            // below the image and is
+                                                            // always free, so it's
+                                                            // the reliable way to
+                                                            // open "Seen by" for
+                                                            // photo messages too.
+                                                            onTap:
+                                                                mine &&
+                                                                    myUid !=
+                                                                        null
+                                                                ? () =>
+                                                                      _showMessageInfo(
+                                                                        m,
+                                                                        members,
+                                                                      )
+                                                                : null,
+                                                            child: Padding(
+                                                              padding:
+                                                                  EdgeInsets.only(
+                                                                    top: 4,
+                                                                    left: mine
+                                                                        ? 0
+                                                                        : 4,
+                                                                    right: mine
+                                                                        ? 4
+                                                                        : 0,
+                                                                  ),
+                                                              child: Row(
+                                                                mainAxisSize:
+                                                                    MainAxisSize
+                                                                        .min,
+                                                                children: [
+                                                                  Text(
+                                                                    formatChatDateTime(
+                                                                      m.createdAt,
+                                                                    ),
+                                                                    style: TextStyle(
+                                                                      color: context
+                                                                          .colors
+                                                                          .muted,
+                                                                      fontSize:
+                                                                          10,
+                                                                    ),
+                                                                  ),
+                                                                  if (mine) ...[
+                                                                    SizedBox(
+                                                                      width: 4,
+                                                                    ),
+                                                                    Icon(
+                                                                      Icons
+                                                                          .done_all_rounded,
+                                                                      size: 14,
+                                                                      color:
+                                                                          seenByAll
+                                                                          ? _seenBlue
+                                                                          : context.colors.muted,
+                                                                    ),
+                                                                  ],
+                                                                ],
+                                                              ),
+                                                            ),
+                                                          ),
                                                         ],
                                                       ),
                                                     ),
-                                                  ),
-                                                ],
+                                                  ],
+                                                ),
                                               ),
-                                            ),
-                                          ],
+                                            );
+                                          },
                                         ),
-                                      ),
+                                        JumpToLatestButton(
+                                          show: _showJumpToLatest,
+                                          onTap: _scrollToLatest,
+                                        ),
+                                      ],
                                     );
                                   },
                                 );

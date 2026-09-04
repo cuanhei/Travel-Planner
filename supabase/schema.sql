@@ -277,6 +277,30 @@ begin
 end;
 $$;
 
+-- Lets the Join Trip screen preview which trip an invite code points to
+-- (name, destination, dates) *before* actually filing a join request —
+-- needed to warn about a joined trip that's already over, or one whose
+-- dates overlap a trip the requester is already in. Read-only sibling
+-- of request_to_join(): same code/expiry lookup, but never inserts a
+-- join request and never raises for an unknown/expired code — it just
+-- returns no rows.
+create function public.get_trip_preview_by_code(p_code text)
+returns table (
+  trip_id uuid,
+  name text,
+  destination text,
+  start_date date,
+  end_date date
+)
+language sql
+security definer set search_path = public
+as $$
+  select t.id, t.name, t.destination, t.start_date, t.end_date
+  from public.trip_invites i
+  join public.trips t on t.id = i.trip_id
+  where i.code = upper(p_code) and i.expires_at > now();
+$$;
+
 -- Organizer-only: approve or reject a pending request. [p_reason] is the
 -- organizer's note shown to the requester when rejecting; ignored (and
 -- not stored) on approval.
@@ -439,6 +463,18 @@ create table public.chat_background_preferences (
   primary key (user_id, conversation_id)
 );
 
+-- Tracks, per user and per conversation, the cutoff up to which the
+-- "so-and-so reacted to your message" in-chat toast has already been
+-- shown — so it fires exactly once per reaction instead of replaying
+-- every existing reaction each time the chat is reopened. Same opaque
+-- conversation_id scheme as chat_background_preferences.
+create table public.chat_reaction_seen_state (
+  user_id uuid not null references auth.users (id) on delete cascade,
+  conversation_id text not null,
+  last_seen_at timestamptz not null,
+  primary key (user_id, conversation_id)
+);
+
 create table public.polls (
   id uuid primary key default gen_random_uuid(),
   trip_id uuid not null references public.trips (id) on delete cascade,
@@ -563,6 +599,7 @@ alter table public.direct_message_reads enable row level security;
 alter table public.group_message_reactions enable row level security;
 alter table public.direct_message_reactions enable row level security;
 alter table public.chat_background_preferences enable row level security;
+alter table public.chat_reaction_seen_state enable row level security;
 alter table public.polls enable row level security;
 alter table public.poll_options enable row level security;
 alter table public.poll_votes enable row level security;
@@ -717,6 +754,13 @@ create policy "direct_message_reactions_delete_own" on public.direct_message_rea
 -- chat_background_preferences: purely personal, never visible to or
 -- writable by anyone else.
 create policy "chat_background_preferences_own" on public.chat_background_preferences
+  for all to authenticated
+  using (user_id = auth.uid())
+  with check (user_id = auth.uid());
+
+-- chat_reaction_seen_state: purely personal, never visible to or
+-- writable by anyone else.
+create policy "chat_reaction_seen_state_own" on public.chat_reaction_seen_state
   for all to authenticated
   using (user_id = auth.uid())
   with check (user_id = auth.uid());

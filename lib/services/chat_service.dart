@@ -4,6 +4,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../models/chat_attachment.dart';
 import '../models/group_message.dart';
+import '../models/reaction_event.dart';
 import 'chat_media_service.dart';
 import 'supabase_config.dart';
 
@@ -174,6 +175,19 @@ class ChatService {
           }
           return byMessage;
         });
+  }
+
+  /// Same reactions as [watchReactions], but as a flat list of events
+  /// with `createdAt` — used to tell a genuinely new reaction from one
+  /// that already existed, for the "so-and-so reacted to your message"
+  /// toast. [watchReactions] itself drops the timestamp since none of
+  /// its callers (rendering reaction pills) need it.
+  Stream<List<ReactionEvent>> watchReactionEvents(String tripId) {
+    return _client
+        .from('group_message_reactions')
+        .stream(primaryKey: ['message_id', 'user_id'])
+        .eq('trip_id', tripId)
+        .map((rows) => rows.map(ReactionEvent.fromMap).toList());
   }
 
   /// Sets (replacing any previous one) the signed-in member's reaction

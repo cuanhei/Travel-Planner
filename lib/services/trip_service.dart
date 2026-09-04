@@ -255,6 +255,26 @@ class TripService {
         });
   }
 
+  /// One-shot snapshot of every trip the signed-in user belongs to — the
+  /// same membership as [watchMyTrips], but a single fetch rather than a
+  /// live stream, for a one-off check (Join Trip's date-overlap
+  /// validation) rather than something rendered on screen.
+  Future<List<Trip>> getMyTrips() async {
+    final memberRows = await _client
+        .from('trip_members')
+        .select('trip_id')
+        .eq('user_id', _uid);
+    final tripIds = memberRows
+        .map((row) => row['trip_id'] as String)
+        .toSet()
+        .toList();
+    if (tripIds.isEmpty) return const <Trip>[];
+    final rows = await retryOnJwtClockSkew(
+      () => _client.from('trips').select().inFilter('id', tripIds),
+    );
+    return rows.map(Trip.fromMap).toList();
+  }
+
   /// Fetches a trip's current name, for screens that only hold its id
   /// (Budget/Group screens no longer hardcode "Penang Adventure").
   Future<String> getTripName(String tripId) async {

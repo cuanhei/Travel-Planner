@@ -3,6 +3,8 @@ import 'package:flutter/services.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../models/join_request.dart';
+import '../../models/trip.dart';
+import '../../models/trip_invite_preview.dart';
 import '../../services/group_service.dart';
 import '../../services/trip_service.dart';
 import '../../theme/app_theme.dart';
@@ -54,6 +56,34 @@ class _JoinTripScreenState extends State<JoinTripScreen> {
   Future<void> _join() async {
     if (!_canJoin) return;
     setState(() => _isSubmitting = true);
+
+    // Preview the code's trip first so a stale-dated or clashing trip
+    // can be blocked with a specific reason, before actually filing a
+    // join request for it. A preview miss (bad/expired code, or the
+    // lookup itself failing) just falls through to requestToJoin below,
+    // which raises its own — already-handled — error for that case.
+    try {
+      final preview = await _groupService.getTripPreviewByCode(_code);
+      if (preview != null) {
+        final validationError = await _validateJoin(preview);
+        if (validationError != null) {
+          if (!mounted) return;
+          setState(() => _isSubmitting = false);
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              behavior: SnackBarBehavior.floating,
+              duration: const Duration(seconds: 6),
+              content: Text(validationError),
+            ),
+          );
+          return;
+        }
+      }
+    } catch (_) {
+      // Couldn't preview the trip — don't block the join over it, just
+      // let requestToJoin's own validation handle the code as usual.
+    }
+
     try {
       await _groupService.requestToJoin(_code);
     } on PostgrestException catch (e) {
@@ -86,6 +116,50 @@ class _JoinTripScreenState extends State<JoinTripScreen> {
       ),
     );
     Navigator.of(context).maybePop();
+  }
+
+  /// Blocks joining when the invited trip has already ended, or its
+  /// dates overlap a trip the caller already belongs to — returns a
+  /// user-facing reason, or null if it's fine to proceed.
+  Future<String?> _validateJoin(TripInvitePreview preview) async {
+    final start = preview.startDate;
+    final end = preview.endDate;
+
+    // Past-date check: today still counts as "current", not past — only
+    // blocked once the trip's last day is actually behind today.
+    if (end != null) {
+      final now = DateTime.now();
+      final today = DateTime(now.year, now.month, now.day);
+      if (today.isAfter(end)) {
+        return '"${preview.name}" already ended (${preview.dateRangeLabel}) '
+            "— you can only join a trip that's still current or upcoming.";
+      }
+    }
+
+    // Overlap check: only meaningful when both trips actually have
+    // dates set.
+    if (start != null && end != null) {
+      List<Trip> myTrips;
+      try {
+        myTrips = await _tripService.getMyTrips();
+      } catch (_) {
+        return null;
+      }
+      for (final trip in myTrips) {
+        final tStart = trip.startDate;
+        final tEnd = trip.endDate;
+        if (tStart == null || tEnd == null) continue;
+        // Inclusive whole-day ranges overlap when each starts on or
+        // before the other's end.
+        if (!start.isAfter(tEnd) && !tStart.isAfter(end)) {
+          return '"${preview.name}" (${preview.dateRangeLabel}) clashes with '
+              'your trip "${trip.name}" (${trip.dateRangeLabel}) — you '
+              "can't be in two trips at the same time.";
+        }
+      }
+    }
+
+    return null;
   }
 
   /// The organizer's own invite code (or any code for a trip the caller

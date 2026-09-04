@@ -5,6 +5,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../models/group_member.dart';
 import '../models/join_request.dart';
+import '../models/trip_invite_preview.dart';
 import 'supabase_config.dart';
 
 const _inviteCodeChars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
@@ -163,6 +164,23 @@ class GroupService {
       params: {'p_code': code},
     );
     return result as String?;
+  }
+
+  /// Previews the trip an invite [code] points to — name, destination,
+  /// dates — without filing a join request. Used by the Join Trip
+  /// screen to validate (already-ended trip, overlap with a trip the
+  /// caller is already in) before calling [requestToJoin]. Null for an
+  /// invalid or expired code (the same case [requestToJoin] would raise
+  /// on — this just doesn't raise, so a preview and an accidental typo
+  /// don't crash the screen).
+  Future<TripInvitePreview?> getTripPreviewByCode(String code) async {
+    final rows = await _client.rpc(
+      'get_trip_preview_by_code',
+      params: {'p_code': code},
+    );
+    final list = rows as List;
+    if (list.isEmpty) return null;
+    return TripInvitePreview.fromMap(list.first as Map<String, dynamic>);
   }
 
   Stream<List<JoinRequest>> watchJoinRequests(String tripId) {
