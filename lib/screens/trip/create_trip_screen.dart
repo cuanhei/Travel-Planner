@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart'
     show FilteringTextInputFormatter, TextInputFormatter;
 
-import '../../models/nearby_place.dart' show OpeningHoursPeriod;
+import '../../models/pending_trip_draft.dart';
 import '../../models/trip.dart';
 import '../../models/trip_stop_location.dart';
 import '../../services/locale_service.dart';
@@ -320,9 +320,6 @@ class _CreateTripScreenState extends State<CreateTripScreen> {
   double _parseBudget(String text) =>
       double.tryParse(text.replaceAll(RegExp(r'[^0-9.]'), '')) ?? 0;
 
-  String _formatTimeOfDay(TimeOfDay t) =>
-      '${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}:00';
-
   void _showRequiredMessage(String message) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(behavior: SnackBarBehavior.floating, content: Text(message)),
@@ -387,71 +384,7 @@ class _CreateTripScreenState extends State<CreateTripScreen> {
     return false;
   }
 
-  /// Dumps every field of every picked location (Starting From, Ending
-  /// At, each night's Accommodation, every stop in Locations) to the
-  /// console — everything captured on [TripStopLocation], including the
-  /// Google-only metadata (placeId/types/businessStatus/opening-hours
-  /// periods) that isn't shown anywhere in the UI yet, so it's visible
-  /// for debugging without needing a debugger attached.
-  void _debugPrintSelectedLocations() {
-    debugPrint('===== Plan My Trip: selected locations =====');
-    _debugPrintLocation('Starting From', _startLocation);
-    _debugPrintLocation('Ending At', _endLocation);
-    for (var i = 0; i < _accommodations.length; i++) {
-      _debugPrintLocation('Accommodation — Night ${i + 1}', _accommodations[i]);
-    }
-    if (_selectedStops.isEmpty) {
-      debugPrint('Locations: none selected');
-    } else {
-      var i = 1;
-      for (final stop in _selectedStops) {
-        _debugPrintLocation('Location #${i++}', stop);
-      }
-    }
-    debugPrint('==============================================');
-  }
-
-  void _debugPrintLocation(String label, TripStopLocation? location) {
-    if (location == null) {
-      debugPrint('$label: (none picked)');
-      return;
-    }
-    debugPrint(
-      '$label:\n'
-      '  name: ${location.name}\n'
-      '  address: ${location.address}\n'
-      '  latitude: ${location.latitude}\n'
-      '  longitude: ${location.longitude}\n'
-      '  id (trip_stops.id): ${location.id}\n'
-      '  placeId (Google): ${location.placeId}\n'
-      '  osmId: ${location.osmId}\n'
-      '  category: ${location.category}\n'
-      '  types: ${location.types}\n'
-      '  businessStatus: ${location.businessStatus}\n'
-      '  openNow: ${location.openNow}\n'
-      '  regularOpeningHours: ${location.regularOpeningHours}\n'
-      '  regularOpeningHoursPeriods: ${_formatPeriods(location.regularOpeningHoursPeriods)}\n'
-      '  currentOpeningHours: ${location.currentOpeningHours}\n'
-      '  currentOpeningHoursPeriods: ${_formatPeriods(location.currentOpeningHoursPeriods)}',
-    );
-  }
-
-  String _formatPeriods(List<OpeningHoursPeriod>? periods) {
-    if (periods == null) return 'null';
-    if (periods.isEmpty) return '[]';
-    return periods
-        .map(
-          (p) =>
-              'day ${p.openDay} ${p.openHour}:${p.openMinute.toString().padLeft(2, '0')}'
-              ' – '
-              '${p.closeDay == null ? 'open 24h' : 'day ${p.closeDay} ${p.closeHour}:${p.closeMinute.toString().padLeft(2, '0')}'}',
-        )
-        .join(', ');
-  }
-
   Future<void> _submit() async {
-    _debugPrintSelectedLocations();
-
     // Rebuild the name field in "always validate" mode from the first
     // submission attempt onward. This makes its red inline error persistent,
     // just like the other required fields, instead of only showing a toast.
@@ -539,8 +472,10 @@ class _CreateTripScreenState extends State<CreateTripScreen> {
     // hitting "Plan My Trip".
     final range = _dateRange;
     if (range != null) {
+      setState(() => _isSubmitting = true);
       final blockedRanges = await _blockedDateRanges(refresh: true);
       if (!mounted) return;
+      setState(() => _isSubmitting = false);
       final conflict = _blockingConflict(range.start, range.end, blockedRanges);
       if (conflict != null) {
         setState(() => _dateRange = null);
@@ -554,54 +489,27 @@ class _CreateTripScreenState extends State<CreateTripScreen> {
     }
 
     final budget = _parseBudget(_budgetController.text);
-    setState(() => _isSubmitting = true);
-    try {
-      // Trip details + travel information only, for now — no stops or
-      // day-by-day schedule yet.
-      await _tripService.createTrip(
-        name: name,
-        description: _descriptionController.text.trim(),
-        destination: _endLocation?.name ?? _startLocation?.name,
-        startLocationName: _startLocation?.name,
-        startAddress: _startLocation?.address,
-        startLatitude: _startLocation?.latitude,
-        startLongitude: _startLocation?.longitude,
-        endLocationName: _endLocation?.name,
-        endAddress: _endLocation?.address,
-        endLatitude: _endLocation?.latitude,
-        endLongitude: _endLocation?.longitude,
-        startDate: _dateRange?.start,
-        endDate: _dateRange?.end,
-        startTime: _formatTimeOfDay(_startTime),
-        endTime: _formatTimeOfDay(_endTime),
-        totalBudget: budget,
-        accommodations: [for (final a in _accommodations) a!],
-      );
-    } catch (e) {
-      // Full exception (PostgrestException's message/code/details/hint)
-      // printed to the console — the SnackBar alone can truncate or get
-      // dismissed before it's readable.
-      debugPrint('Create trip failed: $e');
-      if (!mounted) return;
-      setState(() => _isSubmitting = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          behavior: SnackBarBehavior.floating,
-          duration: const Duration(seconds: 8),
-          content: Text('Could not create trip: $e'),
-        ),
-      );
-      return;
-    }
-    if (!mounted) return;
-    setState(() => _isSubmitting = false);
 
+    // Nothing is written to the database here — "Plan My Trip" only
+    // stages the draft and moves on to the itinerary review screen.
+    // The trip is actually created from there, via its own "Save Trip"
+    // button, once the traveler has seen and confirmed the generated
+    // plan.
     Navigator.of(context).push(
       MaterialPageRoute(
         builder: (_) => OptimizedItineraryScreen(
           tripName: name,
           description: _descriptionController.text.trim(),
           places: finalPlaces,
+          draft: PendingTripDraft(
+            startLocation: _startLocation,
+            endLocation: _endLocation,
+            accommodations: [for (final a in _accommodations) a!],
+            dateRange: _dateRange,
+            startTime: _startTime,
+            endTime: _endTime,
+            totalBudget: budget,
+          ),
         ),
       ),
     );

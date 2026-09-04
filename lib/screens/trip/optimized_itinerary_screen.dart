@@ -2,6 +2,8 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
+import '../../models/pending_trip_draft.dart';
+import '../../services/trip_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/detail_header.dart';
 import '../../widgets/gradient_button.dart';
@@ -47,15 +49,18 @@ class _DayPlan {
   final List<_ScheduledStop> stops;
 }
 
-/// UI-only "smart" result screen for the Choose Places flow: groups the
-/// traveler's picked places into days, picks a plausible day-weather fit,
-/// orders stops for a shorter path, and suggests transport between them.
-/// All logic here is a presentable simulation over local dummy data —
-/// there is no real routing, weather, or transit API involved.
+/// Review screen for the Create Trip flow: groups the traveler's picked
+/// places into days, picks a plausible day-weather fit, orders stops for
+/// a shorter path, and suggests transport between them. The day-by-day
+/// schedule itself is a presentable simulation over local dummy data —
+/// there is no real routing/weather/transit API involved — but
+/// [_SaveTripButton] performs the real, final step: nothing from Create
+/// Trip is written to the database until the traveler confirms here.
 class OptimizedItineraryScreen extends StatelessWidget {
   const OptimizedItineraryScreen({
     super.key,
     required this.places,
+    required this.draft,
     this.tripName = '',
     this.description = '',
     this.recommendedNames = const {},
@@ -65,6 +70,11 @@ class OptimizedItineraryScreen extends StatelessWidget {
   final String description;
   final List<Place> places;
   final Set<String> recommendedNames;
+
+  /// Everything Create Trip collected but hasn't written to the database
+  /// yet — [_SaveTripButton] is what actually creates the trip, from
+  /// here, once the traveler has reviewed this generated itinerary.
+  final PendingTripDraft draft;
 
   static const _placesPerDay = 2;
 
@@ -221,7 +231,11 @@ class OptimizedItineraryScreen extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(height: 12),
-                  _SaveTripButton(tripName: tripName),
+                  _SaveTripButton(
+                    tripName: tripName,
+                    description: description,
+                    draft: draft,
+                  ),
                 ],
               ),
             ),
@@ -232,23 +246,72 @@ class OptimizedItineraryScreen extends StatelessWidget {
   }
 }
 
-/// "Save Trip" button — UI-only: shows the same success toast as before,
-/// with nothing actually written anywhere.
+String _formatTimeOfDay(TimeOfDay t) =>
+    '${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}:00';
+
+/// "Save Trip" button — this is the actual create-trip step for the
+/// whole Create Trip flow. Nothing is written to the database before
+/// this point; tapping it inserts the `trips` row (plus one
+/// `trip_accommodations` row per night) from [draft], then returns to
+/// My Trips.
 class _SaveTripButton extends StatefulWidget {
-  const _SaveTripButton({required this.tripName});
+  const _SaveTripButton({
+    required this.tripName,
+    required this.description,
+    required this.draft,
+  });
 
   final String tripName;
+  final String description;
+  final PendingTripDraft draft;
 
   @override
   State<_SaveTripButton> createState() => _SaveTripButtonState();
 }
 
 class _SaveTripButtonState extends State<_SaveTripButton> {
+  final _tripService = TripService();
   bool _saving = false;
 
   Future<void> _handleTap() async {
     setState(() => _saving = true);
-    await Future.delayed(const Duration(milliseconds: 400));
+    final draft = widget.draft;
+    try {
+      await _tripService.createTrip(
+        name: widget.tripName,
+        description: widget.description,
+        destination: draft.endLocation?.name ?? draft.startLocation?.name,
+        startLocationName: draft.startLocation?.name,
+        startAddress: draft.startLocation?.address,
+        startLatitude: draft.startLocation?.latitude,
+        startLongitude: draft.startLocation?.longitude,
+        endLocationName: draft.endLocation?.name,
+        endAddress: draft.endLocation?.address,
+        endLatitude: draft.endLocation?.latitude,
+        endLongitude: draft.endLocation?.longitude,
+        startDate: draft.dateRange?.start,
+        endDate: draft.dateRange?.end,
+        startTime: _formatTimeOfDay(draft.startTime),
+        endTime: _formatTimeOfDay(draft.endTime),
+        totalBudget: draft.totalBudget,
+        accommodations: draft.accommodations,
+      );
+    } catch (e) {
+      // Full exception (PostgrestException's message/code/details/hint)
+      // printed to the console — the SnackBar alone can truncate or get
+      // dismissed before it's readable.
+      debugPrint('Create trip failed: $e');
+      if (!mounted) return;
+      setState(() => _saving = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          behavior: SnackBarBehavior.floating,
+          duration: const Duration(seconds: 8),
+          content: Text('Could not save trip: $e'),
+        ),
+      );
+      return;
+    }
     if (!mounted) return;
     Navigator.of(context).popUntil((r) => r.isFirst);
     ScaffoldMessenger.of(context).showSnackBar(

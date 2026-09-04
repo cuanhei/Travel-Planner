@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../models/pending_trip_draft.dart';
 import '../../theme/app_theme.dart';
 import '../explore/explore_tab.dart' show Place;
 import 'optimized_itinerary_screen.dart';
@@ -57,6 +58,19 @@ class _SmartScheduleScreenState extends State<SmartScheduleScreen> {
                 description: widget.description,
                 places: widget.places,
                 recommendedNames: widget.recommendedNames,
+                // This screen has no entry point in the app anymore (a
+                // leftover from an earlier "Choose Places" flow, kept
+                // only so it still compiles) — no real Create Trip draft
+                // exists for it to carry forward.
+                draft: const PendingTripDraft(
+                  startLocation: null,
+                  endLocation: null,
+                  accommodations: [],
+                  dateRange: null,
+                  startTime: TimeOfDay(hour: 9, minute: 0),
+                  endTime: TimeOfDay(hour: 18, minute: 0),
+                  totalBudget: 0,
+                ),
               ),
             ),
           );
