@@ -276,6 +276,82 @@ class TripService {
     return Trip.fromMap(row);
   }
 
+  /// Live list of a trip's stops (with their stored coordinates) — used by
+  /// Emergency Contacts (Utilities) to show numbers for the trip's current
+  /// stop, every stop already saved to this trip, nothing fetched from an
+  /// external place-search API.
+  Stream<List<TripStopLocation>> watchTripStops(String tripId) {
+    return _client
+        .from('trip_stops')
+        .stream(primaryKey: ['id'])
+        .eq('trip_id', tripId)
+        .order('created_at')
+        .map(
+          (rows) => rows
+              .map(
+                (r) => TripStopLocation(
+                  name: r['name'] as String,
+                  address: (r['address'] as String?) ?? '',
+                  latitude: (r['latitude'] as num).toDouble(),
+                  longitude: (r['longitude'] as num).toDouble(),
+                  osmId: r['osm_id'] as String?,
+                  category: (r['category'] as String?) ?? 'Other',
+                ),
+              )
+              .toList(),
+        );
+  }
+
+  /// How many times the signed-in user has actually visited [placeName] —
+  /// the number of distinct trips they belong to, whose dates have already
+  /// finished (see [Trip.status]), that include it as a stop. Each visit
+  /// is worth one review: Community's "Add Review" (see `AddReviewScreen`)
+  /// is gated on this being greater than [CommunityService.myReviewCount],
+  /// so visiting a place again unlocks another review of it.
+  ///
+  /// Matches loosely (case-insensitive, either name containing the other)
+  /// since a trip stop's name comes from geocoded place search (e.g. "Penang
+  /// Hill, Air Itam, Penang") while Explore's destinations use a shorter
+  /// catalog name ("Penang Hill") — an exact match would almost never hit.
+  /// Multiple matching stops within the *same* trip only count as one
+  /// visit — it's still a single occasion.
+  Future<int> visitCount(String placeName) async {
+    final memberRows = await _client
+        .from('trip_members')
+        .select('trip_id')
+        .eq('user_id', _uid);
+    final tripIds = memberRows
+        .map((r) => r['trip_id'] as String)
+        .toSet()
+        .toList();
+    if (tripIds.isEmpty) return 0;
+
+    final tripRows = await _client
+        .from('trips')
+        .select()
+        .inFilter('id', tripIds);
+    final pastTripIds = tripRows
+        .map(Trip.fromMap)
+        .where((t) => t.status == TripStatus.past)
+        .map((t) => t.id)
+        .toList();
+    if (pastTripIds.isEmpty) return 0;
+
+    final stopRows = await _client
+        .from('trip_stops')
+        .select('trip_id, name')
+        .inFilter('trip_id', pastTripIds);
+    final target = placeName.trim().toLowerCase();
+    final visitedTripIds = <String>{};
+    for (final r in stopRows) {
+      final name = (r['name'] as String).trim().toLowerCase();
+      if (name == target || name.contains(target) || target.contains(name)) {
+        visitedTripIds.add(r['trip_id'] as String);
+      }
+    }
+    return visitedTripIds.length;
+  }
+
   /// Call on sign-out so a different account doesn't inherit the
   /// previous user's cached trip id.
   static void resetCache() {
