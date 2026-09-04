@@ -1,36 +1,87 @@
 import 'package:flutter/material.dart';
+import 'package:geolocator/geolocator.dart';
+import 'package:latlong2/latlong.dart';
 
+import '../../models/weather_forecast.dart';
 import '../../services/locale_service.dart';
+import '../../services/weather_service.dart';
 import '../../theme/app_theme.dart';
-import 'weather_alert_screen.dart';
+import '../../utils/weather_display.dart';
 
-/// Full weather forecast for the trip destination: current conditions,
-/// hourly strip, and a 5-day outlook.
-class WeatherForecastScreen extends StatelessWidget {
+/// Full weather forecast for the traveler's current location, via
+/// [WeatherService] (MET Malaysia data through the government's open
+/// API): today's conditions plus the rest of the available rolling
+/// window as a multi-day outlook. Replaces what used to be entirely
+/// hardcoded placeholder numbers.
+class WeatherForecastScreen extends StatefulWidget {
   const WeatherForecastScreen({super.key});
 
-  static List<({String label, IconData icon, String temp})> _hourly() => [
-    (label: tr('weather_now'), icon: Icons.wb_sunny_rounded, temp: '31°'),
-    (label: '1 PM', icon: Icons.wb_cloudy_rounded, temp: '30°'),
-    (label: '3 PM', icon: Icons.cloud_rounded, temp: '29°'),
-    (label: '5 PM', icon: Icons.grain_rounded, temp: '27°'),
-    (label: '7 PM', icon: Icons.nights_stay_rounded, temp: '26°'),
-    (label: '9 PM', icon: Icons.nights_stay_rounded, temp: '25°'),
-  ];
+  @override
+  State<WeatherForecastScreen> createState() => _WeatherForecastScreenState();
+}
 
-  static List<({String day, IconData icon, String high, String low})>
-  _daily() => [
-    (day: tr('weather_day_today'), icon: Icons.wb_sunny_rounded, high: '31°', low: '25°'),
-    (day: tr('weather_day_fri'), icon: Icons.wb_cloudy_rounded, high: '30°', low: '25°'),
-    (day: tr('weather_day_sat'), icon: Icons.grain_rounded, high: '28°', low: '24°'),
-    (day: tr('weather_day_sun'), icon: Icons.thunderstorm_rounded, high: '27°', low: '24°'),
-    (day: tr('weather_day_mon'), icon: Icons.wb_sunny_rounded, high: '31°', low: '25°'),
-  ];
+class _WeatherForecastScreenState extends State<WeatherForecastScreen> {
+  final _weatherService = WeatherService();
+
+  ResolvedWeatherWindow? _weather;
+  bool _loading = true;
+  String? _error;
+  bool _outsideMalaysia = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    setState(() {
+      _loading = true;
+      _error = null;
+      _outsideMalaysia = false;
+    });
+    try {
+      if (!await Geolocator.isLocationServiceEnabled()) {
+        throw Exception(tr('home_location_services_off'));
+      }
+      var permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
+      }
+      if (permission == LocationPermission.deniedForever) {
+        throw Exception(tr('home_location_permission_denied_forever'));
+      }
+      if (permission == LocationPermission.denied) {
+        throw Exception(tr('home_location_permission_needed'));
+      }
+      final position = await Geolocator.getCurrentPosition(
+        locationSettings: const LocationSettings(accuracy: LocationAccuracy.high),
+      );
+      final result = await _weatherService.getForecastsForPosition(
+        LatLng(position.latitude, position.longitude),
+      );
+      if (!mounted) return;
+      setState(() {
+        _weather = result;
+        _loading = false;
+      });
+    } on LocationNotInMalaysiaException {
+      if (!mounted) return;
+      setState(() {
+        _loading = false;
+        _outsideMalaysia = true;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _loading = false;
+        _error = e.toString();
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
-    final hourly = _hourly();
-    final daily = _daily();
     return Scaffold(
       backgroundColor: context.colors.surface,
       body: SafeArea(
@@ -57,237 +108,357 @@ class WeatherForecastScreen extends StatelessWidget {
                     ),
                   ),
                 ),
-                IconButton(
-                  onPressed: () => Navigator.of(context).push(
-                    MaterialPageRoute(builder: (_) => WeatherAlertScreen()),
-                  ),
-                  icon: Icon(
-                    Icons.notifications_active_outlined,
-                    color: context.colors.ink,
-                    size: 22,
-                  ),
-                ),
               ],
             ),
             SizedBox(height: 4),
-            Container(
-              width: double.infinity,
-              padding: EdgeInsets.all(24),
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  colors: [Color(0xFF2E9CCA), Color(0xFF6DD5FA)],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                ),
-                borderRadius: BorderRadius.circular(28),
-                boxShadow: [
-                  BoxShadow(
-                    color: Color(0xFF2E9CCA).withValues(alpha: 0.3),
-                    blurRadius: 20,
-                    offset: Offset(0, 10),
-                  ),
-                ],
-              ),
-              child: Column(
-                children: [
-                  Text(
-                    tr('home_demo_destination'),
-                    style: TextStyle(
-                      color: Colors.white70,
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                  SizedBox(height: 8),
-                  Icon(Icons.wb_sunny_rounded, color: Colors.white, size: 56),
-                  SizedBox(height: 8),
-                  Text(
-                    '31°C',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 46,
-                      fontWeight: FontWeight.w800,
-                    ),
-                  ),
-                  Text(
-                    tr('weather_condition_partly_cloudy'),
-                    style: TextStyle(color: Colors.white70, fontSize: 14),
-                  ),
-                  SizedBox(height: 16),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                    children: [
-                      _StatColumn(
-                        icon: Icons.water_drop_rounded,
-                        label: tr('weather_humidity'),
-                        value: '78%',
-                      ),
-                      _StatColumn(
-                        icon: Icons.air_rounded,
-                        label: tr('weather_wind'),
-                        value: '14 km/h',
-                      ),
-                      _StatColumn(
-                        icon: Icons.wb_twilight_rounded,
-                        label: tr('weather_uv_index'),
-                        value: tr('weather_uv_high'),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-            SizedBox(height: 24),
-            Text(
-              tr('weather_hourly_forecast'),
-              style: TextStyle(
-                color: context.colors.ink,
-                fontWeight: FontWeight.w800,
-                fontSize: 15,
-              ),
-            ),
-            SizedBox(height: 14),
-            SizedBox(
-              height: 100,
-              child: ListView.separated(
-                scrollDirection: Axis.horizontal,
-                itemCount: hourly.length,
-                separatorBuilder: (_, _) => SizedBox(width: 10),
-                itemBuilder: (context, index) {
-                  final h = hourly[index];
-                  return Container(
-                    width: 66,
-                    padding: EdgeInsets.symmetric(vertical: 14),
-                    decoration: BoxDecoration(
-                      color: context.colors.card,
-                      borderRadius: BorderRadius.circular(18),
-                      boxShadow: [
-                        BoxShadow(
-                          color: context.colors.ink.withValues(alpha: 0.05),
-                          blurRadius: 10,
-                          offset: Offset(0, 4),
-                        ),
-                      ],
-                    ),
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                      children: [
-                        Text(
-                          h.label,
-                          style: TextStyle(
-                            color: context.colors.muted,
-                            fontSize: 11,
-                          ),
-                        ),
-                        Icon(h.icon, color: Color(0xFF2E9CCA), size: 20),
-                        Text(
-                          h.temp,
-                          style: TextStyle(
-                            color: context.colors.ink,
-                            fontWeight: FontWeight.w700,
-                            fontSize: 12.5,
-                          ),
-                        ),
-                      ],
-                    ),
-                  );
-                },
-              ),
-            ),
-            SizedBox(height: 24),
-            Text(
-              tr('weather_five_day_outlook'),
-              style: TextStyle(
-                color: context.colors.ink,
-                fontWeight: FontWeight.w800,
-                fontSize: 15,
-              ),
-            ),
-            SizedBox(height: 14),
-            ...daily.map(
-              (d) => Container(
-                margin: EdgeInsets.only(bottom: 10),
-                padding: EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-                decoration: BoxDecoration(
-                  color: context.colors.card,
-                  borderRadius: BorderRadius.circular(16),
-                  boxShadow: [
-                    BoxShadow(
-                      color: context.colors.ink.withValues(alpha: 0.05),
-                      blurRadius: 10,
-                      offset: Offset(0, 4),
-                    ),
-                  ],
-                ),
-                child: Row(
-                  children: [
-                    SizedBox(
-                      width: 44,
-                      child: Text(
-                        d.day,
-                        style: TextStyle(
-                          color: context.colors.ink,
-                          fontWeight: FontWeight.w700,
-                          fontSize: 13,
-                        ),
-                      ),
-                    ),
-                    Icon(d.icon, color: Color(0xFF2E9CCA), size: 20),
-                    Spacer(),
-                    Text(
-                      d.high,
-                      style: TextStyle(
-                        color: context.colors.ink,
-                        fontWeight: FontWeight.w800,
-                        fontSize: 13,
-                      ),
-                    ),
-                    SizedBox(width: 8),
-                    Text(
-                      d.low,
-                      style: TextStyle(
-                        color: context.colors.muted,
-                        fontSize: 13,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
+            _buildBody(),
           ],
         ),
       ),
     );
   }
+
+  Widget _buildBody() {
+    if (_outsideMalaysia) {
+      return _HeroMessage(text: tr('home_weather_outside_malaysia'));
+    }
+    if (_loading) {
+      return _HeroMessage(loading: true, text: tr('home_weather_loading'));
+    }
+    final error = _error;
+    if (error != null) {
+      return _HeroMessage(text: error, onRetry: _load);
+    }
+    final weather = _weather;
+    if (weather == null || weather.forecasts.isEmpty) {
+      return _HeroMessage(
+        text: tr('home_weather_no_forecast'),
+        onRetry: _load,
+      );
+    }
+
+    final today = DateTime.now();
+    bool isSameDay(DateTime d) =>
+        d.year == today.year && d.month == today.month && d.day == today.day;
+    final startIndex = weather.forecasts.indexWhere(
+      (f) => isSameDay(f.date) || f.date.isAfter(today),
+    );
+    final upcoming = weather.forecasts.sublist(
+      startIndex == -1 ? weather.forecasts.length - 1 : startIndex,
+    );
+    final current = upcoming.first;
+    final outlook = upcoming.length > 1 ? upcoming.sublist(1).take(5).toList() : const <WeatherForecast>[];
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _CurrentConditions(areaLabel: weather.areaLabel, forecast: current),
+        SizedBox(height: 24),
+        Text(
+          tr('weather_today_forecast'),
+          style: TextStyle(
+            color: context.colors.ink,
+            fontWeight: FontWeight.w800,
+            fontSize: 15,
+          ),
+        ),
+        SizedBox(height: 14),
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(
+              child: _PeriodCard(
+                label: tr('home_period_morning'),
+                forecastText: current.morningForecast,
+              ),
+            ),
+            SizedBox(width: 10),
+            Expanded(
+              child: _PeriodCard(
+                label: tr('home_period_afternoon'),
+                forecastText: current.afternoonForecast,
+              ),
+            ),
+            SizedBox(width: 10),
+            Expanded(
+              child: _PeriodCard(
+                label: tr('home_period_night'),
+                forecastText: current.nightForecast,
+              ),
+            ),
+          ],
+        ),
+        if (outlook.isNotEmpty) ...[
+          SizedBox(height: 24),
+          Text(
+            tr('weather_five_day_outlook'),
+            style: TextStyle(
+              color: context.colors.ink,
+              fontWeight: FontWeight.w800,
+              fontSize: 15,
+            ),
+          ),
+          SizedBox(height: 14),
+          ...outlook.map((f) => _DailyOutlookTile(forecast: f)),
+        ],
+      ],
+    );
+  }
 }
 
-class _StatColumn extends StatelessWidget {
-  const _StatColumn({
-    required this.icon,
-    required this.label,
-    required this.value,
-  });
+/// The hero card in a loading/error/informational state — same shape as
+/// the real conditions card so the layout doesn't jump once real data
+/// arrives.
+class _HeroMessage extends StatelessWidget {
+  const _HeroMessage({required this.text, this.loading = false, this.onRetry});
 
-  final IconData icon;
-  final String label;
-  final String value;
+  final String text;
+  final bool loading;
+  final VoidCallback? onRetry;
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      children: [
-        Icon(icon, color: Colors.white, size: 18),
-        SizedBox(height: 6),
-        Text(
-          value,
-          style: TextStyle(
-            color: Colors.white,
-            fontWeight: FontWeight.w700,
-            fontSize: 12.5,
-          ),
+    return Container(
+      width: double.infinity,
+      padding: EdgeInsets.symmetric(vertical: 40, horizontal: 24),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [Color(0xFF2E9CCA), Color(0xFF6DD5FA)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
         ),
-        Text(label, style: TextStyle(color: Colors.white70, fontSize: 10.5)),
-      ],
+        borderRadius: BorderRadius.circular(28),
+        boxShadow: [
+          BoxShadow(
+            color: Color(0xFF2E9CCA).withValues(alpha: 0.3),
+            blurRadius: 20,
+            offset: Offset(0, 10),
+          ),
+        ],
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (loading)
+            const SizedBox(
+              width: 22,
+              height: 22,
+              child: CircularProgressIndicator(strokeWidth: 2.5, color: Colors.white),
+            )
+          else
+            const Icon(Icons.cloud_off_rounded, color: Colors.white, size: 28),
+          SizedBox(height: 12),
+          Text(
+            text,
+            textAlign: TextAlign.center,
+            style: TextStyle(color: Colors.white, fontSize: 13.5),
+          ),
+          if (onRetry != null) ...[
+            SizedBox(height: 10),
+            GestureDetector(
+              onTap: onRetry,
+              child: Text(
+                tr('home_weather_retry'),
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w800,
+                  fontSize: 13,
+                  decoration: TextDecoration.underline,
+                ),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _CurrentConditions extends StatelessWidget {
+  const _CurrentConditions({required this.areaLabel, required this.forecast});
+
+  final String areaLabel;
+  final WeatherForecast forecast;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [Color(0xFF2E9CCA), Color(0xFF6DD5FA)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(28),
+        boxShadow: [
+          BoxShadow(
+            color: Color(0xFF2E9CCA).withValues(alpha: 0.3),
+            blurRadius: 20,
+            offset: Offset(0, 10),
+          ),
+        ],
+      ),
+      child: Column(
+        children: [
+          Text(
+            '$areaLabel, ${tr('home_malaysia_word')}',
+            style: TextStyle(
+              color: Colors.white70,
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          SizedBox(height: 8),
+          Icon(
+            weatherIconFor(forecast.summaryForecast),
+            color: Colors.white,
+            size: 56,
+          ),
+          SizedBox(height: 8),
+          Text(
+            '${forecast.minTemp}° – ${forecast.maxTemp}°C',
+            style: TextStyle(
+              color: Colors.white,
+              fontSize: 40,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          Text(
+            translateWeather(forecast.summaryForecast),
+            style: TextStyle(color: Colors.white70, fontSize: 14),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _PeriodCard extends StatelessWidget {
+  const _PeriodCard({required this.label, required this.forecastText});
+
+  final String label;
+  final String forecastText;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: EdgeInsets.symmetric(vertical: 14, horizontal: 8),
+      decoration: BoxDecoration(
+        color: context.colors.card,
+        borderRadius: BorderRadius.circular(18),
+        boxShadow: [
+          BoxShadow(
+            color: context.colors.ink.withValues(alpha: 0.05),
+            blurRadius: 10,
+            offset: Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            label,
+            style: TextStyle(color: context.colors.muted, fontSize: 11),
+          ),
+          SizedBox(height: 8),
+          Icon(weatherIconFor(forecastText), color: Color(0xFF2E9CCA), size: 22),
+          SizedBox(height: 8),
+          Text(
+            translateWeather(forecastText),
+            textAlign: TextAlign.center,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              color: context.colors.ink,
+              fontWeight: FontWeight.w700,
+              fontSize: 11,
+              height: 1.2,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _DailyOutlookTile extends StatelessWidget {
+  const _DailyOutlookTile({required this.forecast});
+
+  final WeatherForecast forecast;
+
+  static const _weekdayKeys = [
+    'weather_day_mon',
+    'weather_day_tue',
+    'weather_day_wed',
+    'weather_day_thu',
+    'weather_day_fri',
+    'weather_day_sat',
+    'weather_day_sun',
+  ];
+
+  String get _dayLabel => tr(_weekdayKeys[forecast.date.weekday - 1]);
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: EdgeInsets.only(bottom: 10),
+      padding: EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      decoration: BoxDecoration(
+        color: context.colors.card,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: context.colors.ink.withValues(alpha: 0.05),
+            blurRadius: 10,
+            offset: Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          SizedBox(
+            width: 44,
+            child: Text(
+              _dayLabel,
+              style: TextStyle(
+                color: context.colors.ink,
+                fontWeight: FontWeight.w700,
+                fontSize: 13,
+              ),
+            ),
+          ),
+          Icon(
+            weatherIconFor(forecast.summaryForecast),
+            color: Color(0xFF2E9CCA),
+            size: 20,
+          ),
+          SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              translateWeather(forecast.summaryForecast),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(color: context.colors.muted, fontSize: 12.5),
+            ),
+          ),
+          Text(
+            '${forecast.maxTemp}°',
+            style: TextStyle(
+              color: context.colors.ink,
+              fontWeight: FontWeight.w800,
+              fontSize: 13,
+            ),
+          ),
+          SizedBox(width: 8),
+          Text(
+            '${forecast.minTemp}°',
+            style: TextStyle(color: context.colors.muted, fontSize: 13),
+          ),
+        ],
+      ),
     );
   }
 }
