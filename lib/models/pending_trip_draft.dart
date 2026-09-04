@@ -12,6 +12,7 @@ class PendingTripDraft {
     required this.startLocation,
     required this.endLocation,
     required this.accommodations,
+    required this.stops,
     required this.dateRange,
     required this.startTime,
     required this.endTime,
@@ -24,6 +25,13 @@ class PendingTripDraft {
   /// One per night of the trip, in order — already validated non-null
   /// for every required night by Create Trip before this draft exists.
   final List<TripStopLocation> accommodations;
+
+  /// Every place the traveler picked in Create Trip's "Locations"
+  /// section — the real, coordinate-carrying stops (unlike [places] on
+  /// [OptimizedItineraryScreen], which are the dummy catalog-flavored
+  /// `Place` conversion used only for that screen's simulated schedule).
+  /// This is what [GeographicAssignmentService] clusters onto days.
+  final List<TripStopLocation> stops;
 
   final DateTimeRange? dateRange;
   final TimeOfDay startTime;

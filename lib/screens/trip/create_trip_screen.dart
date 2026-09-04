@@ -13,7 +13,6 @@ import '../../theme/app_theme.dart';
 import '../../widgets/detail_header.dart';
 import '../../widgets/gradient_button.dart';
 import '../../widgets/location_search_field.dart';
-import '../explore/explore_tab.dart' show Place;
 import 'optimized_itinerary_screen.dart';
 import 'trip_location_picker.dart';
 
@@ -296,22 +295,6 @@ class _CreateTripScreenState extends State<CreateTripScreen> {
     _locationsFieldKey.currentState?.didChange(_selectedStops.isNotEmpty);
   }
 
-  /// A catalog-flavored [Place] standing in for a real, geocoded stop —
-  /// lets picked stops flow through the existing (catalog-only)
-  /// itinerary-generation screens without those screens needing to know
-  /// about real coordinates.
-  Place _placeFromStop(TripStopLocation stop) => Place(
-    name: stop.name,
-    area: stop.address,
-    category: stop.category,
-    rating: 0,
-    reviews: 0,
-    gradient: AppColors.dusk,
-    icon: stop.categoryIcon,
-    description: '',
-    avgBudget: 'Varies',
-  );
-
   bool get _canSubmit => !_isSubmitting;
 
   /// Parses the Budget field down to a plain number for
@@ -447,8 +430,7 @@ class _CreateTripScreenState extends State<CreateTripScreen> {
       return;
     }
 
-    final finalPlaces = _selectedStops.map(_placeFromStop).toList();
-    if (finalPlaces.isEmpty) {
+    if (_selectedStops.isEmpty) {
       _showRequiredMessage(
         'No locations selected — pick at least one location.',
       );
@@ -500,11 +482,11 @@ class _CreateTripScreenState extends State<CreateTripScreen> {
         builder: (_) => OptimizedItineraryScreen(
           tripName: name,
           description: _descriptionController.text.trim(),
-          places: finalPlaces,
           draft: PendingTripDraft(
             startLocation: _startLocation,
             endLocation: _endLocation,
             accommodations: [for (final a in _accommodations) a!],
+            stops: _selectedStops.toList(),
             dateRange: _dateRange,
             startTime: _startTime,
             endTime: _endTime,
