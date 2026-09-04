@@ -2,15 +2,105 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../models/trip_balance.dart';
+import '../../models/trip_settlement.dart';
 import '../../services/budget_service.dart';
-import '../../services/locale_service.dart';
 import '../../services/trip_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/detail_header.dart';
 
-/// Shows what each trip member paid (summed from their logged expenses)
-/// and how much they owe the organizer — the owed amount is editable
-/// by the organizer rather than an automatic even split.
+const _monthNames = [
+  'Jan',
+  'Feb',
+  'Mar',
+  'Apr',
+  'May',
+  'Jun',
+  'Jul',
+  'Aug',
+  'Sep',
+  'Oct',
+  'Nov',
+  'Dec',
+];
+
+String _formatShortDate(DateTime d) => '${_monthNames[d.month - 1]} ${d.day}';
+
+/// One "X pays Y" transaction in a settle-up plan.
+class _Settlement {
+  const _Settlement({
+    required this.from,
+    required this.to,
+    required this.amount,
+  });
+
+  final TripBalance from;
+  final TripBalance to;
+  final double amount;
+}
+
+const _settledThreshold = 0.01;
+
+/// Splits every traveler's paid total evenly across the group, nets out
+/// already-recorded [settlements] (a real payment reduces the payer's
+/// debt and the receiver's credit before the plan is computed — so a
+/// settled amount doesn't reappear just because new expenses reshuffled
+/// who's paired with who), and reduces what's left to the smallest
+/// possible set of "X pays Y RM Z" transactions (greedy: match the
+/// biggest debtor against the biggest creditor, repeat).
+List<_Settlement> _computeSettlements(
+  List<TripBalance> travelers,
+  Map<String, double> netByUser,
+) {
+  if (travelers.length < 2) return const [];
+
+  final creditors = <MapEntry<TripBalance, double>>[];
+  final debtors = <MapEntry<TripBalance, double>>[];
+  for (final t in travelers) {
+    final net = netByUser[t.userId] ?? 0;
+    if (net > _settledThreshold) {
+      creditors.add(MapEntry(t, net));
+    } else if (net < -_settledThreshold) {
+      debtors.add(MapEntry(t, -net));
+    }
+  }
+  creditors.sort((a, b) => b.value.compareTo(a.value));
+  debtors.sort((a, b) => b.value.compareTo(a.value));
+
+  final settlements = <_Settlement>[];
+  var ci = 0;
+  var di = 0;
+  var creditorLeft = creditors.isEmpty ? 0.0 : creditors[0].value;
+  var debtorLeft = debtors.isEmpty ? 0.0 : debtors[0].value;
+  while (ci < creditors.length && di < debtors.length) {
+    final amount = creditorLeft < debtorLeft ? creditorLeft : debtorLeft;
+    if (amount > _settledThreshold) {
+      settlements.add(
+        _Settlement(
+          from: debtors[di].key,
+          to: creditors[ci].key,
+          amount: amount,
+        ),
+      );
+    }
+    creditorLeft -= amount;
+    debtorLeft -= amount;
+    if (creditorLeft <= _settledThreshold) {
+      ci++;
+      if (ci < creditors.length) creditorLeft = creditors[ci].value;
+    }
+    if (debtorLeft <= _settledThreshold) {
+      di++;
+      if (di < debtors.length) debtorLeft = debtors[di].value;
+    }
+  }
+  return settlements;
+}
+
+/// Shows what each trip member actually paid (summed from their logged
+/// expenses) and, from that, an automatically computed even split: who's
+/// owed money, who owes money, and the smallest set of payments that
+/// would settle everyone up — each markable as settled once actually
+/// paid outside the app, which nets it out of future recalculations.
 class ExpenseSplitScreen extends StatefulWidget {
   const ExpenseSplitScreen({super.key, required this.tripId});
 
@@ -25,117 +115,50 @@ class _ExpenseSplitScreenState extends State<ExpenseSplitScreen> {
   late final Future<String> _tripNameFuture = TripService().getTripName(
     widget.tripId,
   );
-  late Future<List<TripBalance>> _balancesFuture = _load();
+  late final Future<List<TripBalance>> _balancesFuture = _budgetService
+      .getBalances(widget.tripId);
 
-  Future<List<TripBalance>> _load() =>
-      _budgetService.getBalances(widget.tripId);
+  final _myUid = Supabase.instance.client.auth.currentUser?.id;
 
-  void _refresh() => setState(() => _balancesFuture = _load());
-
-  Future<void> _editOwed(
-    TripBalance traveler,
-    String organizerFirstName,
-  ) async {
-    final controller = TextEditingController(
-      text: traveler.owes.toStringAsFixed(2),
+  Future<void> _markSettled(_Settlement s) async {
+    await _budgetService.recordSettlement(
+      tripId: widget.tripId,
+      fromUserId: s.from.userId,
+      toUserId: s.to.userId,
+      amount: s.amount,
     );
-    final result = await showDialog<double>(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        backgroundColor: dialogContext.colors.card,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: Text(
-          '${traveler.displayName} ${tr('budget_owes')} $organizerFirstName',
-          style: TextStyle(
-            color: dialogContext.colors.ink,
-            fontWeight: FontWeight.w800,
-            fontSize: 15.5,
-          ),
-        ),
-        content: TextField(
-          controller: controller,
-          autofocus: true,
-          keyboardType: const TextInputType.numberWithOptions(decimal: true),
-          style: TextStyle(
-            color: dialogContext.colors.ink,
-            fontWeight: FontWeight.w700,
-            fontSize: 18,
-          ),
-          decoration: InputDecoration(
-            prefixText: 'RM ',
-            prefixStyle: TextStyle(
-              color: dialogContext.colors.ink,
-              fontWeight: FontWeight.w700,
-              fontSize: 18,
-            ),
-            filled: true,
-            fillColor: dialogContext.colors.surface,
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(14),
-              borderSide: BorderSide.none,
-            ),
-            contentPadding: const EdgeInsets.symmetric(
-              horizontal: 14,
-              vertical: 12,
-            ),
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(dialogContext).pop(),
-            child: Text(tr('common_cancel')),
-          ),
-          FilledButton(
-            onPressed: () {
-              final value = double.tryParse(controller.text.trim());
-              Navigator.of(dialogContext).pop(value);
-            },
-            style: FilledButton.styleFrom(
-              backgroundColor: dialogContext.colors.ink,
-            ),
-            child: Text(tr('common_save')),
-          ),
-        ],
-      ),
-    );
-    if (result != null && result >= 0) {
-      await _budgetService.setOwedAmount(
-        tripId: widget.tripId,
-        userId: traveler.userId,
-        amount: result,
-      );
-      _refresh();
-    }
+  }
+
+  Future<void> _undoSettlement(TripSettlement s) async {
+    await _budgetService.deleteSettlement(s.id, tripId: widget.tripId);
   }
 
   @override
   Widget build(BuildContext context) {
-    final myUid = Supabase.instance.client.auth.currentUser?.id;
-
     return Scaffold(
       backgroundColor: context.colors.surface,
       body: SafeArea(
         child: FutureBuilder<List<TripBalance>>(
           future: _balancesFuture,
-          builder: (context, snapshot) {
-            if (snapshot.connectionState != ConnectionState.done) {
-              return Column(
+          builder: (context, balanceSnap) {
+            if (balanceSnap.connectionState != ConnectionState.done) {
+              return const Column(
                 children: [
-                  DetailHeader(title: tr('budget_split_title')),
-                  const Expanded(child: Center(child: CircularProgressIndicator())),
+                  DetailHeader(title: 'Split Expenses'),
+                  Expanded(child: Center(child: CircularProgressIndicator())),
                 ],
               );
             }
-            if (snapshot.hasError) {
+            if (balanceSnap.hasError) {
               return Column(
                 children: [
-                  DetailHeader(title: tr('budget_split_title')),
+                  const DetailHeader(title: 'Split Expenses'),
                   Expanded(
                     child: Center(
                       child: Padding(
                         padding: const EdgeInsets.all(24),
                         child: Text(
-                          '${tr('budget_could_not_load_members')}\n${snapshot.error}',
+                          'Could not load trip members.\n${balanceSnap.error}',
                           textAlign: TextAlign.center,
                           style: TextStyle(color: context.colors.muted),
                         ),
@@ -145,15 +168,15 @@ class _ExpenseSplitScreenState extends State<ExpenseSplitScreen> {
                 ],
               );
             }
-            final travelers = snapshot.data ?? const <TripBalance>[];
+            final travelers = balanceSnap.data ?? const <TripBalance>[];
             if (travelers.isEmpty) {
               return Column(
                 children: [
-                  DetailHeader(title: tr('budget_split_title')),
+                  const DetailHeader(title: 'Split Expenses'),
                   Expanded(
                     child: Center(
                       child: Text(
-                        tr('budget_no_trip_members_yet'),
+                        'No trip members yet.',
                         style: TextStyle(color: context.colors.muted),
                       ),
                     ),
@@ -162,283 +185,616 @@ class _ExpenseSplitScreenState extends State<ExpenseSplitScreen> {
               );
             }
 
-            final organizer = travelers.firstWhere(
-              (t) => t.isOrganizer,
-              orElse: () => travelers.first,
-            );
-            final canEdit = organizer.userId == myUid;
             final total = travelers.fold<double>(0, (sum, t) => sum + t.paid);
-            final totalOwed = travelers
-                .where((t) => !t.isOrganizer)
-                .fold<double>(0, (sum, t) => sum + t.owes);
+            final fairShare = total / travelers.length;
 
-            return Column(
-              children: [
-                FutureBuilder<String>(
-                  future: _tripNameFuture,
-                  builder: (context, nameSnap) {
-                    final tripName = nameSnap.data;
-                    return DetailHeader(
-                      title: tr('budget_split_title'),
-                      subtitle: tripName == null
-                          ? '${travelers.length} ${tr('budget_travelers_label')}'
-                          : '$tripName · ${travelers.length} ${tr('budget_travelers_label')}',
-                    );
-                  },
-                ),
-                Expanded(
-                  child: ListView(
-                    padding: const EdgeInsets.fromLTRB(24, 8, 24, 24),
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.all(18),
-                        decoration: BoxDecoration(
-                          color: context.colors.card,
-                          borderRadius: BorderRadius.circular(20),
-                          boxShadow: [
-                            BoxShadow(
-                              color: context.colors.ink.withValues(alpha: 0.05),
-                              blurRadius: 12,
-                              offset: const Offset(0, 5),
-                            ),
-                          ],
-                        ),
-                        child: Row(
-                          children: [
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    tr('budget_total_spent'),
-                                    style: TextStyle(
-                                      color: context.colors.muted,
-                                      fontSize: 12,
-                                    ),
+            return StreamBuilder<List<TripSettlement>>(
+              stream: _budgetService.watchSettlements(widget.tripId),
+              builder: (context, settleSnap) {
+                final settlements = settleSnap.data ?? const <TripSettlement>[];
+
+                // A settlement reduces the payer's debt (net moves
+                // toward zero, i.e. up) and the receiver's credit (net
+                // moves toward zero, i.e. down).
+                final netByUser = {
+                  for (final t in travelers) t.userId: t.paid - fairShare,
+                };
+                for (final s in settlements) {
+                  netByUser.update(
+                    s.fromUserId,
+                    (v) => v + s.amount,
+                    ifAbsent: () => s.amount,
+                  );
+                  netByUser.update(
+                    s.toUserId,
+                    (v) => v - s.amount,
+                    ifAbsent: () => -s.amount,
+                  );
+                }
+
+                final pending = _computeSettlements(travelers, netByUser);
+
+                return Column(
+                  children: [
+                    FutureBuilder<String>(
+                      future: _tripNameFuture,
+                      builder: (context, nameSnap) {
+                        final tripName = nameSnap.data;
+                        return DetailHeader(
+                          title: 'Split Expenses',
+                          subtitle: tripName == null
+                              ? '${travelers.length} travelers'
+                              : '$tripName · ${travelers.length} travelers',
+                        );
+                      },
+                    ),
+                    Expanded(
+                      child: ListView(
+                        padding: const EdgeInsets.fromLTRB(24, 8, 24, 24),
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(18),
+                            decoration: BoxDecoration(
+                              color: context.colors.card,
+                              borderRadius: BorderRadius.circular(20),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: context.colors.ink.withValues(
+                                    alpha: 0.05,
                                   ),
-                                  const SizedBox(height: 4),
-                                  Text(
-                                    'RM ${total.toStringAsFixed(2)}',
-                                    style: TextStyle(
-                                      color: context.colors.ink,
-                                      fontWeight: FontWeight.w800,
-                                      fontSize: 20,
-                                    ),
-                                  ),
-                                ],
-                              ),
+                                  blurRadius: 12,
+                                  offset: const Offset(0, 5),
+                                ),
+                              ],
                             ),
-                            Column(
-                              crossAxisAlignment: CrossAxisAlignment.end,
+                            child: Row(
                               children: [
-                                Text(
-                                  '${tr('budget_owed_to')} ${organizer.displayName.split(' ').first}',
-                                  style: TextStyle(
-                                    color: context.colors.muted,
-                                    fontSize: 12,
+                                Expanded(
+                                  child: _SplitStat(
+                                    label: 'Total Spent',
+                                    value: 'RM ${total.toStringAsFixed(2)}',
                                   ),
                                 ),
-                                const SizedBox(height: 4),
-                                Text(
-                                  'RM ${totalOwed.toStringAsFixed(2)}',
-                                  style: const TextStyle(
-                                    color: AppColors.accent,
-                                    fontWeight: FontWeight.w800,
-                                    fontSize: 20,
+                                Container(
+                                  width: 1,
+                                  height: 34,
+                                  color: context.colors.surface,
+                                ),
+                                Expanded(
+                                  child: _SplitStat(
+                                    label: 'Fair Share Each',
+                                    value: 'RM ${fairShare.toStringAsFixed(2)}',
+                                    valueColor: AppColors.accent,
                                   ),
                                 ),
                               ],
                             ),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(height: 24),
-                      Row(
-                        children: [
+                          ),
+                          const SizedBox(height: 24),
                           Text(
-                            tr('budget_balances'),
+                            'Who Paid',
                             style: TextStyle(
                               color: context.colors.ink,
                               fontWeight: FontWeight.w800,
                               fontSize: 15,
                             ),
                           ),
-                          const Spacer(),
-                          if (canEdit)
+                          const SizedBox(height: 4),
+                          Text(
+                            'Split evenly across everyone below · tap Settle Up for who pays who',
+                            style: TextStyle(
+                              color: context.colors.muted,
+                              fontSize: 11.5,
+                            ),
+                          ),
+                          const SizedBox(height: 14),
+                          ...travelers.map((t) {
+                            final net = netByUser[t.userId] ?? 0;
+                            final isSettled = net.abs() < _settledThreshold;
+                            final isCreditor = net > 0;
+                            final badgeColor = isSettled
+                                ? context.colors.muted
+                                : isCreditor
+                                ? const Color(0xFF11998E)
+                                : Colors.redAccent;
+                            return Container(
+                              margin: const EdgeInsets.only(bottom: 12),
+                              padding: const EdgeInsets.all(14),
+                              decoration: BoxDecoration(
+                                color: context.colors.card,
+                                borderRadius: BorderRadius.circular(18),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: context.colors.ink.withValues(
+                                      alpha: 0.05,
+                                    ),
+                                    blurRadius: 10,
+                                    offset: const Offset(0, 4),
+                                  ),
+                                ],
+                              ),
+                              child: Row(
+                                children: [
+                                  CircleAvatar(
+                                    radius: 20,
+                                    backgroundColor: Color(t.avatarColor),
+                                    child: Text(
+                                      t.displayName[0].toUpperCase(),
+                                      style: const TextStyle(
+                                        color: Colors.white,
+                                        fontWeight: FontWeight.w800,
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 14),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Row(
+                                          children: [
+                                            Flexible(
+                                              child: Text(
+                                                t.displayName,
+                                                overflow: TextOverflow.ellipsis,
+                                                style: TextStyle(
+                                                  color: context.colors.ink,
+                                                  fontWeight: FontWeight.w700,
+                                                  fontSize: 13.5,
+                                                ),
+                                              ),
+                                            ),
+                                            if (t.isOrganizer) ...[
+                                              const SizedBox(width: 6),
+                                              Container(
+                                                padding:
+                                                    const EdgeInsets.symmetric(
+                                                      horizontal: 6,
+                                                      vertical: 1.5,
+                                                    ),
+                                                decoration: BoxDecoration(
+                                                  color: AppColors.accent
+                                                      .withValues(alpha: 0.14),
+                                                  borderRadius:
+                                                      BorderRadius.circular(8),
+                                                ),
+                                                child: const Text(
+                                                  'ORGANIZER',
+                                                  style: TextStyle(
+                                                    color: AppColors.accent,
+                                                    fontSize: 9,
+                                                    fontWeight: FontWeight.w800,
+                                                    letterSpacing: 0.3,
+                                                  ),
+                                                ),
+                                              ),
+                                            ],
+                                          ],
+                                        ),
+                                        const SizedBox(height: 2),
+                                        Text(
+                                          'Paid RM ${t.paid.toStringAsFixed(2)}',
+                                          style: TextStyle(
+                                            color: context.colors.muted,
+                                            fontSize: 11.5,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 10,
+                                      vertical: 6,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: badgeColor.withValues(alpha: 0.12),
+                                      borderRadius: BorderRadius.circular(10),
+                                    ),
+                                    child: Text(
+                                      isSettled
+                                          ? 'Settled'
+                                          : isCreditor
+                                          ? 'Gets back RM ${net.toStringAsFixed(2)}'
+                                          : 'Owes RM ${net.abs().toStringAsFixed(2)}',
+                                      style: TextStyle(
+                                        color: badgeColor,
+                                        fontWeight: FontWeight.w800,
+                                        fontSize: 11.5,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            );
+                          }),
+                          const SizedBox(height: 10),
+                          Row(
+                            children: [
+                              Icon(
+                                Icons.swap_horiz_rounded,
+                                size: 16,
+                                color: context.colors.ink,
+                              ),
+                              const SizedBox(width: 6),
+                              Text(
+                                'Settle Up',
+                                style: TextStyle(
+                                  color: context.colors.ink,
+                                  fontWeight: FontWeight.w800,
+                                  fontSize: 15,
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            pending.isEmpty
+                                ? 'Nothing to settle — everyone paid their fair share.'
+                                : 'Tap the check once a payment is actually made.',
+                            style: TextStyle(
+                              color: context.colors.muted,
+                              fontSize: 11.5,
+                            ),
+                          ),
+                          const SizedBox(height: 14),
+                          if (pending.isEmpty)
+                            Container(
+                              padding: const EdgeInsets.all(20),
+                              decoration: BoxDecoration(
+                                color: const Color(
+                                  0xFF11998E,
+                                ).withValues(alpha: 0.08),
+                                borderRadius: BorderRadius.circular(18),
+                              ),
+                              child: Row(
+                                children: [
+                                  const Icon(
+                                    Icons.check_circle_rounded,
+                                    color: Color(0xFF11998E),
+                                  ),
+                                  const SizedBox(width: 12),
+                                  Expanded(
+                                    child: Text(
+                                      "You're all settled up!",
+                                      style: TextStyle(
+                                        color: context.colors.ink,
+                                        fontWeight: FontWeight.w700,
+                                        fontSize: 13,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            )
+                          else
+                            ...pending.map(
+                              (s) => _PendingSettlementRow(
+                                settlement: s,
+                                onMarkSettled: () => _markSettled(s),
+                              ),
+                            ),
+                          if (settlements.isNotEmpty) ...[
+                            const SizedBox(height: 24),
                             Text(
-                              tr('budget_tap_to_edit'),
+                              'Settled History',
+                              style: TextStyle(
+                                color: context.colors.ink,
+                                fontWeight: FontWeight.w800,
+                                fontSize: 15,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              'Payments already made — tap ↺ to undo a mistake.',
                               style: TextStyle(
                                 color: context.colors.muted,
                                 fontSize: 11.5,
                               ),
                             ),
+                            const SizedBox(height: 14),
+                            ...settlements.map((s) {
+                              final from = travelers.firstWhere(
+                                (t) => t.userId == s.fromUserId,
+                                orElse: () => travelers.first,
+                              );
+                              final to = travelers.firstWhere(
+                                (t) => t.userId == s.toUserId,
+                                orElse: () => travelers.first,
+                              );
+                              final myself = travelers.firstWhere(
+                                (t) => t.userId == _myUid,
+                                orElse: () => travelers.first,
+                              );
+                              final canUndo =
+                                  s.createdBy == _myUid || myself.isOrganizer;
+                              return _SettledHistoryRow(
+                                settlement: s,
+                                fromName: from.displayName,
+                                toName: to.displayName,
+                                canUndo: canUndo,
+                                onUndo: () => _undoSettlement(s),
+                              );
+                            }),
+                          ],
                         ],
                       ),
-                      const SizedBox(height: 14),
-                      ...travelers.map((t) {
-                        final settled = t.owes < 0.01;
-                        return Container(
-                          margin: const EdgeInsets.only(bottom: 12),
-                          padding: const EdgeInsets.all(14),
-                          decoration: BoxDecoration(
-                            color: context.colors.card,
-                            borderRadius: BorderRadius.circular(18),
-                            boxShadow: [
-                              BoxShadow(
-                                color: context.colors.ink.withValues(
-                                  alpha: 0.05,
-                                ),
-                                blurRadius: 10,
-                                offset: const Offset(0, 4),
-                              ),
-                            ],
-                          ),
-                          child: Row(
-                            children: [
-                              CircleAvatar(
-                                radius: 20,
-                                backgroundColor: Color(t.avatarColor),
-                                child: Text(
-                                  t.displayName[0].toUpperCase(),
-                                  style: const TextStyle(
-                                    color: Colors.white,
-                                    fontWeight: FontWeight.w800,
-                                  ),
-                                ),
-                              ),
-                              const SizedBox(width: 14),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Row(
-                                      children: [
-                                        Text(
-                                          t.displayName,
-                                          style: TextStyle(
-                                            color: context.colors.ink,
-                                            fontWeight: FontWeight.w700,
-                                            fontSize: 13.5,
-                                          ),
-                                        ),
-                                        if (t.isOrganizer) ...[
-                                          const SizedBox(width: 6),
-                                          Container(
-                                            padding: const EdgeInsets.symmetric(
-                                              horizontal: 6,
-                                              vertical: 1.5,
-                                            ),
-                                            decoration: BoxDecoration(
-                                              color: AppColors.accent
-                                                  .withValues(alpha: 0.14),
-                                              borderRadius:
-                                                  BorderRadius.circular(8),
-                                            ),
-                                            child: Text(
-                                              tr('budget_organizer_badge'),
-                                              style: const TextStyle(
-                                                color: AppColors.accent,
-                                                fontSize: 9,
-                                                fontWeight: FontWeight.w800,
-                                                letterSpacing: 0.3,
-                                              ),
-                                            ),
-                                          ),
-                                        ],
-                                      ],
-                                    ),
-                                    const SizedBox(height: 2),
-                                    Text(
-                                      '${tr('budget_paid')} RM ${t.paid.toStringAsFixed(2)}',
-                                      style: TextStyle(
-                                        color: context.colors.muted,
-                                        fontSize: 11.5,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                              if (t.isOrganizer)
-                                Text(
-                                  '${tr('budget_collects')} RM ${totalOwed.toStringAsFixed(2)}',
-                                  style: const TextStyle(
-                                    color: Color(0xFF11998E),
-                                    fontWeight: FontWeight.w800,
-                                    fontSize: 12.5,
-                                  ),
-                                )
-                              else if (canEdit)
-                                Material(
-                                  color:
-                                      (settled
-                                              ? const Color(0xFF11998E)
-                                              : Colors.redAccent)
-                                          .withValues(alpha: 0.12),
-                                  borderRadius: BorderRadius.circular(10),
-                                  child: InkWell(
-                                    borderRadius: BorderRadius.circular(10),
-                                    onTap: () => _editOwed(
-                                      t,
-                                      organizer.displayName.split(' ').first,
-                                    ),
-                                    child: Padding(
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: 10,
-                                        vertical: 6,
-                                      ),
-                                      child: Row(
-                                        mainAxisSize: MainAxisSize.min,
-                                        children: [
-                                          Text(
-                                            settled
-                                                ? tr('budget_settled')
-                                                : '${tr('budget_owes_amount')} RM ${t.owes.toStringAsFixed(2)}',
-                                            style: TextStyle(
-                                              color: settled
-                                                  ? const Color(0xFF11998E)
-                                                  : Colors.redAccent,
-                                              fontWeight: FontWeight.w800,
-                                              fontSize: 12.5,
-                                            ),
-                                          ),
-                                          const SizedBox(width: 4),
-                                          Icon(
-                                            Icons.edit_rounded,
-                                            size: 12,
-                                            color: settled
-                                                ? const Color(0xFF11998E)
-                                                : Colors.redAccent,
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                  ),
-                                )
-                              else
-                                Text(
-                                  settled
-                                      ? tr('budget_settled')
-                                      : '${tr('budget_owes_amount')} RM ${t.owes.toStringAsFixed(2)}',
-                                  style: TextStyle(
-                                    color: settled
-                                        ? const Color(0xFF11998E)
-                                        : Colors.redAccent,
-                                    fontWeight: FontWeight.w800,
-                                    fontSize: 12.5,
-                                  ),
-                                ),
-                            ],
-                          ),
-                        );
-                      }),
-                    ],
-                  ),
-                ),
-              ],
+                    ),
+                  ],
+                );
+              },
             );
           },
         ),
       ),
+    );
+  }
+}
+
+/// One "X pays Y" pending transaction with a "mark as settled" action —
+/// manages its own saving state so a double-tap can't record it twice.
+class _PendingSettlementRow extends StatefulWidget {
+  const _PendingSettlementRow({
+    required this.settlement,
+    required this.onMarkSettled,
+  });
+
+  final _Settlement settlement;
+  final Future<void> Function() onMarkSettled;
+
+  @override
+  State<_PendingSettlementRow> createState() => _PendingSettlementRowState();
+}
+
+class _PendingSettlementRowState extends State<_PendingSettlementRow> {
+  var _isSaving = false;
+
+  Future<void> _handleTap() async {
+    setState(() => _isSaving = true);
+    try {
+      await widget.onMarkSettled();
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _isSaving = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(behavior: SnackBarBehavior.floating, content: Text('$e')),
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final s = widget.settlement;
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: context.colors.card,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: context.colors.ink.withValues(alpha: 0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          CircleAvatar(
+            radius: 15,
+            backgroundColor: Color(s.from.avatarColor),
+            child: Text(
+              s.from.displayName[0].toUpperCase(),
+              style: const TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.w800,
+                fontSize: 11.5,
+              ),
+            ),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: RichText(
+              overflow: TextOverflow.ellipsis,
+              text: TextSpan(
+                style: TextStyle(
+                  color: context.colors.ink,
+                  fontWeight: FontWeight.w700,
+                  fontSize: 13,
+                ),
+                children: [
+                  TextSpan(text: s.from.displayName),
+                  TextSpan(
+                    text: ' pays ',
+                    style: TextStyle(
+                      color: context.colors.muted,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                  TextSpan(text: s.to.displayName),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(width: 10),
+          CircleAvatar(
+            radius: 15,
+            backgroundColor: Color(s.to.avatarColor),
+            child: Text(
+              s.to.displayName[0].toUpperCase(),
+              style: const TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.w800,
+                fontSize: 11.5,
+              ),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Text(
+            'RM ${s.amount.toStringAsFixed(2)}',
+            style: const TextStyle(
+              color: Colors.redAccent,
+              fontWeight: FontWeight.w800,
+              fontSize: 13.5,
+            ),
+          ),
+          const SizedBox(width: 8),
+          _isSaving
+              ? SizedBox(
+                  width: 28,
+                  height: 28,
+                  child: Padding(
+                    padding: const EdgeInsets.all(6),
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: context.colors.muted,
+                    ),
+                  ),
+                )
+              : Material(
+                  color: const Color(0xFF11998E).withValues(alpha: 0.12),
+                  shape: const CircleBorder(),
+                  child: InkWell(
+                    customBorder: const CircleBorder(),
+                    onTap: _handleTap,
+                    child: const Padding(
+                      padding: EdgeInsets.all(6),
+                      child: Icon(
+                        Icons.check_rounded,
+                        size: 16,
+                        color: Color(0xFF11998E),
+                      ),
+                    ),
+                  ),
+                ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SettledHistoryRow extends StatelessWidget {
+  const _SettledHistoryRow({
+    required this.settlement,
+    required this.fromName,
+    required this.toName,
+    required this.canUndo,
+    required this.onUndo,
+  });
+
+  final TripSettlement settlement;
+  final String fromName;
+  final String toName;
+  final bool canUndo;
+  final VoidCallback onUndo;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: context.colors.card,
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 30,
+            height: 30,
+            decoration: BoxDecoration(
+              color: const Color(0xFF11998E).withValues(alpha: 0.12),
+              shape: BoxShape.circle,
+            ),
+            alignment: Alignment.center,
+            child: const Icon(
+              Icons.check_rounded,
+              size: 15,
+              color: Color(0xFF11998E),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  '$fromName paid $toName',
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: context.colors.ink,
+                    fontWeight: FontWeight.w700,
+                    fontSize: 12.5,
+                  ),
+                ),
+                Text(
+                  _formatShortDate(settlement.createdAt),
+                  style: TextStyle(color: context.colors.muted, fontSize: 11),
+                ),
+              ],
+            ),
+          ),
+          Text(
+            'RM ${settlement.amount.toStringAsFixed(2)}',
+            style: TextStyle(
+              color: context.colors.ink,
+              fontWeight: FontWeight.w800,
+              fontSize: 13,
+            ),
+          ),
+          if (canUndo) ...[
+            const SizedBox(width: 8),
+            Material(
+              color: Colors.transparent,
+              shape: const CircleBorder(),
+              child: InkWell(
+                customBorder: const CircleBorder(),
+                onTap: onUndo,
+                child: Padding(
+                  padding: const EdgeInsets.all(6),
+                  child: Icon(
+                    Icons.undo_rounded,
+                    size: 16,
+                    color: context.colors.muted,
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _SplitStat extends StatelessWidget {
+  const _SplitStat({required this.label, required this.value, this.valueColor});
+
+  final String label;
+  final String value;
+  final Color? valueColor;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: TextStyle(color: context.colors.muted, fontSize: 12),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          value,
+          style: TextStyle(
+            color: valueColor ?? context.colors.ink,
+            fontWeight: FontWeight.w800,
+            fontSize: 20,
+          ),
+        ),
+      ],
     );
   }
 }

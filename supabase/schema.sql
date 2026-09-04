@@ -98,6 +98,9 @@ create table public.trip_members (
   trip_id uuid not null references public.trips (id) on delete cascade,
   user_id uuid not null references auth.users (id) on delete cascade,
   role text not null default 'member' check (role in ('organizer', 'member')),
+  -- Per-trip display alias for Group Chat, set via
+  -- set_my_trip_nickname() below — null means "show my profile name".
+  nickname text,
   joined_at timestamptz not null default now(),
   primary key (trip_id, user_id)
 );
@@ -265,6 +268,32 @@ begin
 end;
 $$;
 
+-- Resolves an invite code to a trip_id, but only when the caller is
+-- already a member of that trip — used by the Join Trip screen to send
+-- someone straight to Trip Details when they enter a code for a trip
+-- they're already in, instead of leaving them stuck on a raw error.
+-- Returns null (never raises) for anyone else, so it can't be used to
+-- probe which trip a code belongs to.
+create function public.find_my_trip_by_code(p_code text)
+returns uuid
+language plpgsql
+security definer set search_path = public
+as $$
+declare
+  v_trip_id uuid;
+begin
+  select trip_id into v_trip_id
+  from public.trip_invites
+  where code = upper(p_code);
+
+  if v_trip_id is null or not public.is_trip_member(v_trip_id) then
+    return null;
+  end if;
+
+  return v_trip_id;
+end;
+$$;
+
 -- Organizer-only: approve or reject a pending request. [p_reason] is the
 -- organizer's note shown to the requester when rejecting; ignored (and
 -- not stored) on approval.
@@ -306,12 +335,125 @@ begin
 end;
 $$;
 
+-- Lets a member set their own nickname for one trip without a raw
+-- column-update RLS policy (which would otherwise also need to guard
+-- against changing `role`) — security definer, touches only the
+-- caller's own row.
+create function public.set_my_trip_nickname(p_trip_id uuid, p_nickname text)
+returns void
+language plpgsql
+security definer set search_path = public
+as $$
+begin
+  update public.trip_members
+  set nickname = nullif(trim(p_nickname), '')
+  where trip_id = p_trip_id and user_id = auth.uid();
+end;
+$$;
+
+-- body is nullable: a media-only message (photo/video/voice note) has
+-- nothing to say in words, so it's the content-check below — not a
+-- not-null constraint — that guarantees a message is never truly empty.
 create table public.group_messages (
   id uuid primary key default gen_random_uuid(),
   trip_id uuid not null references public.trips (id) on delete cascade,
   user_id uuid not null references auth.users (id) on delete cascade,
-  body text not null check (char_length(trim(body)) > 0),
-  created_at timestamptz not null default now()
+  body text,
+  attachment_type text check (attachment_type in ('image', 'video', 'audio')),
+  attachment_url text,
+  attachment_duration_ms integer,
+  created_at timestamptz not null default now(),
+  constraint group_messages_content_check check (
+    attachment_url is not null or char_length(trim(body)) > 0
+  )
+);
+
+-- Read receipts for group_messages — trip_id is denormalized (rather
+-- than joined through group_messages) so RLS and the chat screen's
+-- realtime `.stream()` can both filter directly on it, same as every
+-- other per-trip table.
+create table public.group_message_reads (
+  message_id uuid not null references public.group_messages (id) on delete cascade,
+  trip_id uuid not null references public.trips (id) on delete cascade,
+  user_id uuid not null references auth.users (id) on delete cascade,
+  read_at timestamptz not null default now(),
+  primary key (message_id, user_id)
+);
+
+-- Direct Messages: a private 1:1 conversation between two members of
+-- the same trip, started from the Group Travel member list. trip_id is
+-- denormalized (as with group_message_reads) so RLS and `.stream()`
+-- can both filter on it directly; the client narrows a trip's rows
+-- down to one conversation by filtering the (sender_id, recipient_id)
+-- pair itself, since realtime stream filters can't express the
+-- "either direction" OR that would otherwise take.
+create table public.direct_messages (
+  id uuid primary key default gen_random_uuid(),
+  trip_id uuid not null references public.trips (id) on delete cascade,
+  sender_id uuid not null references auth.users (id) on delete cascade,
+  recipient_id uuid not null references auth.users (id) on delete cascade,
+  body text,
+  attachment_type text check (attachment_type in ('image', 'video', 'audio')),
+  attachment_url text,
+  attachment_duration_ms integer,
+  created_at timestamptz not null default now(),
+  constraint direct_messages_content_check check (
+    attachment_url is not null or char_length(trim(body)) > 0
+  ),
+  constraint direct_messages_not_self check (sender_id <> recipient_id)
+);
+
+-- Direct Messages have no per-message read receipts (unlike group
+-- chat) — just a single "I've seen this conversation up to here"
+-- marker per (trip, viewer, other member), enough to drive the
+-- Personal Message unread-count badge without tracking every message
+-- individually.
+create table public.direct_message_reads (
+  trip_id uuid not null references public.trips (id) on delete cascade,
+  user_id uuid not null references auth.users (id) on delete cascade,
+  other_user_id uuid not null references auth.users (id) on delete cascade,
+  last_read_at timestamptz not null default now(),
+  primary key (trip_id, user_id, other_user_id)
+);
+
+-- Message reactions (WhatsApp-style emoji react). One reaction per
+-- user per message — reacting again with a different emoji replaces
+-- it (upsert); the same emoji again removes it (the app issues a
+-- delete for that case).
+create table public.group_message_reactions (
+  message_id uuid not null references public.group_messages (id) on delete cascade,
+  trip_id uuid not null references public.trips (id) on delete cascade,
+  user_id uuid not null references auth.users (id) on delete cascade,
+  emoji text not null,
+  created_at timestamptz not null default now(),
+  primary key (message_id, user_id)
+);
+
+-- direct_message_reactions has no trip_members roster to lean on for
+-- its RLS boundary (a DM conversation is just two people, not "the
+-- trip") — its select/insert policies instead check the reactor is a
+-- participant of the specific message via direct_messages itself.
+-- trip_id is still carried here (denormalized, as on direct_messages)
+-- purely so the client can `.stream().eq('trip_id', ...)`.
+create table public.direct_message_reactions (
+  message_id uuid not null references public.direct_messages (id) on delete cascade,
+  trip_id uuid not null references public.trips (id) on delete cascade,
+  user_id uuid not null references auth.users (id) on delete cascade,
+  emoji text not null,
+  created_at timestamptz not null default now(),
+  primary key (message_id, user_id)
+);
+
+-- Chat background choice ("Change Background" in Group Chat / Personal
+-- Message settings). conversation_id is an opaque per-conversation key
+-- (a trip's id for Group Chat, or "<tripId>/dm/<otherUserId>" for a
+-- Direct Message) — not a real foreign key to any single table.
+create table public.chat_background_preferences (
+  user_id uuid not null references auth.users (id) on delete cascade,
+  conversation_id text not null,
+  background_key text not null,
+  updated_at timestamptz not null default now(),
+  primary key (user_id, conversation_id)
 );
 
 create table public.polls (
@@ -358,20 +500,68 @@ create table public.expenses (
   category text not null,
   amount numeric(12, 2) not null check (amount > 0),
   stop_place text,
+  -- Optional receipt/reference photos — public URLs into the
+  -- expense-photos storage bucket (see the "Storage" section below),
+  -- set client-side after uploading each one. Empty array, not null,
+  -- when there are none.
+  photo_urls text[] not null default '{}',
   spent_at date not null default current_date,
   created_at timestamptz not null default now()
 );
 
--- Manually-editable "how much this member owes the organizer" — mirrors
--- ExpenseSplitScreen, which is an editable balance rather than an
--- automatic even split. What each member *paid* is derived from
--- `expenses` (sum by user_id), not stored here.
+-- Organizer-only: permanently delete a spending category and every
+-- expense logged under it (matched by label) in one atomic statement,
+-- so "RM 200 spent in Accommodation" can't survive its own category
+-- being deleted. The organizer check happens here (not just client-side)
+-- since categories_write_members otherwise lets any member touch this
+-- table — see categories_delete_organizer below, which blocks a direct
+-- non-RPC delete from anyone else.
+create function public.delete_budget_category(p_trip_id uuid, p_label text)
+returns void
+language plpgsql
+security definer set search_path = public
+as $$
+begin
+  if not public.is_trip_organizer(p_trip_id) then
+    raise exception 'Only the organizer can delete a budget category';
+  end if;
+
+  delete from public.expenses
+  where trip_id = p_trip_id and category = p_label;
+
+  delete from public.budget_categories
+  where trip_id = p_trip_id and label = p_label;
+end;
+$$;
+
+-- Superseded by trip_settlements below — ExpenseSplitScreen now computes
+-- an automatic even split from `expenses` rather than a manually-edited
+-- "owes the organizer" amount. Left in place (unused) rather than
+-- dropped, since dropping a table is irreversible and nothing currently
+-- depends on removing it.
 create table public.trip_balances (
   trip_id uuid not null references public.trips (id) on delete cascade,
   user_id uuid not null references auth.users (id) on delete cascade,
   owes_amount numeric(12, 2) not null default 0 check (owes_amount >= 0),
   updated_at timestamptz not null default now(),
   primary key (trip_id, user_id)
+);
+
+-- A recorded real-world payment between two trip members that settles
+-- part of the auto-computed even split — e.g. "Jiaying paid Esther RM
+-- 50 in cash". ExpenseSplitScreen nets these against each member's
+-- (paid - fair share) balance before computing who-owes-who, so a
+-- settled amount doesn't keep reappearing in the settle-up plan after
+-- new expenses reshuffle the pairings. Rows are immutable facts, not
+-- edited — to fix a mistake, delete and re-record.
+create table public.trip_settlements (
+  id uuid primary key default gen_random_uuid(),
+  trip_id uuid not null references public.trips (id) on delete cascade,
+  from_user_id uuid not null references auth.users (id),
+  to_user_id uuid not null references auth.users (id),
+  amount numeric(12, 2) not null check (amount > 0),
+  created_by uuid not null references auth.users (id),
+  created_at timestamptz not null default now()
 );
 
 -- ============================================================
@@ -384,12 +574,19 @@ alter table public.trip_members enable row level security;
 alter table public.trip_invites enable row level security;
 alter table public.trip_join_requests enable row level security;
 alter table public.group_messages enable row level security;
+alter table public.group_message_reads enable row level security;
+alter table public.direct_messages enable row level security;
+alter table public.direct_message_reads enable row level security;
+alter table public.group_message_reactions enable row level security;
+alter table public.direct_message_reactions enable row level security;
+alter table public.chat_background_preferences enable row level security;
 alter table public.polls enable row level security;
 alter table public.poll_options enable row level security;
 alter table public.poll_votes enable row level security;
 alter table public.budget_categories enable row level security;
 alter table public.expenses enable row level security;
 alter table public.trip_balances enable row level security;
+alter table public.trip_settlements enable row level security;
 alter table public.trip_stops enable row level security;
 alter table public.trip_favorite_stops enable row level security;
 alter table public.trip_interests enable row level security;
@@ -407,6 +604,17 @@ create policy "profiles_update_own" on public.profiles
 -- organizer can update/delete.
 create policy "trips_select_members" on public.trips
   for select to authenticated using (public.is_trip_member(id));
+-- A requester isn't a member yet, but once they've filed a join request
+-- (pending, approved, or rejected) they can see that trip's name/dates so
+-- "Your Requests" can show what they actually applied to join.
+create policy "trips_select_requesters" on public.trips
+  for select to authenticated
+  using (
+    exists (
+      select 1 from public.trip_join_requests r
+      where r.trip_id = trips.id and r.user_id = auth.uid()
+    )
+  );
 create policy "trips_insert_self" on public.trips
   for insert to authenticated with check (created_by = auth.uid());
 create policy "trips_update_organizer" on public.trips
@@ -447,31 +655,119 @@ create policy "messages_insert_members" on public.group_messages
 create policy "messages_delete_own" on public.group_messages
   for delete to authenticated using (user_id = auth.uid());
 
--- polls + options: any member can read/create; only the trip's organizer
--- can edit/delete a poll (matches Voting screen's edit/delete-poll
--- affordance, which is hidden from non-organizer members).
+-- group_message_reads: any trip member can see who's read what; each
+-- member can only ever record their own read receipt.
+create policy "message_reads_select_members" on public.group_message_reads
+  for select to authenticated using (public.is_trip_member(trip_id));
+create policy "message_reads_insert_self" on public.group_message_reads
+  for insert to authenticated
+  with check (public.is_trip_member(trip_id) and user_id = auth.uid());
+
+-- direct_messages: only the two participants can see a conversation.
+-- Both sender and recipient must actually be trip members (the
+-- recipient-membership check runs as the sender, whose own membership
+-- the first clause already established — trip_members' own "members
+-- can see their trip's roster" policy lets that select through).
+create policy "direct_messages_select_participant" on public.direct_messages
+  for select to authenticated
+  using (sender_id = auth.uid() or recipient_id = auth.uid());
+create policy "direct_messages_insert_participant" on public.direct_messages
+  for insert to authenticated
+  with check (
+    sender_id = auth.uid()
+    and public.is_trip_member(trip_id)
+    and exists (
+      select 1 from public.trip_members
+      where trip_id = direct_messages.trip_id
+        and user_id = direct_messages.recipient_id
+    )
+  );
+
+-- direct_message_reads: each member only ever writes their own
+-- last-read marker, but both participants in a conversation can read
+-- it — the sender needs the recipient's marker to know whether/when
+-- their messages have been seen (the DM blue tick).
+create policy "direct_message_reads_select_participant" on public.direct_message_reads
+  for select to authenticated
+  using (user_id = auth.uid() or other_user_id = auth.uid());
+create policy "direct_message_reads_insert_own" on public.direct_message_reads
+  for insert to authenticated with check (user_id = auth.uid());
+create policy "direct_message_reads_update_own" on public.direct_message_reads
+  for update to authenticated using (user_id = auth.uid());
+
+-- group_message_reactions: same shape as group_message_reads.
+create policy "group_message_reactions_select_members" on public.group_message_reactions
+  for select to authenticated using (public.is_trip_member(trip_id));
+create policy "group_message_reactions_insert_own" on public.group_message_reactions
+  for insert to authenticated
+  with check (public.is_trip_member(trip_id) and user_id = auth.uid());
+create policy "group_message_reactions_update_own" on public.group_message_reactions
+  for update to authenticated using (user_id = auth.uid());
+create policy "group_message_reactions_delete_own" on public.group_message_reactions
+  for delete to authenticated using (user_id = auth.uid());
+
+-- direct_message_reactions: only participants of the reacted-to
+-- message's conversation can see/react to it.
+create policy "direct_message_reactions_select_participant" on public.direct_message_reactions
+  for select to authenticated
+  using (
+    exists (
+      select 1 from public.direct_messages dm
+      where dm.id = message_id
+        and (dm.sender_id = auth.uid() or dm.recipient_id = auth.uid())
+    )
+  );
+create policy "direct_message_reactions_insert_own" on public.direct_message_reactions
+  for insert to authenticated
+  with check (
+    user_id = auth.uid()
+    and exists (
+      select 1 from public.direct_messages dm
+      where dm.id = message_id
+        and (dm.sender_id = auth.uid() or dm.recipient_id = auth.uid())
+    )
+  );
+create policy "direct_message_reactions_update_own" on public.direct_message_reactions
+  for update to authenticated using (user_id = auth.uid());
+create policy "direct_message_reactions_delete_own" on public.direct_message_reactions
+  for delete to authenticated using (user_id = auth.uid());
+
+-- chat_background_preferences: purely personal, never visible to or
+-- writable by anyone else.
+create policy "chat_background_preferences_own" on public.chat_background_preferences
+  for all to authenticated
+  using (user_id = auth.uid())
+  with check (user_id = auth.uid());
+
+-- polls + options: any member can read/create; a poll can only be
+-- edited/deleted by whoever created it, or by the trip's organizer
+-- (who can touch any poll regardless of who made it).
 create policy "polls_select_members" on public.polls
   for select to authenticated using (public.is_trip_member(trip_id));
 create policy "polls_insert_members" on public.polls
   for insert to authenticated
   with check (public.is_trip_member(trip_id) and created_by = auth.uid());
-create policy "polls_update_organizer" on public.polls
+create policy "polls_update_owner_or_organizer" on public.polls
   for update to authenticated
-  using (public.is_trip_organizer(trip_id));
-create policy "polls_delete_organizer" on public.polls
+  using (created_by = auth.uid() or public.is_trip_organizer(trip_id));
+create policy "polls_delete_owner_or_organizer" on public.polls
   for delete to authenticated
-  using (public.is_trip_organizer(trip_id));
+  using (created_by = auth.uid() or public.is_trip_organizer(trip_id));
 
 create policy "poll_options_select_members" on public.poll_options
   for select to authenticated
   using (public.is_trip_member((select trip_id from public.polls where id = poll_id)));
-create policy "poll_options_write_organizer" on public.poll_options
+-- PollService.updatePoll() writes poll_options directly (insert/update/
+-- delete rows to match the edited option list) rather than relying on
+-- cascade, so this needs the same own-poll-or-organizer allowance as
+-- the polls table itself.
+create policy "poll_options_write_owner_or_organizer" on public.poll_options
   for all to authenticated
   using (
     exists (
       select 1 from public.polls p
       where p.id = poll_id
-        and public.is_trip_organizer(p.trip_id)
+        and (p.created_by = auth.uid() or public.is_trip_organizer(p.trip_id))
     )
   );
 
@@ -490,12 +786,18 @@ create policy "poll_votes_update_own" on public.poll_votes
 create policy "poll_votes_delete_own" on public.poll_votes
   for delete to authenticated using (user_id = auth.uid());
 
--- budget_categories: any member can read/manage.
+-- budget_categories: any member can read/plan; only the organizer can
+-- delete a category (they lose their own expenses too — see
+-- delete_budget_category — so this isn't a call every member should get
+-- to make unilaterally).
 create policy "categories_select_members" on public.budget_categories
   for select to authenticated using (public.is_trip_member(trip_id));
-create policy "categories_write_members" on public.budget_categories
-  for all to authenticated using (public.is_trip_member(trip_id))
-  with check (public.is_trip_member(trip_id));
+create policy "categories_upsert_members" on public.budget_categories
+  for insert to authenticated with check (public.is_trip_member(trip_id));
+create policy "categories_update_members" on public.budget_categories
+  for update to authenticated using (public.is_trip_member(trip_id));
+create policy "categories_delete_organizer" on public.budget_categories
+  for delete to authenticated using (public.is_trip_organizer(trip_id));
 
 -- expenses: any member can read; the logger or the organizer can
 -- edit/delete.
@@ -518,6 +820,19 @@ create policy "balances_select_members" on public.trip_balances
 create policy "balances_write_organizer" on public.trip_balances
   for all to authenticated using (public.is_trip_organizer(trip_id))
   with check (public.is_trip_organizer(trip_id));
+
+-- trip_settlements: any member can read and record one (self-reported —
+-- "we settled up in cash", no bank integration to verify it) as long as
+-- it's tagged with themselves as created_by; only the recorder or the
+-- organizer can delete one (undo a mistake).
+create policy "settlements_select_members" on public.trip_settlements
+  for select to authenticated using (public.is_trip_member(trip_id));
+create policy "settlements_insert_members" on public.trip_settlements
+  for insert to authenticated
+  with check (public.is_trip_member(trip_id) and created_by = auth.uid());
+create policy "settlements_delete_owner_or_organizer" on public.trip_settlements
+  for delete to authenticated
+  using (created_by = auth.uid() or public.is_trip_organizer(trip_id));
 
 -- trip_stops / trip_interests: any member can read/manage — mirrors
 -- budget_categories (anyone planning the trip can add a stop or tweak
@@ -553,6 +868,11 @@ create policy "trip_schedule_stops_write_members" on public.trip_schedule_stops
 
 alter publication supabase_realtime add table
   public.group_messages,
+  public.group_message_reads,
+  public.direct_messages,
+  public.direct_message_reads,
+  public.group_message_reactions,
+  public.direct_message_reactions,
   public.poll_votes,
   public.poll_options,
   public.polls,
@@ -560,7 +880,8 @@ alter publication supabase_realtime add table
   public.trip_join_requests,
   public.trips,
   public.expenses,
-  public.budget_categories;
+  public.budget_categories,
+  public.trip_settlements;
 
 -- A DELETE event's replication payload only carries the replica
 -- identity's columns for the deleted row — by default just the primary
@@ -570,7 +891,80 @@ alter publication supabase_realtime add table
 -- event is silently dropped and the row lingers in the UI until the
 -- stream re-subscribes (e.g. leaving and reopening the screen). FULL
 -- replica identity includes every column, fixing that for tables whose
--- rows actually get deleted through the app (expenses, polls, members).
+-- rows actually get deleted through the app (expenses, polls, members,
+-- and now budget_categories via delete_budget_category()).
 alter table public.expenses replica identity full;
 alter table public.polls replica identity full;
 alter table public.trip_members replica identity full;
+alter table public.budget_categories replica identity full;
+alter table public.trip_settlements replica identity full;
+alter table public.group_message_reads replica identity full;
+alter table public.direct_messages replica identity full;
+alter table public.direct_message_reads replica identity full;
+alter table public.group_message_reactions replica identity full;
+alter table public.direct_message_reactions replica identity full;
+
+-- ============================================================
+-- Storage: expense receipt photos. Public bucket (read requires no
+-- auth header, so a stored `expenses.photo_url` from getPublicUrl()
+-- just works in an Image.network) but writes are still gated by RLS on
+-- storage.objects below. Objects are keyed "<trip_id>/<file>", so a
+-- policy can recover the trip id from the first path segment without
+-- needing to know which expense a photo belongs to (a new expense
+-- doesn't have an id yet at upload time).
+-- ============================================================
+
+insert into storage.buckets (id, name, public)
+values ('expense-photos', 'expense-photos', true)
+on conflict (id) do nothing;
+
+create policy "expense_photos_select_public" on storage.objects
+  for select
+  using (bucket_id = 'expense-photos');
+
+create policy "expense_photos_insert_members" on storage.objects
+  for insert to authenticated
+  with check (
+    bucket_id = 'expense-photos'
+    and public.is_trip_member(((storage.foldername(name))[1])::uuid)
+  );
+
+create policy "expense_photos_update_owner_or_organizer" on storage.objects
+  for update to authenticated
+  using (
+    bucket_id = 'expense-photos'
+    and public.is_trip_member(((storage.foldername(name))[1])::uuid)
+    and (
+      owner_id = (auth.uid())::text
+      or public.is_trip_organizer(((storage.foldername(name))[1])::uuid)
+    )
+  );
+
+create policy "expense_photos_delete_owner_or_organizer" on storage.objects
+  for delete to authenticated
+  using (
+    bucket_id = 'expense-photos'
+    and public.is_trip_member(((storage.foldername(name))[1])::uuid)
+    and (
+      owner_id = (auth.uid())::text
+      or public.is_trip_organizer(((storage.foldername(name))[1])::uuid)
+    )
+  );
+
+-- Storage: chat photos/videos/voice notes, shared by group chat and
+-- direct messages. Same public-bucket-plus-RLS shape as expense-photos
+-- above; no update/delete policy since chat attachments aren't edited.
+insert into storage.buckets (id, name, public)
+values ('chat-media', 'chat-media', true)
+on conflict (id) do nothing;
+
+create policy "chat_media_select_public" on storage.objects
+  for select
+  using (bucket_id = 'chat-media');
+
+create policy "chat_media_insert_members" on storage.objects
+  for insert to authenticated
+  with check (
+    bucket_id = 'chat-media'
+    and public.is_trip_member(((storage.foldername(name))[1])::uuid)
+  );

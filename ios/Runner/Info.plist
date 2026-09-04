@@ -28,6 +28,12 @@
 	<true/>
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>Used to center the map and suggest nearby places when picking a trip stop.</string>
+	<key>NSCameraUsageDescription</key>
+	<string>Used to take a photo or video to attach to an expense or a chat message.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Used to choose a photo or video to attach to an expense or a chat message.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Used to record a voice message in chat, and for audio when recording a video.</string>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>

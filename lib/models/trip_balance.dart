@@ -1,6 +1,7 @@
 /// One member's split-expense standing on a trip: how much they've paid
-/// (derived from `expenses`) versus how much they still owe the
-/// organizer (`trip_balances.owes_amount`, edited by the organizer).
+/// (summed from `expenses`). The Expense Split screen derives everyone's
+/// fair share and settle-up plan from these `paid` totals directly,
+/// rather than a separately stored owed amount.
 class TripBalance {
   const TripBalance({
     required this.userId,
@@ -8,7 +9,6 @@ class TripBalance {
     required this.avatarColor,
     required this.isOrganizer,
     required this.paid,
-    required this.owes,
   });
 
   final String userId;
@@ -16,5 +16,4 @@ class TripBalance {
   final int avatarColor;
   final bool isOrganizer;
   final double paid;
-  final double owes;
 }

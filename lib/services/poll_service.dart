@@ -47,14 +47,16 @@ class PollService {
     final optionsByPoll = <String, List<PollOptionData>>{};
     for (final o in optionRows as List) {
       final pollId = o['poll_id'] as String;
-      optionsByPoll.putIfAbsent(pollId, () => []).add(
-        PollOptionData(
-          id: o['id'] as String,
-          label: o['label'] as String,
-          position: o['position'] as int,
-          voteCount: voteCountByOption[o['id']] ?? 0,
-        ),
-      );
+      optionsByPoll
+          .putIfAbsent(pollId, () => [])
+          .add(
+            PollOptionData(
+              id: o['id'] as String,
+              label: o['label'] as String,
+              position: o['position'] as int,
+              voteCount: voteCountByOption[o['id']] ?? 0,
+            ),
+          );
     }
 
     return pollRows.map((p) {
@@ -151,7 +153,9 @@ class PollService {
         .select('id')
         .eq('poll_id', pollId)
         .order('position');
-    final existingIds = (existing as List).map((r) => r['id'] as String).toList();
+    final existingIds = (existing as List)
+        .map((r) => r['id'] as String)
+        .toList();
 
     final steps = existingIds.length > optionLabels.length
         ? existingIds.length
@@ -186,7 +190,7 @@ class PollService {
       'poll_id': pollId,
       'option_id': optionId,
       'user_id': _uid,
-      'voted_at': DateTime.now().toIso8601String(),
+      'voted_at': DateTime.now().toUtc().toIso8601String(),
     }, onConflict: 'poll_id,user_id');
   }
 }
