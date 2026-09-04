@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../services/locale_service.dart';
 import '../../theme/app_theme.dart';
 import 'weather_alert_screen.dart';
 
@@ -8,8 +9,8 @@ import 'weather_alert_screen.dart';
 class WeatherForecastScreen extends StatelessWidget {
   const WeatherForecastScreen({super.key});
 
-  static final _hourly = [
-    (label: 'Now', icon: Icons.wb_sunny_rounded, temp: '31°'),
+  static List<({String label, IconData icon, String temp})> _hourly() => [
+    (label: tr('weather_now'), icon: Icons.wb_sunny_rounded, temp: '31°'),
     (label: '1 PM', icon: Icons.wb_cloudy_rounded, temp: '30°'),
     (label: '3 PM', icon: Icons.cloud_rounded, temp: '29°'),
     (label: '5 PM', icon: Icons.grain_rounded, temp: '27°'),
@@ -17,16 +18,19 @@ class WeatherForecastScreen extends StatelessWidget {
     (label: '9 PM', icon: Icons.nights_stay_rounded, temp: '25°'),
   ];
 
-  static final _daily = [
-    (day: 'Today', icon: Icons.wb_sunny_rounded, high: '31°', low: '25°'),
-    (day: 'Fri', icon: Icons.wb_cloudy_rounded, high: '30°', low: '25°'),
-    (day: 'Sat', icon: Icons.grain_rounded, high: '28°', low: '24°'),
-    (day: 'Sun', icon: Icons.thunderstorm_rounded, high: '27°', low: '24°'),
-    (day: 'Mon', icon: Icons.wb_sunny_rounded, high: '31°', low: '25°'),
+  static List<({String day, IconData icon, String high, String low})>
+  _daily() => [
+    (day: tr('weather_day_today'), icon: Icons.wb_sunny_rounded, high: '31°', low: '25°'),
+    (day: tr('weather_day_fri'), icon: Icons.wb_cloudy_rounded, high: '30°', low: '25°'),
+    (day: tr('weather_day_sat'), icon: Icons.grain_rounded, high: '28°', low: '24°'),
+    (day: tr('weather_day_sun'), icon: Icons.thunderstorm_rounded, high: '27°', low: '24°'),
+    (day: tr('weather_day_mon'), icon: Icons.wb_sunny_rounded, high: '31°', low: '25°'),
   ];
 
   @override
   Widget build(BuildContext context) {
+    final hourly = _hourly();
+    final daily = _daily();
     return Scaffold(
       backgroundColor: context.colors.surface,
       body: SafeArea(
@@ -45,7 +49,7 @@ class WeatherForecastScreen extends StatelessWidget {
                 ),
                 Expanded(
                   child: Text(
-                    'Weather Forecast',
+                    tr('weather_forecast_title'),
                     style: TextStyle(
                       color: context.colors.ink,
                       fontSize: 19,
@@ -87,7 +91,7 @@ class WeatherForecastScreen extends StatelessWidget {
               child: Column(
                 children: [
                   Text(
-                    'Penang, Malaysia',
+                    tr('home_demo_destination'),
                     style: TextStyle(
                       color: Colors.white70,
                       fontSize: 13,
@@ -106,7 +110,7 @@ class WeatherForecastScreen extends StatelessWidget {
                     ),
                   ),
                   Text(
-                    'Partly Cloudy',
+                    tr('weather_condition_partly_cloudy'),
                     style: TextStyle(color: Colors.white70, fontSize: 14),
                   ),
                   SizedBox(height: 16),
@@ -115,18 +119,18 @@ class WeatherForecastScreen extends StatelessWidget {
                     children: [
                       _StatColumn(
                         icon: Icons.water_drop_rounded,
-                        label: 'Humidity',
+                        label: tr('weather_humidity'),
                         value: '78%',
                       ),
                       _StatColumn(
                         icon: Icons.air_rounded,
-                        label: 'Wind',
+                        label: tr('weather_wind'),
                         value: '14 km/h',
                       ),
                       _StatColumn(
                         icon: Icons.wb_twilight_rounded,
-                        label: 'UV Index',
-                        value: 'High',
+                        label: tr('weather_uv_index'),
+                        value: tr('weather_uv_high'),
                       ),
                     ],
                   ),
@@ -135,7 +139,7 @@ class WeatherForecastScreen extends StatelessWidget {
             ),
             SizedBox(height: 24),
             Text(
-              'Hourly Forecast',
+              tr('weather_hourly_forecast'),
               style: TextStyle(
                 color: context.colors.ink,
                 fontWeight: FontWeight.w800,
@@ -147,10 +151,10 @@ class WeatherForecastScreen extends StatelessWidget {
               height: 100,
               child: ListView.separated(
                 scrollDirection: Axis.horizontal,
-                itemCount: _hourly.length,
+                itemCount: hourly.length,
                 separatorBuilder: (_, _) => SizedBox(width: 10),
                 itemBuilder: (context, index) {
-                  final h = _hourly[index];
+                  final h = hourly[index];
                   return Container(
                     width: 66,
                     padding: EdgeInsets.symmetric(vertical: 14),
@@ -192,7 +196,7 @@ class WeatherForecastScreen extends StatelessWidget {
             ),
             SizedBox(height: 24),
             Text(
-              '5-Day Outlook',
+              tr('weather_five_day_outlook'),
               style: TextStyle(
                 color: context.colors.ink,
                 fontWeight: FontWeight.w800,
@@ -200,7 +204,7 @@ class WeatherForecastScreen extends StatelessWidget {
               ),
             ),
             SizedBox(height: 14),
-            ..._daily.map(
+            ...daily.map(
               (d) => Container(
                 margin: EdgeInsets.only(bottom: 10),
                 padding: EdgeInsets.symmetric(horizontal: 16, vertical: 14),

@@ -7,6 +7,8 @@ import '../models/profile.dart';
 import '../models/trip.dart';
 import '../services/google_places_service.dart';
 import '../services/photon_service.dart';
+import '../services/auth_service.dart';
+import '../services/locale_service.dart';
 import '../services/profile_service.dart';
 import '../services/trip_service.dart';
 import '../services/weather_service.dart';
@@ -14,6 +16,7 @@ import '../theme/app_theme.dart';
 import '../utils/weather_display.dart';
 import '../widgets/destination_search_bar.dart';
 import '../widgets/section_header.dart';
+import '../widgets/user_avatar.dart';
 import 'activity_log_screen.dart';
 import 'community/community_tab.dart';
 import 'explore/explore_place_details_screen.dart';
@@ -21,6 +24,7 @@ import 'explore/explore_tab.dart';
 import 'explore/nearby_places_screen.dart';
 import 'group/join_trip_screen.dart';
 import 'notifications_screen.dart';
+import 'profile/edit_profile_screen.dart';
 import 'profile/profile_tab.dart';
 import 'transport/transport_routes_screen.dart';
 import 'trip/create_trip_screen.dart';
@@ -57,12 +61,17 @@ class _HomeScreenState extends State<HomeScreen> {
   final _tripCardKey = GlobalKey<_UpcomingTripCardState>();
   final _destinationsKey = GlobalKey<_DestinationsCarouselState>();
 
-  static final _tabs = [
-    (icon: Icons.home_rounded, label: 'Home'),
-    (icon: Icons.luggage_rounded, label: 'Trips'),
-    (icon: Icons.explore_rounded, label: 'Explore'),
-    (icon: Icons.groups_rounded, label: 'Community'),
-    (icon: Icons.person_rounded, label: 'Profile'),
+  // Not static — labels must re-evaluate `tr()` on every rebuild so a
+  // language change (which rebuilds the whole app, see `main.dart`)
+  // actually retranslates them, instead of being frozen at whatever
+  // language was active the first time this widget was ever built.
+  List<({IconData icon, String label})> get _tabs => [
+    (icon: Icons.home_rounded, label: tr('common_nav_home')),
+    (icon: Icons.luggage_rounded, label: tr('common_nav_trips')),
+    (icon: Icons.explore_rounded, label: tr('common_nav_explore')),
+    (icon: Icons.groups_rounded, label: tr('common_nav_community')),
+    (icon: Icons.person_rounded, label: tr('common_nav_profile')),
+
   ];
 
   late final _bodies = [
@@ -80,6 +89,12 @@ class _HomeScreenState extends State<HomeScreen> {
   void _onNavChanged(int i) {
     setState(() => _navIndex = i);
     if (i == 0) _tripCardKey.currentState?.reload();
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    ProfileService.instance.load();
   }
 
   @override
@@ -151,7 +166,7 @@ class _DashboardBody extends StatelessWidget {
             child: Padding(
               padding: EdgeInsets.only(right: 24),
               child: SectionHeader(
-                title: 'Explore Destinations',
+                title: tr('home_section_explore_destinations'),
                 onAction: () => Navigator.of(context).push(
                   MaterialPageRoute(
                     builder: (_) => NearbyPlacesScreen(
@@ -170,7 +185,7 @@ class _DashboardBody extends StatelessWidget {
           padding: EdgeInsets.fromLTRB(24, 28, 24, 0),
           sliver: SliverToBoxAdapter(
             child: SectionHeader(
-              title: 'Recent Activity',
+              title: tr('home_section_recent_activity'),
               onAction: () => Navigator.of(context).push(
                 MaterialPageRoute(builder: (_) => const ActivityLogScreen()),
               ),
@@ -192,13 +207,12 @@ class _GreetingBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Fetched once here and shared by both the name and the avatar below,
-    // rather than each firing its own request for the same row.
-    return FutureBuilder<Profile?>(
-      future: ProfileService().getCurrentProfile(),
-      builder: (context, snapshot) {
-        final profile = snapshot.data;
-        final avatarColor = profile?.avatarColor;
+    return ValueListenableBuilder<UserProfile?>(
+      valueListenable: ProfileService.instance.current,
+      builder: (context, profile, _) {
+        final name = profile?.fullName.isNotEmpty ?? false
+            ? profile!.fullName
+            : AuthService.instance.currentUserName;
         return Row(
           children: [
             Expanded(
@@ -206,7 +220,7 @@ class _GreetingBar extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    _greetingFor(DateTime.now()),
+                    tr('home_greeting'),
                     style: TextStyle(
                       color: context.colors.muted,
                       fontSize: 13,
@@ -215,7 +229,7 @@ class _GreetingBar extends StatelessWidget {
                   ),
                   SizedBox(height: 4),
                   Text(
-                    'Hi, ${profile?.name ?? 'Traveler'}',
+                    '${tr('home_hi')}, $name',
                     style: TextStyle(
                       color: context.colors.ink,
                       fontSize: 24,
@@ -233,35 +247,17 @@ class _GreetingBar extends StatelessWidget {
               ),
             ),
             SizedBox(width: 12),
-            Container(
-              width: 46,
-              height: 46,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                gradient: avatarColor == null
-                    ? LinearGradient(
-                        colors: AppColors.sunset,
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                      )
-                    : null,
-                color: avatarColor == null ? null : Color(avatarColor),
-                border: Border.all(color: Colors.white, width: 2),
-                boxShadow: [
-                  BoxShadow(
-                    color: context.colors.ink.withValues(alpha: 0.12),
-                    blurRadius: 10,
-                    offset: Offset(0, 4),
-                  ),
-                ],
-              ),
-              alignment: Alignment.center,
-              child: Text(
-                profile?.initial ?? '?',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.w800,
-                  fontSize: 18,
+            MouseRegion(
+              cursor: SystemMouseCursors.click,
+              child: GestureDetector(
+                onTap: () => Navigator.of(context).push(
+                  MaterialPageRoute(builder: (_) => const EditProfileScreen()),
+                ),
+                child: UserAvatar(
+                  name: name,
+                  avatarUrl: profile?.avatarUrl,
+                  size: 46,
+                  borderWidth: 2,
                 ),
               ),
             ),
@@ -578,7 +574,7 @@ class _NoUpcomingTripCard extends StatelessWidget {
           Icon(Icons.card_travel_rounded, color: Colors.white, size: 28),
           SizedBox(height: 14),
           Text(
-            'No Upcoming Trip',
+            tr('home_upcoming_trip_badge'),
             style: TextStyle(
               color: Colors.white,
               fontSize: 20,
@@ -587,7 +583,7 @@ class _NoUpcomingTripCard extends StatelessWidget {
           ),
           SizedBox(height: 4),
           Text(
-            'Plan your next adventure and it\'ll show up here.',
+            tr('home_no_trip_subtitle'),
             style: TextStyle(color: Colors.white70, fontSize: 13.5),
           ),
           SizedBox(height: 18),
@@ -609,7 +605,7 @@ class _NoUpcomingTripCard extends StatelessWidget {
                     ),
                     SizedBox(width: 6),
                     Text(
-                      'Create a trip now!',
+                      tr('home_create_trip_cta'),
                       style: TextStyle(
                         color: context.colors.ink,
                         fontWeight: FontWeight.w700,
@@ -640,7 +636,7 @@ class _QuickActions extends StatelessWidget {
     final actions = [
       (
         icon: Icons.add_rounded,
-        label: 'New Trip',
+        label: tr('home_action_new_trip'),
         color: AppColors.accent,
         onTap: () async {
           await Navigator.of(
@@ -651,7 +647,7 @@ class _QuickActions extends StatelessWidget {
       ),
       (
         icon: Icons.train_rounded,
-        label: 'Transport',
+        label: tr('home_action_transport'),
         color: Color(0xFF5C6BC0),
         onTap: () => Navigator.of(context).push(
           MaterialPageRoute(
@@ -661,7 +657,7 @@ class _QuickActions extends StatelessWidget {
       ),
       (
         icon: Icons.group_add_rounded,
-        label: 'Join Trip',
+        label: tr('home_action_join_trip'),
         color: Color(0xFF11998E),
         onTap: () => Navigator.of(
           context,
@@ -675,7 +671,7 @@ class _QuickActions extends StatelessWidget {
       // ),
       (
         icon: Icons.map_rounded,
-        label: 'Map',
+        label: tr('home_action_map'),
         color: Color(0xFFFFB347),
         onTap: () => Navigator.of(
           context,
@@ -775,17 +771,17 @@ class _WeatherCardState extends State<_WeatherCard> {
     });
     try {
       if (!await Geolocator.isLocationServiceEnabled()) {
-        throw Exception('Location services are turned off.');
+        throw Exception(tr('home_location_services_off'));
       }
       var permission = await Geolocator.checkPermission();
       if (permission == LocationPermission.denied) {
         permission = await Geolocator.requestPermission();
       }
       if (permission == LocationPermission.deniedForever) {
-        throw Exception('Location permission is permanently denied.');
+        throw Exception(tr('home_location_permission_denied_forever'));
       }
       if (permission == LocationPermission.denied) {
-        throw Exception('Location permission is needed for local weather.');
+        throw Exception(tr('home_location_permission_needed'));
       }
       final position = await Geolocator.getCurrentPosition(
         locationSettings: const LocationSettings(accuracy: LocationAccuracy.high),
@@ -851,7 +847,10 @@ class _WeatherCardState extends State<_WeatherCard> {
     if (error != null) return _WeatherError(message: error, onRetry: _load);
     final weather = _weather;
     if (weather == null) {
-      return _WeatherError(message: 'No forecast available.', onRetry: _load);
+      return _WeatherError(
+        message: tr('home_weather_no_forecast'),
+        onRetry: _load,
+      );
     }
     return _WeatherContent(weather: weather);
   }
@@ -873,8 +872,7 @@ class _WeatherOutsideMalaysiaNotice extends StatelessWidget {
         SizedBox(width: 8),
         Expanded(
           child: Text(
-            'Weather forecast will only show for your current location if '
-            'you are in Malaysia.',
+            tr('home_weather_outside_malaysia'),
             style: TextStyle(color: context.colors.muted, fontSize: 12.5),
           ),
         ),
@@ -888,20 +886,20 @@ class _WeatherLoading extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const SizedBox(
+    return SizedBox(
       height: 96,
       child: Center(
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            SizedBox(
+            const SizedBox(
               width: 16,
               height: 16,
               child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
             ),
-            SizedBox(width: 10),
+            const SizedBox(width: 10),
             Text(
-              'Getting your local weather…',
+              tr('home_weather_loading'),
               style: TextStyle(
                 color: Colors.white,
                 fontSize: 12.5,
@@ -941,9 +939,9 @@ class _WeatherError extends StatelessWidget {
             const SizedBox(height: 6),
             GestureDetector(
               onTap: onRetry,
-              child: const Text(
-                'Retry',
-                style: TextStyle(
+              child: Text(
+                tr('home_weather_retry'),
+                style: const TextStyle(
                   color: Colors.white,
                   fontWeight: FontWeight.w800,
                   fontSize: 12,
@@ -967,9 +965,9 @@ class _WeatherContent extends StatelessWidget {
   Widget build(BuildContext context) {
     final forecast = weather.forecast;
     final periods = [
-      (label: 'Morning', text: forecast.morningForecast),
-      (label: 'Afternoon', text: forecast.afternoonForecast),
-      (label: 'Night', text: forecast.nightForecast),
+      (label: tr('home_period_morning'), text: forecast.morningForecast),
+      (label: tr('home_period_afternoon'), text: forecast.afternoonForecast),
+      (label: tr('home_period_night'), text: forecast.nightForecast),
     ];
 
     return Column(
@@ -983,7 +981,7 @@ class _WeatherContent extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    '${weather.areaLabel}, Malaysia',
+                    '${weather.areaLabel}, ${tr('home_malaysia_word')}',
                     style: TextStyle(
                       color: Colors.white70,
                       fontSize: 12.5,
@@ -1192,19 +1190,20 @@ class _DestinationsCarouselState extends State<_DestinationsCarousel> {
         message: 'No tourist attractions found nearby.',
       );
     }
+    final destinations = _destinations;
     return SizedBox(
       height: 200,
       child: ListView.separated(
         scrollDirection: Axis.horizontal,
         padding: EdgeInsets.symmetric(horizontal: 24),
-        itemCount: _destinations.length,
+        itemCount: destinations.length,
         separatorBuilder: (_, _) => SizedBox(width: 14),
         itemBuilder: (context, index) => _DestinationCard(
-          destination: _destinations[index],
+          destination: destinations[index],
           onTap: () => Navigator.of(context).push(
             MaterialPageRoute(
               builder: (_) =>
-                  ExplorePlaceDetailsScreen(place: _destinations[index]),
+                  ExplorePlaceDetailsScreen(place: destinations[index]),
             ),
           ),
         ),
@@ -1394,23 +1393,25 @@ class _Activity {
   final Color color;
 }
 
-final _activities = [
+// A function, not a top-level `final` — see the comment on `_destinations`
+// above for why.
+List<_Activity> _activities() => [
   _Activity(
     icon: Icons.add_location_alt_rounded,
-    title: 'Added Queensbay Mall to your itinerary',
-    time: '2h ago',
+    title: tr('home_activity_added_queensbay'),
+    time: tr('home_time_2h_ago'),
     color: AppColors.accent,
   ),
   _Activity(
     icon: Icons.check_circle_rounded,
-    title: 'Checked in at Komtar, George Town',
-    time: '1d ago',
+    title: tr('home_activity_checked_in_komtar'),
+    time: tr('home_time_1d_ago'),
     color: Color(0xFF11998E),
   ),
   _Activity(
     icon: Icons.star_rounded,
-    title: 'Rated Gurney Drive & Plaza 4.5 stars',
-    time: '2d ago',
+    title: tr('home_activity_rated_gurney'),
+    time: tr('home_time_2d_ago'),
     color: Color(0xFFFFB347),
   ),
 ];
@@ -1421,7 +1422,7 @@ class _RecentActivityList extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Column(
-      children: _activities.map((a) => _ActivityTile(activity: a)).toList(),
+      children: _activities().map((a) => _ActivityTile(activity: a)).toList(),
     );
   }
 }

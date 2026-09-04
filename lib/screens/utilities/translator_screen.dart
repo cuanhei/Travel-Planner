@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../services/locale_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/detail_header.dart';
 
@@ -36,7 +37,7 @@ class _TranslatorScreenState extends State<TranslatorScreen> {
     setState(() {
       _translated = match.isNotEmpty
           ? match.first.ms
-          : '"$input" (translation preview)';
+          : '"$input" ${tr('utilities_translation_preview_suffix')}';
     });
   }
 
@@ -54,8 +55,8 @@ class _TranslatorScreenState extends State<TranslatorScreen> {
         child: Column(
           children: [
             DetailHeader(
-              title: 'Translator',
-              subtitle: 'English → Bahasa Malaysia',
+              title: tr('utilities_translator_title'),
+              subtitle: tr('utilities_translator_subtitle'),
             ),
             Expanded(
               child: ListView(
@@ -82,7 +83,7 @@ class _TranslatorScreenState extends State<TranslatorScreen> {
                           maxLines: 2,
                           style: TextStyle(color: context.colors.ink),
                           decoration: InputDecoration(
-                            hintText: 'Type in English…',
+                            hintText: tr('utilities_translator_hint'),
                             hintStyle: TextStyle(color: context.colors.muted),
                             border: InputBorder.none,
                             suffixIcon: IconButton(
@@ -110,7 +111,7 @@ class _TranslatorScreenState extends State<TranslatorScreen> {
                   ),
                   SizedBox(height: 24),
                   Text(
-                    'Common Phrases',
+                    tr('utilities_common_phrases'),
                     style: TextStyle(
                       color: context.colors.ink,
                       fontWeight: FontWeight.w800,

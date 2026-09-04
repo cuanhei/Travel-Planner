@@ -3,6 +3,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../models/trip_balance.dart';
 import '../../services/budget_service.dart';
+import '../../services/locale_service.dart';
 import '../../services/trip_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/detail_header.dart';
@@ -44,7 +45,7 @@ class _ExpenseSplitScreenState extends State<ExpenseSplitScreen> {
         backgroundColor: dialogContext.colors.card,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         title: Text(
-          '${traveler.displayName} owes $organizerFirstName',
+          '${traveler.displayName} ${tr('budget_owes')} $organizerFirstName',
           style: TextStyle(
             color: dialogContext.colors.ink,
             fontWeight: FontWeight.w800,
@@ -82,7 +83,7 @@ class _ExpenseSplitScreenState extends State<ExpenseSplitScreen> {
         actions: [
           TextButton(
             onPressed: () => Navigator.of(dialogContext).pop(),
-            child: const Text('Cancel'),
+            child: Text(tr('common_cancel')),
           ),
           FilledButton(
             onPressed: () {
@@ -92,7 +93,7 @@ class _ExpenseSplitScreenState extends State<ExpenseSplitScreen> {
             style: FilledButton.styleFrom(
               backgroundColor: dialogContext.colors.ink,
             ),
-            child: const Text('Save'),
+            child: Text(tr('common_save')),
           ),
         ],
       ),
@@ -118,23 +119,23 @@ class _ExpenseSplitScreenState extends State<ExpenseSplitScreen> {
           future: _balancesFuture,
           builder: (context, snapshot) {
             if (snapshot.connectionState != ConnectionState.done) {
-              return const Column(
+              return Column(
                 children: [
-                  DetailHeader(title: 'Split Expenses'),
-                  Expanded(child: Center(child: CircularProgressIndicator())),
+                  DetailHeader(title: tr('budget_split_title')),
+                  const Expanded(child: Center(child: CircularProgressIndicator())),
                 ],
               );
             }
             if (snapshot.hasError) {
               return Column(
                 children: [
-                  const DetailHeader(title: 'Split Expenses'),
+                  DetailHeader(title: tr('budget_split_title')),
                   Expanded(
                     child: Center(
                       child: Padding(
                         padding: const EdgeInsets.all(24),
                         child: Text(
-                          'Could not load trip members.\n${snapshot.error}',
+                          '${tr('budget_could_not_load_members')}\n${snapshot.error}',
                           textAlign: TextAlign.center,
                           style: TextStyle(color: context.colors.muted),
                         ),
@@ -148,11 +149,11 @@ class _ExpenseSplitScreenState extends State<ExpenseSplitScreen> {
             if (travelers.isEmpty) {
               return Column(
                 children: [
-                  const DetailHeader(title: 'Split Expenses'),
+                  DetailHeader(title: tr('budget_split_title')),
                   Expanded(
                     child: Center(
                       child: Text(
-                        'No trip members yet.',
+                        tr('budget_no_trip_members_yet'),
                         style: TextStyle(color: context.colors.muted),
                       ),
                     ),
@@ -178,10 +179,10 @@ class _ExpenseSplitScreenState extends State<ExpenseSplitScreen> {
                   builder: (context, nameSnap) {
                     final tripName = nameSnap.data;
                     return DetailHeader(
-                      title: 'Split Expenses',
+                      title: tr('budget_split_title'),
                       subtitle: tripName == null
-                          ? '${travelers.length} travelers'
-                          : '$tripName · ${travelers.length} travelers',
+                          ? '${travelers.length} ${tr('budget_travelers_label')}'
+                          : '$tripName · ${travelers.length} ${tr('budget_travelers_label')}',
                     );
                   },
                 ),
@@ -209,7 +210,7 @@ class _ExpenseSplitScreenState extends State<ExpenseSplitScreen> {
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
                                   Text(
-                                    'Total Spent',
+                                    tr('budget_total_spent'),
                                     style: TextStyle(
                                       color: context.colors.muted,
                                       fontSize: 12,
@@ -231,7 +232,7 @@ class _ExpenseSplitScreenState extends State<ExpenseSplitScreen> {
                               crossAxisAlignment: CrossAxisAlignment.end,
                               children: [
                                 Text(
-                                  'Owed to ${organizer.displayName.split(' ').first}',
+                                  '${tr('budget_owed_to')} ${organizer.displayName.split(' ').first}',
                                   style: TextStyle(
                                     color: context.colors.muted,
                                     fontSize: 12,
@@ -255,7 +256,7 @@ class _ExpenseSplitScreenState extends State<ExpenseSplitScreen> {
                       Row(
                         children: [
                           Text(
-                            'Balances',
+                            tr('budget_balances'),
                             style: TextStyle(
                               color: context.colors.ink,
                               fontWeight: FontWeight.w800,
@@ -265,7 +266,7 @@ class _ExpenseSplitScreenState extends State<ExpenseSplitScreen> {
                           const Spacer(),
                           if (canEdit)
                             Text(
-                              'Tap an amount to edit',
+                              tr('budget_tap_to_edit'),
                               style: TextStyle(
                                 color: context.colors.muted,
                                 fontSize: 11.5,
@@ -333,9 +334,9 @@ class _ExpenseSplitScreenState extends State<ExpenseSplitScreen> {
                                               borderRadius:
                                                   BorderRadius.circular(8),
                                             ),
-                                            child: const Text(
-                                              'ORGANIZER',
-                                              style: TextStyle(
+                                            child: Text(
+                                              tr('budget_organizer_badge'),
+                                              style: const TextStyle(
                                                 color: AppColors.accent,
                                                 fontSize: 9,
                                                 fontWeight: FontWeight.w800,
@@ -348,7 +349,7 @@ class _ExpenseSplitScreenState extends State<ExpenseSplitScreen> {
                                     ),
                                     const SizedBox(height: 2),
                                     Text(
-                                      'Paid RM ${t.paid.toStringAsFixed(2)}',
+                                      '${tr('budget_paid')} RM ${t.paid.toStringAsFixed(2)}',
                                       style: TextStyle(
                                         color: context.colors.muted,
                                         fontSize: 11.5,
@@ -359,7 +360,7 @@ class _ExpenseSplitScreenState extends State<ExpenseSplitScreen> {
                               ),
                               if (t.isOrganizer)
                                 Text(
-                                  'Collects RM ${totalOwed.toStringAsFixed(2)}',
+                                  '${tr('budget_collects')} RM ${totalOwed.toStringAsFixed(2)}',
                                   style: const TextStyle(
                                     color: Color(0xFF11998E),
                                     fontWeight: FontWeight.w800,
@@ -390,8 +391,8 @@ class _ExpenseSplitScreenState extends State<ExpenseSplitScreen> {
                                         children: [
                                           Text(
                                             settled
-                                                ? 'Settled'
-                                                : 'Owes RM ${t.owes.toStringAsFixed(2)}',
+                                                ? tr('budget_settled')
+                                                : '${tr('budget_owes_amount')} RM ${t.owes.toStringAsFixed(2)}',
                                             style: TextStyle(
                                               color: settled
                                                   ? const Color(0xFF11998E)
@@ -416,8 +417,8 @@ class _ExpenseSplitScreenState extends State<ExpenseSplitScreen> {
                               else
                                 Text(
                                   settled
-                                      ? 'Settled'
-                                      : 'Owes RM ${t.owes.toStringAsFixed(2)}',
+                                      ? tr('budget_settled')
+                                      : '${tr('budget_owes_amount')} RM ${t.owes.toStringAsFixed(2)}',
                                   style: TextStyle(
                                     color: settled
                                         ? const Color(0xFF11998E)

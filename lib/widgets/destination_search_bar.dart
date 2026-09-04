@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../screens/search_destination_screen.dart';
+import '../services/locale_service.dart';
 import '../theme/app_theme.dart';
 
 /// Tappable search bar that opens [SearchDestinationScreen] — shared by
@@ -38,7 +39,7 @@ class DestinationSearchBar extends StatelessWidget {
               const SizedBox(width: 10),
               Expanded(
                 child: Text(
-                  'Search destinations…',
+                  tr('home_search_destinations_hint'),
                   style: TextStyle(
                     color: context.colors.muted,
                     fontSize: 14,

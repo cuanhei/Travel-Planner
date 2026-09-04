@@ -5,6 +5,7 @@ import 'package:latlong2/latlong.dart';
 import '../../models/drive_route.dart';
 import '../../models/transit_route.dart';
 import '../../models/trip_stop_location.dart';
+import '../../services/locale_service.dart';
 import '../../services/photon_service.dart';
 import '../../services/route_service.dart';
 import '../../services/trip_service.dart';

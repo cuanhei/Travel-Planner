@@ -3,6 +3,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../models/group_message.dart';
 import '../../services/chat_service.dart';
+import '../../services/locale_service.dart';
 import '../../services/trip_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/detail_header.dart';
@@ -51,7 +52,7 @@ class _GroupChatScreenState extends State<GroupChatScreen> {
             FutureBuilder<String>(
               future: _tripNameFuture,
               builder: (context, nameSnap) => DetailHeader(
-                title: 'Group Chat',
+                title: tr('group_action_chat_title'),
                 subtitle: nameSnap.data ?? '',
               ),
             ),
@@ -63,7 +64,7 @@ class _GroupChatScreenState extends State<GroupChatScreen> {
                   if (messages.isEmpty) {
                     return Center(
                       child: Text(
-                        'No messages yet — say hi!',
+                        tr('group_no_messages_yet'),
                         style: TextStyle(color: context.colors.muted),
                       ),
                     );
@@ -160,7 +161,7 @@ class _GroupChatScreenState extends State<GroupChatScreen> {
                       controller: _controller,
                       style: TextStyle(color: context.colors.ink, fontSize: 13),
                       decoration: InputDecoration(
-                        hintText: 'Message the group…',
+                        hintText: tr('group_message_hint'),
                         hintStyle: TextStyle(color: context.colors.muted),
                         filled: true,
                         fillColor: context.colors.card,

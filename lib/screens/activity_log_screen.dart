@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../services/locale_service.dart';
 import '../theme/app_theme.dart';
 import '../widgets/detail_header.dart';
 
@@ -30,70 +31,70 @@ class ActivityLogScreen extends StatefulWidget {
 }
 
 class _ActivityLogScreenState extends State<ActivityLogScreen> {
-  final _groups = <String, List<ActivityEntry>>{
-    'Today': [
+  late final _groups = <String, List<ActivityEntry>>{
+    tr('weather_day_today'): [
       ActivityEntry(
         icon: Icons.add_location_alt_rounded,
-        title: 'Added Queensbay Mall to your itinerary',
-        time: '2h ago',
+        title: tr('auth_activity_added_queensbay'),
+        time: '2${tr('auth_hours_ago_suffix')}',
         color: AppColors.accent,
       ),
       ActivityEntry(
         icon: Icons.check_circle_rounded,
-        title: 'Checked in at Komtar, George Town',
-        time: '5h ago',
+        title: tr('auth_activity_checked_in_komtar'),
+        time: '5${tr('auth_hours_ago_suffix')}',
         color: const Color(0xFF11998E),
       ),
       ActivityEntry(
         icon: Icons.task_alt_rounded,
-        title: 'Marked "Breakfast at Hotel" as complete',
-        time: '8h ago',
+        title: tr('auth_activity_marked_breakfast_complete'),
+        time: '8${tr('auth_hours_ago_suffix')}',
         color: const Color(0xFF11998E),
       ),
     ],
-    'Yesterday': [
+    tr('auth_yesterday_word'): [
       ActivityEntry(
         icon: Icons.star_rounded,
-        title: 'Rated Gurney Drive & Plaza 4.5 stars',
-        time: '1d ago',
+        title: tr('auth_activity_rated_gurney'),
+        time: '1${tr('auth_d_ago_suffix')}',
         color: const Color(0xFFFFB347),
       ),
       ActivityEntry(
         icon: Icons.group_add_rounded,
-        title: 'Joined the group "Penang Adventure"',
-        time: '1d ago',
+        title: tr('auth_activity_joined_group'),
+        time: '1${tr('auth_d_ago_suffix')}',
         color: const Color(0xFFEC407A),
       ),
       ActivityEntry(
         icon: Icons.directions_bus_filled_rounded,
-        title: 'Saved Bus 401 (Hotel → Komtar) to My Routes',
-        time: '1d ago',
+        title: tr('auth_activity_saved_bus'),
+        time: '1${tr('auth_d_ago_suffix')}',
         color: const Color(0xFF5C6BC0),
       ),
     ],
-    'Earlier this week': [
+    tr('auth_earlier_this_week'): [
       ActivityEntry(
         icon: Icons.flight_takeoff_rounded,
-        title: 'Created trip "Penang Adventure"',
-        time: '3d ago',
+        title: tr('auth_activity_created_trip'),
+        time: '3${tr('auth_d_ago_suffix')}',
         color: const Color(0xFF10244A),
       ),
       ActivityEntry(
         icon: Icons.checklist_rounded,
-        title: 'Added 5 items to the packing list',
-        time: '4d ago',
+        title: tr('auth_activity_added_packing_items'),
+        time: '4${tr('auth_d_ago_suffix')}',
         color: const Color(0xFF26A69A),
       ),
       ActivityEntry(
         icon: Icons.account_balance_wallet_rounded,
-        title: 'Set the trip budget to RM 1,500',
-        time: '5d ago',
+        title: tr('auth_activity_set_budget'),
+        time: '5${tr('auth_d_ago_suffix')}',
         color: const Color(0xFFFFB300),
       ),
       ActivityEntry(
         icon: Icons.how_to_vote_rounded,
-        title: 'Voted in "Where should we have dinner on Day 2?"',
-        time: '6d ago',
+        title: tr('auth_activity_voted_dinner'),
+        time: '6${tr('auth_d_ago_suffix')}',
         color: const Color(0xFFEC407A),
       ),
     ],
@@ -106,25 +107,25 @@ class _ActivityLogScreenState extends State<ActivityLogScreen> {
         backgroundColor: dialogContext.colors.card,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         title: Text(
-          'Clear activity log?',
+          tr('auth_clear_activity_confirm_title'),
           style: TextStyle(
             color: dialogContext.colors.ink,
             fontWeight: FontWeight.w800,
           ),
         ),
         content: Text(
-          'This removes your entire activity history. This can\'t be undone.',
+          tr('auth_clear_activity_confirm_body'),
           style: TextStyle(color: dialogContext.colors.muted),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(dialogContext).pop(false),
-            child: const Text('Cancel'),
+            child: Text(tr('common_cancel')),
           ),
           FilledButton(
             onPressed: () => Navigator.of(dialogContext).pop(true),
             style: FilledButton.styleFrom(backgroundColor: Colors.redAccent),
-            child: const Text('Clear'),
+            child: Text(tr('auth_clear_button')),
           ),
         ],
       ),
@@ -148,8 +149,8 @@ class _ActivityLogScreenState extends State<ActivityLogScreen> {
         child: Column(
           children: [
             DetailHeader(
-              title: 'Activity Log',
-              subtitle: 'Everything you\'ve done on this trip',
+              title: tr('auth_activity_log_title'),
+              subtitle: tr('auth_activity_log_subtitle'),
               trailing: IconButton(
                 onPressed: isEmpty ? null : _confirmClear,
                 icon: Icon(
@@ -263,7 +264,7 @@ class _EmptyLog extends StatelessWidget {
             Icon(Icons.history_rounded, color: context.colors.muted, size: 44),
             const SizedBox(height: 16),
             Text(
-              'No activity yet',
+              tr('auth_no_activity_yet'),
               style: TextStyle(
                 color: context.colors.ink,
                 fontWeight: FontWeight.w800,
@@ -272,7 +273,7 @@ class _EmptyLog extends StatelessWidget {
             ),
             const SizedBox(height: 6),
             Text(
-              'Things you do around the app will show up here.',
+              tr('auth_activity_empty_desc'),
               textAlign: TextAlign.center,
               style: TextStyle(color: context.colors.muted, fontSize: 12.5),
             ),

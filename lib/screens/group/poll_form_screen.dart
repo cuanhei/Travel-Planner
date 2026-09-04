@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../models/poll.dart';
+import '../../services/locale_service.dart';
 import '../../services/poll_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/detail_header.dart';
@@ -105,25 +106,25 @@ class _PollFormScreenState extends State<PollFormScreen> {
         backgroundColor: dialogContext.colors.card,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         title: Text(
-          'Delete this poll?',
+          tr('group_delete_poll_title'),
           style: TextStyle(
             color: dialogContext.colors.ink,
             fontWeight: FontWeight.w800,
           ),
         ),
         content: Text(
-          '"${widget.initial!.question}" will be removed for the group.',
+          '"${widget.initial!.question}" ${tr('group_delete_poll_content_suffix')}',
           style: TextStyle(color: dialogContext.colors.muted),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(dialogContext).pop(false),
-            child: const Text('Cancel'),
+            child: Text(tr('common_cancel')),
           ),
           FilledButton(
             onPressed: () => Navigator.of(dialogContext).pop(true),
             style: FilledButton.styleFrom(backgroundColor: Colors.redAccent),
-            child: const Text('Delete'),
+            child: Text(tr('common_delete')),
           ),
         ],
       ),
@@ -142,16 +143,16 @@ class _PollFormScreenState extends State<PollFormScreen> {
         child: Column(
           children: [
             DetailHeader(
-              title: widget.isEditing ? 'Edit Poll' : 'New Poll',
+              title: widget.isEditing ? tr('group_edit_poll_title') : tr('group_new_poll_title'),
               subtitle: widget.isEditing
-                  ? 'Update the question or options'
-                  : 'Ask the group to decide something',
+                  ? tr('group_edit_poll_subtitle')
+                  : tr('group_new_poll_subtitle'),
             ),
             Expanded(
               child: ListView(
                 padding: const EdgeInsets.fromLTRB(24, 8, 24, 24),
                 children: [
-                  _FieldLabel('Question'),
+                  _FieldLabel(tr('group_field_question')),
                   TextField(
                     controller: _questionController,
                     maxLines: 2,
@@ -161,7 +162,7 @@ class _PollFormScreenState extends State<PollFormScreen> {
                       color: context.colors.ink,
                     ),
                     decoration: InputDecoration(
-                      hintText: 'e.g. Where should we have dinner?',
+                      hintText: tr('group_question_hint'),
                       filled: true,
                       fillColor: context.colors.card,
                       border: OutlineInputBorder(
@@ -184,7 +185,7 @@ class _PollFormScreenState extends State<PollFormScreen> {
                   const SizedBox(height: 20),
                   Row(
                     children: [
-                      _FieldLabel('Options'),
+                      _FieldLabel(tr('group_field_options')),
                       const Spacer(),
                       Text(
                         '${_optionControllers.length}/$_maxOptions',
@@ -211,7 +212,7 @@ class _PollFormScreenState extends State<PollFormScreen> {
                                 color: context.colors.ink,
                               ),
                               decoration: InputDecoration(
-                                hintText: 'Option ${i + 1}',
+                                hintText: '${tr('group_option_hint_prefix')} ${i + 1}',
                                 filled: true,
                                 fillColor: context.colors.card,
                                 border: OutlineInputBorder(
@@ -251,14 +252,14 @@ class _PollFormScreenState extends State<PollFormScreen> {
                     TextButton.icon(
                       onPressed: _addOption,
                       icon: const Icon(Icons.add_rounded, size: 18),
-                      label: const Text('Add option'),
+                      label: Text(tr('group_add_option')),
                       style: TextButton.styleFrom(
                         foregroundColor: context.colors.ink,
                       ),
                     ),
                   const SizedBox(height: 24),
                   GradientButton(
-                    label: widget.isEditing ? 'Save Changes' : 'Create Poll',
+                    label: widget.isEditing ? tr('group_save_changes') : tr('group_create_poll'),
                     icon: Icons.how_to_vote_rounded,
                     onPressed: _canSave && !_isSaving ? _save : () {},
                   ),
@@ -272,9 +273,9 @@ class _PollFormScreenState extends State<PollFormScreen> {
                           color: Colors.redAccent,
                           size: 18,
                         ),
-                        label: const Text(
-                          'Delete Poll',
-                          style: TextStyle(
+                        label: Text(
+                          tr('group_delete_poll_button'),
+                          style: const TextStyle(
                             color: Colors.redAccent,
                             fontWeight: FontWeight.w700,
                           ),

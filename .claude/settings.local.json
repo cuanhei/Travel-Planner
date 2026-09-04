@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(flutter pub *)",
+      "Bash(dart analyze *)",
+      "Bash(dart format *)",
+      "Bash(xargs -0 sed -i -e 's/AppColors\\\\.ink/context.colors.ink/g' -e 's/AppColors\\\\.muted/context.colors.muted/g' -e 's/AppColors\\\\.surface/context.colors.surface/g' -e 's/AppColors\\\\.card/context.colors.card/g')"
+    ]
+  }
+}

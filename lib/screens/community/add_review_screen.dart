@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../services/locale_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/detail_header.dart';
 import '../../widgets/gradient_button.dart';
@@ -30,7 +31,10 @@ class _AddReviewScreenState extends State<AddReviewScreen> {
       SnackBar(
         behavior: SnackBarBehavior.floating,
         backgroundColor: context.colors.ink,
-        content: Text('Review for ${widget.placeName} posted!'),
+        content: Text(
+          '${tr('community_review_for')} ${widget.placeName} '
+          '${tr('community_review_posted')}',
+        ),
       ),
     );
   }
@@ -43,13 +47,16 @@ class _AddReviewScreenState extends State<AddReviewScreen> {
       body: SafeArea(
         child: Column(
           children: [
-            DetailHeader(title: 'Write a Review', subtitle: widget.placeName),
+            DetailHeader(
+              title: tr('community_write_review'),
+              subtitle: widget.placeName,
+            ),
             Expanded(
               child: ListView(
                 padding: EdgeInsets.fromLTRB(24, 8, 24, 24),
                 children: [
                   Text(
-                    'Your rating',
+                    tr('community_your_rating'),
                     style: TextStyle(
                       color: context.colors.ink,
                       fontWeight: FontWeight.w700,
@@ -74,7 +81,7 @@ class _AddReviewScreenState extends State<AddReviewScreen> {
                   ),
                   SizedBox(height: 20),
                   Text(
-                    'Your review',
+                    tr('community_your_review'),
                     style: TextStyle(
                       color: context.colors.ink,
                       fontWeight: FontWeight.w700,
@@ -86,7 +93,7 @@ class _AddReviewScreenState extends State<AddReviewScreen> {
                     maxLines: 6,
                     style: TextStyle(color: context.colors.ink),
                     decoration: InputDecoration(
-                      hintText: 'Share details of your experience…',
+                      hintText: tr('community_review_hint'),
                       hintStyle: TextStyle(color: context.colors.muted),
                       filled: true,
                       fillColor: context.colors.card,
@@ -106,7 +113,7 @@ class _AddReviewScreenState extends State<AddReviewScreen> {
                   ),
                   SizedBox(height: 28),
                   GradientButton(
-                    label: 'Post Review',
+                    label: tr('community_post_review_button'),
                     onPressed: _rating > 0 ? _submit : () {},
                   ),
                 ],

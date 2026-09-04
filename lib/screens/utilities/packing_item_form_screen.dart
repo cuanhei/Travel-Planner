@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../services/locale_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/detail_header.dart';
 import '../../widgets/gradient_button.dart';
@@ -82,25 +83,25 @@ class _PackingItemFormScreenState extends State<PackingItemFormScreen> {
         backgroundColor: dialogContext.colors.card,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         title: Text(
-          'Remove this item?',
+          tr('utilities_remove_item_confirm_title'),
           style: TextStyle(
             color: dialogContext.colors.ink,
             fontWeight: FontWeight.w800,
           ),
         ),
         content: Text(
-          '"${widget.initial!.label}" will be removed from your packing list.',
+          '"${widget.initial!.label}" ${tr('utilities_remove_item_confirm_suffix')}',
           style: TextStyle(color: dialogContext.colors.muted),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(dialogContext).pop(false),
-            child: const Text('Cancel'),
+            child: Text(tr('common_cancel')),
           ),
           FilledButton(
             onPressed: () => Navigator.of(dialogContext).pop(true),
             style: FilledButton.styleFrom(backgroundColor: Colors.redAccent),
-            child: const Text('Remove'),
+            child: Text(tr('utilities_remove')),
           ),
         ],
       ),
@@ -118,28 +119,30 @@ class _PackingItemFormScreenState extends State<PackingItemFormScreen> {
         child: Column(
           children: [
             DetailHeader(
-              title: widget.isEditing ? 'Edit Item' : 'Add Item',
+              title: widget.isEditing
+                  ? tr('utilities_edit_item_title')
+                  : tr('utilities_add_item'),
               subtitle: widget.isEditing
-                  ? 'Update this packing list item'
-                  : 'Add something to your packing list',
+                  ? tr('utilities_edit_item_subtitle')
+                  : tr('utilities_add_item_subtitle'),
             ),
             Expanded(
               child: ListView(
                 padding: const EdgeInsets.fromLTRB(24, 8, 24, 24),
                 children: [
-                  _FieldLabel('Item'),
+                  _FieldLabel(tr('utilities_field_item')),
                   _InputBox(
                     controller: _labelController,
                     icon: Icons.checklist_rounded,
-                    hint: 'e.g. Sunglasses',
+                    hint: tr('utilities_hint_item'),
                     onChanged: (_) => setState(() {}),
                   ),
                   const SizedBox(height: 20),
-                  _FieldLabel('Category'),
+                  _FieldLabel(tr('utilities_field_category')),
                   _InputBox(
                     controller: _categoryController,
                     icon: Icons.folder_rounded,
-                    hint: 'e.g. Clothing',
+                    hint: tr('utilities_hint_category'),
                     onChanged: (_) => setState(() {}),
                   ),
                   const SizedBox(height: 8),
@@ -167,7 +170,7 @@ class _PackingItemFormScreenState extends State<PackingItemFormScreen> {
                             ),
                           ),
                           child: Text(
-                            category,
+                            translatedPackingCategory(category),
                             style: TextStyle(
                               color: selected ? Colors.white : context.colors.ink,
                               fontWeight: FontWeight.w600,
@@ -195,7 +198,7 @@ class _PackingItemFormScreenState extends State<PackingItemFormScreen> {
                         const SizedBox(width: 12),
                         Expanded(
                           child: Text(
-                            'Already packed',
+                            tr('utilities_already_packed'),
                             style: TextStyle(
                               color: context.colors.ink,
                               fontWeight: FontWeight.w700,
@@ -214,7 +217,9 @@ class _PackingItemFormScreenState extends State<PackingItemFormScreen> {
                   ),
                   const SizedBox(height: 32),
                   GradientButton(
-                    label: widget.isEditing ? 'Save Changes' : 'Add Item',
+                    label: widget.isEditing
+                        ? tr('utilities_save_changes')
+                        : tr('utilities_add_item'),
                     icon: Icons.check_rounded,
                     onPressed: _canSave ? _save : () {},
                   ),
@@ -228,9 +233,9 @@ class _PackingItemFormScreenState extends State<PackingItemFormScreen> {
                           color: Colors.redAccent,
                           size: 18,
                         ),
-                        label: const Text(
-                          'Remove Item',
-                          style: TextStyle(
+                        label: Text(
+                          tr('utilities_remove_item'),
+                          style: const TextStyle(
                             color: Colors.redAccent,
                             fontWeight: FontWeight.w700,
                           ),

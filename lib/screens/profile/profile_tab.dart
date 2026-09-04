@@ -1,70 +1,66 @@
 import 'package:flutter/material.dart';
 
-import '../../models/profile.dart';
+import '../../services/achievement_service.dart';
 import '../../services/auth_service.dart';
+import '../../services/locale_service.dart';
 import '../../services/profile_service.dart';
-import '../../services/trip_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/list_tile_card.dart';
+import '../../widgets/user_avatar.dart';
 import '../saved/saved_places_screen.dart';
 import '../saved/saved_trips_screen.dart';
 import '../welcome_screen.dart';
 import 'achievements_screen.dart';
+import 'edit_profile_screen.dart';
 import 'settings_screen.dart';
 import 'travel_history_screen.dart';
 
 /// "Profile" bottom-nav tab: identity header, stats, and a menu into the
-/// rest of the profile-related modules. The identity header (name,
-/// email, avatar) reads the signed-in user's real `profiles` row; the
-/// stats below it are still mock data pending other modules' backends.
-class ProfileTab extends StatelessWidget {
+/// rest of the profile-related modules.
+class ProfileTab extends StatefulWidget {
   const ProfileTab({super.key});
+
+  @override
+  State<ProfileTab> createState() => _ProfileTabState();
+}
+
+class _ProfileTabState extends State<ProfileTab> {
+  late Future<AchievementStats> _stats;
+
+  @override
+  void initState() {
+    super.initState();
+    _stats = AchievementService().loadStats();
+  }
 
   @override
   Widget build(BuildContext context) {
     return SafeArea(
-      child: FutureBuilder<Profile?>(
-        future: ProfileService().getCurrentProfile(),
-        builder: (context, snapshot) {
-          final profile = snapshot.data;
-          final name = profile?.name ?? 'Traveler';
-          final email = profile?.email ?? '';
-          final avatarColor = profile?.avatarColor;
-
-          return ListView(
-            padding: EdgeInsets.fromLTRB(24, 24, 24, 24),
-            children: [
-              Row(
+      child: ListView(
+        padding: EdgeInsets.fromLTRB(24, 24, 24, 24),
+        children: [
+          ValueListenableBuilder<UserProfile?>(
+            valueListenable: ProfileService.instance.current,
+            builder: (context, profile, _) {
+              final name = profile?.fullName.isNotEmpty ?? false
+                  ? profile!.fullName
+                  : AuthService.instance.currentUserName;
+              final email = profile?.email.isNotEmpty ?? false
+                  ? profile!.email
+                  : (AuthService.instance.currentUser?.email ?? '');
+              return Row(
                 children: [
-                  Container(
-                    width: 64,
-                    height: 64,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      gradient: avatarColor == null
-                          ? LinearGradient(
-                              colors: AppColors.sunset,
-                              begin: Alignment.topLeft,
-                              end: Alignment.bottomRight,
-                            )
-                          : null,
-                      color: avatarColor == null ? null : Color(avatarColor),
-                      border: Border.all(color: Colors.white, width: 3),
-                      boxShadow: [
-                        BoxShadow(
-                          color: context.colors.ink.withValues(alpha: 0.12),
-                          blurRadius: 14,
-                          offset: Offset(0, 6),
-                        ),
-                      ],
-                    ),
-                    alignment: Alignment.center,
-                    child: Text(
-                      name.isNotEmpty ? name[0].toUpperCase() : '?',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 26,
-                        fontWeight: FontWeight.w800,
+                  MouseRegion(
+                    cursor: SystemMouseCursors.click,
+                    child: GestureDetector(
+                      onTap: () => Navigator.of(context).push(
+                        MaterialPageRoute(builder: (_) => const EditProfileScreen()),
+                      ),
+                      child: UserAvatar(
+                        name: name,
+                        avatarUrl: profile?.avatarUrl,
+                        size: 64,
+                        borderWidth: 3,
                       ),
                     ),
                   ),
@@ -102,20 +98,33 @@ class ProfileTab extends StatelessWidget {
                     ),
                   ),
                 ],
-              ),
-              SizedBox(height: 24),
-          Row(
-            children: [
-              _StatTile(label: 'Trips', value: '5'),
-              _StatTile(label: 'Countries', value: '3'),
-              _StatTile(label: 'Reviews', value: '12'),
-              _StatTile(label: 'Badges', value: '6'),
-            ],
+              );
+            },
+          ),
+          SizedBox(height: 24),
+          FutureBuilder<AchievementStats>(
+            future: _stats,
+            builder: (context, snapshot) {
+              final stats = snapshot.data ?? AchievementStats.zero;
+              return Row(
+                children: [
+                  _StatTile(
+                    label: tr('auth_trips'),
+                    value: '${stats.tripCount}',
+                  ),
+                  _StatTile(label: tr('auth_reviews'), value: '0'),
+                  _StatTile(
+                    label: tr('auth_badges'),
+                    value: '${earnedBadgeCount(stats)}',
+                  ),
+                ],
+              );
+            },
           ),
           SizedBox(height: 28),
           ListTileCard(
             icon: Icons.history_rounded,
-            title: 'Travel History',
+            title: tr('auth_travel_history'),
             subtitle: 'Past trips and stats',
             iconColor: Color(0xFF5C6BC0),
             onTap: () => Navigator.of(
@@ -124,7 +133,7 @@ class ProfileTab extends StatelessWidget {
           ),
           ListTileCard(
             icon: Icons.emoji_events_rounded,
-            title: 'Achievements',
+            title: tr('auth_achievements'),
             subtitle: 'Badges and milestones',
             iconColor: Color(0xFFFFB347),
             onTap: () => Navigator.of(
@@ -133,7 +142,7 @@ class ProfileTab extends StatelessWidget {
           ),
           ListTileCard(
             icon: Icons.bookmark_rounded,
-            title: 'Saved Places',
+            title: tr('auth_saved_places'),
             subtitle: 'Your bookmarked spots',
             iconColor: AppColors.accent,
             onTap: () => Navigator.of(
@@ -142,7 +151,7 @@ class ProfileTab extends StatelessWidget {
           ),
           ListTileCard(
             icon: Icons.map_rounded,
-            title: 'Saved Trips',
+            title: tr('auth_saved_trips'),
             subtitle: 'Bookmarked itineraries',
             iconColor: Color(0xFF11998E),
             onTap: () => Navigator.of(
@@ -151,7 +160,7 @@ class ProfileTab extends StatelessWidget {
           ),
           ListTileCard(
             icon: Icons.settings_outlined,
-            title: 'Settings',
+            title: tr('auth_settings_title'),
             subtitle: 'Preferences, notifications, language',
             iconColor: context.colors.ink,
             onTap: () => Navigator.of(
@@ -161,13 +170,12 @@ class ProfileTab extends StatelessWidget {
           SizedBox(height: 8),
           ListTileCard(
             icon: Icons.logout_rounded,
-            title: 'Sign Out',
+            title: tr('auth_sign_out'),
             iconColor: Colors.redAccent,
             margin: EdgeInsets.zero,
             trailing: SizedBox.shrink(),
             onTap: () async {
               await AuthService.instance.signOut();
-              TripService.resetCache();
               if (!context.mounted) return;
               Navigator.of(context).pushAndRemoveUntil(
                 MaterialPageRoute(builder: (_) => WelcomeScreen()),
@@ -175,9 +183,7 @@ class ProfileTab extends StatelessWidget {
               );
             },
           ),
-            ],
-          );
-        },
+        ],
       ),
     );
   }

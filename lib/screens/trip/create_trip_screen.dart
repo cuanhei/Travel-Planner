@@ -6,6 +6,7 @@ import 'package:flutter/services.dart'
 
 import '../../models/trip.dart';
 import '../../models/trip_stop_location.dart';
+import '../../services/locale_service.dart';
 import '../../services/trip_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/detail_header.dart';

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../models/poll.dart';
 import '../../services/group_service.dart';
+import '../../services/locale_service.dart';
 import '../../services/poll_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/detail_header.dart';
@@ -52,8 +53,8 @@ class _VotingScreenState extends State<VotingScreen> {
         child: Column(
           children: [
             DetailHeader(
-              title: 'Voting',
-              subtitle: 'Decide together on trip choices',
+              title: tr('group_action_voting_title'),
+              subtitle: tr('group_voting_subtitle'),
               trailing: IconButton(
                 onPressed: _addPoll,
                 icon: Icon(Icons.add_circle_rounded, color: context.colors.ink),
@@ -223,7 +224,7 @@ class _VotingScreenState extends State<VotingScreen> {
                                 }),
                                 SizedBox(height: 4),
                                 Text(
-                                  '$totalVotes votes',
+                                  '$totalVotes ${tr('group_votes_suffix')}',
                                   style: TextStyle(
                                     color: context.colors.muted,
                                     fontSize: 11.5,
@@ -266,7 +267,7 @@ class _EmptyState extends StatelessWidget {
             ),
             const SizedBox(height: 16),
             Text(
-              'No polls yet',
+              tr('group_empty_polls_title'),
               style: TextStyle(
                 color: context.colors.ink,
                 fontWeight: FontWeight.w800,
@@ -275,7 +276,7 @@ class _EmptyState extends StatelessWidget {
             ),
             const SizedBox(height: 6),
             Text(
-              'Start a poll to decide something together.',
+              tr('group_empty_polls_subtitle'),
               textAlign: TextAlign.center,
               style: TextStyle(color: context.colors.muted, fontSize: 12.5),
             ),
@@ -286,16 +287,16 @@ class _EmptyState extends StatelessWidget {
               child: InkWell(
                 borderRadius: BorderRadius.circular(14),
                 onTap: onCreate,
-                child: const Padding(
-                  padding: EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Icon(Icons.add_rounded, color: Colors.white, size: 18),
-                      SizedBox(width: 6),
+                      const Icon(Icons.add_rounded, color: Colors.white, size: 18),
+                      const SizedBox(width: 6),
                       Text(
-                        'New Poll',
-                        style: TextStyle(
+                        tr('group_new_poll_button'),
+                        style: const TextStyle(
                           color: Colors.white,
                           fontWeight: FontWeight.w700,
                           fontSize: 13,

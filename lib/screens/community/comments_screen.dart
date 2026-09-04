@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../services/locale_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/detail_header.dart';
 
@@ -23,24 +24,30 @@ class _Comment {
 
 class _CommentsScreenState extends State<CommentsScreen> {
   final _controller = TextEditingController();
-  final _comments = [
+  // User-added comments only — the seed comments below are recomputed via
+  // `_seedComments()` on every build so they retranslate with the app's
+  // language, instead of being frozen (like a `final` field would be) at
+  // whichever language was active when this screen was first opened.
+  final _userComments = <_Comment>[];
+
+  List<_Comment> _seedComments() => [
     _Comment(
-      'Arif Hakim',
+      tr('community_author_arif_hakim'),
       Color(0xFF5C6BC0),
-      'Adding this to my list right now!',
-      '1h ago',
+      tr('community_comment_1'),
+      tr('community_time_1h_ago'),
     ),
     _Comment(
-      'Sophia Tan',
+      tr('community_author_sophia_tan'),
       Color(0xFF11998E),
-      'Went there last month, so worth it 🙌',
-      '3h ago',
+      tr('community_comment_2'),
+      tr('community_time_3h_ago'),
     ),
     _Comment(
-      'Daniel Wong',
+      tr('community_author_daniel_wong'),
       Color(0xFFFFB347),
-      'How early did you go to avoid crowds?',
-      '5h ago',
+      tr('community_comment_3'),
+      tr('community_time_5h_ago'),
     ),
   ];
 
@@ -54,7 +61,10 @@ class _CommentsScreenState extends State<CommentsScreen> {
     final text = _controller.text.trim();
     if (text.isEmpty) return;
     setState(() {
-      _comments.insert(0, _Comment('You', AppColors.accent, text, 'now'));
+      _userComments.insert(
+        0,
+        _Comment(tr('community_comment_you'), AppColors.accent, text, tr('community_time_now')),
+      );
       _controller.clear();
     });
     FocusScope.of(context).unfocus();
@@ -62,19 +72,23 @@ class _CommentsScreenState extends State<CommentsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final comments = [..._userComments, ..._seedComments()];
     return Scaffold(
       backgroundColor: context.colors.surface,
       resizeToAvoidBottomInset: true,
       body: SafeArea(
         child: Column(
           children: [
-            DetailHeader(title: 'Comments', subtitle: widget.place),
+            DetailHeader(
+              title: tr('community_comments_title'),
+              subtitle: widget.place,
+            ),
             Expanded(
               child: ListView.builder(
                 padding: EdgeInsets.fromLTRB(24, 8, 24, 8),
-                itemCount: _comments.length,
+                itemCount: comments.length,
                 itemBuilder: (context, index) {
-                  final c = _comments[index];
+                  final c = comments[index];
                   return Padding(
                     padding: EdgeInsets.only(bottom: 16),
                     child: Row(
@@ -151,7 +165,7 @@ class _CommentsScreenState extends State<CommentsScreen> {
                       controller: _controller,
                       style: TextStyle(color: context.colors.ink, fontSize: 13),
                       decoration: InputDecoration(
-                        hintText: 'Add a comment…',
+                        hintText: tr('community_add_comment_hint'),
                         hintStyle: TextStyle(color: context.colors.muted),
                         filled: true,
                         fillColor: context.colors.card,

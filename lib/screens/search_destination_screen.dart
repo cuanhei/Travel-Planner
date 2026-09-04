@@ -5,6 +5,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../models/nearby_place.dart';
 import '../services/google_places_service.dart';
+import '../services/locale_service.dart';
 import '../services/search_history_service.dart';
 import '../theme/app_theme.dart';
 import 'explore/explore_place_details_screen.dart';
@@ -161,7 +162,7 @@ class _SearchDestinationScreenState extends State<SearchDestinationScreen> {
                                 fontSize: 14,
                               ),
                               decoration: InputDecoration(
-                                hintText: 'Search destinations…',
+                                hintText: tr('home_search_destinations_hint'),
                                 hintStyle: TextStyle(
                                   color: context.colors.muted,
                                 ),

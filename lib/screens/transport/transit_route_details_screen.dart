@@ -3,6 +3,7 @@ import 'package:latlong2/latlong.dart';
 
 import '../../models/transit_route.dart';
 import '../../models/trip_stop_location.dart';
+import '../../services/locale_service.dart';
 import '../../theme/app_theme.dart';
 import '../../utils/format.dart';
 import '../../utils/transit_vehicle_display.dart';

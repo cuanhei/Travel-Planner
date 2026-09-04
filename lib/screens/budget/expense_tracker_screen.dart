@@ -4,10 +4,16 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../models/expense.dart';
 import '../../services/budget_service.dart';
 import '../../services/group_service.dart';
+import '../../services/locale_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/detail_header.dart';
 import 'budget_planner_screen.dart'
-    show BudgetCategory, budgetCategories, categoryVisuals, formatAmount;
+    show
+        BudgetCategory,
+        budgetCategories,
+        categoryVisuals,
+        formatAmount,
+        translatedCategoryLabel;
 
 const _monthNames = [
   'Jan',
@@ -205,25 +211,25 @@ class _ExpenseTrackerScreenState extends State<ExpenseTrackerScreen> {
         backgroundColor: dialogContext.colors.card,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         title: Text(
-          'Delete this expense?',
+          tr('budget_delete_expense_confirm_title'),
           style: TextStyle(
             color: dialogContext.colors.ink,
             fontWeight: FontWeight.w800,
           ),
         ),
         content: Text(
-          '"${expense.title}" (RM ${expense.amount.toStringAsFixed(2)}) will be removed.',
+          '"${expense.title}" (RM ${expense.amount.toStringAsFixed(2)}) ${tr('budget_delete_expense_confirm_suffix')}',
           style: TextStyle(color: dialogContext.colors.muted),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(dialogContext).pop(false),
-            child: const Text('Cancel'),
+            child: Text(tr('common_cancel')),
           ),
           FilledButton(
             onPressed: () => Navigator.of(dialogContext).pop(true),
             style: FilledButton.styleFrom(backgroundColor: Colors.redAccent),
-            child: const Text('Delete'),
+            child: Text(tr('budget_delete_button')),
           ),
         ],
       ),
@@ -273,11 +279,11 @@ class _ExpenseTrackerScreenState extends State<ExpenseTrackerScreen> {
               final amount =
                   double.tryParse(rawAmount) ?? _evaluateExpression(rawAmount);
               if (title.isEmpty) {
-                setSheetState(() => formError = 'Enter what you spent on');
+                setSheetState(() => formError = tr('budget_enter_what_spent_on'));
                 return;
               }
               if (amount == null || amount <= 0) {
-                setSheetState(() => formError = 'Enter a valid amount');
+                setSheetState(() => formError = tr('budget_enter_valid_amount'));
                 return;
               }
               final stopPlace = stopController.text.trim();
@@ -312,7 +318,9 @@ class _ExpenseTrackerScreenState extends State<ExpenseTrackerScreen> {
                       children: [
                         Expanded(
                           child: Text(
-                            existing != null ? 'Edit Expense' : 'Add Expense',
+                            existing != null
+                                ? tr('budget_edit_expense_title')
+                                : tr('budget_add_expense_title'),
                             style: TextStyle(
                               color: sheetContext.colors.ink,
                               fontWeight: FontWeight.w800,
@@ -340,7 +348,7 @@ class _ExpenseTrackerScreenState extends State<ExpenseTrackerScreen> {
                       },
                       style: TextStyle(color: sheetContext.colors.ink),
                       decoration: InputDecoration(
-                        hintText: 'What did you spend on?',
+                        hintText: tr('budget_expense_title_hint'),
                         filled: true,
                         fillColor: sheetContext.colors.surface,
                         border: OutlineInputBorder(
@@ -365,7 +373,7 @@ class _ExpenseTrackerScreenState extends State<ExpenseTrackerScreen> {
                         fontSize: 16,
                       ),
                       decoration: InputDecoration(
-                        hintText: 'Amount (RM) — type or use the keypad',
+                        hintText: tr('budget_amount_hint_keypad'),
                         filled: true,
                         fillColor: sheetContext.colors.surface,
                         border: OutlineInputBorder(
@@ -417,7 +425,7 @@ class _ExpenseTrackerScreenState extends State<ExpenseTrackerScreen> {
                     ],
                     const SizedBox(height: 18),
                     Text(
-                      'Category',
+                      tr('budget_field_category'),
                       style: TextStyle(
                         color: sheetContext.colors.ink,
                         fontWeight: FontWeight.w700,
@@ -469,7 +477,7 @@ class _ExpenseTrackerScreenState extends State<ExpenseTrackerScreen> {
                     ),
                     const SizedBox(height: 18),
                     Text(
-                      'Where were you?',
+                      tr('budget_field_where'),
                       style: TextStyle(
                         color: sheetContext.colors.ink,
                         fontWeight: FontWeight.w700,
@@ -478,7 +486,7 @@ class _ExpenseTrackerScreenState extends State<ExpenseTrackerScreen> {
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      'Pick a previous stop or type a new one — so we can learn your spending patterns',
+                      tr('budget_pick_stop_hint'),
                       style: TextStyle(
                         color: sheetContext.colors.muted,
                         fontSize: 11.5,
@@ -504,7 +512,7 @@ class _ExpenseTrackerScreenState extends State<ExpenseTrackerScreen> {
                               focusNode: focusNode,
                               style: TextStyle(color: sheetContext.colors.ink),
                               decoration: InputDecoration(
-                                hintText: 'Where were you? (optional)',
+                                hintText: tr('budget_where_optional_hint'),
                                 prefixIcon: Icon(
                                   Icons.place_rounded,
                                   size: 18,
@@ -586,7 +594,11 @@ class _ExpenseTrackerScreenState extends State<ExpenseTrackerScreen> {
                             borderRadius: BorderRadius.circular(14),
                           ),
                         ),
-                        child: Text(existing != null ? 'Save Changes' : 'Add'),
+                        child: Text(
+                          existing != null
+                              ? tr('budget_save_changes')
+                              : tr('budget_add_button'),
+                        ),
                       ),
                     ),
                   ],
@@ -682,8 +694,8 @@ class _ExpenseTrackerScreenState extends State<ExpenseTrackerScreen> {
                     return Column(
                       children: [
                         DetailHeader(
-                          title: 'Expense Tracker',
-                          subtitle: 'RM ${total.toStringAsFixed(2)} logged',
+                          title: tr('budget_expense_tracker_title'),
+                          subtitle: 'RM ${total.toStringAsFixed(2)} ${tr('budget_logged')}',
                           trailing: IconButton(
                             onPressed: () => _showExpenseSheet(
                               stopSuggestions: stopSuggestions,
@@ -727,7 +739,7 @@ class _ExpenseTrackerScreenState extends State<ExpenseTrackerScreen> {
                                         ),
                                         const SizedBox(width: 8),
                                         Text(
-                                          'Spending Insights',
+                                          tr('budget_spending_insights'),
                                           style: TextStyle(
                                             color: context.colors.ink,
                                             fontWeight: FontWeight.w800,
@@ -741,7 +753,7 @@ class _ExpenseTrackerScreenState extends State<ExpenseTrackerScreen> {
                                       children: [
                                         Expanded(
                                           child: _InsightStat(
-                                            label: 'Avg per stop',
+                                            label: tr('budget_avg_per_stop'),
                                             value: byStop.isEmpty
                                                 ? '—'
                                                 : 'RM ${formatAmount(avgPerStop)}',
@@ -749,13 +761,15 @@ class _ExpenseTrackerScreenState extends State<ExpenseTrackerScreen> {
                                         ),
                                         Expanded(
                                           child: _InsightStat(
-                                            label: 'Top category',
-                                            value: topCategory?.key ?? '—',
+                                            label: tr('budget_top_category'),
+                                            value: topCategory == null
+                                                ? '—'
+                                                : translatedCategoryLabel(topCategory.key),
                                           ),
                                         ),
                                         Expanded(
                                           child: _InsightStat(
-                                            label: 'Stops tagged',
+                                            label: tr('budget_stops_tagged'),
                                             value: '${byStop.length}',
                                           ),
                                         ),
@@ -763,7 +777,7 @@ class _ExpenseTrackerScreenState extends State<ExpenseTrackerScreen> {
                                     ),
                                     const SizedBox(height: 10),
                                     Text(
-                                      'Tag expenses with a stop and category — we\'ll use this history to recommend smarter budgets on future trips.',
+                                      tr('budget_insights_hint'),
                                       style: TextStyle(
                                         color: context.colors.muted,
                                         fontSize: 11,
@@ -781,7 +795,7 @@ class _ExpenseTrackerScreenState extends State<ExpenseTrackerScreen> {
                                   ),
                                   child: Center(
                                     child: Text(
-                                      'No expenses logged yet.',
+                                      tr('budget_no_expenses_logged'),
                                       style: TextStyle(
                                         color: context.colors.muted,
                                       ),
@@ -853,8 +867,8 @@ class _ExpenseTrackerScreenState extends State<ExpenseTrackerScreen> {
                                                 ),
                                                 Text(
                                                   e.stopPlace == null
-                                                      ? '${e.category} · ${_formatShortDate(e.spentAt)}'
-                                                      : '${e.category} · ${e.stopPlace} · ${_formatShortDate(e.spentAt)}',
+                                                      ? '${translatedCategoryLabel(e.category)} · ${_formatShortDate(e.spentAt)}'
+                                                      : '${translatedCategoryLabel(e.category)} · ${e.stopPlace} · ${_formatShortDate(e.spentAt)}',
                                                   style: TextStyle(
                                                     color: context.colors.muted,
                                                     fontSize: 11,
@@ -1042,7 +1056,7 @@ class _CategoryChip extends StatelessWidget {
             Icon(category.icon, size: 14, color: category.color),
             const SizedBox(width: 6),
             Text(
-              category.label,
+              translatedCategoryLabel(category.label),
               style: TextStyle(
                 color: isSelected ? category.color : context.colors.ink,
                 fontWeight: FontWeight.w600,
@@ -1082,7 +1096,7 @@ class _OtherCategoryChip extends StatelessWidget {
         backgroundColor: dialogContext.colors.card,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         title: Text(
-          'Custom category',
+          tr('budget_custom_category_title'),
           style: TextStyle(
             color: dialogContext.colors.ink,
             fontWeight: FontWeight.w800,
@@ -1094,7 +1108,7 @@ class _OtherCategoryChip extends StatelessWidget {
           autofocus: true,
           style: TextStyle(color: dialogContext.colors.ink),
           decoration: InputDecoration(
-            hintText: 'e.g. Souvenirs, Visa Fees',
+            hintText: tr('budget_custom_category_hint'),
             filled: true,
             fillColor: dialogContext.colors.surface,
             border: OutlineInputBorder(
@@ -1106,7 +1120,7 @@ class _OtherCategoryChip extends StatelessWidget {
         actions: [
           TextButton(
             onPressed: () => Navigator.of(dialogContext).pop(),
-            child: const Text('Cancel'),
+            child: Text(tr('common_cancel')),
           ),
           FilledButton(
             onPressed: () =>
@@ -1114,7 +1128,7 @@ class _OtherCategoryChip extends StatelessWidget {
             style: FilledButton.styleFrom(
               backgroundColor: dialogContext.colors.ink,
             ),
-            child: const Text('Use this'),
+            child: Text(tr('budget_use_this_button')),
           ),
         ],
       ),
@@ -1148,7 +1162,7 @@ class _OtherCategoryChip extends StatelessWidget {
             Icon(c.icon, size: 14, color: c.color),
             const SizedBox(width: 6),
             Text(
-              _isSelected ? selectedCategory.label : 'Other',
+              _isSelected ? selectedCategory.label : tr('budget_other_category'),
               style: TextStyle(
                 color: _isSelected ? c.color : context.colors.ink,
                 fontWeight: FontWeight.w600,

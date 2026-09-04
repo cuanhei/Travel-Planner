@@ -3,15 +3,17 @@
 A Flutter travel-planning app UI. Every screen is built and navigable end
 to end. Most modules still run on local/dummy data — it's a UI/UX
 prototype for a Penang, Malaysia trip ("Penang Adventure": Komtar →
-Gurney Drive → Queensbay Mall). The **Authentication**, **Budget**, and
-**Group Travel** modules are the exception: they're wired to a real,
-shared Supabase backend (see below).
+Gurney Drive → Queensbay Mall). The **Authentication**, **Profile**,
+**Budget**, and **Group Travel** modules are the exception: they're wired
+to a real, shared Supabase backend (see below).
 
 ## Getting Started
 
 ```bash
 flutter pub get
-flutter run -d chrome   # or -d windows, -d <device-id>
+flutter run -d chrome --web-port=8766 \
+  --dart-define=SUPABASE_URL=https://xxxxx.supabase.co \
+  --dart-define=SUPABASE_ANON_KEY=eyJhbGciOi...
 ```
 
 `main.dart` boots into `SplashScreen`, which auto-advances into the
@@ -21,21 +23,24 @@ onboarding/auth flow described below.
 
 - Flutter / Material 3, single package, no state-management library —
   screens use local `State`, mostly still with dummy `const` data lists.
-- Auth, Budget, and Group Travel are the exception (Supabase-backed —
-  see below); everywhere else, "submit"/"save" either navigates forward
-  or shows a `showComingSoon()` snackbar (see `lib/widgets/coming_soon.dart`).
+- Auth, Profile, Budget, and Group Travel are the exception
+  (Supabase-backed — see below); everywhere else, "submit"/"save" either
+  navigates forward or shows a `showComingSoon()` snackbar (see
+  `lib/widgets/coming_soon.dart`).
 - Shared design system in `lib/theme/app_theme.dart` (`AppColors`,
   gradients) and `lib/widgets/` (see below).
 
-## Backend (Auth + Budget + Group modules)
+## Backend (Auth + Profile + Budget + Group modules)
 
 `lib/services/`, `lib/models/`, and `lib/utils/` hold a Supabase-backed
-data layer shared by three modules, all reading/writing it live instead
+data layer shared by these modules, all reading/writing it live instead
 of local mock data:
 
-- **Authentication** — real sign up/in/out, password reset via emailed
-  link, 6-digit sign-up email verification, friendly error messages,
-  client-side validation.
+- **Authentication** — real sign up/in/out, 6-digit password-reset code
+  (emailed, no link), 6-digit sign-up email verification, friendly error
+  messages, client-side validation.
+- **Profile** — the signed-in user's real `profiles` row (name, email,
+  phone, bio, avatar).
 - **Budget** — total budget, category planning, expense CRUD,
   per-member balances.
 - **Group Travel** — live member roster, realtime chat, realtime
@@ -45,23 +50,23 @@ of local mock data:
 
 1. Create a Supabase project, then run `supabase/schema.sql` against it
    (SQL Editor, or `supabase db push`) — see `SUPABASE_SETUP.md` for a
-   full walkthrough (creating the project, Auth provider config, the
-   redirect URL needed for password-reset links). If you already ran an
-   earlier version of this schema, run
-   `supabase/migrations/0001_add_auth_profile_fields.sql` instead to
-   bring it up to date.
+   full walkthrough. If you already ran an earlier version of this
+   schema, run `supabase/migrations/0001_add_auth_profile_fields.sql`
+   instead to bring it up to date.
 2. In Authentication → Providers → Email, make sure **"Confirm email"
-   is ON** — `VerifyEmailScreen` submits the real 6-digit code from
-   Supabase's confirmation email (Email Templates → Confirm signup must
-   still contain `{{ .Token }}`).
-3. Authentication → URL Configuration → add `http://localhost:8766/**`
-   to both **Site URL** and **Redirect URLs**, and always run with
-   `--web-port=8766` — this lets a password-reset email link land back
-   in the running app and auto-open Reset Password.
-4. Copy `.env.example` to `.env` and fill in your project's URL and
-   anon/publishable key (Project Settings → API). `.env` is gitignored.
-5. `flutter pub get`, then `flutter run -d chrome --web-port=8766` —
-   `main.dart` calls `SupabaseConfig.load()` before `runApp`.
+   is ON** — sign-up and password-reset both submit a real 6-digit code
+   emailed by Supabase (Email Templates → Confirm signup / Reset
+   password must contain `{{ .Token }}`).
+3. Run with `--dart-define=SUPABASE_URL=...` and
+   `--dart-define=SUPABASE_ANON_KEY=...` set to your project's URL and
+   anon/publishable key (Project Settings → API) — see `SupabaseConfig`
+   in `lib/services/supabase_config.dart`. Always launch with
+   `--web-port=8766` (see "Getting Started" above).
+4. Optionally copy `.env.example` to `.env` and fill in
+   `GOOGLE_ROUTES_API_KEY` — only the Transport module's live directions
+   (`route_service.dart`) need it; the app runs fine without it. `.env`
+   is gitignored.
+5. `flutter pub get`, then run as shown above.
 
 **No trip selection exists anywhere else in the app yet** (Trip Planner
 module), so `TripService.ensureDemoTrip()` auto-creates/reuses one
@@ -79,6 +84,7 @@ list.
 |---|---|
 | `services/auth_service.dart` | Wraps every Supabase Auth call (sign up/in/out, password reset, OTP verify/resend) |
 | `services/auth_error_messages.dart` | Maps raw Supabase auth errors to user-facing messages |
+| `services/profile_service.dart` | Reads/updates the signed-in user's `profiles` row |
 | `utils/validators.dart` | Client-side email/password/name field validation |
 | `services/trip_service.dart` | Resolves/creates the demo trip (see above) |
 | `services/budget_service.dart` | Total budget, category planning, expense CRUD, per-member balances |
@@ -86,11 +92,11 @@ list.
 | `services/chat_service.dart` | Realtime group chat |
 | `services/poll_service.dart` | Polls, options, live vote tallies |
 
-The `profiles` table is shared by all three modules: `display_name` /
+The `profiles` table is shared by all these modules: `display_name` /
 `avatar_color` are read by Budget/Group (member names, chat senders,
 avatars), `full_name` / `email` / `avatar_url` are owned by
-Authentication — one sign-up trigger (in `schema.sql`) populates both
-sets of columns so neither module clobbers the other's data.
+Authentication/Profile — one sign-up trigger (in `schema.sql`) populates
+both sets of columns so no module clobbers another's data.
 
 ## Shared widgets (`lib/widgets/`)
 
@@ -130,10 +136,9 @@ under the tab/section that links to them below.
 `forgot_password_screen.dart` · `reset_password_screen.dart` ·
 `verify_email_screen.dart`
 
-Splash (skips straight to Home if a session is already active) →
-onboarding carousel → combined sign in/sign up screen → forgot-password
-(emailed reset link) / reset-password → 6-digit email verification (a
-real Supabase OTP). Live data — see "Backend" above.
+Splash → onboarding carousel → combined sign in/sign up screen →
+forgot-password (emailed 6-digit code) / reset-password → 6-digit email
+verification (a real Supabase OTP). Live data — see "Backend" above.
 
 ### Home tab
 `home_screen.dart` (dashboard body) · `search_destination_screen.dart` ·
@@ -180,7 +185,9 @@ weather card and the Trip Details tools grid.
 
 Route list (bus/e-hailing/ferry) between trip stops → step-by-step
 **Route Details** → **Fare Calculator** (distance slider, per-mode
-fare estimate). Reached from Trip Details tools grid.
+fare estimate). Reached from Trip Details tools grid. Live directions
+via `route_service.dart` when `GOOGLE_ROUTES_API_KEY` is set — see
+"Backend" setup step 4.
 
 ### Explore tab — Explore Module
 `explore/explore_tab.dart` · `explore/categories_screen.dart` ·
@@ -243,17 +250,17 @@ member roster, with links to: **Group Chat** (realtime), **Voting**
 **Join a Trip** (reached from the home dashboard) is the requester
 side. Live data — see "Backend" above.
 
-### Profile tab — Profile Module
+### Profile tab — Profile Module — Supabase-backed
 `profile/profile_tab.dart` · `profile/travel_history_screen.dart` ·
-`profile/achievements_screen.dart` · `profile/settings_screen.dart`
+`profile/settings_screen.dart`
 
-- **Profile tab**: identity header + stats, menu into Travel History,
-  Achievements, Saved Places, Saved Trips, Settings, Sign Out (→
+- **Profile tab**: identity header + stats (real `profiles` data), menu
+  into Travel History, Saved Places, Saved Trips, Settings, Sign Out (→
   back to `WelcomeScreen`).
 - **Travel History**: timeline of past trips.
-- **Achievements**: earned/locked badge grid.
-- **Settings**: notification/appearance toggles, account, support,
-  sign out.
+- **Settings**: profile edit, change password, language, privacy &
+  security, help center, support ticket, notification/appearance
+  toggles, sign out.
 
 ## Project structure
 
@@ -264,7 +271,7 @@ lib/
   widgets/                   # shared components (see table above)
   models/                    # Expense, BudgetCategoryData, TripBalance,
                               # GroupMember, GroupMessage, Poll, JoinRequest
-  services/                  # SupabaseConfig + Auth/Budget/Group backend (see above)
+  services/                  # SupabaseConfig + Auth/Profile/Budget/Group backend (see above)
   utils/validators.dart      # Auth form validation
   screens/
     splash_screen.dart

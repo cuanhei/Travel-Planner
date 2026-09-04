@@ -3,6 +3,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../models/group_member.dart';
 import '../../services/group_service.dart';
+import '../../services/locale_service.dart';
 import '../../services/trip_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/detail_header.dart';
@@ -38,25 +39,25 @@ class _GroupDashboardScreenState extends State<GroupDashboardScreen> {
         backgroundColor: dialogContext.colors.card,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         title: Text(
-          'Remove ${member.displayName}?',
+          '${tr('group_remove_member_prefix')} ${member.displayName}?',
           style: TextStyle(
             color: dialogContext.colors.ink,
             fontWeight: FontWeight.w800,
           ),
         ),
         content: Text(
-          'They\'ll be removed from the group and lose access to this trip.',
+          tr('group_remove_member_confirm_body'),
           style: TextStyle(color: dialogContext.colors.muted),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(dialogContext).pop(false),
-            child: const Text('Cancel'),
+            child: Text(tr('common_cancel')),
           ),
           FilledButton(
             onPressed: () => Navigator.of(dialogContext).pop(true),
             style: FilledButton.styleFrom(backgroundColor: Colors.redAccent),
-            child: const Text('Remove'),
+            child: Text(tr('group_remove_button')),
           ),
         ],
       ),
@@ -74,17 +75,17 @@ class _GroupDashboardScreenState extends State<GroupDashboardScreen> {
           future: _tripFuture,
           builder: (context, tripSnap) {
             if (tripSnap.connectionState != ConnectionState.done) {
-              return const Column(
+              return Column(
                 children: [
-                  DetailHeader(title: 'Group Travel'),
-                  Expanded(child: Center(child: CircularProgressIndicator())),
+                  DetailHeader(title: tr('group_dashboard_title')),
+                  const Expanded(child: Center(child: CircularProgressIndicator())),
                 ],
               );
             }
             if (tripSnap.hasError) {
               return Column(
                 children: [
-                  const DetailHeader(title: 'Group Travel'),
+                  DetailHeader(title: tr('group_dashboard_title')),
                   Expanded(
                     child: Center(
                       child: Padding(
@@ -115,9 +116,10 @@ class _GroupDashboardScreenState extends State<GroupDashboardScreen> {
                 return Column(
                   children: [
                     DetailHeader(
-                      title: 'Group Travel',
+                      title: tr('group_dashboard_title'),
                       subtitle:
-                          '$tripName · ${members.length} member${members.length == 1 ? '' : 's'}',
+                          '$tripName · ${members.length} '
+                          '${members.length == 1 ? tr('group_member_singular') : tr('group_member_plural')}',
                       trailing: isOrganizer
                           ? IconButton(
                               onPressed: () => Navigator.of(context).push(
@@ -140,7 +142,7 @@ class _GroupDashboardScreenState extends State<GroupDashboardScreen> {
                         padding: EdgeInsets.fromLTRB(24, 8, 24, 24),
                         children: [
                           Text(
-                            'Members',
+                            tr('group_members_header'),
                             style: TextStyle(
                               color: context.colors.ink,
                               fontWeight: FontWeight.w800,
@@ -194,8 +196,8 @@ class _GroupDashboardScreenState extends State<GroupDashboardScreen> {
                                         ),
                                         Text(
                                           m.isOrganizer
-                                              ? 'Organizer'
-                                              : 'Member',
+                                              ? tr('group_role_organizer')
+                                              : tr('group_role_member'),
                                           style: TextStyle(
                                             color: context.colors.muted,
                                             fontSize: 11.5,
@@ -240,8 +242,8 @@ class _GroupDashboardScreenState extends State<GroupDashboardScreen> {
                           _ActionRow(
                             icon: Icons.chat_bubble_rounded,
                             color: AppColors.accent,
-                            title: 'Group Chat',
-                            subtitle: 'Chat with your travel group',
+                            title: tr('group_action_chat_title'),
+                            subtitle: tr('group_chat_action_subtitle'),
                             onTap: () => Navigator.of(context).push(
                               MaterialPageRoute(
                                 builder: (_) => GroupChatScreen(tripId: tripId),
@@ -251,8 +253,8 @@ class _GroupDashboardScreenState extends State<GroupDashboardScreen> {
                           _ActionRow(
                             icon: Icons.how_to_vote_rounded,
                             color: Color(0xFFFFB347),
-                            title: 'Voting',
-                            subtitle: 'Decide together on trip choices',
+                            title: tr('group_action_voting_title'),
+                            subtitle: tr('group_voting_subtitle'),
                             onTap: () => Navigator.of(context).push(
                               MaterialPageRoute(
                                 builder: (_) => VotingScreen(tripId: tripId),

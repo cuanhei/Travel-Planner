@@ -58,3 +58,10 @@ String friendlyAuthError(AuthException e) {
 
   return e.message;
 }
+
+/// True for a wrong-password/wrong-credentials error, regardless of the
+/// exact message wording (which changes across Supabase versions — the
+/// `code` field doesn't).
+bool isInvalidCredentials(AuthException e) =>
+    e.code == 'invalid_credentials' ||
+    e.message.toLowerCase().contains('invalid login credentials');

@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../models/trip_stop_location.dart';
+import '../services/locale_service.dart';
 import '../services/photon_service.dart';
 
 const _debounceDuration = Duration(milliseconds: 400);
@@ -21,7 +22,7 @@ class LocationSearchField extends StatefulWidget {
     super.key,
     required this.value,
     required this.onChanged,
-    this.hintText = 'Search a location…',
+    required this.hintText,
     this.selectedIcon = Icons.location_on_rounded,
     this.maxDropdownHeight = 220,
     this.helperText,
@@ -209,7 +210,7 @@ class _LocationSearchFieldState extends State<LocationSearchField> {
                       fontWeight: FontWeight.w600,
                     ),
                     decoration: InputDecoration(
-                      hintText: widget.hintText,
+                      hintText: widget.hintText ?? tr('transport_search_location_hint'),
                       hintStyle: const TextStyle(
                         color: Color(0xFF6E7A93),
                         fontWeight: FontWeight.w500,

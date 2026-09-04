@@ -23,6 +23,12 @@ android {
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
+
+        ndk {
+            // Emulator is x86_64 only; skip arm ABIs to avoid a native (CMake)
+            // build step that hits Windows file-lock errors on this machine.
+            abiFilters += "x86_64"
+        }
     }
 
     buildTypes {
