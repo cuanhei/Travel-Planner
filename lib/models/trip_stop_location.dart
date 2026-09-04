@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'nearby_place.dart';
+import 'place_environment.dart';
 import 'visit_duration.dart';
 
 /// A real, geocoded location picked for a trip stop — via Photon search,
@@ -116,6 +117,12 @@ class TripStopLocation {
   /// back to [defaultVisitDurationMinutes] for a Photon/OSM stop, which
   /// carries no [primaryType]/[types] at all.
   int get estimatedVisitMinutes => estimateVisitDuration(primaryType, types);
+
+  /// Indoor/outdoor/mixed/unknown (see [getEnvironment]) — for
+  /// weather-aware scheduling, e.g. steering a rain-forecast day away
+  /// from outdoor stops. [PlaceEnvironment.unknown] for a Photon/OSM
+  /// stop, which carries no [primaryType]/[types] at all.
+  PlaceEnvironment get environment => getEnvironment(primaryType, types);
 
   factory TripStopLocation.fromMap(Map<String, dynamic> map) {
     return TripStopLocation(
