@@ -16,9 +16,14 @@ class TripStopLocation {
     required this.longitude,
     this.id,
     this.osmId,
+    this.placeId,
     this.category = 'Other',
+    this.types = const [],
+    this.businessStatus,
     this.regularOpeningHours,
+    this.regularOpeningHoursPeriods,
     this.currentOpeningHours,
+    this.currentOpeningHoursPeriods,
     this.openNow,
   });
 
@@ -35,11 +40,31 @@ class TripStopLocation {
   /// null for a Google Places result (see [fromNearbyPlace]).
   final String? osmId;
 
+  /// Google's unique Place ID (from Places' `id` field), when the source
+  /// result came from Google Places. Distinct from [id] (this app's own
+  /// `trip_stops.id`) — used to detect the traveler re-picking the same
+  /// real-world place (even if [latitude]/[longitude] drift slightly
+  /// between two searches) and to refetch fresh place details later.
+  /// Null for Photon/OSM results, which have no Google identifier.
+  final String? placeId;
+
   /// Coarse category derived from the source's OSM tag (Photon) or
   /// `primaryType` (Google Places) — e.g. "Shopping", "Food", "Hotel",
   /// "Attraction". Defaults to "Other" for points with no recognizable
   /// type, like a raw GPS drop.
   final String category;
+
+  /// Every Google Places type tag (e.g. `["restaurant", "food",
+  /// "point_of_interest"]`) — finer-grained than [category] when that
+  /// single bucket isn't enough (e.g. estimating visit duration). Empty
+  /// for Photon/OSM results.
+  final List<String> types;
+
+  /// Google's `businessStatus` (`OPERATIONAL`, `CLOSED_TEMPORARILY`, or
+  /// `CLOSED_PERMANENTLY`) — whether the place is still in business at
+  /// all, separate from [openNow] (open *right now* vs. open *ever
+  /// again*). Null for Photon/OSM results, which don't report this.
+  final String? businessStatus;
 
   /// One line per weekday (e.g. "Monday: 9:00 AM – 6:00 PM", or
   /// "Sunday: Closed") from Google Places' `regularOpeningHours` — the
@@ -48,10 +73,18 @@ class TripStopLocation {
   /// no opening-hours data.
   final List<String>? regularOpeningHours;
 
+  /// Machine-readable open/close windows behind [regularOpeningHours] —
+  /// for scheduling logic (e.g. flagging a stop that'll be closed by the
+  /// time the itinerary reaches it), not just displaying hours as text.
+  final List<OpeningHoursPeriod>? regularOpeningHoursPeriods;
+
   /// Same shape as [regularOpeningHours] but from `currentOpeningHours`
   /// — accounts for near-term exceptions (public holiday closures, etc.)
   /// rather than just the typical weekly schedule.
   final List<String>? currentOpeningHours;
+
+  /// Machine-readable equivalent of [currentOpeningHours].
+  final List<OpeningHoursPeriod>? currentOpeningHoursPeriods;
 
   /// Whether the place is open right now, per Google. Null if unknown or
   /// not a Google-sourced stop.
@@ -60,6 +93,10 @@ class TripStopLocation {
   /// [currentOpeningHours] if present (more specific — reflects today's
   /// actual exceptions), else the fallback [regularOpeningHours].
   List<String>? get openingHours => currentOpeningHours ?? regularOpeningHours;
+
+  /// [currentOpeningHoursPeriods] if present, else [regularOpeningHoursPeriods].
+  List<OpeningHoursPeriod>? get openingHoursPeriods =>
+      currentOpeningHoursPeriods ?? regularOpeningHoursPeriods;
 
   /// Icon representing [category], for chips, list tiles, and cards.
   IconData get categoryIcon => iconForCategory(category);
@@ -78,31 +115,44 @@ class TripStopLocation {
 
   /// Converts a Google Places API (New) result — from the same
   /// [GooglePlacesService] backing Explore's Nearby Places — into a stop
-  /// for Create Trip's location picker, carrying name/coordinates plus
-  /// [category] (mapped from Google's `primaryType`) and opening-hours
-  /// data Photon never had.
+  /// for Create Trip's location picker, carrying name/coordinates,
+  /// [category]/[types]/[businessStatus], and opening-hours data (both
+  /// display strings and machine-readable [OpeningHoursPeriod]s) that
+  /// Photon never had.
   factory TripStopLocation.fromNearbyPlace(NearbyPlace place) {
     return TripStopLocation(
+      placeId: place.id,
       name: place.name,
       address: place.address,
       latitude: place.latitude,
       longitude: place.longitude,
       category: _categoryForGoogleType(place.primaryType),
+      types: place.types,
+      businessStatus: place.businessStatus,
       regularOpeningHours: place.regularOpeningHours,
+      regularOpeningHoursPeriods: place.regularOpeningHoursPeriods,
       currentOpeningHours: place.currentOpeningHours,
+      currentOpeningHoursPeriods: place.currentOpeningHoursPeriods,
       openNow: place.openNow,
     );
   }
 
+  /// Same real-world place as [other]? Prefers Google's [placeId] when
+  /// both sides have one (stable even if the coordinates drift slightly
+  /// between two searches); falls back to coordinates + [osmId]
+  /// otherwise — used to prevent adding the same stop twice.
   @override
   bool operator ==(Object other) =>
       other is TripStopLocation &&
-      other.latitude == latitude &&
-      other.longitude == longitude &&
-      other.osmId == osmId;
+      (placeId != null && other.placeId != null
+          ? other.placeId == placeId
+          : other.latitude == latitude &&
+                other.longitude == longitude &&
+                other.osmId == osmId);
 
   @override
-  int get hashCode => Object.hash(latitude, longitude, osmId);
+  int get hashCode =>
+      placeId?.hashCode ?? Object.hash(latitude, longitude, osmId);
 }
 
 /// Maps Google Places' `primaryType` to the same coarse category labels

@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart'
     show FilteringTextInputFormatter, TextInputFormatter;
 
+import '../../models/nearby_place.dart' show OpeningHoursPeriod;
 import '../../models/trip.dart';
 import '../../models/trip_stop_location.dart';
 import '../../services/locale_service.dart';
@@ -380,7 +381,71 @@ class _CreateTripScreenState extends State<CreateTripScreen> {
     return false;
   }
 
+  /// Dumps every field of every picked location (Starting From, Ending
+  /// At, each night's Accommodation, every stop in Locations) to the
+  /// console — everything captured on [TripStopLocation], including the
+  /// Google-only metadata (placeId/types/businessStatus/opening-hours
+  /// periods) that isn't shown anywhere in the UI yet, so it's visible
+  /// for debugging without needing a debugger attached.
+  void _debugPrintSelectedLocations() {
+    debugPrint('===== Plan My Trip: selected locations =====');
+    _debugPrintLocation('Starting From', _startLocation);
+    _debugPrintLocation('Ending At', _endLocation);
+    for (var i = 0; i < _accommodations.length; i++) {
+      _debugPrintLocation('Accommodation — Night ${i + 1}', _accommodations[i]);
+    }
+    if (_selectedStops.isEmpty) {
+      debugPrint('Locations: none selected');
+    } else {
+      var i = 1;
+      for (final stop in _selectedStops) {
+        _debugPrintLocation('Location #${i++}', stop);
+      }
+    }
+    debugPrint('==============================================');
+  }
+
+  void _debugPrintLocation(String label, TripStopLocation? location) {
+    if (location == null) {
+      debugPrint('$label: (none picked)');
+      return;
+    }
+    debugPrint(
+      '$label:\n'
+      '  name: ${location.name}\n'
+      '  address: ${location.address}\n'
+      '  latitude: ${location.latitude}\n'
+      '  longitude: ${location.longitude}\n'
+      '  id (trip_stops.id): ${location.id}\n'
+      '  placeId (Google): ${location.placeId}\n'
+      '  osmId: ${location.osmId}\n'
+      '  category: ${location.category}\n'
+      '  types: ${location.types}\n'
+      '  businessStatus: ${location.businessStatus}\n'
+      '  openNow: ${location.openNow}\n'
+      '  regularOpeningHours: ${location.regularOpeningHours}\n'
+      '  regularOpeningHoursPeriods: ${_formatPeriods(location.regularOpeningHoursPeriods)}\n'
+      '  currentOpeningHours: ${location.currentOpeningHours}\n'
+      '  currentOpeningHoursPeriods: ${_formatPeriods(location.currentOpeningHoursPeriods)}',
+    );
+  }
+
+  String _formatPeriods(List<OpeningHoursPeriod>? periods) {
+    if (periods == null) return 'null';
+    if (periods.isEmpty) return '[]';
+    return periods
+        .map(
+          (p) =>
+              'day ${p.openDay} ${p.openHour}:${p.openMinute.toString().padLeft(2, '0')}'
+              ' – '
+              '${p.closeDay == null ? 'open 24h' : 'day ${p.closeDay} ${p.closeHour}:${p.closeMinute.toString().padLeft(2, '0')}'}',
+        )
+        .join(', ');
+  }
+
   Future<void> _submit() async {
+    _debugPrintSelectedLocations();
+
     // Rebuild the name field in "always validate" mode from the first
     // submission attempt onward. This makes its red inline error persistent,
     // just like the other required fields, instead of only showing a toast.

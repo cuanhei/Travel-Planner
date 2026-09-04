@@ -11,13 +11,16 @@ class NearbyPlace {
     required this.latitude,
     required this.longitude,
     required this.primaryType,
+    required this.types,
     required this.photoUrl,
     required this.businessStatus,
     required this.editorialSummary,
     required this.priceLevel,
     required this.priceRangeLabel,
     required this.regularOpeningHours,
+    required this.regularOpeningHoursPeriods,
     required this.currentOpeningHours,
+    required this.currentOpeningHoursPeriods,
     required this.openNow,
     this.distanceKm,
   });
@@ -32,6 +35,11 @@ class NearbyPlace {
   /// "tourist_attraction") — used only to pick [icon] here; not shown as
   /// text anywhere on the card.
   final String? primaryType;
+
+  /// Every Google Places type tag for this place (e.g. `["restaurant",
+  /// "food", "point_of_interest"]`) — more detailed than [primaryType]
+  /// alone for classification when it isn't specific enough.
+  final List<String> types;
 
   /// Ready-to-use `Image.network` URL for the place's first photo
   /// (already carries the API key), or null if Places returned none —
@@ -58,10 +66,19 @@ class NearbyPlace {
   /// schedule, unaffected by today's holidays/exceptions.
   final List<String>? regularOpeningHours;
 
+  /// Machine-readable open/close windows behind [regularOpeningHours] —
+  /// e.g. for estimating whether a place will still be open when the
+  /// itinerary reaches it, not just displaying hours as text.
+  final List<OpeningHoursPeriod>? regularOpeningHoursPeriods;
+
   /// Same shape as [regularOpeningHours] but from `currentOpeningHours`
   /// — accounts for today's actual exceptions (holiday hours, etc.).
   /// Preferred over [regularOpeningHours] for display when present.
   final List<String>? currentOpeningHours;
+
+  /// Machine-readable equivalent of [currentOpeningHours] — near-term
+  /// exceptions (e.g. a holiday closure) rather than the typical week.
+  final List<OpeningHoursPeriod>? currentOpeningHoursPeriods;
 
   /// `currentOpeningHours.openNow` — whether the place is open right
   /// now, per Google. Null if Places didn't return hours at all.
@@ -108,13 +125,16 @@ class NearbyPlace {
     latitude: latitude,
     longitude: longitude,
     primaryType: primaryType,
+    types: types,
     photoUrl: photoUrl,
     businessStatus: businessStatus,
     editorialSummary: editorialSummary,
     priceLevel: priceLevel,
     priceRangeLabel: priceRangeLabel,
     regularOpeningHours: regularOpeningHours,
+    regularOpeningHoursPeriods: regularOpeningHoursPeriods,
     currentOpeningHours: currentOpeningHours,
+    currentOpeningHoursPeriods: currentOpeningHoursPeriods,
     openNow: openNow,
     distanceKm: km,
   );
@@ -140,6 +160,7 @@ class NearbyPlace {
       latitude: (location?['latitude'] as num?)?.toDouble() ?? 0,
       longitude: (location?['longitude'] as num?)?.toDouble() ?? 0,
       primaryType: json['primaryType'] as String?,
+      types: [for (final t in (json['types'] as List?) ?? const []) t as String],
       photoUrl: firstPhotoName == null
           ? null
           : 'https://places.googleapis.com/v1/$firstPhotoName/media'
@@ -149,7 +170,9 @@ class NearbyPlace {
       priceLevel: json['priceLevel'] as String?,
       priceRangeLabel: _priceRangeLabel(json['priceRange'] as Map<String, dynamic>?),
       regularOpeningHours: _weekdayDescriptions(regularHours),
+      regularOpeningHoursPeriods: _periods(regularHours),
       currentOpeningHours: _weekdayDescriptions(currentHours),
+      currentOpeningHoursPeriods: _periods(currentHours),
       openNow: (currentHours?['openNow'] ?? regularHours?['openNow']) as bool?,
     );
   }
@@ -159,6 +182,51 @@ List<String>? _weekdayDescriptions(Map<String, dynamic>? hours) {
   final list = hours?['weekdayDescriptions'] as List?;
   if (list == null) return null;
   return [for (final d in list) d as String];
+}
+
+List<OpeningHoursPeriod>? _periods(Map<String, dynamic>? hours) {
+  final list = hours?['periods'] as List?;
+  if (list == null) return null;
+  return [
+    for (final p in list)
+      OpeningHoursPeriod.fromJson(p as Map<String, dynamic>),
+  ];
+}
+
+/// One open/close window from Places' machine-readable `periods` — e.g.
+/// open Monday 09:00, close Monday 18:00. [closeDay]/[closeHour]/
+/// [closeMinute] are null when Places omitted a close time (a 24-hour
+/// business that day), not "never closes at all".
+class OpeningHoursPeriod {
+  const OpeningHoursPeriod({
+    required this.openDay,
+    required this.openHour,
+    required this.openMinute,
+    this.closeDay,
+    this.closeHour,
+    this.closeMinute,
+  });
+
+  /// 0 (Sunday) – 6 (Saturday), per Places' `Point.day`.
+  final int openDay;
+  final int openHour;
+  final int openMinute;
+  final int? closeDay;
+  final int? closeHour;
+  final int? closeMinute;
+
+  factory OpeningHoursPeriod.fromJson(Map<String, dynamic> json) {
+    final open = json['open'] as Map<String, dynamic>? ?? const {};
+    final close = json['close'] as Map<String, dynamic>?;
+    return OpeningHoursPeriod(
+      openDay: (open['day'] as num?)?.toInt() ?? 0,
+      openHour: (open['hour'] as num?)?.toInt() ?? 0,
+      openMinute: (open['minute'] as num?)?.toInt() ?? 0,
+      closeDay: (close?['day'] as num?)?.toInt(),
+      closeHour: (close?['hour'] as num?)?.toInt(),
+      closeMinute: (close?['minute'] as num?)?.toInt(),
+    );
+  }
 }
 
 String? _priceRangeLabel(Map<String, dynamic>? range) {

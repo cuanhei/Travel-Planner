@@ -13,9 +13,9 @@ const _textSearchEndpoint = 'https://places.googleapis.com/v1/places:searchText'
 
 const _fieldMask =
     'places.id,places.displayName,places.formattedAddress,'
-    'places.location,places.primaryType,places.photos,places.businessStatus,'
-    'places.editorialSummary,places.priceLevel,places.priceRange,'
-    'places.regularOpeningHours,places.currentOpeningHours';
+    'places.location,places.primaryType,places.types,places.photos,'
+    'places.businessStatus,places.editorialSummary,places.priceLevel,'
+    'places.priceRange,places.regularOpeningHours,places.currentOpeningHours';
 
 const _defaultRadiusMeters = 3000.0;
 const _maxResultCount = 20;
