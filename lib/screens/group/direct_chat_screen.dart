@@ -80,6 +80,25 @@ class _DirectChatScreenState extends State<DirectChatScreen> {
   GlobalKey _keyFor(String messageId) =>
       _messageKeys.putIfAbsent(messageId, () => GlobalKey());
 
+  // Cached once, not created inline in build() — `.stream()` returns a
+  // new Supabase stream object on every call, so building these inline
+  // would make each nested StreamBuilder below tear down and
+  // resubscribe (briefly emitting null/empty data) on *every* rebuild
+  // of this screen, not just when it first opens. For
+  // _notifyNewReactions that resubscribe blip reset its "previous
+  // reactions" baseline to empty, so the next real emission looked
+  // like every existing reaction was brand new — showing the "reacted
+  // to your message" toast again each time the chat reopened.
+  late final _lastReadStream = _dmService.watchTheirLastRead(
+    tripId: widget.tripId,
+    otherUserId: widget.otherUserId,
+  );
+  late final _conversationStream = _dmService.watchConversation(
+    tripId: widget.tripId,
+    otherUserId: widget.otherUserId,
+  );
+  late final _reactionsStream = _dmService.watchReactions(widget.tripId);
+
   void _showError(String message) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(behavior: SnackBarBehavior.floating, content: Text(message)),
@@ -636,17 +655,11 @@ class _DirectChatScreenState extends State<DirectChatScreen> {
                         ),
                 ),
                 child: StreamBuilder<DateTime?>(
-                  stream: _dmService.watchTheirLastRead(
-                    tripId: widget.tripId,
-                    otherUserId: widget.otherUserId,
-                  ),
+                  stream: _lastReadStream,
                   builder: (context, lastReadSnap) {
                     final theirLastRead = lastReadSnap.data;
                     return StreamBuilder<List<DirectMessage>>(
-                      stream: _dmService.watchConversation(
-                        tripId: widget.tripId,
-                        otherUserId: widget.otherUserId,
-                      ),
+                      stream: _conversationStream,
                       builder: (context, snapshot) {
                         final rawMessages =
                             snapshot.data ?? const <DirectMessage>[];
@@ -660,7 +673,7 @@ class _DirectChatScreenState extends State<DirectChatScreen> {
                         }
                         _maybeScrollToBottom(rawMessages.length);
                         return StreamBuilder<Map<String, Map<String, String>>>(
-                          stream: _dmService.watchReactions(widget.tripId),
+                          stream: _reactionsStream,
                           builder: (context, reactionsSnapshot) {
                             final reactionsByMessage =
                                 reactionsSnapshot.data ?? const {};
@@ -818,40 +831,60 @@ class _DirectChatScreenState extends State<DirectChatScreen> {
                                                         ),
                                                   ),
                                                 ),
-                                              Padding(
-                                                padding: EdgeInsets.only(
-                                                  top: 4,
-                                                  left: mine ? 0 : 4,
-                                                  right: mine ? 4 : 0,
-                                                ),
-                                                child: Row(
-                                                  mainAxisSize:
-                                                      MainAxisSize.min,
-                                                  children: [
-                                                    Text(
-                                                      formatChatDateTime(
-                                                        m.createdAt,
+                                              GestureDetector(
+                                                // A photo bubble has its own
+                                                // tap target (open fullscreen
+                                                // preview) that wins the
+                                                // gesture arena over the
+                                                // bubble's tap, so it can
+                                                // never reach
+                                                // _showMessageInfo. This
+                                                // ticks row sits below the
+                                                // image and is always free,
+                                                // so it's the reliable way to
+                                                // open "Seen" for photo
+                                                // messages too.
+                                                onTap: mine && myUid != null
+                                                    ? () => _showMessageInfo(
+                                                        seenAt,
+                                                      )
+                                                    : null,
+                                                child: Padding(
+                                                  padding: EdgeInsets.only(
+                                                    top: 4,
+                                                    left: mine ? 0 : 4,
+                                                    right: mine ? 4 : 0,
+                                                  ),
+                                                  child: Row(
+                                                    mainAxisSize:
+                                                        MainAxisSize.min,
+                                                    children: [
+                                                      Text(
+                                                        formatChatDateTime(
+                                                          m.createdAt,
+                                                        ),
+                                                        style: TextStyle(
+                                                          color: context
+                                                              .colors
+                                                              .muted,
+                                                          fontSize: 10,
+                                                        ),
                                                       ),
-                                                      style: TextStyle(
-                                                        color: context
-                                                            .colors
-                                                            .muted,
-                                                        fontSize: 10,
-                                                      ),
-                                                    ),
-                                                    if (mine) ...[
-                                                      SizedBox(width: 4),
-                                                      Icon(
-                                                        Icons.done_all_rounded,
-                                                        size: 14,
-                                                        color: seenAt != null
-                                                            ? _seenBlue
-                                                            : context
-                                                                  .colors
-                                                                  .muted,
-                                                      ),
+                                                      if (mine) ...[
+                                                        SizedBox(width: 4),
+                                                        Icon(
+                                                          Icons
+                                                              .done_all_rounded,
+                                                          size: 14,
+                                                          color: seenAt != null
+                                                              ? _seenBlue
+                                                              : context
+                                                                    .colors
+                                                                    .muted,
+                                                        ),
+                                                      ],
                                                     ],
-                                                  ],
+                                                  ),
                                                 ),
                                               ),
                                             ],

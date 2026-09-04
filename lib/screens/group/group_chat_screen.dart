@@ -49,6 +49,20 @@ class _GroupChatScreenState extends State<GroupChatScreen> {
     widget.tripId,
   );
 
+  // Cached once, not created inline in build() — `.stream()` returns a
+  // new Supabase stream object on every call, so building these inline
+  // would make each nested StreamBuilder below tear down and
+  // resubscribe (briefly emitting null/empty data) on *every* rebuild
+  // of this screen, not just when it first opens. For
+  // _notifyNewReactions that resubscribe blip reset its "previous
+  // reactions" baseline to empty, so the next real emission looked
+  // like every existing reaction was brand new — showing the "X
+  // reacted to your message" toast again each time the chat reopened.
+  late final _membersStream = _groupService.watchMembers(widget.tripId);
+  late final _messagesStream = _chatService.watchMessages(widget.tripId);
+  late final _readsStream = _chatService.watchReadReceipts(widget.tripId);
+  late final _reactionsStream = _chatService.watchReactions(widget.tripId);
+
   /// Message ids already reported as read this screen session — avoids
   /// re-sending the same read receipt on every rebuild of the messages
   /// stream (harmless since the upsert ignores duplicates, but pointless
@@ -803,11 +817,11 @@ class _GroupChatScreenState extends State<GroupChatScreen> {
                         ),
                 ),
                 child: StreamBuilder<List<GroupMember>>(
-                  stream: _groupService.watchMembers(widget.tripId),
+                  stream: _membersStream,
                   builder: (context, memberSnap) {
                     final members = memberSnap.data ?? const <GroupMember>[];
                     return StreamBuilder<List<GroupMessage>>(
-                      stream: _chatService.watchMessages(widget.tripId),
+                      stream: _messagesStream,
                       builder: (context, snapshot) {
                         if (snapshot.hasError) {
                           return Center(
@@ -840,15 +854,13 @@ class _GroupChatScreenState extends State<GroupChatScreen> {
                         return StreamBuilder<
                           Map<String, Map<String, DateTime>>
                         >(
-                          stream: _chatService.watchReadReceipts(widget.tripId),
+                          stream: _readsStream,
                           builder: (context, readsSnapshot) {
                             final reads = readsSnapshot.data ?? const {};
                             return StreamBuilder<
                               Map<String, Map<String, String>>
                             >(
-                              stream: _chatService.watchReactions(
-                                widget.tripId,
-                              ),
+                              stream: _reactionsStream,
                               builder: (context, reactionsSnapshot) {
                                 final reactionsByMessage =
                                     reactionsSnapshot.data ?? const {};
@@ -1054,41 +1066,63 @@ class _GroupChatScreenState extends State<GroupChatScreen> {
                                                             ),
                                                       ),
                                                     ),
-                                                  Padding(
-                                                    padding: EdgeInsets.only(
-                                                      top: 4,
-                                                      left: mine ? 0 : 4,
-                                                      right: mine ? 4 : 0,
-                                                    ),
-                                                    child: Row(
-                                                      mainAxisSize:
-                                                          MainAxisSize.min,
-                                                      children: [
-                                                        Text(
-                                                          formatChatDateTime(
-                                                            m.createdAt,
+                                                  GestureDetector(
+                                                    // A photo bubble has its
+                                                    // own tap target (open
+                                                    // fullscreen preview)
+                                                    // that wins the gesture
+                                                    // arena over the bubble's
+                                                    // tap, so it can never
+                                                    // reach _showMessageInfo.
+                                                    // This ticks row sits
+                                                    // below the image and is
+                                                    // always free, so it's
+                                                    // the reliable way to
+                                                    // open "Seen by" for
+                                                    // photo messages too.
+                                                    onTap: mine && myUid != null
+                                                        ? () =>
+                                                              _showMessageInfo(
+                                                                m,
+                                                                members,
+                                                              )
+                                                        : null,
+                                                    child: Padding(
+                                                      padding: EdgeInsets.only(
+                                                        top: 4,
+                                                        left: mine ? 0 : 4,
+                                                        right: mine ? 4 : 0,
+                                                      ),
+                                                      child: Row(
+                                                        mainAxisSize:
+                                                            MainAxisSize.min,
+                                                        children: [
+                                                          Text(
+                                                            formatChatDateTime(
+                                                              m.createdAt,
+                                                            ),
+                                                            style: TextStyle(
+                                                              color: context
+                                                                  .colors
+                                                                  .muted,
+                                                              fontSize: 10,
+                                                            ),
                                                           ),
-                                                          style: TextStyle(
-                                                            color: context
-                                                                .colors
-                                                                .muted,
-                                                            fontSize: 10,
-                                                          ),
-                                                        ),
-                                                        if (mine) ...[
-                                                          SizedBox(width: 4),
-                                                          Icon(
-                                                            Icons
-                                                                .done_all_rounded,
-                                                            size: 14,
-                                                            color: seenByAll
-                                                                ? _seenBlue
-                                                                : context
-                                                                      .colors
-                                                                      .muted,
-                                                          ),
+                                                          if (mine) ...[
+                                                            SizedBox(width: 4),
+                                                            Icon(
+                                                              Icons
+                                                                  .done_all_rounded,
+                                                              size: 14,
+                                                              color: seenByAll
+                                                                  ? _seenBlue
+                                                                  : context
+                                                                        .colors
+                                                                        .muted,
+                                                            ),
+                                                          ],
                                                         ],
-                                                      ],
+                                                      ),
                                                     ),
                                                   ),
                                                 ],
