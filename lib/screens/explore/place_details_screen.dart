@@ -13,8 +13,7 @@ import 'explore_tab.dart';
 /// Full place profile: hero, tags, description, opening hours, and a
 /// reviews preview linking into the Community module. The rating shown
 /// throughout is the live average from `reviews` (via [CommunityService
-/// .watchReviews]) once this place has any, falling back to [Place]'s seed
-/// rating/count until then (see [_PlaceDetailsScreenState.build]).
+/// .watchReviews]) — 0.0/0 until this place has any real reviews.
 class PlaceDetailsScreen extends StatefulWidget {
   const PlaceDetailsScreen({super.key, required this.place});
 
@@ -28,17 +27,32 @@ class _PlaceDetailsScreenState extends State<PlaceDetailsScreen> {
   bool _saved = false;
   final _service = CommunityService();
 
-  /// Whether the user can review this place — only once they've actually
-  /// visited it on a completed trip (see [TripService.hasVisited]).
-  /// Defaults to not-yet-eligible while loading, so the button doesn't
-  /// briefly flash enabled before the check comes back.
+  /// Whether the user can review this place right now — true once they
+  /// have a visit (see [TripService.visitCount]) not yet spent on a review
+  /// (see [CommunityService.myReviewCount]); visiting again unlocks
+  /// another review. Defaults to not-yet-eligible while loading, so the
+  /// button doesn't briefly flash enabled before the check comes back.
   bool _canReview = false;
+
+  /// Whether the place has ever been visited at all, once loaded — used to
+  /// pick between "never visited" and "already reviewed every visit" for
+  /// the disabled-button message.
+  bool _everVisited = false;
 
   @override
   void initState() {
     super.initState();
-    TripService().hasVisited(widget.place.name).then((canReview) {
-      if (mounted) setState(() => _canReview = canReview);
+    Future.wait([
+      TripService().visitCount(widget.place.name),
+      _service.myReviewCount(widget.place.name),
+    ]).then((results) {
+      if (!mounted) return;
+      final visits = results[0];
+      final reviewsSoFar = results[1];
+      setState(() {
+        _everVisited = visits > 0;
+        _canReview = visits > reviewsSoFar;
+      });
     });
   }
 
@@ -48,18 +62,15 @@ class _PlaceDetailsScreenState extends State<PlaceDetailsScreen> {
     return StreamBuilder<List<PlaceReview>>(
       stream: _service.watchReviews(place.name),
       builder: (context, snapshot) {
-        // Falls back to the destination's seed rating/count until real
-        // reviews load, and forever if it has none yet — see
-        // [_ExploreTabState._ratings] for why (an empty "0.0 · 0 reviews"
-        // header would look broken for a place nobody's reviewed yet).
+        // Shows the real rating/count once reviews load — 0.0/0 for a
+        // place nobody's reviewed yet, rather than the seed placeholder
+        // numbers on [Place], which aren't real data.
         final reviews = snapshot.data;
         final rating = reviews == null || reviews.isEmpty
-            ? place.rating
+            ? 0.0
             : reviews.map((r) => r.rating).reduce((a, b) => a + b) /
                   reviews.length;
-        final reviewCount = reviews == null || reviews.isEmpty
-            ? place.reviews
-            : reviews.length;
+        final reviewCount = reviews?.length ?? 0;
         return _PlaceDetailsBody(
           place: place,
           rating: rating,
@@ -67,6 +78,7 @@ class _PlaceDetailsScreenState extends State<PlaceDetailsScreen> {
           saved: _saved,
           onToggleSaved: () => setState(() => _saved = !_saved),
           canReview: _canReview,
+          everVisited: _everVisited,
         );
       },
     );
@@ -80,6 +92,7 @@ class _PlaceDetailsBody extends StatelessWidget {
     required this.reviewCount,
     required this.saved,
     required this.canReview,
+    required this.everVisited,
     required this.onToggleSaved,
   });
 
@@ -88,6 +101,7 @@ class _PlaceDetailsBody extends StatelessWidget {
   final int reviewCount;
   final bool saved;
   final bool canReview;
+  final bool everVisited;
   final VoidCallback onToggleSaved;
 
   @override
@@ -360,12 +374,16 @@ class _PlaceDetailsBody extends StatelessWidget {
                             onPressed: () {
                               if (!canReview) {
                                 ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(
+                                  SnackBar(
                                     behavior: SnackBarBehavior.floating,
                                     content: Text(
-                                      'You can review a destination after '
-                                      "visiting it on a trip that's "
-                                      'finished.',
+                                      everVisited
+                                          ? "You've already reviewed this "
+                                                'place — visit it again to '
+                                                'write another review.'
+                                          : 'You can review a destination '
+                                                'after visiting it on a '
+                                                "trip that's finished.",
                                     ),
                                   ),
                                 );

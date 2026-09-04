@@ -6,7 +6,8 @@ import '../../theme/app_theme.dart';
 import '../../widgets/detail_header.dart';
 
 /// Free-text translator (via [TranslationService]'s live API call) with a
-/// from/to language picker, plus a common travel-phrases reference.
+/// from/to language picker, plus a common travel-phrases reference that's
+/// translated into the same from/to pair — see [_translatePhrases].
 class TranslatorScreen extends StatefulWidget {
   const TranslatorScreen({super.key});
 
@@ -26,16 +27,55 @@ class _TranslatorScreenState extends State<TranslatorScreen> {
   String _toLang = 'ms';
   List<TranslateLanguage> _languages = const [];
 
-  static final _phrases = [
-    (en: 'Hello', ms: 'Helo'),
-    (en: 'Thank you', ms: 'Terima kasih'),
-    (en: 'How much is this?', ms: 'Berapa harga ini?'),
-    (en: 'Where is the toilet?', ms: 'Di mana tandas?'),
-    (en: 'Delicious!', ms: 'Sedap!'),
-    (en: 'Excuse me', ms: 'Maafkan saya'),
-    (en: 'I need help', ms: 'Saya perlukan bantuan'),
-    (en: 'Goodbye', ms: 'Selamat tinggal'),
+  /// Canonical set of common travel phrases, in English — translated live
+  /// into whichever languages [_fromLang]/[_toLang] are currently set to
+  /// (see [_translatePhrases]), so changing the language pair above
+  /// changes what's shown here too, instead of this staying fixed to a
+  /// hardcoded English → Malay pair.
+  static const _phrasesEn = [
+    'Hello',
+    'Thank you',
+    'How much is this?',
+    'Where is the toilet?',
+    'Delicious!',
+    'Excuse me',
+    'I need help',
+    'Goodbye',
   ];
+
+  /// [_phrasesEn] translated into [_fromLang]/[_toLang] — parallel lists,
+  /// same index order as [_phrasesEn]. `null` until the first translation
+  /// batch finishes; the *previous* pair's results are otherwise kept
+  /// visible while a new batch is in flight, rather than blanking the
+  /// section on every language change.
+  List<String>? _phrasesFrom;
+  List<String>? _phrasesTo;
+  bool _phrasesLoading = false;
+  String? _phrasesError;
+
+  /// Lingva's ISO 639-1 codes aren't always what a device's TTS engine
+  /// expects (e.g. plain `'ms'` vs the `'ms-MY'` locale tag) — this covers
+  /// the languages most relevant to a Malaysia travel app; anything else
+  /// falls back to the bare code, which some engines accept fine anyway
+  /// (and [_speak]'s error handling already covers voices that don't).
+  static const _ttsLocales = {
+    'en': 'en-US',
+    'ms': 'ms-MY',
+    'zh': 'zh-CN',
+    'ta': 'ta-IN',
+    'hi': 'hi-IN',
+    'id': 'id-ID',
+    'th': 'th-TH',
+    'vi': 'vi-VN',
+    'ja': 'ja-JP',
+    'ko': 'ko-KR',
+    'ar': 'ar-SA',
+    'fr': 'fr-FR',
+    'de': 'de-DE',
+    'es': 'es-ES',
+    'pt': 'pt-PT',
+    'ru': 'ru-RU',
+  };
 
   @override
   void initState() {
@@ -43,6 +83,47 @@ class _TranslatorScreenState extends State<TranslatorScreen> {
     _service.fetchLanguages().then((languages) {
       if (mounted) setState(() => _languages = languages);
     });
+    _translatePhrases();
+  }
+
+  /// Translates every entry in [_phrasesEn] into [_fromLang] and [_toLang]
+  /// — skipping the live call for whichever side is already English (or
+  /// "Detect language", which isn't a real target), since that's the
+  /// phrases' own source text. Called on load and after every language
+  /// change.
+  Future<void> _translatePhrases() async {
+    setState(() {
+      _phrasesLoading = true;
+      _phrasesError = null;
+    });
+    try {
+      final from = _fromLang == 'en' || _fromLang == 'auto'
+          ? _phrasesEn
+          : await Future.wait(
+              _phrasesEn.map(
+                (p) => _service.translate(p, from: 'en', to: _fromLang),
+              ),
+            );
+      final to = _toLang == 'en'
+          ? _phrasesEn
+          : await Future.wait(
+              _phrasesEn.map(
+                (p) => _service.translate(p, from: 'en', to: _toLang),
+              ),
+            );
+      if (!mounted) return;
+      setState(() {
+        _phrasesFrom = from;
+        _phrasesTo = to;
+        _phrasesLoading = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _phrasesError = 'Could not translate common phrases: $e';
+        _phrasesLoading = false;
+      });
+    }
   }
 
   /// The picker list's display name for [code] — falls back to the raw
@@ -98,6 +179,7 @@ class _TranslatorScreenState extends State<TranslatorScreen> {
       _translated = '';
       _error = null;
     });
+    _translatePhrases();
   }
 
   Future<void> _pickLanguage({required bool isFrom}) async {
@@ -126,17 +208,19 @@ class _TranslatorScreenState extends State<TranslatorScreen> {
       _translated = '';
       _error = null;
     });
+    _translatePhrases();
   }
 
-  /// Reads [text] aloud in Bahasa Malaysia via the device's text-to-speech
-  /// engine, for a "Common Phrases" entry — [languageCode] defaults to
-  /// `'ms-MY'` since every phrase's second column is Malay. Fails
+  /// Reads [text] aloud via the device's text-to-speech engine, in
+  /// [langCode]'s language (a Lingva code like `'ms'`, mapped to a TTS
+  /// locale tag via [_ttsLocales]) — for a "Common Phrases" entry, always
+  /// [_toLang], so it matches whatever's actually shown there. Fails
   /// silently into a snackbar rather than a crash if the device has no
-  /// Malay voice installed (common on devices without that language pack).
-  Future<void> _speak(String text, {String languageCode = 'ms-MY'}) async {
+  /// voice installed for that language.
+  Future<void> _speak(String text, String langCode) async {
     try {
       await _tts.stop();
-      await _tts.setLanguage(languageCode);
+      await _tts.setLanguage(_ttsLocales[langCode] ?? langCode);
       await _tts.speak(text);
     } catch (e) {
       if (!mounted) return;
@@ -179,7 +263,10 @@ class _TranslatorScreenState extends State<TranslatorScreen> {
                   ),
                   IconButton(
                     onPressed: _swapDirection,
-                    icon: Icon(Icons.swap_horiz_rounded, color: AppColors.accent),
+                    icon: Icon(
+                      Icons.swap_horiz_rounded,
+                      color: AppColors.accent,
+                    ),
                   ),
                   Expanded(
                     child: _LanguagePill(
@@ -264,68 +351,96 @@ class _TranslatorScreenState extends State<TranslatorScreen> {
                     ),
                   ),
                   SizedBox(height: 24),
-                  Text(
-                    'Common Phrases',
-                    style: TextStyle(
-                      color: context.colors.ink,
-                      fontWeight: FontWeight.w800,
-                      fontSize: 15,
-                    ),
+                  Row(
+                    children: [
+                      Text(
+                        'Common Phrases',
+                        style: TextStyle(
+                          color: context.colors.ink,
+                          fontWeight: FontWeight.w800,
+                          fontSize: 15,
+                        ),
+                      ),
+                      if (_phrasesLoading) ...[
+                        SizedBox(width: 8),
+                        SizedBox(
+                          width: 14,
+                          height: 14,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: AppColors.accent,
+                          ),
+                        ),
+                      ],
+                    ],
                   ),
                   SizedBox(height: 14),
-                  ..._phrases.map(
-                    (p) => Container(
-                      margin: EdgeInsets.only(bottom: 10),
-                      padding: EdgeInsets.all(14),
-                      decoration: BoxDecoration(
-                        color: context.colors.card,
-                        borderRadius: BorderRadius.circular(16),
-                        boxShadow: [
-                          BoxShadow(
-                            color: context.colors.ink.withValues(alpha: 0.05),
-                            blurRadius: 10,
-                            offset: Offset(0, 4),
-                          ),
-                        ],
+                  if (_phrasesError != null)
+                    Text(
+                      _phrasesError!,
+                      style: const TextStyle(
+                        color: Color(0xFFE0554B),
+                        fontSize: 13,
                       ),
-                      child: Row(
-                        children: [
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  p.en,
-                                  style: TextStyle(
-                                    color: context.colors.ink,
-                                    fontWeight: FontWeight.w700,
-                                    fontSize: 13.5,
-                                  ),
-                                ),
-                                SizedBox(height: 3),
-                                Text(
-                                  p.ms,
-                                  style: TextStyle(
-                                    color: AppColors.accent,
-                                    fontSize: 12.5,
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                                ),
-                              ],
+                    )
+                  else if (_phrasesFrom == null || _phrasesTo == null)
+                    const Padding(
+                      padding: EdgeInsets.symmetric(vertical: 24),
+                      child: Center(child: CircularProgressIndicator()),
+                    )
+                  else
+                    for (var i = 0; i < _phrasesEn.length; i++)
+                      Container(
+                        margin: EdgeInsets.only(bottom: 10),
+                        padding: EdgeInsets.all(14),
+                        decoration: BoxDecoration(
+                          color: context.colors.card,
+                          borderRadius: BorderRadius.circular(16),
+                          boxShadow: [
+                            BoxShadow(
+                              color: context.colors.ink.withValues(alpha: 0.05),
+                              blurRadius: 10,
+                              offset: Offset(0, 4),
                             ),
-                          ),
-                          IconButton(
-                            onPressed: () => _speak(p.ms),
-                            icon: Icon(
-                              Icons.volume_up_rounded,
-                              color: context.colors.muted,
-                              size: 19,
+                          ],
+                        ),
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    _phrasesFrom![i],
+                                    style: TextStyle(
+                                      color: context.colors.ink,
+                                      fontWeight: FontWeight.w700,
+                                      fontSize: 13.5,
+                                    ),
+                                  ),
+                                  SizedBox(height: 3),
+                                  Text(
+                                    _phrasesTo![i],
+                                    style: TextStyle(
+                                      color: AppColors.accent,
+                                      fontSize: 12.5,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                ],
+                              ),
                             ),
-                          ),
-                        ],
+                            IconButton(
+                              onPressed: () => _speak(_phrasesTo![i], _toLang),
+                              icon: Icon(
+                                Icons.volume_up_rounded,
+                                color: context.colors.muted,
+                                size: 19,
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
-                    ),
-                  ),
                 ],
               ),
             ),
@@ -447,7 +562,10 @@ class _LanguagePickerSheetState extends State<_LanguagePickerSheet> {
                 decoration: InputDecoration(
                   hintText: 'Search languages…',
                   hintStyle: TextStyle(color: context.colors.muted),
-                  prefixIcon: Icon(Icons.search_rounded, color: context.colors.muted),
+                  prefixIcon: Icon(
+                    Icons.search_rounded,
+                    color: context.colors.muted,
+                  ),
                   filled: true,
                   fillColor: context.colors.surface,
                   border: OutlineInputBorder(

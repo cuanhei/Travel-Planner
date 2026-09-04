@@ -23,13 +23,21 @@ class PostDetailScreen extends StatefulWidget {
 class _PostDetailScreenState extends State<PostDetailScreen> {
   final _service = CommunityService();
 
+  /// Subscribed once for the lifetime of this screen — see the matching
+  /// comment on `_feedStream` in `community_tab.dart` for why calling
+  /// [CommunityService.watchPost] fresh on every `build()` would silently
+  /// drop reaction updates written around a rebuild.
+  late final Stream<CommunityPost?> _postStream = _service.watchPost(
+    widget.postId,
+  );
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: context.colors.surface,
       body: SafeArea(
         child: StreamBuilder<CommunityPost?>(
-          stream: _service.watchPost(widget.postId),
+          stream: _postStream,
           builder: (context, snapshot) {
             final post = snapshot.data;
             return Column(

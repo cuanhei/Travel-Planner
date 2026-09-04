@@ -417,16 +417,19 @@ create table public.comments (
 
 -- Keyed by place name (this app has no canonical `places` table — Explore's
 -- place cards and Community posts both just carry a free-text place name),
--- so reviews attach to that same string. One review per user per place;
--- re-submitting updates it in place (see CommunityService.upsertReview).
+-- so reviews attach to that same string. One review per *visit*, not per
+-- user-per-place — TripService.visitCount vs CommunityService
+-- .myReviewCount gates how many a user may add, and addReview always
+-- inserts a fresh row rather than upserting (see
+-- 0013_allow_multiple_reviews_per_visit.sql for the migration that
+-- dropped the old one-per-place uniqueness).
 create table public.reviews (
   id uuid primary key default gen_random_uuid(),
   place_name text not null,
   author_id uuid not null references auth.users (id) on delete cascade,
   rating smallint not null check (rating between 1 and 5),
   body text not null check (char_length(trim(body)) > 0),
-  created_at timestamptz not null default now(),
-  unique (place_name, author_id)
+  created_at timestamptz not null default now()
 );
 
 -- Keep posts.likes_count/comments_count in sync so the feed (which only

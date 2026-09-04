@@ -23,15 +23,28 @@ class _ReviewDetailsScreenState extends State<ReviewDetailsScreen> {
   final _service = CommunityService();
 
   /// Whether the user can review this place — see [PlaceDetailsScreen]'s
-  /// identically-named field for why (only after visiting it on a
-  /// completed trip, via [TripService.hasVisited]).
+  /// identically-named field for why (an unused visit, via
+  /// [TripService.visitCount] vs [CommunityService.myReviewCount]).
   bool _canReview = false;
+
+  /// Whether the place has ever been visited at all, once loaded — used to
+  /// pick the disabled-button message, same as [PlaceDetailsScreen].
+  bool _everVisited = false;
 
   @override
   void initState() {
     super.initState();
-    TripService().hasVisited(widget.placeName).then((canReview) {
-      if (mounted) setState(() => _canReview = canReview);
+    Future.wait([
+      TripService().visitCount(widget.placeName),
+      _service.myReviewCount(widget.placeName),
+    ]).then((results) {
+      if (!mounted) return;
+      final visits = results[0];
+      final reviewsSoFar = results[1];
+      setState(() {
+        _everVisited = visits > 0;
+        _canReview = visits > reviewsSoFar;
+      });
     });
   }
 
@@ -180,11 +193,16 @@ class _ReviewDetailsScreenState extends State<ReviewDetailsScreen> {
                         onPressed: () {
                           if (!_canReview) {
                             ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
+                              SnackBar(
                                 behavior: SnackBarBehavior.floating,
                                 content: Text(
-                                  'You can review a destination after '
-                                  "visiting it on a trip that's finished.",
+                                  _everVisited
+                                      ? "You've already reviewed this "
+                                            'place — visit it again to '
+                                            'write another review.'
+                                      : 'You can review a destination '
+                                            'after visiting it on a trip '
+                                            "that's finished.",
                                 ),
                               ),
                             );

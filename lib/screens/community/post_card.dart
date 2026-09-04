@@ -211,11 +211,45 @@ class _ReactionSummary extends StatelessWidget {
 /// tap toggles the default 👍 on/off; a long-press opens a small emoji
 /// picker (like/love/wow) at the touch point to pick — or switch to — a
 /// specific reaction.
-class _ReactionButton extends StatelessWidget {
+///
+/// Tracks its own display locally and updates it the instant you tap,
+/// rather than waiting for [myReaction] to round-trip back through the
+/// feed/post stream — Realtime propagation for `post_likes` changes isn't
+/// reliable enough yet to drive this from props alone (see
+/// CommunityService.setReaction). [didUpdateWidget] still adopts a fresh
+/// [myReaction] if one arrives (e.g. once Realtime is fixed, or the
+/// reaction was changed from another device).
+class _ReactionButton extends StatefulWidget {
   const _ReactionButton({required this.myReaction, required this.onReact});
 
   final String? myReaction;
   final ValueChanged<String?> onReact;
+
+  @override
+  State<_ReactionButton> createState() => _ReactionButtonState();
+}
+
+class _ReactionButtonState extends State<_ReactionButton> {
+  String? _myReaction;
+
+  @override
+  void initState() {
+    super.initState();
+    _myReaction = widget.myReaction;
+  }
+
+  @override
+  void didUpdateWidget(covariant _ReactionButton oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.myReaction != oldWidget.myReaction) {
+      _myReaction = widget.myReaction;
+    }
+  }
+
+  void _react(String? reactionType) {
+    setState(() => _myReaction = reactionType);
+    widget.onReact(reactionType);
+  }
 
   Future<void> _openPicker(BuildContext context, Offset globalPosition) async {
     final overlay = Overlay.of(context).context.findRenderObject() as RenderBox;
@@ -255,15 +289,15 @@ class _ReactionButton extends StatelessWidget {
         ),
       ],
     );
-    if (selected != null) onReact(selected);
+    if (selected != null) _react(selected);
   }
 
   @override
   Widget build(BuildContext context) {
-    final active = myReaction != null;
-    final emoji = active ? _reactionEmojis[myReaction] : null;
+    final active = _myReaction != null;
+    final emoji = active ? _reactionEmojis[_myReaction] : null;
     final label = active
-        ? '${myReaction![0].toUpperCase()}${myReaction!.substring(1)}'
+        ? '${_myReaction![0].toUpperCase()}${_myReaction!.substring(1)}'
         : 'React';
 
     return GestureDetector(
@@ -271,7 +305,7 @@ class _ReactionButton extends StatelessWidget {
       // clear whatever reaction you have if you already did. Picking a
       // *different* reaction type is what long-press is for (below) — that
       // already sets it directly in one tap, no need to clear first.
-      onTap: () => onReact(active ? null : 'like'),
+      onTap: () => _react(active ? null : 'like'),
       onLongPressStart: (details) => _openPicker(context, details.globalPosition),
       child: Row(
         mainAxisSize: MainAxisSize.min,

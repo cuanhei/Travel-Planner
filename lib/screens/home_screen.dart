@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:latlong2/latlong.dart';
 
+import '../services/community_service.dart';
 import '../services/trip_service.dart';
 import '../services/weather_service.dart';
 import '../theme/app_theme.dart';
@@ -272,7 +273,6 @@ class _IconBadgeButton extends StatelessWidget {
     );
   }
 }
-
 
 class _UpcomingTripCard extends StatelessWidget {
   const _UpcomingTripCard();
@@ -575,7 +575,9 @@ class _WeatherCardState extends State<_WeatherCard> {
         throw Exception('Location permission is needed for local weather.');
       }
       final position = await Geolocator.getCurrentPosition(
-        locationSettings: const LocationSettings(accuracy: LocationAccuracy.high),
+        locationSettings: const LocationSettings(
+          accuracy: LocationAccuracy.high,
+        ),
       );
       final result = await _weatherService.getForecastForPosition(
         LatLng(position.latitude, position.longitude),
@@ -684,7 +686,10 @@ class _WeatherLoading extends StatelessWidget {
             SizedBox(
               width: 16,
               height: 16,
-              child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                color: Colors.white,
+              ),
             ),
             SizedBox(width: 10),
             Text(
@@ -835,10 +840,7 @@ class _PeriodTile extends StatelessWidget {
   Widget build(BuildContext context) {
     return Column(
       children: [
-        Text(
-          label,
-          style: TextStyle(color: Colors.white70, fontSize: 11),
-        ),
+        Text(label, style: TextStyle(color: Colors.white70, fontSize: 11)),
         SizedBox(height: 6),
         Icon(weatherIconFor(forecastText), color: Colors.white, size: 18),
         SizedBox(height: 6),
@@ -1046,32 +1048,63 @@ final _destinations = [
   ),
 ];
 
-class _DestinationsCarousel extends StatelessWidget {
+class _DestinationsCarousel extends StatefulWidget {
   const _DestinationsCarousel();
 
   @override
+  State<_DestinationsCarousel> createState() => _DestinationsCarouselState();
+}
+
+class _DestinationsCarouselState extends State<_DestinationsCarousel> {
+  /// Live average rating + review count per destination name, from the
+  /// `reviews` table — overrides each [_Destination]'s hardcoded seed
+  /// `rating` once a place has any real reviews. Streamed so a review
+  /// added elsewhere in the app shows up here without needing Home to be
+  /// remounted (see [CommunityService.watchRatingSummaries]).
+  late final Stream<Map<String, ({double average, int count})>> _ratingsStream =
+      CommunityService().watchRatingSummaries(
+        _destinations.map((d) => d.name).toList(),
+      );
+
+  @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      height: 200,
-      child: ListView.separated(
-        scrollDirection: Axis.horizontal,
-        padding: EdgeInsets.symmetric(horizontal: 24),
-        itemCount: _destinations.length,
-        separatorBuilder: (_, _) => SizedBox(width: 14),
-        itemBuilder: (context, index) =>
-            _DestinationCard(destination: _destinations[index]),
-      ),
+    return StreamBuilder<Map<String, ({double average, int count})>>(
+      stream: _ratingsStream,
+      builder: (context, snapshot) {
+        final ratings = snapshot.data ?? const {};
+        return SizedBox(
+          height: 200,
+          child: ListView.separated(
+            scrollDirection: Axis.horizontal,
+            padding: EdgeInsets.symmetric(horizontal: 24),
+            itemCount: _destinations.length,
+            separatorBuilder: (_, _) => SizedBox(width: 14),
+            itemBuilder: (context, index) => _DestinationCard(
+              destination: _destinations[index],
+              rating: ratings[_destinations[index].name],
+            ),
+          ),
+        );
+      },
     );
   }
 }
 
 class _DestinationCard extends StatelessWidget {
-  const _DestinationCard({required this.destination});
+  const _DestinationCard({required this.destination, this.rating});
 
   final _Destination destination;
 
+  /// Live rating summary from real reviews — `null`/absent means this
+  /// place has no real reviews yet, shown as 0.0/0 rather than
+  /// [_Destination]'s seed placeholder rating (see
+  /// [_DestinationsCarouselState]).
+  final ({double average, int count})? rating;
+
   @override
   Widget build(BuildContext context) {
+    final displayRating = rating?.average ?? 0.0;
+    final displayCount = rating?.count ?? 0;
     return Container(
       width: 150,
       decoration: BoxDecoration(
@@ -1158,11 +1191,19 @@ class _DestinationCard extends StatelessWidget {
                     ),
                     SizedBox(width: 2),
                     Text(
-                      destination.rating.toStringAsFixed(1),
+                      displayRating.toStringAsFixed(1),
                       style: TextStyle(
                         color: context.colors.ink,
                         fontSize: 11.5,
                         fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    SizedBox(width: 2),
+                    Text(
+                      '($displayCount)',
+                      style: TextStyle(
+                        color: context.colors.muted,
+                        fontSize: 10.5,
                       ),
                     ),
                   ],

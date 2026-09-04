@@ -7,10 +7,13 @@ import '../../services/trip_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/detail_header.dart';
 
-/// Local emergency numbers for the current trip's stops — switching
-/// between stops (e.g. George Town → Alor Setar) switches which state's
-/// numbers are shown, resolved from each stop's saved coordinates (see
-/// [EmergencyContactsService]).
+/// Local emergency numbers for the current trip's stops, grouped by state
+/// (resolved from each stop's saved coordinates — see
+/// [EmergencyContactsService]) rather than listed per stop, so e.g. Penang
+/// Hill, Chew Jetty, and Batu Ferringhi — all in Penang — collapse into a
+/// single "Penang" tab instead of repeating the same numbers three times.
+/// Switching tabs (e.g. Penang → Kedah) switches which state's numbers are
+/// shown.
 class EmergencyContactsScreen extends StatefulWidget {
   const EmergencyContactsScreen({super.key});
 
@@ -76,8 +79,6 @@ class _EmergencyContactsScreenState extends State<EmergencyContactsScreen> {
                         if (stops.isEmpty) {
                           return _EmptyState(colors: context.colors);
                         }
-                        if (_selectedIndex >= stops.length) _selectedIndex = 0;
-                        final selected = stops[_selectedIndex];
                         // Kick off (idempotent) resolution for whichever
                         // stops don't have a cached state yet, without
                         // blocking this build.
@@ -86,7 +87,7 @@ class _EmergencyContactsScreenState extends State<EmergencyContactsScreen> {
                             _resolveState(stop);
                           }
                         });
-                        return _buildBody(context, stops, selected);
+                        return _buildBody(context, stops);
                       },
                     ),
             ),
@@ -96,16 +97,31 @@ class _EmergencyContactsScreenState extends State<EmergencyContactsScreen> {
     );
   }
 
-  Widget _buildBody(
-    BuildContext context,
-    List<TripStopLocation> stops,
-    TripStopLocation selected,
-  ) {
-    final stateLabel = _stateByStop[selected];
-    final resolving = !_stateByStop.containsKey(selected);
-    final resolved = resolving
-        ? null
-        : _emergencyService.contactsForState(stateLabel);
+  Widget _buildBody(BuildContext context, List<TripStopLocation> stops) {
+    // Wait for every stop's state to resolve before grouping — building
+    // groups incrementally as each one trickles in would make chips merge
+    // and reorder under the traveler mid-scroll (e.g. a "Chew Jetty" chip
+    // disappearing into "Penang" once its lookup finally lands).
+    final allResolved = stops.every(_stateByStop.containsKey);
+    if (!allResolved) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    // Stops sharing a state (e.g. Penang Hill, Chew Jetty, and Batu
+    // Ferringhi all resolving to "Penang") collapse into one chip/tab
+    // showing that state's numbers once, instead of repeating them per
+    // stop — a `null` key (state lookup failed) is its own group too,
+    // since [contactsForState] treats it identically regardless of which
+    // stop it came from.
+    final groups = <String?, List<TripStopLocation>>{};
+    for (final stop in stops) {
+      (groups[_stateByStop[stop]] ??= []).add(stop);
+    }
+    final groupKeys = groups.keys.toList();
+    if (_selectedIndex >= groupKeys.length) _selectedIndex = 0;
+    final selectedState = groupKeys[_selectedIndex];
+    final stopsInGroup = groups[selectedState]!;
+    final resolved = _emergencyService.contactsForState(selectedState);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -115,10 +131,9 @@ class _EmergencyContactsScreenState extends State<EmergencyContactsScreen> {
           child: ListView.separated(
             padding: const EdgeInsets.fromLTRB(24, 8, 24, 8),
             scrollDirection: Axis.horizontal,
-            itemCount: stops.length,
+            itemCount: groupKeys.length,
             separatorBuilder: (_, _) => const SizedBox(width: 8),
             itemBuilder: (context, index) {
-              final stop = stops[index];
               final isSelected = index == _selectedIndex;
               return GestureDetector(
                 onTap: () => setState(() => _selectedIndex = index),
@@ -133,7 +148,7 @@ class _EmergencyContactsScreenState extends State<EmergencyContactsScreen> {
                   ),
                   alignment: Alignment.center,
                   child: Text(
-                    stop.name,
+                    groupKeys[index] ?? 'Other',
                     style: TextStyle(
                       color: isSelected ? Colors.white : context.colors.ink,
                       fontWeight: FontWeight.w600,
@@ -146,94 +161,95 @@ class _EmergencyContactsScreenState extends State<EmergencyContactsScreen> {
           ),
         ),
         Expanded(
-          child: resolving
-              ? const Center(child: CircularProgressIndicator())
-              : ListView(
-                  padding: const EdgeInsets.fromLTRB(24, 8, 24, 24),
-                  children: [
-                    Text(
-                      'Local numbers for ${resolved!.stateLabel}',
-                      style: TextStyle(
-                        color: context.colors.muted,
-                        fontSize: 12.5,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    for (final c in resolved.contacts)
-                      Container(
-                        margin: const EdgeInsets.only(bottom: 12),
-                        padding: const EdgeInsets.all(14),
-                        decoration: BoxDecoration(
-                          color: context.colors.card,
-                          borderRadius: BorderRadius.circular(18),
-                          boxShadow: [
-                            BoxShadow(
-                              color: context.colors.ink.withValues(alpha: 0.05),
-                              blurRadius: 12,
-                              offset: const Offset(0, 5),
-                            ),
-                          ],
-                        ),
-                        child: Row(
-                          children: [
-                            Container(
-                              width: 46,
-                              height: 46,
-                              decoration: BoxDecoration(
-                                color: c.color.withValues(alpha: 0.12),
-                                shape: BoxShape.circle,
-                              ),
-                              alignment: Alignment.center,
-                              child: Icon(c.icon, color: c.color, size: 22),
-                            ),
-                            const SizedBox(width: 14),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    c.label,
-                                    style: TextStyle(
-                                      color: context.colors.ink,
-                                      fontWeight: FontWeight.w700,
-                                      fontSize: 14,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 3),
-                                  Text(
-                                    c.number,
-                                    style: TextStyle(
-                                      color: context.colors.muted,
-                                      fontSize: 12.5,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                            Material(
-                              color: const Color(
-                                0xFF11998E,
-                              ).withValues(alpha: 0.12),
-                              shape: const CircleBorder(),
-                              child: InkWell(
-                                customBorder: const CircleBorder(),
-                                onTap: () => _call(context, c.label, c.number),
-                                child: const Padding(
-                                  padding: EdgeInsets.all(10),
-                                  child: Icon(
-                                    Icons.call_rounded,
-                                    color: Color(0xFF11998E),
-                                    size: 18,
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                  ],
+          child: ListView(
+            padding: const EdgeInsets.fromLTRB(24, 8, 24, 24),
+            children: [
+              Text(
+                'Local numbers for ${resolved.stateLabel}',
+                style: TextStyle(
+                  color: context.colors.muted,
+                  fontSize: 12.5,
+                  fontWeight: FontWeight.w600,
                 ),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                stopsInGroup.map((s) => s.name).join(' · '),
+                style: TextStyle(color: context.colors.muted, fontSize: 11),
+              ),
+              const SizedBox(height: 12),
+              for (final c in resolved.contacts)
+                Container(
+                  margin: const EdgeInsets.only(bottom: 12),
+                  padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(
+                    color: context.colors.card,
+                    borderRadius: BorderRadius.circular(18),
+                    boxShadow: [
+                      BoxShadow(
+                        color: context.colors.ink.withValues(alpha: 0.05),
+                        blurRadius: 12,
+                        offset: const Offset(0, 5),
+                      ),
+                    ],
+                  ),
+                  child: Row(
+                    children: [
+                      Container(
+                        width: 46,
+                        height: 46,
+                        decoration: BoxDecoration(
+                          color: c.color.withValues(alpha: 0.12),
+                          shape: BoxShape.circle,
+                        ),
+                        alignment: Alignment.center,
+                        child: Icon(c.icon, color: c.color, size: 22),
+                      ),
+                      const SizedBox(width: 14),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              c.label,
+                              style: TextStyle(
+                                color: context.colors.ink,
+                                fontWeight: FontWeight.w700,
+                                fontSize: 14,
+                              ),
+                            ),
+                            const SizedBox(height: 3),
+                            Text(
+                              c.number,
+                              style: TextStyle(
+                                color: context.colors.muted,
+                                fontSize: 12.5,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      Material(
+                        color: const Color(0xFF11998E).withValues(alpha: 0.12),
+                        shape: const CircleBorder(),
+                        child: InkWell(
+                          customBorder: const CircleBorder(),
+                          onTap: () => _call(context, c.label, c.number),
+                          child: const Padding(
+                            padding: EdgeInsets.all(10),
+                            child: Icon(
+                              Icons.call_rounded,
+                              color: Color(0xFF11998E),
+                              size: 18,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+            ],
+          ),
         ),
       ],
     );

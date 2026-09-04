@@ -48,6 +48,17 @@ class _CommentsSectionState extends State<CommentsSection> {
   final _service = CommunityService();
   final _controller = TextEditingController();
 
+  /// Subscribed once for the lifetime of this screen — calling
+  /// [CommunityService.watchComments] fresh on every `build()` would tear
+  /// down and re-create the Realtime subscription (and its initial fetch)
+  /// on every rebuild. [_post] dismisses the keyboard right after posting,
+  /// which changes layout and triggers exactly such a rebuild, so a comment
+  /// submitted right then could briefly show twice — once from the old
+  /// subscription's tail end, once from the new one's fresh fetch.
+  late final Stream<List<PostComment>> _commentsStream = _service.watchComments(
+    widget.postId,
+  );
+
   @override
   void dispose() {
     _controller.dispose();
@@ -68,7 +79,7 @@ class _CommentsSectionState extends State<CommentsSection> {
       children: [
         Expanded(
           child: StreamBuilder<List<PostComment>>(
-            stream: _service.watchComments(widget.postId),
+            stream: _commentsStream,
             builder: (context, snapshot) {
               final comments = snapshot.data ?? const <PostComment>[];
               if (!snapshot.hasData) {

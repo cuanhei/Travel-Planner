@@ -43,7 +43,9 @@ class CommunityService {
   /// user's own reaction on each one (if any). Shared by [watchFeed]
   /// (every post) and [watchPost] (a single post, for a shared-link deep
   /// link landing on `PostDetailScreen`).
-  Future<List<CommunityPost>> _hydratePosts(List<Map<String, dynamic>> rows) async {
+  Future<List<CommunityPost>> _hydratePosts(
+    List<Map<String, dynamic>> rows,
+  ) async {
     if (rows.isEmpty) return <CommunityPost>[];
 
     final userIds = rows.map((r) => r['author_id'] as String).toSet().toList();
@@ -67,13 +69,29 @@ class CommunityService {
         l['post_id'] as String: l['reaction_type'] as String,
     };
 
+    // Counted live from `comments` rather than trusting `posts.comments_count`
+    // — that column is a trigger-maintained cache that can silently drift
+    // from the real row count (e.g. a delete whose trigger didn't fire), so
+    // reads always fall back to the source of truth instead of risking a
+    // stale number on screen.
+    final commentRows = await _client
+        .from('comments')
+        .select('post_id')
+        .inFilter('post_id', postIds);
+    final commentsCountByPostId = <String, int>{};
+    for (final c in commentRows as List) {
+      final postId = c['post_id'] as String;
+      commentsCountByPostId[postId] = (commentsCountByPostId[postId] ?? 0) + 1;
+    }
+
     return rows
         .where((r) => profileById.containsKey(r['author_id']))
         .map(
-          (r) => CommunityPost.fromMap(
-            {...r, 'profiles': profileById[r['author_id']]},
-            myReaction: myReactionByPostId[r['id']],
-          ),
+          (r) => CommunityPost.fromMap({
+            ...r,
+            'profiles': profileById[r['author_id']],
+            'comments_count': commentsCountByPostId[r['id']] ?? 0,
+          }, myReaction: myReactionByPostId[r['id']]),
         )
         .toList();
   }
@@ -135,8 +153,7 @@ class CommunityService {
     required String extension,
     required String mediaType,
   }) async {
-    final path =
-        '$_uid/${DateTime.now().millisecondsSinceEpoch}.$extension';
+    final path = '$_uid/${DateTime.now().millisecondsSinceEpoch}.$extension';
     await _client.storage
         .from('post-media')
         .uploadBinary(
@@ -233,7 +250,10 @@ class CommunityService {
         .order('created_at', ascending: true)
         .asyncMap((rows) async {
           if (rows.isEmpty) return <PostComment>[];
-          final userIds = rows.map((r) => r['author_id'] as String).toSet().toList();
+          final userIds = rows
+              .map((r) => r['author_id'] as String)
+              .toSet()
+              .toList();
           final profiles = await _client
               .from('profiles')
               .select('id, display_name, avatar_color')
@@ -298,6 +318,36 @@ class CommunityService {
     };
   }
 
+  /// Live version of [fetchRatingSummaries] — re-aggregates on every insert/
+  /// update/delete to `reviews`, so a destination card showing a summary
+  /// (Explore's list, Home's carousel) doesn't go stale the moment a review
+  /// is added after the screen first loaded. Streams the whole table
+  /// unfiltered (no `.eq`/`.inFilter` on `.stream()`) and filters to
+  /// [placeNames] client-side, since a per-row filter would need
+  /// `replica identity full` on `reviews` to reliably deliver delete events
+  /// — see `supabase/migrations/0008_expenses_polls_members_replica_identity_full.sql`
+  /// for the same issue on other tables.
+  Stream<Map<String, ({double average, int count})>> watchRatingSummaries(
+    List<String> placeNames,
+  ) {
+    final wanted = placeNames.toSet();
+    return _client.from('reviews').stream(primaryKey: ['id']).map((rows) {
+      final ratingsByPlace = <String, List<int>>{};
+      for (final r in rows) {
+        final name = r['place_name'] as String;
+        if (!wanted.contains(name)) continue;
+        (ratingsByPlace[name] ??= []).add(r['rating'] as int);
+      }
+      return {
+        for (final entry in ratingsByPlace.entries)
+          entry.key: (
+            average: entry.value.reduce((a, b) => a + b) / entry.value.length,
+            count: entry.value.length,
+          ),
+      };
+    });
+  }
+
   Stream<List<PlaceReview>> watchReviews(String placeName) {
     return _client
         .from('reviews')
@@ -306,7 +356,10 @@ class CommunityService {
         .order('created_at', ascending: false)
         .asyncMap((rows) async {
           if (rows.isEmpty) return <PlaceReview>[];
-          final userIds = rows.map((r) => r['author_id'] as String).toSet().toList();
+          final userIds = rows
+              .map((r) => r['author_id'] as String)
+              .toSet()
+              .toList();
           final profiles = await _client
               .from('profiles')
               .select('id, display_name, avatar_color')
@@ -326,55 +379,41 @@ class CommunityService {
         });
   }
 
-  /// Creates or replaces the current user's review for [placeName] (one
-  /// review per user per place). Written as a select-then-write instead of
-  /// `upsert(onConflict: ...)` because — same caveat as [toggleLike] —
-  /// there's no confirmed unique constraint on (place_name, author_id) to
-  /// upsert against on this hand-provisioned table.
-  Future<void> upsertReview({
+  /// How many reviews the current user has already left for [placeName] —
+  /// compared against [TripService.visitCount] to gate "Add Review": each
+  /// visit is worth one review, so this only blocks *another* review once
+  /// they've used up every visit they've got.
+  Future<int> myReviewCount(String placeName) async {
+    final rows = await _client
+        .from('reviews')
+        .select('id')
+        .eq('place_name', placeName)
+        .eq('author_id', _uid);
+    return rows.length;
+  }
+
+  /// Adds a new review of [placeName] from the current user. Every visit
+  /// earns one review, so — unlike a typical "one review per place"
+  /// design — this always inserts a fresh row rather than overwriting a
+  /// previous one; the caller (`AddReviewScreen`) only allows reaching this
+  /// once [myReviewCount] is below [TripService.visitCount].
+  Future<void> addReview({
     required String placeName,
     required int rating,
     required String body,
   }) async {
-    final existing = await _client
-        .from('reviews')
-        .select('id')
-        .eq('place_name', placeName)
-        .eq('author_id', _uid)
-        .maybeSingle();
-
-    if (existing == null) {
-      await _client.from('reviews').insert({
-        'place_name': placeName,
-        'author_id': _uid,
-        'rating': rating,
-        'body': body.trim(),
-      });
-    } else {
-      // `.select()` forces this to report the row it actually changed —
-      // without it, an UPDATE whose WHERE clause matches nothing (e.g. an
-      // RLS policy silently hiding the row from this write, even though
-      // [existing] just saw it via SELECT) still returns success with zero
-      // rows affected, and the caller would wrongly report the review as
-      // saved.
-      final updated = await _client
-          .from('reviews')
-          .update({'rating': rating, 'body': body.trim()})
-          .eq('id', existing['id'] as String)
-          .select('id');
-      if (updated.isEmpty) {
-        throw StateError(
-          'Review update for "$placeName" matched no row — it may have '
-          'been deleted, or an RLS policy is blocking the write.',
-        );
-      }
-    }
+    await _client.from('reviews').insert({
+      'place_name': placeName,
+      'author_id': _uid,
+      'rating': rating,
+      'body': body.trim(),
+    });
   }
 
   Future<void> deleteReview(String reviewId) async {
-    // Same "did this actually match a row" check as [upsertReview]'s
-    // update — a DELETE an RLS policy silently hides also just returns
-    // success with nothing deleted.
+    // Same "did this actually match a row" check as [upsertReview] used to
+    // do for its update — a DELETE an RLS policy silently hides also just
+    // returns success with nothing deleted.
     final deleted = await _client
         .from('reviews')
         .delete()

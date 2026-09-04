@@ -25,6 +25,13 @@ class _CommunityTabState extends State<CommunityTab> {
   /// a post is tagged with in [AddPostScreen].
   String? _selectedCategory;
 
+  /// Subscribed once for the lifetime of this screen — calling
+  /// [CommunityService.watchFeed] fresh on every `build()` would tear down
+  /// and re-create the Realtime subscription (and its initial fetch) on
+  /// every rebuild, so a reaction/like written right around a rebuild could
+  /// get silently dropped instead of reflected in the UI.
+  late final Stream<List<CommunityPost>> _feedStream = _service.watchFeed();
+
   Future<void> _addPost() async {
     await Navigator.of(
       context,
@@ -37,7 +44,7 @@ class _CommunityTabState extends State<CommunityTab> {
   Widget build(BuildContext context) {
     return SafeArea(
       child: StreamBuilder<List<CommunityPost>>(
-        stream: _service.watchFeed(),
+        stream: _feedStream,
         builder: (context, snapshot) {
           final posts = snapshot.data ?? const <CommunityPost>[];
           final filtered = _selectedCategory == null

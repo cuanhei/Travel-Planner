@@ -299,17 +299,20 @@ class TripService {
         );
   }
 
-  /// Whether the signed-in user has actually visited [placeName] — it
-  /// appears as a stop on a trip they belong to whose dates have already
-  /// finished (see [Trip.status]). Gates Community's "Add Review" (see
-  /// `AddReviewScreen`) to destinations that were really visited, rather
-  /// than every trip a user has merely planned.
+  /// How many times the signed-in user has actually visited [placeName] —
+  /// the number of distinct trips they belong to, whose dates have already
+  /// finished (see [Trip.status]), that include it as a stop. Each visit
+  /// is worth one review: Community's "Add Review" (see `AddReviewScreen`)
+  /// is gated on this being greater than [CommunityService.myReviewCount],
+  /// so visiting a place again unlocks another review of it.
   ///
   /// Matches loosely (case-insensitive, either name containing the other)
   /// since a trip stop's name comes from geocoded place search (e.g. "Penang
   /// Hill, Air Itam, Penang") while Explore's destinations use a shorter
   /// catalog name ("Penang Hill") — an exact match would almost never hit.
-  Future<bool> hasVisited(String placeName) async {
+  /// Multiple matching stops within the *same* trip only count as one
+  /// visit — it's still a single occasion.
+  Future<int> visitCount(String placeName) async {
     final memberRows = await _client
         .from('trip_members')
         .select('trip_id')
@@ -318,7 +321,7 @@ class TripService {
         .map((r) => r['trip_id'] as String)
         .toSet()
         .toList();
-    if (tripIds.isEmpty) return false;
+    if (tripIds.isEmpty) return 0;
 
     final tripRows = await _client
         .from('trips')
@@ -329,17 +332,21 @@ class TripService {
         .where((t) => t.status == TripStatus.past)
         .map((t) => t.id)
         .toList();
-    if (pastTripIds.isEmpty) return false;
+    if (pastTripIds.isEmpty) return 0;
 
     final stopRows = await _client
         .from('trip_stops')
-        .select('name')
+        .select('trip_id, name')
         .inFilter('trip_id', pastTripIds);
     final target = placeName.trim().toLowerCase();
-    return stopRows.any((r) {
+    final visitedTripIds = <String>{};
+    for (final r in stopRows) {
       final name = (r['name'] as String).trim().toLowerCase();
-      return name == target || name.contains(target) || target.contains(name);
-    });
+      if (name == target || name.contains(target) || target.contains(name)) {
+        visitedTripIds.add(r['trip_id'] as String);
+      }
+    }
+    return visitedTripIds.length;
   }
 
   /// Call on sign-out so a different account doesn't inherit the

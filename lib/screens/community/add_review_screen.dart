@@ -7,12 +7,13 @@ import '../../widgets/detail_header.dart';
 import '../../widgets/gradient_button.dart';
 
 /// Star rating plus a written review submission form. Backed by
-/// `reviews` (one review per user per place — resubmitting updates
-/// your existing review).
+/// `reviews` — one review per *visit*, so submitting always adds a new
+/// review rather than editing a previous one (see
+/// [CommunityService.addReview]).
 ///
 /// Only reachable from `PlaceDetailsScreen`/`ReviewDetailsScreen` once
-/// [TripService.hasVisited] says so, but re-checked here too as a safety
-/// net in case something ever routes here directly.
+/// they've got an unused visit to spend, but re-checked here too as a
+/// safety net in case something ever routes here directly.
 class AddReviewScreen extends StatefulWidget {
   const AddReviewScreen({super.key, required this.placeName});
 
@@ -28,14 +29,30 @@ class _AddReviewScreenState extends State<AddReviewScreen> {
   final _controller = TextEditingController();
   bool _submitting = false;
 
-  /// `null` while the visit check is still in flight.
+  /// `null` while the visit/review counts are still loading. `true` once
+  /// loaded means there's at least one visit not yet spent on a review —
+  /// see [TripService.visitCount] / [CommunityService.myReviewCount].
   bool? _canReview;
+
+  /// Whether the place has ever been visited at all, once loaded — used to
+  /// pick between "never visited" and "already reviewed every visit" as
+  /// the reason [_canReview] is false.
+  bool _everVisited = false;
 
   @override
   void initState() {
     super.initState();
-    TripService().hasVisited(widget.placeName).then((canReview) {
-      if (mounted) setState(() => _canReview = canReview);
+    Future.wait([
+      TripService().visitCount(widget.placeName),
+      _service.myReviewCount(widget.placeName),
+    ]).then((results) {
+      if (!mounted) return;
+      final visits = results[0];
+      final reviewsSoFar = results[1];
+      setState(() {
+        _everVisited = visits > 0;
+        _canReview = visits > reviewsSoFar;
+      });
     });
   }
 
@@ -52,7 +69,7 @@ class _AddReviewScreenState extends State<AddReviewScreen> {
     if (!_canSubmit) return;
     setState(() => _submitting = true);
     try {
-      await _service.upsertReview(
+      await _service.addReview(
         placeName: widget.placeName,
         rating: _rating,
         body: _controller.text.trim(),
@@ -104,7 +121,11 @@ class _AddReviewScreenState extends State<AddReviewScreen> {
                               ),
                               const SizedBox(height: 12),
                               Text(
-                                "You haven't visited ${widget.placeName} yet",
+                                _everVisited
+                                    ? "You've already reviewed "
+                                          '${widget.placeName}'
+                                    : "You haven't visited "
+                                          '${widget.placeName} yet',
                                 textAlign: TextAlign.center,
                                 style: TextStyle(
                                   color: context.colors.ink,
@@ -114,8 +135,12 @@ class _AddReviewScreenState extends State<AddReviewScreen> {
                               ),
                               const SizedBox(height: 8),
                               Text(
-                                'You can review a destination once you\'ve '
-                                "visited it on a trip that's finished.",
+                                _everVisited
+                                    ? 'Visit it again on another trip to '
+                                          'write another review.'
+                                    : 'You can review a destination once '
+                                          "you've visited it on a trip "
+                                          "that's finished.",
                                 textAlign: TextAlign.center,
                                 style: TextStyle(
                                   color: context.colors.muted,

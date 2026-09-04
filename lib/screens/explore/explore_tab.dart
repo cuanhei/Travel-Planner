@@ -152,17 +152,13 @@ class _ExploreTabState extends State<ExploreTab> {
   /// Live average rating + review count per destination name, from the
   /// `reviews` table submitted via [AddReviewScreen] — overrides each
   /// [Place]'s seed `rating`/`reviews` once a place has any real reviews.
-  Map<String, ({double average, int count})> _ratings = {};
-
-  @override
-  void initState() {
-    super.initState();
-    CommunityService()
-        .fetchRatingSummaries(places.map((p) => p.name).toList())
-        .then((ratings) {
-          if (mounted) setState(() => _ratings = ratings);
-        });
-  }
+  /// Streamed (not a one-shot fetch) so a review added while this tab is
+  /// already open — e.g. after visiting a place's Add Review screen and
+  /// coming back — shows up without needing the tab to be remounted.
+  late final Stream<Map<String, ({double average, int count})>> _ratingsStream =
+      CommunityService().watchRatingSummaries(
+        places.map((p) => p.name).toList(),
+      );
 
   @override
   Widget build(BuildContext context) {
@@ -171,93 +167,102 @@ class _ExploreTabState extends State<ExploreTab> {
         : places.where((p) => p.category == _selectedCategory).toList();
 
     return SafeArea(
-      child: ListView(
-        padding: EdgeInsets.fromLTRB(24, 20, 24, 24),
-        children: [
-          Text(
-            'Explore',
-            style: TextStyle(
-              color: context.colors.ink,
-              fontSize: 24,
-              fontWeight: FontWeight.w800,
-            ),
-          ),
-          SizedBox(height: 4),
-          Text(
-            'Discover more of Penang',
-            style: TextStyle(color: context.colors.muted, fontSize: 13.5),
-          ),
-          SizedBox(height: 20),
-          const DestinationSearchBar(),
-          SizedBox(height: 20),
-          SizedBox(
-            height: 40,
-            child: ListView(
-              scrollDirection: Axis.horizontal,
-              children: [
-                _CategoryChip(
-                  label: 'All',
-                  icon: Icons.apps_rounded,
-                  selected: _selectedCategory == null,
-                  onTap: () => setState(() => _selectedCategory = null),
+      child: StreamBuilder<Map<String, ({double average, int count})>>(
+        stream: _ratingsStream,
+        builder: (context, snapshot) {
+          final ratings = snapshot.data ?? const {};
+          return ListView(
+            padding: EdgeInsets.fromLTRB(24, 20, 24, 24),
+            children: [
+              Text(
+                'Explore',
+                style: TextStyle(
+                  color: context.colors.ink,
+                  fontSize: 24,
+                  fontWeight: FontWeight.w800,
                 ),
-                SizedBox(width: 8),
-                ...categories.map(
-                  (c) => Padding(
-                    padding: EdgeInsets.only(right: 8),
-                    child: _CategoryChip(
-                      label: c.label,
-                      icon: c.icon,
-                      selected: _selectedCategory == c.label,
-                      onTap: () => setState(() => _selectedCategory = c.label),
+              ),
+              SizedBox(height: 4),
+              Text(
+                'Discover more of Penang',
+                style: TextStyle(color: context.colors.muted, fontSize: 13.5),
+              ),
+              SizedBox(height: 20),
+              const DestinationSearchBar(),
+              SizedBox(height: 20),
+              SizedBox(
+                height: 40,
+                child: ListView(
+                  scrollDirection: Axis.horizontal,
+                  children: [
+                    _CategoryChip(
+                      label: 'All',
+                      icon: Icons.apps_rounded,
+                      selected: _selectedCategory == null,
+                      onTap: () => setState(() => _selectedCategory = null),
                     ),
-                  ),
+                    SizedBox(width: 8),
+                    ...categories.map(
+                      (c) => Padding(
+                        padding: EdgeInsets.only(right: 8),
+                        child: _CategoryChip(
+                          label: c.label,
+                          icon: c.icon,
+                          selected: _selectedCategory == c.label,
+                          onTap: () =>
+                              setState(() => _selectedCategory = c.label),
+                        ),
+                      ),
+                    ),
+                    _CategoryChip(
+                      label: 'Browse all',
+                      icon: Icons.grid_view_rounded,
+                      selected: false,
+                      onTap: () => Navigator.of(context).push(
+                        MaterialPageRoute(builder: (_) => CategoriesScreen()),
+                      ),
+                    ),
+                  ],
                 ),
-                _CategoryChip(
-                  label: 'Browse all',
-                  icon: Icons.grid_view_rounded,
-                  selected: false,
-                  onTap: () => Navigator.of(
-                    context,
-                  ).push(MaterialPageRoute(builder: (_) => CategoriesScreen())),
+              ),
+              SizedBox(height: 24),
+              SectionHeader(
+                title: 'Nearby Places',
+                onAction: () => Navigator.of(
+                  context,
+                ).push(MaterialPageRoute(builder: (_) => NearbyPlacesScreen())),
+              ),
+              SizedBox(height: 14),
+              SizedBox(
+                height: 130,
+                child: ListView.separated(
+                  scrollDirection: Axis.horizontal,
+                  itemCount: places.length,
+                  separatorBuilder: (_, _) => SizedBox(width: 12),
+                  itemBuilder: (context, index) {
+                    final p = places[index];
+                    return _NearbyChip(place: p);
+                  },
                 ),
-              ],
-            ),
-          ),
-          SizedBox(height: 24),
-          SectionHeader(
-            title: 'Nearby Places',
-            onAction: () => Navigator.of(
-              context,
-            ).push(MaterialPageRoute(builder: (_) => NearbyPlacesScreen())),
-          ),
-          SizedBox(height: 14),
-          SizedBox(
-            height: 130,
-            child: ListView.separated(
-              scrollDirection: Axis.horizontal,
-              itemCount: places.length,
-              separatorBuilder: (_, _) => SizedBox(width: 12),
-              itemBuilder: (context, index) {
-                final p = places[index];
-                return _NearbyChip(place: p);
-              },
-            ),
-          ),
-          SizedBox(height: 28),
-          Text(
-            _selectedCategory == null
-                ? 'Popular Destinations'
-                : '$_selectedCategory Spots',
-            style: TextStyle(
-              color: context.colors.ink,
-              fontSize: 18,
-              fontWeight: FontWeight.w800,
-            ),
-          ),
-          SizedBox(height: 14),
-          ...filtered.map((p) => _PlaceListCard(place: p, rating: _ratings[p.name])),
-        ],
+              ),
+              SizedBox(height: 28),
+              Text(
+                _selectedCategory == null
+                    ? 'Popular Destinations'
+                    : '$_selectedCategory Spots',
+                style: TextStyle(
+                  color: context.colors.ink,
+                  fontSize: 18,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+              SizedBox(height: 14),
+              ...filtered.map(
+                (p) => _PlaceListCard(place: p, rating: ratings[p.name]),
+              ),
+            ],
+          );
+        },
       ),
     );
   }
@@ -365,15 +370,15 @@ class _PlaceListCard extends StatelessWidget {
 
   final Place place;
 
-  /// Live rating summary from real reviews, if any exist yet for this
-  /// place — falls back to [Place.rating]/[Place.reviews] otherwise (see
-  /// [_ExploreTabState._ratings]).
+  /// Live rating summary from real reviews — `null`/absent means this
+  /// place has no real reviews yet, shown as 0.0/0 rather than [Place]'s
+  /// seed placeholder numbers (see [_ExploreTabState._ratingsStream]).
   final ({double average, int count})? rating;
 
   @override
   Widget build(BuildContext context) {
-    final displayRating = rating?.average ?? place.rating;
-    final displayCount = rating?.count ?? place.reviews;
+    final displayRating = rating?.average ?? 0.0;
+    final displayCount = rating?.count ?? 0;
     return Material(
       color: context.colors.card,
       borderRadius: BorderRadius.circular(18),
