@@ -76,6 +76,42 @@ class PhotonService {
     return results.isEmpty ? null : results.first;
   }
 
+  /// Reverse-geocodes [point] to its containing administrative area
+  /// names, unlike [reverse] which returns the nearest named PLACE (a
+  /// shop, landmark, etc.) collapsed into one address string. Used by
+  /// the Weather module to match a GPS position to a MET Malaysia "Town"
+  /// forecast area — returns whichever fields Photon's OSM data has for
+  /// that point (a sparsely-mapped rural point may have `city` empty),
+  /// plus [countryCode] so a caller can distinguish "outside Malaysia"
+  /// (a real, expected result) from "no data at all". Returns null only
+  /// when there's no reverse-geocode result whatsoever.
+  Future<({String? city, String? district, String? state, String? countryCode})?>
+  reverseAdministrative(LatLng point) async {
+    final uri = Uri.parse(_reverseEndpoint).replace(
+      queryParameters: {
+        'lat': point.latitude.toString(),
+        'lon': point.longitude.toString(),
+      },
+    );
+    final response = await http.get(uri, headers: _headers);
+    if (response.statusCode != 200) {
+      throw Exception('Reverse lookup failed (${response.statusCode})');
+    }
+    final decoded = jsonDecode(response.body) as Map<String, dynamic>;
+    final features = (decoded['features'] as List?) ?? const [];
+    if (features.isEmpty) return null;
+    final props =
+        (features.first as Map<String, dynamic>)['properties']
+            as Map<String, dynamic>? ??
+        const {};
+    return (
+      city: props['city'] as String?,
+      district: props['district'] as String?,
+      state: props['state'] as String?,
+      countryCode: props['countrycode'] as String?,
+    );
+  }
+
   List<TripStopLocation> _parseFeatures(String body) {
     final decoded = jsonDecode(body) as Map<String, dynamic>;
     final features = (decoded['features'] as List?) ?? const [];

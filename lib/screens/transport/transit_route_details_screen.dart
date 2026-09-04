@@ -10,6 +10,49 @@ import '../../widgets/detail_header.dart';
 import '../../widgets/route_map_view.dart';
 import 'transit_navigation_screen.dart';
 
+/// One row in the route timeline — either a transit leg, or a merged
+/// walking duration standing in for one or more consecutive walk steps.
+class _TimelineEntry {
+  const _TimelineEntry._({this.walkDuration, this.transitStep});
+
+  const _TimelineEntry.walk(Duration duration) : this._(walkDuration: duration);
+  const _TimelineEntry.transit(TransitStep step) : this._(transitStep: step);
+
+  final Duration? walkDuration;
+  final TransitStep? transitStep;
+
+  T map<T>({
+    required T Function(Duration duration) walk,
+    required T Function(TransitStep step) transit,
+  }) {
+    final duration = walkDuration;
+    return duration != null ? walk(duration) : transit(transitStep as TransitStep);
+  }
+}
+
+/// Collapses every run of consecutive walk steps into a single summarized
+/// entry with their durations summed — e.g. walk → bus → walk → walk
+/// becomes walk → bus → walk (the trailing two walks merged) — since
+/// turn-by-turn walk instructions aren't shown, only the total time spent
+/// walking on each leg matters.
+List<_TimelineEntry> _groupWalkSteps(List<TransitStep> steps) {
+  final entries = <_TimelineEntry>[];
+  Duration? pendingWalk;
+  for (final step in steps) {
+    if (step.type == TransitStepType.walk) {
+      pendingWalk = (pendingWalk ?? Duration.zero) + step.duration;
+      continue;
+    }
+    if (pendingWalk != null) {
+      entries.add(_TimelineEntry.walk(pendingWalk));
+      pendingWalk = null;
+    }
+    entries.add(_TimelineEntry.transit(step));
+  }
+  if (pendingWalk != null) entries.add(_TimelineEntry.walk(pendingWalk));
+  return entries;
+}
+
 /// Full step-by-step view of one public-transport route — walk → board →
 /// ride → alight → walk → destination — pushed when the traveler taps a
 /// route summary card on the Transport screen.
@@ -51,8 +94,11 @@ class TransitRouteDetailsScreen extends StatelessWidget {
                   const SizedBox(height: 16),
                   _SummaryStrip(route: route),
                   const SizedBox(height: 20),
-                  for (var i = 0; i < route.steps.length; i++) ...[
-                    _StepRow(step: route.steps[i]),
+                  for (final entry in _groupWalkSteps(route.steps)) ...[
+                    entry.map(
+                      walk: (duration) => _WalkOnlySummary(duration: duration),
+                      transit: (step) => _StepRow(step: step),
+                    ),
                     const _TimelineArrow(),
                   ],
                   _DestinationRow(name: destination.name),
@@ -236,6 +282,8 @@ class _TimelineArrow extends StatelessWidget {
   }
 }
 
+/// Renders one transit leg — walk steps never reach here, since
+/// [_groupWalkSteps] merges them into a [_WalkOnlySummary] instead.
 class _StepRow extends StatelessWidget {
   const _StepRow({required this.step});
 
@@ -243,15 +291,6 @@ class _StepRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (step.type == TransitStepType.walk) {
-      return _StepCard(
-        icon: Icons.directions_walk_rounded,
-        iconColor: const Color(0xFF6E7A93),
-        title: 'Walk ${formatDuration(step.duration)}',
-        subtitle: step.instructions,
-      );
-    }
-
     final details = step.details;
     if (details == null) {
       return const _StepCard(
@@ -278,6 +317,24 @@ class _StepRow extends StatelessWidget {
       footerText: details.headsign != null
           ? 'Towards ${details.headsign}'
           : null,
+    );
+  }
+}
+
+/// One merged walk entry from [_groupWalkSteps] — the summed duration of
+/// a run of consecutive walk steps, shown as a single row instead of one
+/// card per turn-by-turn instruction.
+class _WalkOnlySummary extends StatelessWidget {
+  const _WalkOnlySummary({required this.duration});
+
+  final Duration duration;
+
+  @override
+  Widget build(BuildContext context) {
+    return _StepCard(
+      icon: Icons.directions_walk_rounded,
+      iconColor: const Color(0xFF6E7A93),
+      title: 'Walk ${formatDuration(duration)}',
     );
   }
 }
