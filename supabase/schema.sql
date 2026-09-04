@@ -90,7 +90,6 @@ create table public.trips (
   end_time time,
   created_by uuid not null references auth.users (id),
   total_budget numeric(12, 2) not null default 0,
-  auto_recommend boolean not null default true,
   created_at timestamptz not null default now()
 );
 
@@ -181,13 +180,6 @@ create table public.trip_favorite_stops (
   category text not null default 'Other',
   created_by uuid not null references auth.users (id),
   created_at timestamptz not null default now()
-);
-
--- One row per selected "auto-recommend" interest category.
-create table public.trip_interests (
-  trip_id uuid not null references public.trips (id) on delete cascade,
-  category text not null,
-  primary key (trip_id, category)
 );
 
 -- The day-by-day, timed schedule computed from the optimized route. Kept
@@ -736,7 +728,6 @@ alter table public.trip_balances enable row level security;
 alter table public.trip_settlements enable row level security;
 alter table public.trip_stops enable row level security;
 alter table public.trip_favorite_stops enable row level security;
-alter table public.trip_interests enable row level security;
 alter table public.trip_schedule_stops enable row level security;
 alter table public.posts enable row level security;
 alter table public.post_likes enable row level security;
@@ -985,9 +976,8 @@ create policy "settlements_delete_owner_or_organizer" on public.trip_settlements
   for delete to authenticated
   using (created_by = auth.uid() or public.is_trip_organizer(trip_id));
 
--- trip_stops / trip_interests: any member can read/manage — mirrors
--- budget_categories (anyone planning the trip can add a stop or tweak
--- the interest list, not just the organizer).
+-- trip_stops: any member can read/manage — mirrors budget_categories
+-- (anyone planning the trip can add a stop, not just the organizer).
 create policy "trip_stops_select_members" on public.trip_stops
   for select to authenticated using (public.is_trip_member(trip_id));
 create policy "trip_stops_write_members" on public.trip_stops
@@ -997,12 +987,6 @@ create policy "trip_stops_write_members" on public.trip_stops
 create policy "trip_favorite_stops_select_members" on public.trip_favorite_stops
   for select to authenticated using (public.is_trip_member(trip_id));
 create policy "trip_favorite_stops_write_members" on public.trip_favorite_stops
-  for all to authenticated using (public.is_trip_member(trip_id))
-  with check (public.is_trip_member(trip_id));
-
-create policy "trip_interests_select_members" on public.trip_interests
-  for select to authenticated using (public.is_trip_member(trip_id));
-create policy "trip_interests_write_members" on public.trip_interests
   for all to authenticated using (public.is_trip_member(trip_id))
   with check (public.is_trip_member(trip_id));
 

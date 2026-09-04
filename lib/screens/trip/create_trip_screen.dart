@@ -11,7 +11,7 @@ import '../../services/trip_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/detail_header.dart';
 import '../../widgets/gradient_button.dart';
-import '../explore/explore_tab.dart' show Place, places;
+import '../explore/explore_tab.dart' show Place;
 import 'optimized_itinerary_screen.dart';
 import 'trip_location_picker.dart';
 
@@ -98,30 +98,9 @@ bool _dateRangesOverlap(
   return null;
 }
 
-/// Fixed interest options for "auto-recommend more places" — always the
-/// same list, regardless of which stops the traveler has already picked.
-/// [category] is the [Place.category] value matched against when
-/// generating recommendations; [label] is the more specific,
-/// traveler-facing name shown on the chip.
-const _interestOptions = [
-  (label: 'Hotel', icon: Icons.hotel_rounded, category: 'Hotel'),
-  (label: 'Restaurant', icon: Icons.restaurant_rounded, category: 'Food'),
-  (label: 'Shopping', icon: Icons.shopping_bag_rounded, category: 'Shopping'),
-  (label: 'Museum', icon: Icons.museum_rounded, category: 'Culture'),
-  (label: 'Beach', icon: Icons.beach_access_rounded, category: 'Beach'),
-  (label: 'Nature', icon: Icons.terrain_rounded, category: 'Nature'),
-  (
-    label: 'Attraction',
-    icon: Icons.attractions_rounded,
-    category: 'Attraction',
-  ),
-];
-
-/// Trip creation form: name/description, trip logistics, a real
+/// Trip creation form: name/description, trip logistics, and a real
 /// map/search location picker for picking stops (see
-/// [TripLocationPicker]), interest categories, and an optional
-/// "auto-recommend more places" toggle that supplements the traveler's
-/// picks from Explore's curated catalog — all in one page.
+/// [TripLocationPicker]) — all in one page.
 class CreateTripScreen extends StatefulWidget {
   const CreateTripScreen({super.key});
 
@@ -149,9 +128,7 @@ class _CreateTripScreenState extends State<CreateTripScreen> {
   DateTimeRange? _dateRange;
   TimeOfDay _startTime = const TimeOfDay(hour: 9, minute: 0);
   TimeOfDay _endTime = const TimeOfDay(hour: 18, minute: 0);
-  final Set<String> _selectedInterests = {'Shopping', 'Food'};
   final Set<TripStopLocation> _selectedStops = {};
-  bool _autoRecommend = true;
   bool _isSubmitting = false;
   bool _hasTriedSubmitting = false;
 
@@ -263,16 +240,12 @@ class _CreateTripScreenState extends State<CreateTripScreen> {
 
   void _addStop(TripStopLocation stop) {
     setState(() => _selectedStops.add(stop));
-    _locationsFieldKey.currentState?.didChange(
-      _selectedStops.isNotEmpty || _autoRecommend,
-    );
+    _locationsFieldKey.currentState?.didChange(_selectedStops.isNotEmpty);
   }
 
   void _removeStop(TripStopLocation stop) {
     setState(() => _selectedStops.remove(stop));
-    _locationsFieldKey.currentState?.didChange(
-      _selectedStops.isNotEmpty || _autoRecommend,
-    );
+    _locationsFieldKey.currentState?.didChange(_selectedStops.isNotEmpty);
   }
 
   Future<void> _confirmClearAllStops() async {
@@ -309,9 +282,7 @@ class _CreateTripScreenState extends State<CreateTripScreen> {
     );
     if (confirmed != true || !mounted) return;
     setState(() => _selectedStops.clear());
-    _locationsFieldKey.currentState?.didChange(
-      _selectedStops.isNotEmpty || _autoRecommend,
-    );
+    _locationsFieldKey.currentState?.didChange(_selectedStops.isNotEmpty);
   }
 
   /// A catalog-flavored [Place] standing in for a real, geocoded stop —
@@ -468,24 +439,10 @@ class _CreateTripScreenState extends State<CreateTripScreen> {
       return;
     }
 
-    final recommended = _autoRecommend
-        ? places
-              .where(
-                (p) =>
-                    _selectedInterests.contains(p.category) &&
-                    !_selectedStops.any(
-                      (s) => s.name.toLowerCase() == p.name.toLowerCase(),
-                    ),
-              )
-              .take(2)
-              .toList()
-        : <Place>[];
-
-    final finalPlaces = [..._selectedStops.map(_placeFromStop), ...recommended];
+    final finalPlaces = _selectedStops.map(_placeFromStop).toList();
     if (finalPlaces.isEmpty) {
       _showRequiredMessage(
-        'No matching places found for your interests — try different '
-        'interests, or pick locations manually.',
+        'No locations selected — pick at least one location.',
       );
       return;
     }
@@ -493,8 +450,8 @@ class _CreateTripScreenState extends State<CreateTripScreen> {
     final budget = _parseBudget(_budgetController.text);
     setState(() => _isSubmitting = true);
     try {
-      // Trip details + travel information only, for now — no stops,
-      // interests, or day-by-day schedule yet.
+      // Trip details + travel information only, for now — no stops or
+      // day-by-day schedule yet.
       await _tripService.createTrip(
         name: name,
         description: _descriptionController.text.trim(),
@@ -508,7 +465,6 @@ class _CreateTripScreenState extends State<CreateTripScreen> {
         startTime: _formatTimeOfDay(_startTime),
         endTime: _formatTimeOfDay(_endTime),
         totalBudget: budget,
-        autoRecommend: _autoRecommend,
       );
     } catch (e) {
       // Full exception (PostgrestException's message/code/details/hint)
@@ -535,7 +491,6 @@ class _CreateTripScreenState extends State<CreateTripScreen> {
           tripName: name,
           description: _descriptionController.text.trim(),
           places: finalPlaces,
-          recommendedNames: recommended.map((p) => p.name).toSet(),
         ),
       ),
     );
@@ -853,162 +808,14 @@ class _CreateTripScreenState extends State<CreateTripScreen> {
                             ),
                           FormField<bool>(
                             key: _locationsFieldKey,
-                            initialValue:
-                                _selectedStops.isNotEmpty || _autoRecommend,
+                            initialValue: _selectedStops.isNotEmpty,
                             autovalidateMode:
                                 AutovalidateMode.onUserInteraction,
                             validator: (ok) => ok == true
                                 ? null
-                                : 'No locations selected — enable '
-                                      '"Auto-recommend more places", or pick at '
-                                      'least one location.',
+                                : 'No locations selected — pick at least '
+                                      'one location.',
                             builder: (field) => _FieldError(field.errorText),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 16),
-                      _SectionCard(
-                        icon: Icons.tune_rounded,
-                        title: 'Preferences',
-                        children: [
-                          Row(
-                            children: [
-                              Container(
-                                width: 40,
-                                height: 40,
-                                decoration: BoxDecoration(
-                                  color: AppColors.accent.withValues(
-                                    alpha: 0.12,
-                                  ),
-                                  shape: BoxShape.circle,
-                                ),
-                                alignment: Alignment.center,
-                                child: const Icon(
-                                  Icons.auto_awesome_rounded,
-                                  color: AppColors.accent,
-                                  size: 19,
-                                ),
-                              ),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      'Auto-recommend more places',
-                                      style: TextStyle(
-                                        color: context.colors.ink,
-                                        fontWeight: FontWeight.w700,
-                                        fontSize: 13,
-                                      ),
-                                    ),
-                                    const SizedBox(height: 2),
-                                    Text(
-                                      'Add AI-suggested spots that match your interests',
-                                      style: TextStyle(
-                                        color: context.colors.muted,
-                                        fontSize: 11.5,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                              Switch(
-                                value: _autoRecommend,
-                                onChanged: (v) {
-                                  setState(() => _autoRecommend = v);
-                                  _locationsFieldKey.currentState?.didChange(
-                                    _selectedStops.isNotEmpty || v,
-                                  );
-                                },
-                                activeThumbColor: Colors.white,
-                                activeTrackColor: context.colors.ink,
-                              ),
-                            ],
-                          ),
-                          AnimatedSize(
-                            duration: const Duration(milliseconds: 220),
-                            curve: Curves.easeOut,
-                            alignment: Alignment.topCenter,
-                            child: _autoRecommend
-                                ? Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      const SizedBox(height: 18),
-                                      _FieldLabel('Interests'),
-                                      const SizedBox(height: 4),
-                                      Wrap(
-                                        spacing: 10,
-                                        runSpacing: 10,
-                                        children: _interestOptions.map((opt) {
-                                          final isSelected = _selectedInterests
-                                              .contains(opt.category);
-                                          return GestureDetector(
-                                            onTap: () => setState(() {
-                                              isSelected
-                                                  ? _selectedInterests.remove(
-                                                      opt.category,
-                                                    )
-                                                  : _selectedInterests.add(
-                                                      opt.category,
-                                                    );
-                                            }),
-                                            child: AnimatedContainer(
-                                              duration: const Duration(
-                                                milliseconds: 200,
-                                              ),
-                                              padding:
-                                                  const EdgeInsets.symmetric(
-                                                    horizontal: 16,
-                                                    vertical: 10,
-                                                  ),
-                                              decoration: BoxDecoration(
-                                                color: isSelected
-                                                    ? context.colors.ink
-                                                    : context.colors.surface,
-                                                borderRadius:
-                                                    BorderRadius.circular(20),
-                                                border: Border.all(
-                                                  color: isSelected
-                                                      ? context.colors.ink
-                                                      : context.colors.muted
-                                                            .withValues(
-                                                              alpha: 0.25,
-                                                            ),
-                                                ),
-                                              ),
-                                              child: Row(
-                                                mainAxisSize: MainAxisSize.min,
-                                                children: [
-                                                  Icon(
-                                                    opt.icon,
-                                                    size: 14,
-                                                    color: isSelected
-                                                        ? Colors.white
-                                                        : context.colors.muted,
-                                                  ),
-                                                  const SizedBox(width: 6),
-                                                  Text(
-                                                    opt.label,
-                                                    style: TextStyle(
-                                                      color: isSelected
-                                                          ? Colors.white
-                                                          : context.colors.ink,
-                                                      fontWeight:
-                                                          FontWeight.w600,
-                                                      fontSize: 13,
-                                                    ),
-                                                  ),
-                                                ],
-                                              ),
-                                            ),
-                                          );
-                                        }).toList(),
-                                      ),
-                                    ],
-                                  )
-                                : const SizedBox(width: double.infinity),
                           ),
                         ],
                       ),

@@ -94,9 +94,9 @@ class TripService {
   }
 
   /// Inserts a new row into `trips` from the Create Trip form — trip
-  /// details + travel information only. Doesn't touch `trip_stops`,
-  /// `trip_interests`, or `trip_schedule_stops`; those come later once
-  /// day-by-day scheduling is wired up. Returns the new trip's id.
+  /// details + travel information only. Doesn't touch `trip_stops` or
+  /// `trip_schedule_stops`; those come later once day-by-day scheduling
+  /// is wired up. Returns the new trip's id.
   Future<String> createTrip({
     required String name,
     String? description,
@@ -110,7 +110,6 @@ class TripService {
     String? startTime,
     String? endTime,
     required double totalBudget,
-    required bool autoRecommend,
   }) async {
     final trimmedName = name.trim();
     if (trimmedName.isEmpty) {
@@ -138,7 +137,6 @@ class TripService {
             'end_time': endTime,
             'created_by': _uid,
             'total_budget': totalBudget,
-            'auto_recommend': autoRecommend,
           })
           .select()
           .single(),

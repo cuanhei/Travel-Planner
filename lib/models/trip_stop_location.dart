@@ -187,9 +187,8 @@ String _categoryForGoogleType(String? type) {
 }
 
 /// Icon for a stop category label (see [TripStopLocation.category]) — a
-/// standalone function so callers with just the category string (e.g. the
-/// Create Trip "Interests" chips, built from whichever categories are
-/// present among the picked stops) don't need a [TripStopLocation] instance.
+/// standalone function so callers with just the category string don't need
+/// a [TripStopLocation] instance.
 IconData iconForCategory(String category) {
   switch (category) {
     case 'Shopping':
