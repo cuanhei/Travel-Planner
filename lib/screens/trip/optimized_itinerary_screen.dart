@@ -3,6 +3,8 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 
 import '../../models/pending_trip_draft.dart';
+import '../../models/trip_day.dart';
+import '../../models/trip_stop_location.dart';
 import '../../services/trip_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/detail_header.dart';
@@ -178,6 +180,7 @@ class OptimizedItineraryScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final tripDays = buildTripDays(draft);
     final days = _buildSchedule();
     final totalLegs = days
         .expand((d) => d.stops)
@@ -204,6 +207,10 @@ class OptimizedItineraryScreen extends StatelessWidget {
               child: ListView(
                 padding: const EdgeInsets.fromLTRB(24, 8, 24, 24),
                 children: [
+                  if (tripDays.isNotEmpty) ...[
+                    _DayAnchorsOverview(days: tripDays),
+                    const SizedBox(height: 20),
+                  ],
                   Row(
                     children: [
                       _SummaryStat(
@@ -334,6 +341,155 @@ class _SaveTripButtonState extends State<_SaveTripButton> {
       icon: Icons.bookmark_added_rounded,
       loading: _saving,
       onPressed: _saving ? () {} : _handleTap,
+    );
+  }
+}
+
+const _dayAnchorMonthNames = [
+  'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+  'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+];
+
+/// e.g. "5 Sep 2026".
+String _formatFullDate(DateTime d) =>
+    '${d.day} ${_dayAnchorMonthNames[d.month - 1]} ${d.year}';
+
+/// The day-by-day skeleton — start/end anchors only, no attractions yet
+/// (see [buildTripDays]) — shown above the clustered-attraction schedule
+/// so the traveler sees the trip's basic shape (where each day starts
+/// and ends, driven by travel dates and accommodation) before diving
+/// into which stops landed on which day.
+class _DayAnchorsOverview extends StatelessWidget {
+  const _DayAnchorsOverview({required this.days});
+
+  final List<TripDay> days;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: context.colors.card,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: context.colors.ink.withValues(alpha: 0.05),
+            blurRadius: 12,
+            offset: const Offset(0, 5),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          for (var i = 0; i < days.length; i++) ...[
+            if (i > 0) ...[
+              const SizedBox(height: 16),
+              Divider(
+                height: 1,
+                color: context.colors.muted.withValues(alpha: 0.15),
+              ),
+              const SizedBox(height: 16),
+            ],
+            _DayAnchorRow(day: days[i]),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _DayAnchorRow extends StatelessWidget {
+  const _DayAnchorRow({required this.day});
+
+  final TripDay day;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'DAY ${day.dayNumber}',
+          style: TextStyle(
+            color: AppColors.accent,
+            fontWeight: FontWeight.w800,
+            fontSize: 11.5,
+            letterSpacing: 0.5,
+          ),
+        ),
+        const SizedBox(height: 2),
+        Text(
+          _formatFullDate(day.date),
+          style: TextStyle(
+            color: context.colors.ink,
+            fontWeight: FontWeight.w700,
+            fontSize: 14,
+          ),
+        ),
+        const SizedBox(height: 12),
+        _AnchorLine(
+          label: 'Start From',
+          anchor: day.startAnchor,
+          isHotel: !day.startIsOverallStart,
+        ),
+        const SizedBox(height: 10),
+        _AnchorLine(
+          label: 'End At',
+          anchor: day.endAnchor,
+          isHotel: !day.endIsOverallEnd,
+        ),
+      ],
+    );
+  }
+}
+
+class _AnchorLine extends StatelessWidget {
+  const _AnchorLine({
+    required this.label,
+    required this.anchor,
+    required this.isHotel,
+  });
+
+  final String label;
+  final TripStopLocation anchor;
+  final bool isHotel;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Icon(
+          isHotel ? Icons.hotel_rounded : Icons.location_on_rounded,
+          size: 18,
+          color: isHotel ? AppColors.accent : context.colors.muted,
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                label,
+                style: TextStyle(
+                  color: context.colors.muted,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              Text(
+                anchor.name,
+                style: TextStyle(
+                  color: context.colors.ink,
+                  fontWeight: FontWeight.w700,
+                  fontSize: 13.5,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
     );
   }
 }
