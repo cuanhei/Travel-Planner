@@ -126,6 +126,48 @@ create trigger on_trip_created
 
   for each row execute function public.handle_new_trip();
 
+-- Rejects a trip whose dates overlap another trip the creator already
+-- organizes or belongs to (inclusive — a trip ending the day another
+-- starts still counts as a clash, since the traveler can't be in two
+-- places at once). The authoritative version of the same check the
+-- Create Trip date picker already enforces client-side; this is what
+-- actually stops it if that client-side check is ever bypassed, buggy,
+-- or beaten by a race (two trips created back-to-back).
+create function public.check_trip_date_conflict()
+returns trigger
+language plpgsql
+security definer set search_path = public
+as $$
+declare
+  v_conflict record;
+begin
+  if new.start_date is null or new.end_date is null then
+    return new;
+  end if;
+
+  select t.name into v_conflict
+  from public.trips t
+  join public.trip_members tm on tm.trip_id = t.id
+  where tm.user_id = new.created_by
+    and t.id <> new.id
+    and t.start_date is not null
+    and t.end_date is not null
+    and t.start_date <= new.end_date
+    and t.end_date >= new.start_date
+  limit 1;
+
+  if found then
+    raise exception 'Trip dates clash with an existing trip: %', v_conflict.name;
+  end if;
+
+  return new;
+end;
+$$;
+
+create trigger trips_check_date_conflict
+  before insert or update of start_date, end_date on public.trips
+  for each row execute function public.check_trip_date_conflict();
+
 -- Membership check used by every trip-scoped RLS policy below.
 -- security definer + a fixed search_path avoids recursive-RLS lookups.
 create function public.is_trip_member(p_trip_id uuid)

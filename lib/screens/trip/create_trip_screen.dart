@@ -201,11 +201,17 @@ class _CreateTripScreenState extends State<CreateTripScreen> {
   /// trip they belong to — the new trip's dates must not clash with any
   /// of these. Trips without both a start and end date set don't block
   /// anything.
-  Future<List<({DateTimeRange range, String tripName})>>
-  _blockedDateRanges() async {
+  ///
+  /// [refresh] re-fetches from [TripService.myTrips] instead of reusing
+  /// the cached [_myTripsFuture] from when this screen opened — used
+  /// right before submitting, so a trip created (or joined) after this
+  /// screen was opened still gets caught.
+  Future<List<({DateTimeRange range, String tripName})>> _blockedDateRanges({
+    bool refresh = false,
+  }) async {
     List<Trip> trips;
     try {
-      trips = await _myTripsFuture;
+      trips = await (refresh ? _tripService.myTrips() : _myTripsFuture);
     } catch (_) {
       return const [];
     }
@@ -523,6 +529,28 @@ class _CreateTripScreenState extends State<CreateTripScreen> {
         'Choose where you\'re staying on night ${missingNight + 1}.',
       );
       return;
+    }
+
+    // Re-check against the traveler's other trips right before submitting
+    // — not just at date-picker time. The picker already refuses to let
+    // them select a clashing range in the first place, but this closes
+    // the gap where a conflicting trip was created (by them, or one they
+    // were invited into) in the time between opening the picker and
+    // hitting "Plan My Trip".
+    final range = _dateRange;
+    if (range != null) {
+      final blockedRanges = await _blockedDateRanges(refresh: true);
+      if (!mounted) return;
+      final conflict = _blockingConflict(range.start, range.end, blockedRanges);
+      if (conflict != null) {
+        setState(() => _dateRange = null);
+        _dateRangeFieldKey.currentState?.didChange(null);
+        _showRequiredMessage(
+          'These dates now clash with "${conflict.tripName}" '
+          '(${_formatDateRange(conflict.range)}) — pick different dates.',
+        );
+        return;
+      }
     }
 
     final budget = _parseBudget(_budgetController.text);
