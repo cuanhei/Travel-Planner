@@ -43,6 +43,41 @@ class CommunityPost {
   final String? myReaction;
   final DateTime createdAt;
 
+  /// Used for optimistic/live local updates (a reaction tap, or a
+  /// `CommunityFeedEvent` patching in a change from elsewhere) instead of
+  /// re-fetching the post from the paginated feed.
+  ///
+  /// [myReaction] needs to distinguish "leave it alone" from "set it to
+  /// null" (clearing your own reaction is a real, common case) — a plain
+  /// nullable parameter can't tell those apart, so omitting it keeps the
+  /// current value and [clearMyReaction] is how a caller explicitly nulls
+  /// it out.
+  CommunityPost copyWith({
+    int? likesCount,
+    Map<String, int>? reactionCounts,
+    int? commentsCount,
+    String? myReaction,
+    bool clearMyReaction = false,
+  }) {
+    return CommunityPost(
+      id: id,
+      authorId: authorId,
+      authorName: authorName,
+      authorColor: authorColor,
+      placeName: placeName,
+      caption: caption,
+      category: category,
+      coverGradient: coverGradient,
+      mediaUrl: mediaUrl,
+      mediaType: mediaType,
+      likesCount: likesCount ?? this.likesCount,
+      reactionCounts: reactionCounts ?? this.reactionCounts,
+      commentsCount: commentsCount ?? this.commentsCount,
+      myReaction: clearMyReaction ? null : (myReaction ?? this.myReaction),
+      createdAt: createdAt,
+    );
+  }
+
   factory CommunityPost.fromMap(
     Map<String, dynamic> map, {
     required String? myReaction,

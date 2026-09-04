@@ -2,9 +2,11 @@ import 'dart:typed_data';
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 
 import '../../services/community_service.dart';
 import '../../theme/app_theme.dart';
+import '../../utils/camera_support.dart';
 import '../../widgets/detail_header.dart';
 import '../../widgets/gradient_button.dart';
 import '../explore/explore_tab.dart' show categories;
@@ -22,6 +24,20 @@ const _videoExtensions = {'mp4', 'mov', 'webm', 'm4v', 'avi', 'mkv', '3gp'};
 /// HEIC/HEIF are accepted for posting but skip the crop step — Flutter
 /// itself can't preview them either without a platform-specific codec.
 const _croppableExtensions = {'jpg', 'jpeg', 'png', 'gif', 'webp'};
+
+/// Where a post's media came from — offered as a chooser sheet on mobile
+/// (camera photo, camera video, or gallery); desktop/web skip straight to
+/// gallery since `image_picker` has no camera implementation there.
+enum _MediaSource { camera, cameraVideo, gallery }
+
+/// One picked file, normalized to bytes regardless of which of the three
+/// [_MediaSource]s it came from.
+typedef _PickedMedia = ({
+  Uint8List bytes,
+  String extension,
+  String fileName,
+  bool isVideo,
+});
 
 /// "New post" composer for the Community feed — caption, location, and a
 /// category (sets the icon), with a live preview of the resulting post
@@ -53,52 +69,115 @@ class _AddPostScreenState extends State<AddPostScreen> {
   bool _pickingMedia = false;
   String? _mediaError;
 
+  /// Picks a source (camera photo/video, or gallery — or straight to
+  /// gallery where there's no camera to offer), normalizes whatever comes
+  /// back to bytes via [_captureFromCamera]/[_pickFromGallery], then routes
+  /// a croppable image through [CropImageScreen] before storing it.
   Future<void> _pickMedia() async {
+    final source = cameraAvailable
+        ? await showModalBottomSheet<_MediaSource>(
+            context: context,
+            backgroundColor: context.colors.card,
+            shape: const RoundedRectangleBorder(
+              borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+            ),
+            builder: (_) => const _MediaSourceSheet(),
+          )
+        : _MediaSource.gallery;
+    if (source == null || !mounted) return;
+
     setState(() {
       _pickingMedia = true;
       _mediaError = null;
     });
     try {
-      final file = await FilePicker.pickFile(type: FileType.media);
-      if (file == null) return;
+      final picked = switch (source) {
+        _MediaSource.camera => await _captureFromCamera(isVideo: false),
+        _MediaSource.cameraVideo => await _captureFromCamera(isVideo: true),
+        _MediaSource.gallery => await _pickFromGallery(),
+      };
+      if (picked == null || !mounted) return;
 
-      final extension = (file.extension ?? '').toLowerCase();
-      final isImage = _imageExtensions.contains(extension);
-      final isVideo = _videoExtensions.contains(extension);
-      if (!isImage && !isVideo) {
-        setState(() {
-          _mediaError =
-              'Unsupported file — use a photo (JPG, PNG, GIF, WEBP, HEIC) '
-              'or a video (MP4, MOV, WEBM, M4V, AVI, MKV, 3GP).';
-        });
-        return;
-      }
-
-      final bytes = await file.readAsBytes();
-      if (!mounted) return;
-
-      if (isImage && _croppableExtensions.contains(extension)) {
+      if (!picked.isVideo && _croppableExtensions.contains(picked.extension)) {
         final cropped = await Navigator.of(context).push<Uint8List>(
-          MaterialPageRoute(builder: (_) => CropImageScreen(imageBytes: bytes)),
+          MaterialPageRoute(
+            builder: (_) => CropImageScreen(imageBytes: picked.bytes),
+          ),
         );
         if (!mounted) return;
         setState(() {
-          _mediaBytes = cropped ?? bytes;
-          _mediaExtension = cropped != null ? 'jpg' : extension;
+          _mediaBytes = cropped ?? picked.bytes;
+          _mediaExtension = cropped != null ? 'jpg' : picked.extension;
           _mediaType = 'image';
-          _mediaFileName = file.name;
+          _mediaFileName = picked.fileName;
         });
       } else {
         setState(() {
-          _mediaBytes = bytes;
-          _mediaExtension = extension;
-          _mediaType = isVideo ? 'video' : 'image';
-          _mediaFileName = file.name;
+          _mediaBytes = picked.bytes;
+          _mediaExtension = picked.extension;
+          _mediaType = picked.isVideo ? 'video' : 'image';
+          _mediaFileName = picked.fileName;
         });
       }
+    } catch (e) {
+      if (mounted) setState(() => _mediaError = 'Could not add media: $e');
     } finally {
       if (mounted) setState(() => _pickingMedia = false);
     }
+  }
+
+  /// Camera capture via `image_picker` — a photo (always JPEG) or a video,
+  /// per [isVideo].
+  Future<_PickedMedia?> _captureFromCamera({required bool isVideo}) async {
+    final picker = ImagePicker();
+    if (isVideo) {
+      final clip = await picker.pickVideo(source: ImageSource.camera);
+      if (clip == null) return null;
+      final ext = clip.path.split('.').last.toLowerCase();
+      return (
+        bytes: await clip.readAsBytes(),
+        extension: _videoExtensions.contains(ext) ? ext : 'mp4',
+        fileName: clip.name,
+        isVideo: true,
+      );
+    }
+    final shot = await picker.pickImage(
+      source: ImageSource.camera,
+      imageQuality: 90,
+    );
+    if (shot == null) return null;
+    return (
+      bytes: await shot.readAsBytes(),
+      extension: 'jpg',
+      fileName: shot.name,
+      isVideo: false,
+    );
+  }
+
+  /// Gallery pick via `file_picker` — the original single-picker flow, now
+  /// just one of [_MediaSource]'s options rather than the only one.
+  Future<_PickedMedia?> _pickFromGallery() async {
+    final file = await FilePicker.pickFile(type: FileType.media);
+    if (file == null) return null;
+
+    final extension = (file.extension ?? '').toLowerCase();
+    final isImage = _imageExtensions.contains(extension);
+    final isVideo = _videoExtensions.contains(extension);
+    if (!isImage && !isVideo) {
+      setState(() {
+        _mediaError =
+            'Unsupported file — use a photo (JPG, PNG, GIF, WEBP, HEIC) '
+            'or a video (MP4, MOV, WEBM, M4V, AVI, MKV, 3GP).';
+      });
+      return null;
+    }
+
+    return (
+      bytes: await file.readAsBytes(),
+      extension: extension,
+      fileName: file.name,
+      isVideo: isVideo,
+    );
   }
 
   Future<void> _recropMedia() async {
@@ -432,21 +511,27 @@ class _PostPreview extends StatelessWidget {
             const SizedBox(height: 10),
             ClipRRect(
               borderRadius: BorderRadius.circular(14),
-              child: SizedBox(
-                height: 100,
-                width: double.infinity,
-                child: mediaType == 'video'
-                    ? Container(
-                        color: Colors.black87,
-                        alignment: Alignment.center,
-                        child: const Icon(
-                          Icons.play_circle_fill_rounded,
-                          color: Colors.white70,
-                          size: 32,
-                        ),
-                      )
-                    : Image.memory(mediaBytes!, fit: BoxFit.cover),
-              ),
+              // Video stays a fixed-height icon card (no real frame to
+              // size to here); a photo shows at its own aspect ratio
+              // scaled to width, matching what was actually cropped
+              // instead of being cover-cropped again into a fixed box.
+              child: mediaType == 'video'
+                  ? Container(
+                      height: 100,
+                      width: double.infinity,
+                      color: Colors.black87,
+                      alignment: Alignment.center,
+                      child: const Icon(
+                        Icons.play_circle_fill_rounded,
+                        color: Colors.white70,
+                        size: 32,
+                      ),
+                    )
+                  : Image.memory(
+                      mediaBytes!,
+                      width: double.infinity,
+                      fit: BoxFit.fitWidth,
+                    ),
             ),
           ],
         ],
@@ -529,35 +614,41 @@ class _MediaPicker extends StatelessWidget {
             borderRadius: BorderRadius.circular(16),
             child: Stack(
               children: [
-                SizedBox(
-                  height: 140,
-                  width: double.infinity,
-                  child: mediaType == 'video'
-                      ? Container(
-                          color: Colors.black87,
-                          alignment: Alignment.center,
-                          child: Column(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              const Icon(
-                                Icons.movie_creation_outlined,
+                // Video stays a fixed-height filename card (no real frame
+                // to size to here); a photo shows at its own aspect ratio
+                // scaled to width — whatever came out of the crop step,
+                // not cover-cropped again into a fixed box.
+                mediaType == 'video'
+                    ? Container(
+                        height: 140,
+                        width: double.infinity,
+                        color: Colors.black87,
+                        alignment: Alignment.center,
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(
+                              Icons.movie_creation_outlined,
+                              color: Colors.white70,
+                              size: 28,
+                            ),
+                            const SizedBox(height: 6),
+                            Text(
+                              fileName ?? 'Video selected',
+                              style: const TextStyle(
                                 color: Colors.white70,
-                                size: 28,
+                                fontSize: 12,
                               ),
-                              const SizedBox(height: 6),
-                              Text(
-                                fileName ?? 'Video selected',
-                                style: const TextStyle(
-                                  color: Colors.white70,
-                                  fontSize: 12,
-                                ),
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ],
-                          ),
-                        )
-                      : Image.memory(bytes!, fit: BoxFit.cover),
-                ),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ],
+                        ),
+                      )
+                    : Image.memory(
+                        bytes!,
+                        width: double.infinity,
+                        fit: BoxFit.fitWidth,
+                      ),
                 Positioned(
                   top: 8,
                   right: 8,
@@ -713,6 +804,67 @@ class _InputBox extends StatelessWidget {
           vertical: 16,
           horizontal: 16,
         ),
+      ),
+    );
+  }
+}
+
+/// Bottom sheet offering "Take Photo" / "Record Video" / "Choose from
+/// Gallery", shown before [_AddPostScreenState._pickMedia] opens the
+/// camera or the file picker.
+class _MediaSourceSheet extends StatelessWidget {
+  const _MediaSourceSheet();
+
+  @override
+  Widget build(BuildContext context) {
+    return SafeArea(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const SizedBox(height: 8),
+          Container(
+            width: 36,
+            height: 4,
+            decoration: BoxDecoration(
+              color: context.colors.muted.withValues(alpha: 0.3),
+              borderRadius: BorderRadius.circular(2),
+            ),
+          ),
+          ListTile(
+            leading: Icon(Icons.photo_camera_rounded, color: context.colors.ink),
+            title: Text(
+              'Take Photo',
+              style: TextStyle(
+                color: context.colors.ink,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            onTap: () => Navigator.of(context).pop(_MediaSource.camera),
+          ),
+          ListTile(
+            leading: Icon(Icons.videocam_rounded, color: context.colors.ink),
+            title: Text(
+              'Record Video',
+              style: TextStyle(
+                color: context.colors.ink,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            onTap: () => Navigator.of(context).pop(_MediaSource.cameraVideo),
+          ),
+          ListTile(
+            leading: Icon(Icons.photo_library_rounded, color: context.colors.ink),
+            title: Text(
+              'Choose from Gallery',
+              style: TextStyle(
+                color: context.colors.ink,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            onTap: () => Navigator.of(context).pop(_MediaSource.gallery),
+          ),
+          const SizedBox(height: 8),
+        ],
       ),
     );
   }

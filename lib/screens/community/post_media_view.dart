@@ -3,50 +3,50 @@ import 'package:video_player/video_player.dart';
 
 import '../../theme/app_theme.dart';
 
-/// Renders a post's attached photo or video from its Storage URL (image:
-/// plain network image; video: tap-to-play inline player). Falls back to a
-/// static icon if video playback has no backend on this platform/build
-/// (video_player has no desktop implementation), so the feed still shows
-/// *something* instead of throwing.
+/// Renders a post's attached photo or video from its Storage URL, sized to
+/// its own aspect ratio (scaled to the card's width) rather than forced
+/// into a fixed-height crop — whatever the poster cropped (for a photo) or
+/// recorded (for a video) is exactly what shows here. Falls back to a
+/// fixed-ratio placeholder while loading/on error, since real dimensions
+/// aren't known yet, and to a static icon if video playback has no backend
+/// on this platform/build (video_player has no desktop implementation).
 class PostMediaView extends StatelessWidget {
-  const PostMediaView({
-    super.key,
-    required this.url,
-    required this.mediaType,
-    this.height = 180,
-  });
+  const PostMediaView({super.key, required this.url, required this.mediaType});
 
   final String url;
   final String mediaType;
-  final double height;
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      height: height,
+    if (mediaType == 'video') {
+      return _NetworkVideo(url: url);
+    }
+    return Image.network(
+      url,
       width: double.infinity,
-      child: mediaType == 'video'
-          ? _NetworkVideo(url: url)
-          : Image.network(
-              url,
-              fit: BoxFit.cover,
-              loadingBuilder: (context, child, progress) {
-                if (progress == null) return child;
-                return Container(
-                  color: context.colors.card,
-                  alignment: Alignment.center,
-                  child: const CircularProgressIndicator(strokeWidth: 2),
-                );
-              },
-              errorBuilder: (context, error, stack) => Container(
-                color: context.colors.card,
-                alignment: Alignment.center,
-                child: Icon(
-                  Icons.broken_image_rounded,
-                  color: context.colors.muted,
-                ),
-              ),
-            ),
+      fit: BoxFit.fitWidth,
+      loadingBuilder: (context, child, progress) {
+        if (progress == null) return child;
+        return _placeholder(
+          context,
+          child: const CircularProgressIndicator(strokeWidth: 2),
+        );
+      },
+      errorBuilder: (context, error, stack) => _placeholder(
+        context,
+        child: Icon(Icons.broken_image_rounded, color: context.colors.muted),
+      ),
+    );
+  }
+
+  Widget _placeholder(BuildContext context, {required Widget child}) {
+    return AspectRatio(
+      aspectRatio: 4 / 3,
+      child: Container(
+        color: context.colors.card,
+        alignment: Alignment.center,
+        child: child,
+      ),
     );
   }
 }
@@ -97,54 +97,59 @@ class _NetworkVideoState extends State<_NetworkVideo> {
   Widget build(BuildContext context) {
     final controller = _controller;
     if (_failed || controller == null) {
-      return Container(
-        color: Colors.black87,
-        alignment: Alignment.center,
-        child: const Icon(
-          Icons.videocam_off_rounded,
-          color: Colors.white54,
-          size: 32,
+      return AspectRatio(
+        aspectRatio: 16 / 9,
+        child: Container(
+          color: Colors.black87,
+          alignment: Alignment.center,
+          child: const Icon(
+            Icons.videocam_off_rounded,
+            color: Colors.white54,
+            size: 32,
+          ),
         ),
       );
     }
     if (!controller.value.isInitialized) {
-      return Container(
-        color: Colors.black87,
-        alignment: Alignment.center,
-        child: const CircularProgressIndicator(
-          strokeWidth: 2,
-          color: Colors.white70,
+      return AspectRatio(
+        aspectRatio: 16 / 9,
+        child: Container(
+          color: Colors.black87,
+          alignment: Alignment.center,
+          child: const CircularProgressIndicator(
+            strokeWidth: 2,
+            color: Colors.white70,
+          ),
         ),
       );
     }
-    return GestureDetector(
-      onTap: _toggle,
-      child: Stack(
-        alignment: Alignment.center,
-        fit: StackFit.expand,
-        children: [
-          FittedBox(
-            fit: BoxFit.cover,
-            child: SizedBox(
-              width: controller.value.size.width,
-              height: controller.value.size.height,
-              child: VideoPlayer(controller),
-            ),
-          ),
-          AnimatedOpacity(
-            opacity: controller.value.isPlaying ? 0 : 1,
-            duration: const Duration(milliseconds: 150),
-            child: Container(
-              color: Colors.black26,
-              alignment: Alignment.center,
-              child: const Icon(
-                Icons.play_arrow_rounded,
-                color: Colors.white,
-                size: 48,
+    // Sized to the video's own aspect ratio rather than cropped/stretched
+    // into a preset box — VideoPlayer fills whatever box it's given, so
+    // matching the box to `controller.value.aspectRatio` is enough on its
+    // own, no FittedBox/cover needed.
+    return AspectRatio(
+      aspectRatio: controller.value.aspectRatio,
+      child: GestureDetector(
+        onTap: _toggle,
+        child: Stack(
+          alignment: Alignment.center,
+          children: [
+            VideoPlayer(controller),
+            AnimatedOpacity(
+              opacity: controller.value.isPlaying ? 0 : 1,
+              duration: const Duration(milliseconds: 150),
+              child: Container(
+                color: Colors.black26,
+                alignment: Alignment.center,
+                child: const Icon(
+                  Icons.play_arrow_rounded,
+                  color: Colors.white,
+                  size: 48,
+                ),
               ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

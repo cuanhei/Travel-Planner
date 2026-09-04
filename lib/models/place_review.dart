@@ -9,6 +9,7 @@ class PlaceReview {
     required this.rating,
     required this.body,
     required this.createdAt,
+    this.photoUrls = const [],
   });
 
   final String id;
@@ -19,6 +20,7 @@ class PlaceReview {
   final int rating;
   final String body;
   final DateTime createdAt;
+  final List<String> photoUrls;
 
   factory PlaceReview.fromMap(Map<String, dynamic> map) {
     final profile = map['profiles'] as Map<String, dynamic>;
@@ -31,6 +33,8 @@ class PlaceReview {
       rating: map['rating'] as int,
       body: map['body'] as String,
       createdAt: DateTime.parse(map['created_at'] as String),
+      photoUrls:
+          (map['photo_urls'] as List<dynamic>?)?.cast<String>() ?? const [],
     );
   }
 }
