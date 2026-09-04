@@ -101,10 +101,14 @@ class TripService {
     required String name,
     String? description,
     String? destination,
-    String? startCity,
-    String? startState,
-    String? endCity,
-    String? endState,
+    String? startLocationName,
+    String? startAddress,
+    double? startLatitude,
+    double? startLongitude,
+    String? endLocationName,
+    String? endAddress,
+    double? endLatitude,
+    double? endLongitude,
     DateTime? startDate,
     DateTime? endDate,
     String? startTime,
@@ -127,10 +131,14 @@ class TripService {
             'name': trimmedName,
             'description': description,
             'destination': destination ?? '',
-            'start_city': startCity,
-            'start_state': startState,
-            'end_city': endCity,
-            'end_state': endState,
+            'start_location_name': startLocationName,
+            'start_address': startAddress,
+            'start_latitude': startLatitude,
+            'start_longitude': startLongitude,
+            'end_location_name': endLocationName,
+            'end_address': endAddress,
+            'end_latitude': endLatitude,
+            'end_longitude': endLongitude,
             'start_date': startDate?.toIso8601String().split('T').first,
             'end_date': endDate?.toIso8601String().split('T').first,
             'start_time': startTime,
@@ -158,7 +166,23 @@ class TripService {
           .eq('trip_members.user_id', _uid)
           .order('created_at', ascending: false),
     );
-    return [for (final row in rows) Trip.fromMap(row)];
+    return _parseTrips(rows);
+  }
+
+  /// Parses each row via [Trip.fromMap], skipping (and logging) any row
+  /// that fails — one malformed/legacy row (e.g. missing a required
+  /// column from before a migration backfilled it) shouldn't take down
+  /// the whole My Trips list.
+  List<Trip> _parseTrips(List<Map<String, dynamic>> rows) {
+    final trips = <Trip>[];
+    for (final row in rows) {
+      try {
+        trips.add(Trip.fromMap(row));
+      } catch (e) {
+        debugPrint('Skipping malformed trip row ${row['id']}: $e\n$row');
+      }
+    }
+    return trips;
   }
 
   /// Current + upcoming trips the signed-in user *organizes* (not just
@@ -177,9 +201,9 @@ class TripService {
           .eq('trip_members.role', 'organizer')
           .order('created_at', ascending: false),
     );
-    final trips = [
-      for (final row in rows) Trip.fromMap(row),
-    ].where((trip) => trip.status != TripStatus.past).toList();
+    final trips = _parseTrips(
+      rows,
+    ).where((trip) => trip.status != TripStatus.past).toList();
     trips.sort((a, b) {
       final aCurrent = a.status == TripStatus.current;
       final bCurrent = b.status == TripStatus.current;
