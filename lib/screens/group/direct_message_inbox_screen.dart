@@ -20,7 +20,6 @@ String _previewFor(DirectMessage? message) {
     return switch (attachment.type) {
       ChatAttachmentType.image => '📷 Photo',
       ChatAttachmentType.video => '🎥 Video',
-      ChatAttachmentType.audio => '🎤 Voice message',
     };
   }
   return message.body ?? '';

@@ -205,6 +205,7 @@ class _BudgetPlannerContent extends StatelessWidget {
     BuildContext context,
     List<BudgetCategoryData> categories,
     double totalBudget,
+    List<String> allLabels,
   ) async {
     final plannedByLabel = {
       for (final c in categories) c.label: c.plannedAmount,
@@ -216,6 +217,7 @@ class _BudgetPlannerContent extends StatelessWidget {
       builder: (_) => _ManageCategoriesSheet(
         plannedByLabel: plannedByLabel,
         totalBudget: totalBudget,
+        labels: allLabels,
       ),
     );
     if (result == null) return;
@@ -358,11 +360,11 @@ class _BudgetPlannerContent extends StatelessWidget {
                 final plannedByLabel = {
                   for (final c in plannedCategories) c.label: c.plannedAmount,
                 };
-                final categoryLabels = {
+                final categoryLabels = <String>{
                   for (final c in budgetCategories) c.label,
                   ...plannedByLabel.keys,
                   ...spentByCategory.keys,
-                };
+                }.toList();
 
                 return Column(
                   children: [
@@ -551,6 +553,7 @@ class _BudgetPlannerContent extends StatelessWidget {
                                   context,
                                   plannedCategories,
                                   totalBudget,
+                                  categoryLabels,
                                 ),
                                 child: Padding(
                                   padding: const EdgeInsets.only(right: 14),
@@ -1049,19 +1052,24 @@ class _CategoryBudgetDialogState extends State<_CategoryBudgetDialog> {
   }
 }
 
-/// Lets any trip member set how much they plan to spend in each of the
-/// fixed [budgetCategories] — the planned side of the Budget Planner's
-/// "By Category" breakdown. Open to every member (not just the
-/// organizer), matching the `categories_write_members` RLS policy.
-/// Validates that the categories never add up to more than [totalBudget].
+/// Lets any trip member set how much they plan to spend in each
+/// category that's relevant to this trip — the fixed [budgetCategories]
+/// plus any custom one already planned for or spent under (e.g. an
+/// "Other" category typed into the expense form), so a category never
+/// silently has no way to plan a budget for it just because it isn't
+/// one of the defaults. Open to every member (not just the organizer),
+/// matching the `categories_write_members` RLS policy. Validates that
+/// the categories never add up to more than [totalBudget].
 class _ManageCategoriesSheet extends StatefulWidget {
   const _ManageCategoriesSheet({
     required this.plannedByLabel,
     required this.totalBudget,
+    required this.labels,
   });
 
   final Map<String, double> plannedByLabel;
   final double totalBudget;
+  final List<String> labels;
 
   @override
   State<_ManageCategoriesSheet> createState() => _ManageCategoriesSheetState();
@@ -1069,10 +1077,10 @@ class _ManageCategoriesSheet extends StatefulWidget {
 
 class _ManageCategoriesSheetState extends State<_ManageCategoriesSheet> {
   late final _controllers = {
-    for (final c in budgetCategories)
-      c.label: TextEditingController(
-        text: (widget.plannedByLabel[c.label] ?? 0) > 0
-            ? formatAmount(widget.plannedByLabel[c.label]!)
+    for (final label in widget.labels)
+      label: TextEditingController(
+        text: (widget.plannedByLabel[label] ?? 0) > 0
+            ? formatAmount(widget.plannedByLabel[label]!)
             : '',
       ),
   };
@@ -1138,16 +1146,17 @@ class _ManageCategoriesSheetState extends State<_ManageCategoriesSheet> {
                 style: TextStyle(color: context.colors.muted, fontSize: 12.5),
               ),
               const SizedBox(height: 18),
-              ...budgetCategories.map(
-                (c) => Padding(
+              ...widget.labels.map((label) {
+                final visuals = categoryVisuals(label);
+                return Padding(
                   padding: const EdgeInsets.only(bottom: 12),
                   child: Row(
                     children: [
-                      Icon(c.icon, color: c.color, size: 18),
+                      Icon(visuals.icon, color: visuals.color, size: 18),
                       const SizedBox(width: 10),
                       Expanded(
                         child: Text(
-                          c.label,
+                          label,
                           style: TextStyle(
                             color: context.colors.ink,
                             fontWeight: FontWeight.w700,
@@ -1158,7 +1167,7 @@ class _ManageCategoriesSheetState extends State<_ManageCategoriesSheet> {
                       SizedBox(
                         width: 100,
                         child: TextField(
-                          controller: _controllers[c.label],
+                          controller: _controllers[label],
                           keyboardType: const TextInputType.numberWithOptions(
                             decimal: true,
                           ),
@@ -1188,8 +1197,8 @@ class _ManageCategoriesSheetState extends State<_ManageCategoriesSheet> {
                       ),
                     ],
                   ),
-                ),
-              ),
+                );
+              }),
               if (_error != null) ...[
                 const SizedBox(height: 4),
                 Text(

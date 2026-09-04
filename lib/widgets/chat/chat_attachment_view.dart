@@ -1,23 +1,16 @@
 import 'package:flutter/material.dart';
 
 import '../../models/chat_attachment.dart';
-import 'audio_message_player.dart';
 import 'fullscreen_image_viewer.dart';
 import 'fullscreen_video_viewer.dart';
 
 /// Renders a [ChatAttachment] inside a chat bubble — a tappable
-/// thumbnail for a photo or video (opening a full-screen viewer), or an
-/// inline play/pause row for a voice note. Shared by Group Chat and
-/// Direct Message screens.
+/// thumbnail for a photo or video, opening a full-screen viewer. Shared
+/// by Group Chat and Direct Message screens.
 class ChatAttachmentView extends StatelessWidget {
-  const ChatAttachmentView({
-    super.key,
-    required this.attachment,
-    required this.mine,
-  });
+  const ChatAttachmentView({super.key, required this.attachment});
 
   final ChatAttachment attachment;
-  final bool mine;
 
   @override
   Widget build(BuildContext context) {
@@ -62,12 +55,6 @@ class ChatAttachmentView extends StatelessWidget {
               size: 44,
             ),
           ),
-        );
-      case ChatAttachmentType.audio:
-        return AudioMessagePlayer(
-          url: attachment.url,
-          mine: mine,
-          knownDuration: attachment.duration,
         );
     }
   }

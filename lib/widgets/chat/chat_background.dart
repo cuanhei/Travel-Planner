@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+
+import '../../services/supabase_config.dart';
 
 /// One choice in Group Chat's "Change Background" picker. An empty
 /// [colors] list means "no wallpaper" — just the theme's own surface
@@ -30,16 +31,32 @@ ChatBackground chatBackgroundByKey(String? key) => chatBackgrounds.firstWhere(
   orElse: () => chatBackgrounds.first,
 );
 
-/// Backgrounds are a personal, per-device preference (like WhatsApp's
-/// per-chat wallpaper) — stored locally, not shared with the group.
-String _prefsKey(String tripId) => 'chat_bg_$tripId';
-
-Future<String?> loadChatBackgroundKey(String tripId) async {
-  final prefs = await SharedPreferences.getInstance();
-  return prefs.getString(_prefsKey(tripId));
+/// Backgrounds are a personal preference — never visible to anyone
+/// else in the chat — but saved server-side (`chat_background_preferences`)
+/// rather than to on-device storage, so it survives a reinstall and
+/// follows the signed-in user to another device too. [conversationId]
+/// scopes the choice to one chat: a trip's Group Chat can just use its
+/// trip id, while a Direct Message uses something that also identifies
+/// the other participant (e.g. `'$tripId/dm/$otherUserId'`) so each DM
+/// keeps its own background.
+Future<String?> loadChatBackgroundKey(String conversationId) async {
+  final uid = SupabaseConfig.client.auth.currentUser?.id;
+  if (uid == null) return null;
+  final row = await SupabaseConfig.client
+      .from('chat_background_preferences')
+      .select('background_key')
+      .eq('user_id', uid)
+      .eq('conversation_id', conversationId)
+      .maybeSingle();
+  return row?['background_key'] as String?;
 }
 
-Future<void> saveChatBackgroundKey(String tripId, String key) async {
-  final prefs = await SharedPreferences.getInstance();
-  await prefs.setString(_prefsKey(tripId), key);
+Future<void> saveChatBackgroundKey(String conversationId, String key) async {
+  final uid = SupabaseConfig.client.auth.currentUser?.id;
+  if (uid == null) return;
+  await SupabaseConfig.client.from('chat_background_preferences').upsert({
+    'user_id': uid,
+    'conversation_id': conversationId,
+    'background_key': key,
+  }, onConflict: 'user_id,conversation_id');
 }

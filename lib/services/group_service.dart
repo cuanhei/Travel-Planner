@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math';
 
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -221,35 +222,83 @@ class GroupService {
   /// trip they've requested to join — so a requester can see the trip
   /// name/dates while pending, and the organizer's reason if rejected,
   /// without needing to be a trip member yet.
+  ///
+  /// An approved request whose `trip_members` row has since been
+  /// deleted (the organizer removed them) is re-labelled `'removed'`
+  /// here rather than left showing `'approved'` forever — the
+  /// join-request row itself is never updated when a member is
+  /// removed, so this has to be derived live from a second stream over
+  /// the caller's own `trip_members` rows (which _does_ react to a
+  /// realtime delete).
   Stream<List<MyJoinRequest>> watchMyRequests() {
-    return _client
-        .from('trip_join_requests')
-        .stream(primaryKey: ['id'])
-        .eq('user_id', _uid)
-        .order('created_at', ascending: false)
-        .asyncMap((rows) async {
-          // Realtime streams don't support embedded joins, so resolve
-          // trip name/destination/dates in a second query.
-          final tripIds = rows
-              .map((r) => r['trip_id'] as String)
-              .toSet()
-              .toList();
-          if (tripIds.isEmpty) return <MyJoinRequest>[];
-          final trips = await _client
-              .from('trips')
-              .select('id, name, destination, start_date, end_date')
-              .inFilter('id', tripIds);
-          final tripById = {
-            for (final t in trips as List) t['id'] as String: t,
-          };
-          return rows
-              .map(
-                (r) => MyJoinRequest.fromMap({
-                  ...r,
-                  'trips': tripById[r['trip_id']],
-                }),
-              )
-              .toList();
-        });
+    late final StreamController<List<MyJoinRequest>> controller;
+    StreamSubscription? requestsSub;
+    StreamSubscription? membersSub;
+    List<Map<String, dynamic>>? latestRequests;
+    Set<String>? latestMemberTripIds;
+
+    Future<void> emit() async {
+      final rows = latestRequests;
+      final memberTripIds = latestMemberTripIds;
+      // Wait for both streams' first snapshot before emitting anything,
+      // otherwise every approved request would flash as "removed" for
+      // the instant before the membership snapshot arrives.
+      if (rows == null || memberTripIds == null) return;
+
+      final tripIds = rows.map((r) => r['trip_id'] as String).toSet().toList();
+      final tripById = <String, dynamic>{};
+      if (tripIds.isNotEmpty) {
+        final trips = await _client
+            .from('trips')
+            .select('id, name, destination, start_date, end_date')
+            .inFilter('id', tripIds);
+        for (final t in trips as List) {
+          tripById[t['id'] as String] = t;
+        }
+      }
+      if (controller.isClosed) return;
+      controller.add(
+        rows.map((r) {
+          final status =
+              r['status'] == 'approved' && !memberTripIds.contains(r['trip_id'])
+              ? 'removed'
+              : r['status'];
+          return MyJoinRequest.fromMap({
+            ...r,
+            'status': status,
+            'trips': tripById[r['trip_id']],
+          });
+        }).toList(),
+      );
+    }
+
+    controller = StreamController<List<MyJoinRequest>>.broadcast(
+      onListen: () {
+        requestsSub = _client
+            .from('trip_join_requests')
+            .stream(primaryKey: ['id'])
+            .eq('user_id', _uid)
+            .order('created_at', ascending: false)
+            .listen((rows) {
+              latestRequests = rows;
+              emit();
+            });
+        membersSub = _client
+            .from('trip_members')
+            .stream(primaryKey: ['trip_id', 'user_id'])
+            .eq('user_id', _uid)
+            .listen((rows) {
+              latestMemberTripIds = rows
+                  .map((r) => r['trip_id'] as String)
+                  .toSet();
+              emit();
+            });
+      },
+      onCancel: () {
+        requestsSub?.cancel();
+        membersSub?.cancel();
+      },
+    );
+    return controller.stream;
   }
 }

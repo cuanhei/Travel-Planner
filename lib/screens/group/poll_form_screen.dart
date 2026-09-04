@@ -49,11 +49,67 @@ class _PollFormScreenState extends State<PollFormScreen> {
     super.dispose();
   }
 
-  int get _filledOptionCount =>
-      _optionControllers.where((c) => c.text.trim().isNotEmpty).length;
+  /// Whether the form differs from where it started — an empty question
+  /// and no options when creating, or the original question/options
+  /// when editing. Drives the discard-changes confirmation on back.
+  bool get _hasChanges {
+    final initialQuestion = widget.initial?.question ?? '';
+    if (_questionController.text.trim() != initialQuestion.trim()) {
+      return true;
+    }
+    final initialLabels =
+        widget.initial?.options.map((o) => o.label).toList() ?? <String>[];
+    final currentLabels = _optionControllers
+        .map((c) => c.text.trim())
+        .where((label) => label.isNotEmpty)
+        .toList();
+    if (currentLabels.length != initialLabels.length) return true;
+    for (var i = 0; i < currentLabels.length; i++) {
+      if (currentLabels[i] != initialLabels[i]) return true;
+    }
+    return false;
+  }
 
-  bool get _canSave =>
-      _questionController.text.trim().isNotEmpty && _filledOptionCount >= _minOptions;
+  void _showError(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(behavior: SnackBarBehavior.floating, content: Text(message)),
+    );
+  }
+
+  Future<bool> _confirmDiscard() async {
+    final discard = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        backgroundColor: dialogContext.colors.card,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Text(
+          'Discard this poll?',
+          style: TextStyle(
+            color: dialogContext.colors.ink,
+            fontWeight: FontWeight.w800,
+          ),
+        ),
+        content: Text(
+          widget.isEditing
+              ? 'Your changes to this poll haven\'t been saved.'
+              : 'This poll hasn\'t been created yet.',
+          style: TextStyle(color: dialogContext.colors.muted),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: const Text('Keep Editing'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            style: FilledButton.styleFrom(backgroundColor: Colors.redAccent),
+            child: const Text('Discard'),
+          ),
+        ],
+      ),
+    );
+    return discard ?? false;
+  }
 
   void _addOption() {
     if (_optionControllers.length >= _maxOptions) return;
@@ -66,11 +122,19 @@ class _PollFormScreenState extends State<PollFormScreen> {
   }
 
   Future<void> _save() async {
-    if (!_canSave || _isSaving) return;
+    if (_isSaving) return;
+    if (_questionController.text.trim().isEmpty) {
+      _showError('Please enter a question');
+      return;
+    }
     final labels = _optionControllers
         .map((c) => c.text.trim())
         .where((label) => label.isNotEmpty)
         .toList();
+    if (labels.length < _minOptions) {
+      _showError('Please fill in at least $_minOptions options');
+      return;
+    }
 
     setState(() => _isSaving = true);
     try {
@@ -136,156 +200,165 @@ class _PollFormScreenState extends State<PollFormScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: context.colors.surface,
-      body: SafeArea(
-        child: Column(
-          children: [
-            DetailHeader(
-              title: widget.isEditing ? 'Edit Poll' : 'New Poll',
-              subtitle: widget.isEditing
-                  ? 'Update the question or options'
-                  : 'Ask the group to decide something',
-            ),
-            Expanded(
-              child: ListView(
-                padding: const EdgeInsets.fromLTRB(24, 8, 24, 24),
-                children: [
-                  _FieldLabel('Question'),
-                  TextField(
-                    controller: _questionController,
-                    maxLines: 2,
-                    onChanged: (_) => setState(() {}),
-                    style: TextStyle(
-                      fontWeight: FontWeight.w600,
-                      color: context.colors.ink,
-                    ),
-                    decoration: InputDecoration(
-                      hintText: 'e.g. Where should we have dinner?',
-                      filled: true,
-                      fillColor: context.colors.card,
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(16),
-                        borderSide: BorderSide.none,
+    return PopScope(
+      canPop: !_hasChanges,
+      onPopInvokedWithResult: (didPop, result) async {
+        if (didPop) return;
+        final discard = await _confirmDiscard();
+        if (!discard || !mounted) return;
+        Navigator.of(context).pop();
+      },
+      child: Scaffold(
+        backgroundColor: context.colors.surface,
+        body: SafeArea(
+          child: Column(
+            children: [
+              DetailHeader(
+                title: widget.isEditing ? 'Edit Poll' : 'New Poll',
+                subtitle: widget.isEditing
+                    ? 'Update the question or options'
+                    : 'Ask the group to decide something',
+              ),
+              Expanded(
+                child: ListView(
+                  padding: const EdgeInsets.fromLTRB(24, 8, 24, 24),
+                  children: [
+                    _FieldLabel('Question'),
+                    TextField(
+                      controller: _questionController,
+                      maxLines: 2,
+                      onChanged: (_) => setState(() {}),
+                      style: TextStyle(
+                        fontWeight: FontWeight.w600,
+                        color: context.colors.ink,
                       ),
-                      focusedBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(16),
-                        borderSide: BorderSide(
-                          color: context.colors.ink,
-                          width: 1.5,
+                      decoration: InputDecoration(
+                        hintText: 'e.g. Where should we have dinner?',
+                        filled: true,
+                        fillColor: context.colors.card,
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(16),
+                          borderSide: BorderSide.none,
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(16),
+                          borderSide: BorderSide(
+                            color: context.colors.ink,
+                            width: 1.5,
+                          ),
+                        ),
+                        contentPadding: const EdgeInsets.symmetric(
+                          vertical: 16,
+                          horizontal: 16,
                         ),
                       ),
-                      contentPadding: const EdgeInsets.symmetric(
-                        vertical: 16,
-                        horizontal: 16,
-                      ),
                     ),
-                  ),
-                  const SizedBox(height: 20),
-                  Row(
-                    children: [
-                      _FieldLabel('Options'),
-                      const Spacer(),
-                      Text(
-                        '${_optionControllers.length}/$_maxOptions',
-                        style: TextStyle(
-                          color: context.colors.muted,
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
+                    const SizedBox(height: 20),
+                    Row(
+                      children: [
+                        _FieldLabel('Options'),
+                        const Spacer(),
+                        Text(
+                          '${_optionControllers.length}/$_maxOptions',
+                          style: TextStyle(
+                            color: context.colors.muted,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                    ...List.generate(_optionControllers.length, (i) {
+                      return Padding(
+                        padding: const EdgeInsets.only(bottom: 10),
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: TextField(
+                                controller: _optionControllers[i],
+                                onChanged: (_) => setState(() {}),
+                                style: TextStyle(
+                                  fontWeight: FontWeight.w600,
+                                  color: context.colors.ink,
+                                ),
+                                decoration: InputDecoration(
+                                  hintText: 'Option ${i + 1}',
+                                  filled: true,
+                                  fillColor: context.colors.card,
+                                  border: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(14),
+                                    borderSide: BorderSide.none,
+                                  ),
+                                  focusedBorder: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(14),
+                                    borderSide: BorderSide(
+                                      color: context.colors.ink,
+                                      width: 1.5,
+                                    ),
+                                  ),
+                                  contentPadding: const EdgeInsets.symmetric(
+                                    vertical: 14,
+                                    horizontal: 14,
+                                  ),
+                                ),
+                              ),
+                            ),
+                            if (_optionControllers.length > _minOptions) ...[
+                              const SizedBox(width: 8),
+                              GestureDetector(
+                                onTap: () => _removeOption(i),
+                                child: Icon(
+                                  Icons.remove_circle_outline_rounded,
+                                  color: context.colors.muted,
+                                  size: 22,
+                                ),
+                              ),
+                            ],
+                          ],
+                        ),
+                      );
+                    }),
+                    if (_optionControllers.length < _maxOptions)
+                      TextButton.icon(
+                        onPressed: _addOption,
+                        icon: const Icon(Icons.add_rounded, size: 18),
+                        label: const Text('Add option'),
+                        style: TextButton.styleFrom(
+                          foregroundColor: context.colors.ink,
+                        ),
+                      ),
+                    const SizedBox(height: 24),
+                    GradientButton(
+                      label: widget.isEditing ? 'Save Changes' : 'Create Poll',
+                      icon: Icons.how_to_vote_rounded,
+                      onPressed: _isSaving ? () {} : _save,
+                    ),
+                    if (widget.isEditing) ...[
+                      const SizedBox(height: 14),
+                      Center(
+                        child: TextButton.icon(
+                          onPressed: _confirmDelete,
+                          icon: const Icon(
+                            Icons.delete_outline_rounded,
+                            color: Colors.redAccent,
+                            size: 18,
+                          ),
+                          label: const Text(
+                            'Delete Poll',
+                            style: TextStyle(
+                              color: Colors.redAccent,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
                         ),
                       ),
                     ],
-                  ),
-                  const SizedBox(height: 4),
-                  ...List.generate(_optionControllers.length, (i) {
-                    return Padding(
-                      padding: const EdgeInsets.only(bottom: 10),
-                      child: Row(
-                        children: [
-                          Expanded(
-                            child: TextField(
-                              controller: _optionControllers[i],
-                              onChanged: (_) => setState(() {}),
-                              style: TextStyle(
-                                fontWeight: FontWeight.w600,
-                                color: context.colors.ink,
-                              ),
-                              decoration: InputDecoration(
-                                hintText: 'Option ${i + 1}',
-                                filled: true,
-                                fillColor: context.colors.card,
-                                border: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(14),
-                                  borderSide: BorderSide.none,
-                                ),
-                                focusedBorder: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(14),
-                                  borderSide: BorderSide(
-                                    color: context.colors.ink,
-                                    width: 1.5,
-                                  ),
-                                ),
-                                contentPadding: const EdgeInsets.symmetric(
-                                  vertical: 14,
-                                  horizontal: 14,
-                                ),
-                              ),
-                            ),
-                          ),
-                          if (_optionControllers.length > _minOptions) ...[
-                            const SizedBox(width: 8),
-                            GestureDetector(
-                              onTap: () => _removeOption(i),
-                              child: Icon(
-                                Icons.remove_circle_outline_rounded,
-                                color: context.colors.muted,
-                                size: 22,
-                              ),
-                            ),
-                          ],
-                        ],
-                      ),
-                    );
-                  }),
-                  if (_optionControllers.length < _maxOptions)
-                    TextButton.icon(
-                      onPressed: _addOption,
-                      icon: const Icon(Icons.add_rounded, size: 18),
-                      label: const Text('Add option'),
-                      style: TextButton.styleFrom(
-                        foregroundColor: context.colors.ink,
-                      ),
-                    ),
-                  const SizedBox(height: 24),
-                  GradientButton(
-                    label: widget.isEditing ? 'Save Changes' : 'Create Poll',
-                    icon: Icons.how_to_vote_rounded,
-                    onPressed: _canSave && !_isSaving ? _save : () {},
-                  ),
-                  if (widget.isEditing) ...[
-                    const SizedBox(height: 14),
-                    Center(
-                      child: TextButton.icon(
-                        onPressed: _confirmDelete,
-                        icon: const Icon(
-                          Icons.delete_outline_rounded,
-                          color: Colors.redAccent,
-                          size: 18,
-                        ),
-                        label: const Text(
-                          'Delete Poll',
-                          style: TextStyle(
-                            color: Colors.redAccent,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                      ),
-                    ),
                   ],
-                ],
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );

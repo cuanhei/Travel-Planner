@@ -94,9 +94,9 @@ class ChatService {
     });
   }
 
-  /// Uploads a photo/video/voice-note file for this trip's chat and
-  /// returns its public URL, ready to pass into [sendMessage] as part
-  /// of a [ChatAttachment].
+  /// Uploads a photo/video file for this trip's chat and returns its
+  /// public URL, ready to pass into [sendMessage] as part of a
+  /// [ChatAttachment].
   Future<String> uploadAttachment({
     required String tripId,
     required Uint8List bytes,
@@ -154,5 +154,49 @@ class ChatService {
           onConflict: 'message_id,user_id',
           ignoreDuplicates: true,
         );
+  }
+
+  /// Live reactions for every message in [tripId], grouped by message
+  /// id then by the member who reacted — `message_id` -> (`user_id` ->
+  /// emoji).
+  Stream<Map<String, Map<String, String>>> watchReactions(String tripId) {
+    return _client
+        .from('group_message_reactions')
+        .stream(primaryKey: ['message_id', 'user_id'])
+        .eq('trip_id', tripId)
+        .map((rows) {
+          final byMessage = <String, Map<String, String>>{};
+          for (final r in rows) {
+            byMessage.putIfAbsent(
+              r['message_id'] as String,
+              () => {},
+            )[r['user_id'] as String] = r['emoji'] as String;
+          }
+          return byMessage;
+        });
+  }
+
+  /// Sets (replacing any previous one) the signed-in member's reaction
+  /// on [messageId].
+  Future<void> setReaction({
+    required String tripId,
+    required String messageId,
+    required String emoji,
+  }) async {
+    await _client.from('group_message_reactions').upsert({
+      'message_id': messageId,
+      'trip_id': tripId,
+      'user_id': _uid,
+      'emoji': emoji,
+    }, onConflict: 'message_id,user_id');
+  }
+
+  /// Removes the signed-in member's reaction on [messageId], if any.
+  Future<void> removeReaction(String messageId) async {
+    await _client
+        .from('group_message_reactions')
+        .delete()
+        .eq('message_id', messageId)
+        .eq('user_id', _uid);
   }
 }

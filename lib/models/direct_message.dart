@@ -14,6 +14,7 @@ class DirectMessage {
     required this.body,
     required this.createdAt,
     this.attachment,
+    this.reactions = const {},
   });
 
   final String id;
@@ -24,6 +25,11 @@ class DirectMessage {
   final ChatAttachment? attachment;
   final DateTime createdAt;
 
+  /// Who reacted to this message and with which emoji — `user_id` ->
+  /// emoji. Populated separately from `direct_message_reactions` (via
+  /// [withReactions]) since realtime streams don't support joins.
+  final Map<String, String> reactions;
+
   factory DirectMessage.fromMap(Map<String, dynamic> map) => DirectMessage(
     id: map['id'] as String,
     tripId: map['trip_id'] as String,
@@ -32,5 +38,16 @@ class DirectMessage {
     body: map['body'] as String?,
     attachment: ChatAttachment.fromMap(map),
     createdAt: DateTime.parse(map['created_at'] as String),
+  );
+
+  DirectMessage withReactions(Map<String, String> reactions) => DirectMessage(
+    id: id,
+    tripId: tripId,
+    senderId: senderId,
+    recipientId: recipientId,
+    body: body,
+    createdAt: createdAt,
+    attachment: attachment,
+    reactions: reactions,
   );
 }

@@ -399,6 +399,46 @@ create table public.direct_message_reads (
   primary key (trip_id, user_id, other_user_id)
 );
 
+-- Message reactions (WhatsApp-style emoji react). One reaction per
+-- user per message — reacting again with a different emoji replaces
+-- it (upsert); the same emoji again removes it (the app issues a
+-- delete for that case).
+create table public.group_message_reactions (
+  message_id uuid not null references public.group_messages (id) on delete cascade,
+  trip_id uuid not null references public.trips (id) on delete cascade,
+  user_id uuid not null references auth.users (id) on delete cascade,
+  emoji text not null,
+  created_at timestamptz not null default now(),
+  primary key (message_id, user_id)
+);
+
+-- direct_message_reactions has no trip_members roster to lean on for
+-- its RLS boundary (a DM conversation is just two people, not "the
+-- trip") — its select/insert policies instead check the reactor is a
+-- participant of the specific message via direct_messages itself.
+-- trip_id is still carried here (denormalized, as on direct_messages)
+-- purely so the client can `.stream().eq('trip_id', ...)`.
+create table public.direct_message_reactions (
+  message_id uuid not null references public.direct_messages (id) on delete cascade,
+  trip_id uuid not null references public.trips (id) on delete cascade,
+  user_id uuid not null references auth.users (id) on delete cascade,
+  emoji text not null,
+  created_at timestamptz not null default now(),
+  primary key (message_id, user_id)
+);
+
+-- Chat background choice ("Change Background" in Group Chat / Personal
+-- Message settings). conversation_id is an opaque per-conversation key
+-- (a trip's id for Group Chat, or "<tripId>/dm/<otherUserId>" for a
+-- Direct Message) — not a real foreign key to any single table.
+create table public.chat_background_preferences (
+  user_id uuid not null references auth.users (id) on delete cascade,
+  conversation_id text not null,
+  background_key text not null,
+  updated_at timestamptz not null default now(),
+  primary key (user_id, conversation_id)
+);
+
 create table public.polls (
   id uuid primary key default gen_random_uuid(),
   trip_id uuid not null references public.trips (id) on delete cascade,
@@ -520,6 +560,9 @@ alter table public.group_messages enable row level security;
 alter table public.group_message_reads enable row level security;
 alter table public.direct_messages enable row level security;
 alter table public.direct_message_reads enable row level security;
+alter table public.group_message_reactions enable row level security;
+alter table public.direct_message_reactions enable row level security;
+alter table public.chat_background_preferences enable row level security;
 alter table public.polls enable row level security;
 alter table public.poll_options enable row level security;
 alter table public.poll_votes enable row level security;
@@ -622,40 +665,91 @@ create policy "direct_messages_insert_participant" on public.direct_messages
     )
   );
 
--- direct_message_reads: each member only ever reads/writes their own
--- last-read marker.
-create policy "direct_message_reads_select_own" on public.direct_message_reads
-  for select to authenticated using (user_id = auth.uid());
+-- direct_message_reads: each member only ever writes their own
+-- last-read marker, but both participants in a conversation can read
+-- it — the sender needs the recipient's marker to know whether/when
+-- their messages have been seen (the DM blue tick).
+create policy "direct_message_reads_select_participant" on public.direct_message_reads
+  for select to authenticated
+  using (user_id = auth.uid() or other_user_id = auth.uid());
 create policy "direct_message_reads_insert_own" on public.direct_message_reads
   for insert to authenticated with check (user_id = auth.uid());
 create policy "direct_message_reads_update_own" on public.direct_message_reads
   for update to authenticated using (user_id = auth.uid());
 
--- polls + options: any member can read/create; only the trip's organizer
--- can edit/delete a poll (matches Voting screen's edit/delete-poll
--- affordance, which is hidden from non-organizer members).
+-- group_message_reactions: same shape as group_message_reads.
+create policy "group_message_reactions_select_members" on public.group_message_reactions
+  for select to authenticated using (public.is_trip_member(trip_id));
+create policy "group_message_reactions_insert_own" on public.group_message_reactions
+  for insert to authenticated
+  with check (public.is_trip_member(trip_id) and user_id = auth.uid());
+create policy "group_message_reactions_update_own" on public.group_message_reactions
+  for update to authenticated using (user_id = auth.uid());
+create policy "group_message_reactions_delete_own" on public.group_message_reactions
+  for delete to authenticated using (user_id = auth.uid());
+
+-- direct_message_reactions: only participants of the reacted-to
+-- message's conversation can see/react to it.
+create policy "direct_message_reactions_select_participant" on public.direct_message_reactions
+  for select to authenticated
+  using (
+    exists (
+      select 1 from public.direct_messages dm
+      where dm.id = message_id
+        and (dm.sender_id = auth.uid() or dm.recipient_id = auth.uid())
+    )
+  );
+create policy "direct_message_reactions_insert_own" on public.direct_message_reactions
+  for insert to authenticated
+  with check (
+    user_id = auth.uid()
+    and exists (
+      select 1 from public.direct_messages dm
+      where dm.id = message_id
+        and (dm.sender_id = auth.uid() or dm.recipient_id = auth.uid())
+    )
+  );
+create policy "direct_message_reactions_update_own" on public.direct_message_reactions
+  for update to authenticated using (user_id = auth.uid());
+create policy "direct_message_reactions_delete_own" on public.direct_message_reactions
+  for delete to authenticated using (user_id = auth.uid());
+
+-- chat_background_preferences: purely personal, never visible to or
+-- writable by anyone else.
+create policy "chat_background_preferences_own" on public.chat_background_preferences
+  for all to authenticated
+  using (user_id = auth.uid())
+  with check (user_id = auth.uid());
+
+-- polls + options: any member can read/create; a poll can only be
+-- edited/deleted by whoever created it, or by the trip's organizer
+-- (who can touch any poll regardless of who made it).
 create policy "polls_select_members" on public.polls
   for select to authenticated using (public.is_trip_member(trip_id));
 create policy "polls_insert_members" on public.polls
   for insert to authenticated
   with check (public.is_trip_member(trip_id) and created_by = auth.uid());
-create policy "polls_update_organizer" on public.polls
+create policy "polls_update_owner_or_organizer" on public.polls
   for update to authenticated
-  using (public.is_trip_organizer(trip_id));
-create policy "polls_delete_organizer" on public.polls
+  using (created_by = auth.uid() or public.is_trip_organizer(trip_id));
+create policy "polls_delete_owner_or_organizer" on public.polls
   for delete to authenticated
-  using (public.is_trip_organizer(trip_id));
+  using (created_by = auth.uid() or public.is_trip_organizer(trip_id));
 
 create policy "poll_options_select_members" on public.poll_options
   for select to authenticated
   using (public.is_trip_member((select trip_id from public.polls where id = poll_id)));
-create policy "poll_options_write_organizer" on public.poll_options
+-- PollService.updatePoll() writes poll_options directly (insert/update/
+-- delete rows to match the edited option list) rather than relying on
+-- cascade, so this needs the same own-poll-or-organizer allowance as
+-- the polls table itself.
+create policy "poll_options_write_owner_or_organizer" on public.poll_options
   for all to authenticated
   using (
     exists (
       select 1 from public.polls p
       where p.id = poll_id
-        and public.is_trip_organizer(p.trip_id)
+        and (p.created_by = auth.uid() or public.is_trip_organizer(p.trip_id))
     )
   );
 
@@ -753,6 +847,8 @@ alter publication supabase_realtime add table
   public.group_message_reads,
   public.direct_messages,
   public.direct_message_reads,
+  public.group_message_reactions,
+  public.direct_message_reactions,
   public.poll_votes,
   public.poll_options,
   public.polls,
@@ -781,6 +877,8 @@ alter table public.trip_settlements replica identity full;
 alter table public.group_message_reads replica identity full;
 alter table public.direct_messages replica identity full;
 alter table public.direct_message_reads replica identity full;
+alter table public.group_message_reactions replica identity full;
+alter table public.direct_message_reactions replica identity full;
 
 -- ============================================================
 -- Storage: expense receipt photos. Public bucket (read requires no

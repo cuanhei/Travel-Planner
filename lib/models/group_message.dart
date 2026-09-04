@@ -12,6 +12,7 @@ class GroupMessage {
     required this.createdAt,
     this.attachment,
     this.readBy = const {},
+    this.reactions = const {},
   });
 
   final String id;
@@ -20,8 +21,8 @@ class GroupMessage {
   final String senderName;
   final int senderColor;
 
-  /// Null for a media-only message (photo/video/voice note with
-  /// nothing typed alongside it).
+  /// Null for a media-only message (photo/video with nothing typed
+  /// alongside it).
   final String? body;
   final ChatAttachment? attachment;
   final DateTime createdAt;
@@ -30,6 +31,11 @@ class GroupMessage {
   /// `read_at`. Populated separately from `group_message_reads` (via
   /// [withReadBy]) since realtime streams don't support embedded joins.
   final Map<String, DateTime> readBy;
+
+  /// Who reacted to this message and with which emoji — `user_id` ->
+  /// emoji. Populated separately from `group_message_reactions` (via
+  /// [withReactions]) for the same reason as [readBy].
+  final Map<String, String> reactions;
 
   factory GroupMessage.fromMap(Map<String, dynamic> map) {
     final profile = map['profiles'] as Map<String, dynamic>;
@@ -55,18 +61,25 @@ class GroupMessage {
     attachment: attachment,
     createdAt: createdAt,
     readBy: readBy,
+    reactions: reactions,
   );
 
-  /// The latest time any member other than [viewerId] saw this message,
-  /// or null if nobody besides them has yet — used to decide whether a
-  /// sent message's tick should turn blue (and what time to show for
-  /// "Seen").
-  DateTime? seenAt(String viewerId) {
-    DateTime? latest;
-    for (final entry in readBy.entries) {
-      if (entry.key == viewerId) continue;
-      if (latest == null || entry.value.isAfter(latest)) latest = entry.value;
-    }
-    return latest;
-  }
+  GroupMessage withReactions(Map<String, String> reactions) => GroupMessage(
+    id: id,
+    tripId: tripId,
+    userId: userId,
+    senderName: senderName,
+    senderColor: senderColor,
+    body: body,
+    attachment: attachment,
+    createdAt: createdAt,
+    readBy: readBy,
+    reactions: reactions,
+  );
+
+  /// Whether every id in [otherMemberIds] (the trip's other members) has
+  /// read this message — WhatsApp-style group semantics: the tick only
+  /// turns blue once *everyone* has seen it, not just one person.
+  bool seenByAll(Iterable<String> otherMemberIds) =>
+      otherMemberIds.every(readBy.containsKey);
 }

@@ -523,37 +523,8 @@ class _ExpenseTrackerScreenState extends State<ExpenseTrackerScreen> {
                   _maxPhotosPerExpense) {
                 return;
               }
-              final source = await showModalBottomSheet<ImageSource>(
-                context: sheetContext,
-                backgroundColor: sheetContext.colors.card,
-                shape: const RoundedRectangleBorder(
-                  borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-                ),
-                builder: (photoSheetContext) => SafeArea(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      ListTile(
-                        leading: const Icon(Icons.photo_camera_rounded),
-                        title: const Text('Take Photo'),
-                        onTap: () => Navigator.of(
-                          photoSheetContext,
-                        ).pop(ImageSource.camera),
-                      ),
-                      ListTile(
-                        leading: const Icon(Icons.photo_library_rounded),
-                        title: const Text('Choose from Gallery'),
-                        onTap: () => Navigator.of(
-                          photoSheetContext,
-                        ).pop(ImageSource.gallery),
-                      ),
-                    ],
-                  ),
-                ),
-              );
-              if (source == null) return;
               final file = await ImagePicker().pickImage(
-                source: source,
+                source: ImageSource.gallery,
                 maxWidth: 2000,
                 imageQuality: 90,
               );
@@ -1813,10 +1784,7 @@ class _PhotoStrip extends StatelessWidget {
 /// [ImageProvider]s rather than URLs so it can show a freshly-picked,
 /// not-yet-uploaded photo (in-memory bytes) just as well as a saved one.
 class _PhotoViewerScreen extends StatelessWidget {
-  const _PhotoViewerScreen({
-    required this.images,
-    required this.initialIndex,
-  });
+  const _PhotoViewerScreen({required this.images, required this.initialIndex});
 
   final List<ImageProvider> images;
   final int initialIndex;
@@ -1916,7 +1884,9 @@ class _ZoomablePhotoState extends State<_ZoomablePhoto> {
           transformationController: _controller,
           minScale: _minScale,
           maxScale: _maxScale,
-          child: Center(child: Image(image: widget.image, fit: BoxFit.contain)),
+          child: Center(
+            child: Image(image: widget.image, fit: BoxFit.contain),
+          ),
         ),
       ),
     );
