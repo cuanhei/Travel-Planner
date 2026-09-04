@@ -18,6 +18,7 @@ class TripStopLocation {
     this.osmId,
     this.placeId,
     this.category = 'Other',
+    this.primaryType,
     this.types = const [],
     this.businessStatus,
     this.regularOpeningHours,
@@ -53,6 +54,14 @@ class TripStopLocation {
   /// "Attraction". Defaults to "Other" for points with no recognizable
   /// type, like a raw GPS drop.
   final String category;
+
+  /// Google's raw `primaryType` (e.g. "tourist_attraction",
+  /// "shopping_mall") — the single most-specific type tag Places
+  /// assigns, kept alongside [category] (this app's coarser bucket
+  /// derived from it) since downstream logic (visit-duration estimates,
+  /// etc.) may want Google's own classification directly. Null for
+  /// Photon/OSM results.
+  final String? primaryType;
 
   /// Every Google Places type tag (e.g. `["restaurant", "food",
   /// "point_of_interest"]`) — finer-grained than [category] when that
@@ -127,6 +136,7 @@ class TripStopLocation {
       latitude: place.latitude,
       longitude: place.longitude,
       category: _categoryForGoogleType(place.primaryType),
+      primaryType: place.primaryType,
       types: place.types,
       businessStatus: place.businessStatus,
       regularOpeningHours: place.regularOpeningHours,
@@ -136,6 +146,17 @@ class TripStopLocation {
       openNow: place.openNow,
     );
   }
+
+  /// True for a Google result that's just a geocoded address/administrative
+  /// area (a street, a postal code, a locality boundary, ...) rather than
+  /// an actual visitable place — e.g. searching "Komtar" can surface a
+  /// bare `[premise, street_address]` result alongside the real Komtar
+  /// tower. Useless for trip planning (no [businessStatus], no opening
+  /// hours), so results like this should be filtered out of search
+  /// results in favor of an actual POI/business/attraction. Always false
+  /// for a Photon/OSM result ([types] is empty, not address-only).
+  bool get isAddressOnly =>
+      types.isNotEmpty && types.every(_addressOnlyTypes.contains);
 
   /// Same real-world place as [other]? Prefers Google's [placeId] when
   /// both sides have one (stable even if the coordinates drift slightly
@@ -154,6 +175,37 @@ class TripStopLocation {
   int get hashCode =>
       placeId?.hashCode ?? Object.hash(latitude, longitude, osmId);
 }
+
+/// Google Places type tags that describe a geocoded address/administrative
+/// area rather than a visitable place — a result whose [TripStopLocation.types]
+/// are *entirely* drawn from this set (see [TripStopLocation.isAddressOnly])
+/// carries no [TripStopLocation.businessStatus] or opening hours and isn't
+/// useful as a trip stop.
+const _addressOnlyTypes = {
+  'premise',
+  'subpremise',
+  'street_address',
+  'street_number',
+  'route',
+  'intersection',
+  'locality',
+  'sublocality',
+  'sublocality_level_1',
+  'sublocality_level_2',
+  'sublocality_level_3',
+  'sublocality_level_4',
+  'sublocality_level_5',
+  'neighborhood',
+  'postal_code',
+  'postal_town',
+  'administrative_area_level_1',
+  'administrative_area_level_2',
+  'administrative_area_level_3',
+  'administrative_area_level_4',
+  'administrative_area_level_5',
+  'country',
+  'plus_code',
+};
 
 /// Maps Google Places' `primaryType` to the same coarse category labels
 /// [PhotonService]'s OSM-tag mapping produces, so a stop's [categoryIcon]

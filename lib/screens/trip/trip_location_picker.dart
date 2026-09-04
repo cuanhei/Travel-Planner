@@ -215,6 +215,11 @@ class _GoogleStopSearchFieldState extends State<_GoogleStopSearchField> {
   String? _error;
   bool _hasSearched = false;
 
+  /// True while fetching the full Place Details for a just-tapped result
+  /// (see [_select]) — the search box shows a loading state instead of
+  /// its normal query/results UI during this brief window.
+  bool _fetchingDetails = false;
+
   @override
   void dispose() {
     _debounce?.cancel();
@@ -243,9 +248,20 @@ class _GoogleStopSearchFieldState extends State<_GoogleStopSearchField> {
       final places = await _placesService.textSearch(query);
       if (!mounted) return;
       setState(() {
-        _results = [
+        final all = [
           for (final p in places) TripStopLocation.fromNearbyPlace(p),
         ];
+        // Prefer dropping address/administrative-area-only results (a
+        // bare street, postal code, locality, ...) — useless as a trip
+        // stop (no business status, no opening hours) and confusing
+        // alongside an actual POI/business/attraction for the same
+        // query. But if that would filter out *every* result — Google's
+        // top matches for some landmark queries are occasionally
+        // address-only with no separate POI entry returned at all — show
+        // the unfiltered list instead of leaving the traveler with
+        // nothing to pick.
+        final poiOnly = all.where((s) => !s.isAddressOnly).toList();
+        _results = poiOnly.isNotEmpty ? poiOnly : all;
         _searching = false;
         _error = null;
         _hasSearched = true;
@@ -262,7 +278,14 @@ class _GoogleStopSearchFieldState extends State<_GoogleStopSearchField> {
     }
   }
 
-  void _select(TripStopLocation stop) {
+  /// Fetches the full Place Details for the tapped [stop] (via its
+  /// [TripStopLocation.placeId]) before staging it as pending, so the
+  /// stop that actually gets added carries fresh, complete data rather
+  /// than whatever the search result's field mask happened to include.
+  /// Falls back to the lightweight search result if the details request
+  /// fails, rather than blocking the traveler from adding the stop at
+  /// all over a transient network error.
+  Future<void> _select(TripStopLocation stop) async {
     FocusScope.of(context).unfocus();
     _debounce?.cancel();
     _controller.clear();
@@ -271,8 +294,23 @@ class _GoogleStopSearchFieldState extends State<_GoogleStopSearchField> {
       _error = null;
       _hasSearched = false;
       _searching = false;
+      _fetchingDetails = true;
     });
-    widget.onChanged(stop);
+
+    var resolved = stop;
+    final placeId = stop.placeId;
+    if (placeId != null) {
+      try {
+        final details = await _placesService.getPlaceDetails(placeId);
+        resolved = TripStopLocation.fromNearbyPlace(details);
+      } catch (_) {
+        // Keep the lightweight search-result stop as a fallback.
+      }
+    }
+
+    if (!mounted) return;
+    setState(() => _fetchingDetails = false);
+    widget.onChanged(resolved);
   }
 
   void _clear() {
@@ -316,15 +354,18 @@ class _GoogleStopSearchFieldState extends State<_GoogleStopSearchField> {
                   child: TextField(
                     controller: _controller,
                     onChanged: _onQueryChanged,
+                    readOnly: _fetchingDetails,
                     textInputAction: TextInputAction.search,
                     style: const TextStyle(
                       color: Color(0xFF0B1D3A),
                       fontSize: 13.5,
                       fontWeight: FontWeight.w600,
                     ),
-                    decoration: const InputDecoration(
-                      hintText: 'Search for a place to add…',
-                      hintStyle: TextStyle(
+                    decoration: InputDecoration(
+                      hintText: _fetchingDetails
+                          ? 'Loading place details…'
+                          : 'Search for a place to add…',
+                      hintStyle: const TextStyle(
                         color: Color(0xFF6E7A93),
                         fontWeight: FontWeight.w500,
                       ),
@@ -333,7 +374,7 @@ class _GoogleStopSearchFieldState extends State<_GoogleStopSearchField> {
                     ),
                   ),
                 ),
-                if (_searching)
+                if (_searching || _fetchingDetails)
                   const SizedBox(
                     width: 16,
                     height: 16,
