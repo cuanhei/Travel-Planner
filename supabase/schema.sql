@@ -205,6 +205,24 @@ create table public.trip_schedule_stops (
   created_at timestamptz not null default now()
 );
 
+-- Where the traveler(s) stay each night of the trip, captured on Create
+-- Trip right after picking travel dates. One row per night — an N-day
+-- trip has nights 1..N-1 (night_number is 1-indexed), so a single-day
+-- trip has none. Deliberately separate from trip_schedule_stops (which
+-- needs a real trip_stops row + a full day-by-day schedule, neither of
+-- which exists yet at trip-creation time).
+create table public.trip_accommodations (
+  id uuid primary key default gen_random_uuid(),
+  trip_id uuid not null references public.trips (id) on delete cascade,
+  night_number integer not null check (night_number > 0),
+  name text not null,
+  address text not null default '',
+  latitude double precision not null,
+  longitude double precision not null,
+  created_at timestamptz not null default now(),
+  unique (trip_id, night_number)
+);
+
 -- ============================================================
 -- Group module: invites, join requests, chat, polls
 -- ============================================================
@@ -733,6 +751,7 @@ alter table public.trip_settlements enable row level security;
 alter table public.trip_stops enable row level security;
 alter table public.trip_favorite_stops enable row level security;
 alter table public.trip_schedule_stops enable row level security;
+alter table public.trip_accommodations enable row level security;
 alter table public.posts enable row level security;
 alter table public.post_likes enable row level security;
 alter table public.comments enable row level security;
@@ -997,6 +1016,12 @@ create policy "trip_favorite_stops_write_members" on public.trip_favorite_stops
 create policy "trip_schedule_stops_select_members" on public.trip_schedule_stops
   for select to authenticated using (public.is_trip_member(trip_id));
 create policy "trip_schedule_stops_write_members" on public.trip_schedule_stops
+  for all to authenticated using (public.is_trip_member(trip_id))
+  with check (public.is_trip_member(trip_id));
+
+create policy "trip_accommodations_select_members" on public.trip_accommodations
+  for select to authenticated using (public.is_trip_member(trip_id));
+create policy "trip_accommodations_write_members" on public.trip_accommodations
   for all to authenticated using (public.is_trip_member(trip_id))
   with check (public.is_trip_member(trip_id));
 

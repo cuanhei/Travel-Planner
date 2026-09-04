@@ -39,6 +39,9 @@ String _formatDateRange(DateTimeRange range) {
       '${_monthNames[end.month - 1]} ${end.day}, ${end.year}';
 }
 
+/// e.g. "Aug 14".
+String _formatShortDate(DateTime d) => '${_monthNames[d.month - 1]} ${d.day}';
+
 bool _isSameDate(DateTime a, DateTime b) =>
     a.year == b.year && a.month == b.month && a.day == b.day;
 
@@ -103,6 +106,17 @@ class _CreateTripScreenState extends State<CreateTripScreen> {
   TimeOfDay _startTime = const TimeOfDay(hour: 9, minute: 0);
   TimeOfDay _endTime = const TimeOfDay(hour: 18, minute: 0);
   final Set<TripStopLocation> _selectedStops = {};
+
+  /// One slot per night of the trip (index 0 = night 1, the night after
+  /// day 1), resized by [_applyDateRange] whenever the date range
+  /// changes. Empty for a trip with no dates yet, or a single-day trip
+  /// (same start/end date — nothing to stay overnight for).
+  List<TripStopLocation?> _accommodations = [];
+
+  /// True once a submit attempt found an unfilled night — shows each
+  /// empty night's inline error until fixed, mirroring [_hasTriedSubmitting]
+  /// for the Trip Name field.
+  bool _accommodationValidationFailed = false;
   bool _isSubmitting = false;
   bool _hasTriedSubmitting = false;
 
@@ -154,6 +168,34 @@ class _CreateTripScreenState extends State<CreateTripScreen> {
     _endLocationFieldKey.currentState?.didChange(picked);
   }
 
+  /// Nights the trip spans — an N-day trip needs accommodation for
+  /// nights 1..N-1, so this is 0 for a same-day trip or when no dates
+  /// are picked yet.
+  int get _nightsNeeded => _dateRange?.duration.inDays ?? 0;
+
+  /// Resizes [_accommodations] to match [_nightsNeeded], preserving
+  /// already-picked nights that still exist (e.g. shortening a 4-night
+  /// trip to 2 nights keeps nights 1-2, dropping 3-4; lengthening it
+  /// back out re-adds empty slots rather than losing what was picked).
+  void _resizeAccommodations() {
+    final needed = _nightsNeeded;
+    if (_accommodations.length == needed) return;
+    _accommodations = List.generate(
+      needed,
+      (i) => i < _accommodations.length ? _accommodations[i] : null,
+    );
+  }
+
+  void _onAccommodationChanged(int night, TripStopLocation? picked) {
+    setState(() {
+      _accommodations[night] = picked;
+      if (_accommodationValidationFailed &&
+          !_accommodations.contains(null)) {
+        _accommodationValidationFailed = false;
+      }
+    });
+  }
+
   /// Every date range the traveler is already committed to via another
   /// trip they belong to — the new trip's dates must not clash with any
   /// of these. Trips without both a start and end date set don't block
@@ -195,6 +237,7 @@ class _CreateTripScreenState extends State<CreateTripScreen> {
       _dateRange = result.dateRange;
       _startTime = result.startTime;
       _endTime = result.endTime;
+      _resizeAccommodations();
     });
     _dateRangeFieldKey.currentState?.didChange(result.dateRange);
   }
@@ -408,6 +451,15 @@ class _CreateTripScreenState extends State<CreateTripScreen> {
       return;
     }
 
+    final missingNight = _accommodations.indexWhere((a) => a == null);
+    if (missingNight != -1) {
+      setState(() => _accommodationValidationFailed = true);
+      _showRequiredMessage(
+        'Choose where you\'re staying on night ${missingNight + 1}.',
+      );
+      return;
+    }
+
     final budget = _parseBudget(_budgetController.text);
     setState(() => _isSubmitting = true);
     try {
@@ -430,6 +482,7 @@ class _CreateTripScreenState extends State<CreateTripScreen> {
         startTime: _formatTimeOfDay(_startTime),
         endTime: _formatTimeOfDay(_endTime),
         totalBudget: budget,
+        accommodations: [for (final a in _accommodations) a!],
       );
     } catch (e) {
       // Full exception (PostgrestException's message/code/details/hint)
@@ -469,6 +522,7 @@ class _CreateTripScreenState extends State<CreateTripScreen> {
       _descriptionController.text.trim().isNotEmpty ||
       _startLocation != null ||
       _endLocation != null ||
+      _accommodations.any((a) => a != null) ||
       _dateRange != null ||
       _budgetController.text.trim() != '1000' ||
       _selectedStops.isNotEmpty;
@@ -636,6 +690,26 @@ class _CreateTripScreenState extends State<CreateTripScreen> {
                               ],
                             ),
                           ),
+                          if (_nightsNeeded > 0) ...[
+                            for (var night = 0; night < _nightsNeeded; night++) ...[
+                              const SizedBox(height: 18),
+                              _FieldLabel(
+                                'Accommodation — Night ${night + 1} '
+                                '(${_formatShortDate(_dateRange!.start.add(Duration(days: night)))}) *',
+                              ),
+                              LocationSearchField(
+                                value: _accommodations[night],
+                                onChanged: (picked) =>
+                                    _onAccommodationChanged(night, picked),
+                                hintText: 'Search for a hotel or place to stay…',
+                              ),
+                              if (_accommodationValidationFailed &&
+                                  _accommodations[night] == null)
+                                _FieldError(
+                                  'Choose where you\'re staying this night.',
+                                ),
+                            ],
+                          ],
                           const SizedBox(height: 18),
                           _FieldLabel('Budget *'),
                           _InputBox(

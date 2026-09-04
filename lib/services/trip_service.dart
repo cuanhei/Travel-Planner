@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../models/trip.dart';
+import '../models/trip_accommodation.dart';
 import '../models/trip_stop_location.dart';
 import 'supabase_config.dart';
 
@@ -114,6 +115,12 @@ class TripService {
     String? startTime,
     String? endTime,
     required double totalBudget,
+    /// One accommodation per night of the trip — index 0 is the first
+    /// night (after day 1), index 1 the second, and so on. A trip
+    /// spanning N days has N-1 nights, so this is empty for a single-day
+    /// trip. Every entry must be non-null; validated by the caller (the
+    /// Create Trip form) before this is called.
+    List<TripStopLocation> accommodations = const [],
   }) async {
     final trimmedName = name.trim();
     if (trimmedName.isEmpty) {
@@ -149,7 +156,38 @@ class TripService {
           .select()
           .single(),
     );
-    return row['id'] as String;
+    final tripId = row['id'] as String;
+
+    if (accommodations.isNotEmpty) {
+      await retryOnJwtClockSkew(
+        () => _client.from('trip_accommodations').insert([
+          for (var i = 0; i < accommodations.length; i++)
+            {
+              'trip_id': tripId,
+              'night_number': i + 1,
+              'name': accommodations[i].name,
+              'address': accommodations[i].address,
+              'latitude': accommodations[i].latitude,
+              'longitude': accommodations[i].longitude,
+            },
+        ]),
+      );
+    }
+
+    return tripId;
+  }
+
+  /// Every night's accommodation for a trip, ordered by [night_number] —
+  /// backs Trip Details' itinerary view.
+  Future<List<TripAccommodation>> tripAccommodations(String tripId) async {
+    final rows = await retryOnJwtClockSkew(
+      () => _client
+          .from('trip_accommodations')
+          .select()
+          .eq('trip_id', tripId)
+          .order('night_number'),
+    );
+    return [for (final row in rows) TripAccommodation.fromMap(row)];
   }
 
   /// All trips the signed-in user is a member of (as organizer or plain
