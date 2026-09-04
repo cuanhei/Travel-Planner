@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../data/countries.dart';
+import '../services/locale_service.dart';
 import '../theme/app_theme.dart';
 
 /// Tappable "🇲🇾 +60" chip. Opens a searchable bottom sheet of countries;
@@ -123,7 +124,7 @@ class _CountryPickerSheetState extends State<_CountryPickerSheet> {
                   onChanged: _onSearchChanged,
                   style: TextStyle(color: context.colors.ink),
                   decoration: InputDecoration(
-                    hintText: 'Search country or code',
+                    hintText: tr('common_search_country_or_code'),
                     prefixIcon: Icon(
                       Icons.search_rounded,
                       color: context.colors.muted,
@@ -142,7 +143,7 @@ class _CountryPickerSheetState extends State<_CountryPickerSheet> {
                 child: _filtered.isEmpty
                     ? Center(
                         child: Text(
-                          'No countries found',
+                          tr('common_no_countries_found'),
                           style: TextStyle(color: context.colors.muted),
                         ),
                       )

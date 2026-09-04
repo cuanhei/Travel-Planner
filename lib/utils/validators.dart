@@ -1,3 +1,5 @@
+import '../data/countries.dart';
+
 /// Client-side form validators for the Authentication module.
 ///
 /// These catch obviously-bad input before it ever reaches Supabase, so the
@@ -69,18 +71,26 @@ class Validators {
     return null;
   }
 
-  static final RegExp _phoneCharsPattern = RegExp(r'^[\d\s+\-()]+$');
+  static final RegExp _digitsOnlyPattern = RegExp(r'^\d+$');
 
-  /// Edit Profile's phone field is optional — only checked once the user
-  /// has typed something. Not a strict international format, just "looks
-  /// like a phone number" (digits, spaces, +, -, parentheses, and enough
-  /// digits to be plausible).
-  static String? phone(String? value) {
+  /// The local number entered next to a [Country]'s dial code (Edit
+  /// Profile / Emergency Contact) — required. Digits only (the country's
+  /// dial code is already separate, so no `+`, spaces, dashes, or letters
+  /// belong here), and must match [country]'s expected national number
+  /// length — e.g. Malaysia (+60) requires exactly 9 digits, like
+  /// `123456789`.
+  static String? phone(String? value, Country country) {
     final v = value?.trim() ?? '';
-    if (v.isEmpty) return null;
-    final digitCount = RegExp(r'\d').allMatches(v).length;
-    if (digitCount < 7 || !_phoneCharsPattern.hasMatch(v)) {
-      return 'Enter a valid phone number';
+    if (v.isEmpty) return 'Enter a phone number';
+    if (!_digitsOnlyPattern.hasMatch(v)) {
+      return 'Phone number can only contain digits';
+    }
+    final min = country.minPhoneDigits;
+    final max = country.maxPhoneDigits;
+    if (v.length < min || v.length > max) {
+      return min == max
+          ? 'Enter exactly $min digits for ${country.name}'
+          : 'Enter $min–$max digits for ${country.name}';
     }
     return null;
   }

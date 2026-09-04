@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../services/locale_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/current_location_marker.dart';
 import '../../widgets/street_map_painter.dart';
@@ -40,26 +41,30 @@ class _StartNavigationScreenState extends State<StartNavigationScreen>
 
   late final List<_NavStep> _steps = [
     _NavStep(
-      title: 'Walk to ${widget.departure.nearestStop}',
-      detail: 'About ${widget.departure.walkToStopMinutes} min on foot from your current location.',
+      title: tr('transport_step_walk_to_title').replaceAll('{stop}', widget.departure.nearestStop),
+      detail: tr('transport_step_walk_to_detail')
+          .replaceAll('{min}', '${widget.departure.walkToStopMinutes}'),
       icon: Icons.directions_walk_rounded,
       minutes: widget.departure.walkToStopMinutes,
     ),
     _NavStep(
-      title: 'Wait for Bus ${widget.departure.busNumber}',
-      detail: 'Arrives in approximately ${widget.departure.waitMinutes} min — keep an eye out for the number.',
+      title: tr('transport_step_wait_title').replaceAll('{bus}', widget.departure.busNumber),
+      detail: tr('transport_step_wait_detail').replaceAll('{min}', '${widget.departure.waitMinutes}'),
       icon: Icons.schedule_rounded,
       minutes: widget.departure.waitMinutes,
     ),
     _NavStep(
-      title: 'Ride Bus ${widget.departure.busNumber}',
-      detail: 'Ride for about ${widget.departure.rideMinutes} min. Fare is ${widget.departure.fare}.',
+      title: tr('transport_step_ride_title').replaceAll('{bus}', widget.departure.busNumber),
+      detail: tr('transport_step_ride_fare_detail')
+          .replaceAll('{min}', '${widget.departure.rideMinutes}')
+          .replaceAll('{fare}', widget.departure.fare),
       icon: Icons.directions_bus_filled_rounded,
       minutes: widget.departure.rideMinutes,
     ),
     _NavStep(
-      title: 'Walk to ${widget.departure.destinationName}',
-      detail: 'About ${widget.departure.walkFromStopMinutes} min on foot to arrive.',
+      title: tr('transport_step_walk_dest_title').replaceAll('{dest}', widget.departure.destinationName),
+      detail: tr('transport_step_walk_dest_detail')
+          .replaceAll('{min}', '${widget.departure.walkFromStopMinutes}'),
       icon: Icons.flag_rounded,
       minutes: widget.departure.walkFromStopMinutes,
     ),
@@ -142,7 +147,9 @@ class _StartNavigationScreenState extends State<StartNavigationScreen>
                   ),
                   Expanded(
                     child: Text(
-                      'Bus ${widget.departure.busNumber} to ${widget.departure.destinationName}',
+                      tr('transport_bus_to_subtitle')
+                          .replaceAll('{bus}', widget.departure.busNumber)
+                          .replaceAll('{dest}', widget.departure.destinationName),
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(
                         color: context.colors.ink,
@@ -320,7 +327,7 @@ class _StepCard extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
                   Text(
-                    '$minutesRemaining min',
+                    '$minutesRemaining ${tr('transport_min')}',
                     style: TextStyle(
                       color: context.colors.ink,
                       fontWeight: FontWeight.w800,
@@ -328,7 +335,7 @@ class _StepCard extends StatelessWidget {
                     ),
                   ),
                   Text(
-                    'left',
+                    tr('transport_left'),
                     style: TextStyle(color: context.colors.muted, fontSize: 10.5),
                   ),
                 ],
@@ -358,7 +365,7 @@ class _StepCard extends StatelessWidget {
                 ),
               ),
               child: Text(
-                isLastStep ? "I've arrived" : 'Skip to next step',
+                isLastStep ? tr('transport_arrived_button') : tr('transport_skip_next_step'),
                 style: TextStyle(
                   color: context.colors.ink,
                   fontWeight: FontWeight.w700,
@@ -421,7 +428,7 @@ class _ArrivedCard extends StatelessWidget {
               const SizedBox(width: 12),
               Expanded(
                 child: Text(
-                  "You've arrived at $destinationName",
+                  tr('transport_arrived_at').replaceAll('{dest}', destinationName),
                   style: const TextStyle(
                     color: Colors.white,
                     fontWeight: FontWeight.w800,
@@ -443,7 +450,7 @@ class _ArrivedCard extends StatelessWidget {
                 child: Padding(
                   padding: const EdgeInsets.symmetric(vertical: 12),
                   child: Text(
-                    'Done',
+                    tr('transport_done'),
                     textAlign: TextAlign.center,
                     style: TextStyle(
                       color: context.colors.ink,

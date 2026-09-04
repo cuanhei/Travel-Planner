@@ -7,7 +7,9 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'firebase_options.dart';
 import 'screens/splash_screen.dart';
+import 'services/auth_service.dart';
 import 'services/locale_service.dart';
+import 'services/login_activity_service.dart';
 import 'services/supabase_config.dart';
 import 'theme/app_theme.dart';
 
@@ -28,6 +30,19 @@ Future<void> main() async {
       url: SupabaseConfig.url,
       publishableKey: SupabaseConfig.publishableKey,
     );
+    // Records login activity and clears any failed-login lockout streak
+    // whenever a new sign-in actually completes. `signedIn` is GoTrue's
+    // event specifically for that — a page reload that merely restores an
+    // already-persisted session fires `initialSession` instead — so this
+    // covers every sign-in path (password, Google OAuth, anything added
+    // later) from one place without double-counting reloads.
+    Supabase.instance.client.auth.onAuthStateChange.listen((state) {
+      if (state.event == AuthChangeEvent.signedIn) {
+        LoginActivityService.instance.record();
+        final email = state.session?.user.email;
+        if (email != null) AuthService.instance.clearLoginLockout(email);
+      }
+    });
   }
 
   // Only the web config is filled in (see firebase_options.dart) — this app

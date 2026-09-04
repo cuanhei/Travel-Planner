@@ -7,6 +7,7 @@ import '../services/auth_service.dart';
 import '../services/locale_service.dart';
 import '../theme/app_theme.dart';
 import '../utils/validators.dart';
+import '../widgets/code_expiry_timer.dart';
 import '../widgets/gradient_button.dart';
 import 'reset_password_screen.dart';
 
@@ -32,7 +33,9 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
   _Step _step = _Step.request;
   bool _loading = false;
   bool _codeError = false;
+  bool _codeExpired = false;
   int _cooldown = 0;
+  int _codeRequestId = 0;
 
   @override
   void dispose() {
@@ -61,7 +64,11 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
         _emailController.text.trim(),
       );
       if (!mounted) return;
-      setState(() => _step = _Step.code);
+      setState(() {
+        _step = _Step.code;
+        _codeExpired = false;
+        _codeRequestId++;
+      });
       _startCooldown();
     } on AuthException catch (e) {
       _showError(friendlyAuthError(e));
@@ -78,6 +85,12 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
       await AuthService.instance.resendPasswordResetCode(
         _emailController.text.trim(),
       );
+      if (mounted) {
+        setState(() {
+          _codeExpired = false;
+          _codeRequestId++;
+        });
+      }
       _startCooldown();
     } on AuthException catch (e) {
       _showError(friendlyAuthError(e));
@@ -89,6 +102,10 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
   }
 
   Future<void> _verifyCode() async {
+    if (_codeExpired) {
+      _showError(tr('auth_code_expired_error'));
+      return;
+    }
     if (_code.length < _digits) {
       setState(() => _codeError = true);
       return;
@@ -191,6 +208,9 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                                 hasError: _codeError,
                                 loading: _loading,
                                 cooldown: _cooldown,
+                                codeRequestId: _codeRequestId,
+                                onExpired: () =>
+                                    setState(() => _codeExpired = true),
                                 onChanged: _onCodeChanged,
                                 onVerify: _verifyCode,
                                 onResend: _cooldown == 0 ? _resend : null,
@@ -389,6 +409,8 @@ class _CodeView extends StatelessWidget {
     required this.hasError,
     required this.loading,
     required this.cooldown,
+    required this.codeRequestId,
+    required this.onExpired,
     required this.onChanged,
     required this.onVerify,
     required this.onResend,
@@ -400,6 +422,8 @@ class _CodeView extends StatelessWidget {
   final bool hasError;
   final bool loading;
   final int cooldown;
+  final int codeRequestId;
+  final VoidCallback onExpired;
   final void Function(int, String) onChanged;
   final VoidCallback onVerify;
   final VoidCallback? onResend;
@@ -478,7 +502,9 @@ class _CodeView extends StatelessWidget {
               style: TextStyle(color: Colors.redAccent, fontSize: 12),
             ),
           ),
-        SizedBox(height: 28),
+        SizedBox(height: 14),
+        CodeExpiryTimer(resetKey: codeRequestId, onExpired: onExpired),
+        SizedBox(height: 14),
         GradientButton(
           label: tr('auth_verify_code'),
           onPressed: onVerify,

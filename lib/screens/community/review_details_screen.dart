@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../services/locale_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/coming_soon.dart';
 import '../../widgets/detail_header.dart';
@@ -13,50 +14,52 @@ class ReviewDetailsScreen extends StatelessWidget {
 
   final String placeName;
 
-  static final _reviews = [
+  // A function, not `static final` — see the comment on `_seedPosts` in
+  // `community_tab.dart` for why: a `final` only evaluates once, so any
+  // `tr()` calls in it would never retranslate on a language change.
+  List<Review> _reviews() => [
     Review(
-      author: 'Mei Ling',
+      author: tr('community_author_mei_ling'),
       avatarColor: Color(0xFFFF7A59),
       rating: 5,
-      date: '2 days ago',
-      text:
-          'Absolutely stunning, go at sunset for the best light. Loved every minute!',
+      date: tr('community_review_date_2_days_ago'),
+      text: tr('community_review_text_1'),
     ),
     Review(
-      author: 'Arif Hakim',
+      author: tr('community_author_arif_hakim'),
       avatarColor: Color(0xFF5C6BC0),
       rating: 4,
-      date: '1 week ago',
-      text: 'Great spot, a bit crowded on weekends but still worth it.',
+      date: tr('community_review_date_1_week_ago'),
+      text: tr('community_review_text_2'),
     ),
     Review(
-      author: 'Sophia Tan',
+      author: tr('community_author_sophia_tan'),
       avatarColor: Color(0xFF11998E),
       rating: 5,
-      date: '3 weeks ago',
-      text:
-          'One of the highlights of our whole trip. Highly recommend for photos.',
+      date: tr('community_review_date_3_weeks_ago'),
+      text: tr('community_review_text_3'),
     ),
     Review(
-      author: 'Daniel Wong',
+      author: tr('community_author_daniel_wong'),
       avatarColor: Color(0xFFFFB347),
       rating: 4,
-      date: '1 month ago',
-      text: 'Nice experience overall, could use better signage though.',
+      date: tr('community_review_date_1_month_ago'),
+      text: tr('community_review_text_4'),
     ),
   ];
 
   @override
   Widget build(BuildContext context) {
+    final reviews = _reviews();
     final avg =
-        _reviews.map((r) => r.rating).reduce((a, b) => a + b) / _reviews.length;
+        reviews.map((r) => r.rating).reduce((a, b) => a + b) / reviews.length;
 
     return Scaffold(
       backgroundColor: context.colors.surface,
       body: SafeArea(
         child: Column(
           children: [
-            DetailHeader(title: 'Reviews', subtitle: placeName),
+            DetailHeader(title: tr('community_reviews_title'), subtitle: placeName),
             Padding(
               padding: EdgeInsets.symmetric(horizontal: 24),
               child: Container(
@@ -98,7 +101,7 @@ class ReviewDetailsScreen extends StatelessWidget {
                         ),
                         SizedBox(height: 2),
                         Text(
-                          '${_reviews.length} reviews',
+                          '${reviews.length} ${tr('community_reviews_count')}',
                           style: TextStyle(
                             color: context.colors.muted,
                             fontSize: 11,
@@ -111,10 +114,10 @@ class ReviewDetailsScreen extends StatelessWidget {
                       child: Column(
                         children: List.generate(5, (i) {
                           final star = 5 - i;
-                          final count = _reviews
+                          final count = reviews
                               .where((r) => r.rating.round() == star)
                               .length;
-                          final ratio = count / _reviews.length;
+                          final ratio = count / reviews.length;
                           return Padding(
                             padding: EdgeInsets.symmetric(vertical: 2),
                             child: Row(
@@ -154,9 +157,9 @@ class ReviewDetailsScreen extends StatelessWidget {
             Expanded(
               child: ListView.builder(
                 padding: EdgeInsets.fromLTRB(24, 8, 24, 8),
-                itemCount: _reviews.length,
+                itemCount: reviews.length,
                 itemBuilder: (context, index) {
-                  final r = _reviews[index];
+                  final r = reviews[index];
                   return _ReviewTile(review: r);
                 },
               ),
@@ -172,7 +175,7 @@ class ReviewDetailsScreen extends StatelessWidget {
                     ),
                   ),
                   icon: Icon(Icons.rate_review_rounded, size: 18),
-                  label: Text('Write a Review'),
+                  label: Text(tr('community_write_review')),
                   style: OutlinedButton.styleFrom(
                     foregroundColor: context.colors.ink,
                     side: BorderSide(color: context.colors.ink),
@@ -277,9 +280,9 @@ class _ReviewTile extends StatelessWidget {
           ),
           SizedBox(height: 8),
           GestureDetector(
-            onTap: () => showComingSoon(context, 'Reply'),
+            onTap: () => showComingSoon(context, tr('community_reply')),
             child: Text(
-              'Reply',
+              tr('community_reply'),
               style: TextStyle(
                 color: AppColors.accent,
                 fontWeight: FontWeight.w700,

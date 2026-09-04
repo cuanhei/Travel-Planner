@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../models/trip.dart';
+import '../../services/locale_service.dart';
 import '../../services/trip_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/section_header.dart';
@@ -65,7 +66,7 @@ class _TripsTabState extends State<TripsTab> {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Text(
-                      'Couldn\'t load your trips',
+                      tr('trip_couldnt_load_trips'),
                       style: TextStyle(
                         color: context.colors.ink,
                         fontWeight: FontWeight.w700,
@@ -85,7 +86,7 @@ class _TripsTabState extends State<TripsTab> {
                     TextButton.icon(
                       onPressed: _retry,
                       icon: const Icon(Icons.refresh_rounded, size: 18),
-                      label: const Text('Retry'),
+                      label: Text(tr('trip_retry')),
                       style: TextButton.styleFrom(
                         foregroundColor: context.colors.ink,
                       ),
@@ -129,7 +130,7 @@ class _TripsTabState extends State<TripsTab> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          'My Trips',
+                          tr('trip_my_trips_title'),
                           style: TextStyle(
                             color: context.colors.ink,
                             fontSize: 24,
@@ -138,7 +139,9 @@ class _TripsTabState extends State<TripsTab> {
                         ),
                         const SizedBox(height: 2),
                         Text(
-                          '${trips.length} trip${trips.length == 1 ? '' : 's'} planned so far',
+                          '${trips.length} '
+                          '${trips.length == 1 ? tr('trip_word_singular') : tr('trip_word_plural')} '
+                          '${tr('trip_planned_so_far')}',
                           style: TextStyle(
                             color: context.colors.muted,
                             fontSize: 12.5,
@@ -181,21 +184,36 @@ class _TripsTabState extends State<TripsTab> {
                 const _EmptyTrips()
               else ...[
                 if (current.isNotEmpty) ...[
-                  SectionHeader(title: 'Current'),
+                  SectionHeader(title: tr('trip_status_current')),
                   const SizedBox(height: 14),
-                  ..._tripCards(context, current, 'Ongoing'),
+                  ..._tripCards(
+                    context,
+                    current,
+                    tr('trip_status_ongoing'),
+                    active: true,
+                  ),
                   const SizedBox(height: 28),
                 ],
                 if (upcoming.isNotEmpty) ...[
-                  SectionHeader(title: 'Upcoming'),
+                  SectionHeader(title: tr('trip_status_upcoming')),
                   const SizedBox(height: 14),
-                  ..._tripCards(context, upcoming, 'Upcoming'),
+                  ..._tripCards(
+                    context,
+                    upcoming,
+                    tr('trip_status_upcoming'),
+                    active: true,
+                  ),
                   const SizedBox(height: 28),
                 ],
                 if (past.isNotEmpty) ...[
-                  SectionHeader(title: 'Past Trips'),
+                  SectionHeader(title: tr('trip_section_past_trips')),
                   const SizedBox(height: 14),
-                  ..._tripCards(context, past, 'Completed'),
+                  ..._tripCards(
+                    context,
+                    past,
+                    tr('trip_status_completed'),
+                    active: false,
+                  ),
                 ],
               ],
             ],
@@ -208,13 +226,15 @@ class _TripsTabState extends State<TripsTab> {
   List<Widget> _tripCards(
     BuildContext context,
     List<Trip> trips,
-    String status,
-  ) {
+    String status, {
+    required bool active,
+  }) {
     return [
       for (var i = 0; i < trips.length; i++)
         _TripCard(
           trip: trips[i],
           status: status,
+          active: active,
           gradient: _gradientFor(i),
           onTap: () => Navigator.of(context).push(
             MaterialPageRoute(
@@ -262,7 +282,7 @@ class _TripSearchField extends StatelessWidget {
                 fontWeight: FontWeight.w600,
               ),
               decoration: InputDecoration(
-                hintText: 'Search trips by name…',
+                hintText: tr('trip_search_trips_hint'),
                 hintStyle: TextStyle(
                   color: context.colors.muted,
                   fontWeight: FontWeight.w500,
@@ -310,7 +330,7 @@ class _NoSearchResults extends StatelessWidget {
           Icon(Icons.search_off_rounded, color: context.colors.muted, size: 30),
           const SizedBox(height: 10),
           Text(
-            'No trips named "$query"',
+            '${tr('trip_no_trips_named_prefix')} "$query"',
             textAlign: TextAlign.center,
             style: TextStyle(
               color: context.colors.ink,
@@ -320,7 +340,7 @@ class _NoSearchResults extends StatelessWidget {
           ),
           const SizedBox(height: 4),
           Text(
-            'Try a different trip name.',
+            tr('trip_try_different_name'),
             style: TextStyle(color: context.colors.muted, fontSize: 12),
           ),
         ],
@@ -333,18 +353,19 @@ class _TripCard extends StatelessWidget {
   const _TripCard({
     required this.trip,
     required this.status,
+    required this.active,
     required this.gradient,
     required this.onTap,
   });
 
   final Trip trip;
   final String status;
+  final bool active;
   final List<Color> gradient;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    final active = status != 'Completed';
     return Padding(
       padding: const EdgeInsets.only(bottom: 14),
       child: Material(
@@ -431,7 +452,7 @@ class _TripCard extends StatelessWidget {
                           Expanded(
                             child: Text(
                               trip.destination.isEmpty
-                                  ? 'No destination set'
+                                  ? tr('trip_no_destination_set')
                                   : trip.destination,
                               overflow: TextOverflow.ellipsis,
                               style: TextStyle(
@@ -535,7 +556,7 @@ class _EmptyTrips extends StatelessWidget {
           Icon(Icons.luggage_rounded, color: context.colors.muted, size: 30),
           const SizedBox(height: 10),
           Text(
-            'No trips yet',
+            tr('trip_no_trips_yet'),
             style: TextStyle(
               color: context.colors.ink,
               fontWeight: FontWeight.w700,
@@ -544,7 +565,7 @@ class _EmptyTrips extends StatelessWidget {
           ),
           const SizedBox(height: 4),
           Text(
-            'Tap + to start planning your next adventure.',
+            tr('trip_tap_plus_hint'),
             textAlign: TextAlign.center,
             style: TextStyle(color: context.colors.muted, fontSize: 12),
           ),

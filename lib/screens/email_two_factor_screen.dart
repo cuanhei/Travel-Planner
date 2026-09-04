@@ -4,7 +4,9 @@ import 'package:supabase_flutter/supabase_flutter.dart' show AuthException;
 
 import '../services/auth_error_messages.dart';
 import '../services/auth_service.dart';
+import '../services/locale_service.dart';
 import '../theme/app_theme.dart';
+import '../widgets/code_expiry_timer.dart';
 import '../widgets/gradient_button.dart';
 import 'auth_screen.dart';
 import 'home_screen.dart';
@@ -30,6 +32,8 @@ class _EmailTwoFactorScreenState extends State<EmailTwoFactorScreen> {
   bool _hasError = false;
   bool _loading = false;
   bool _resending = false;
+  bool _codeExpired = false;
+  int _codeRequestId = 0;
 
   @override
   void dispose() {
@@ -58,6 +62,10 @@ class _EmailTwoFactorScreenState extends State<EmailTwoFactorScreen> {
   }
 
   Future<void> _verify() async {
+    if (_codeExpired) {
+      _showError(tr('auth_code_expired_error'));
+      return;
+    }
     if (_code.length < _digits) {
       setState(() => _hasError = true);
       return;
@@ -82,7 +90,7 @@ class _EmailTwoFactorScreenState extends State<EmailTwoFactorScreen> {
       _showError(friendlyAuthError(e));
     } catch (_) {
       setState(() => _hasError = true);
-      _showError('Something went wrong. Please try again.');
+      _showError(tr('auth_something_went_wrong_retry'));
     } finally {
       if (mounted) setState(() => _loading = false);
     }
@@ -93,11 +101,15 @@ class _EmailTwoFactorScreenState extends State<EmailTwoFactorScreen> {
     try {
       await AuthService.instance.sendLoginEmailCode(widget.email);
       if (!mounted) return;
-      _showError('A new code has been sent to ${widget.email}');
+      setState(() {
+        _codeExpired = false;
+        _codeRequestId++;
+      });
+      _showError('${tr('auth_new_code_sent_to_prefix')} ${widget.email}');
     } on AuthException catch (e) {
       _showError(friendlyAuthError(e));
     } catch (_) {
-      _showError('Something went wrong. Please try again.');
+      _showError(tr('auth_something_went_wrong_retry'));
     } finally {
       if (mounted) setState(() => _resending = false);
     }
@@ -196,16 +208,22 @@ class _EmailTwoFactorScreenState extends State<EmailTwoFactorScreen> {
                             Padding(
                               padding: EdgeInsets.only(top: 10),
                               child: Text(
-                                'Enter the full 6-digit code',
+                                tr('auth_enter_full_code'),
                                 style: TextStyle(
                                   color: Colors.redAccent,
                                   fontSize: 12,
                                 ),
                               ),
                             ),
-                          SizedBox(height: 28),
+                          SizedBox(height: 14),
+                          CodeExpiryTimer(
+                            resetKey: _codeRequestId,
+                            onExpired: () =>
+                                setState(() => _codeExpired = true),
+                          ),
+                          SizedBox(height: 14),
                           GradientButton(
-                            label: 'Verify',
+                            label: tr('auth_verify_button'),
                             onPressed: _verify,
                             loading: _loading,
                           ),
@@ -215,7 +233,7 @@ class _EmailTwoFactorScreenState extends State<EmailTwoFactorScreen> {
                             child: TextButton(
                               onPressed: _resending ? null : _resendCode,
                               child: Text(
-                                _resending ? 'Sending...' : 'Resend code',
+                                _resending ? tr('auth_sending_ellipsis') : tr('auth_resend_code'),
                                 style: TextStyle(
                                   color: context.colors.ink,
                                   fontWeight: FontWeight.w700,
@@ -228,7 +246,7 @@ class _EmailTwoFactorScreenState extends State<EmailTwoFactorScreen> {
                             child: TextButton(
                               onPressed: _useDifferentAccount,
                               child: Text(
-                                'Use a different account',
+                                tr('auth_use_different_account'),
                                 style: TextStyle(
                                   color: context.colors.muted,
                                   fontWeight: FontWeight.w700,
@@ -291,7 +309,7 @@ class _Header extends StatelessWidget {
             ),
             SizedBox(height: 16),
             Text(
-              'Two-Factor Authentication',
+              tr('auth_two_factor_title'),
               style: TextStyle(
                 color: Colors.white,
                 fontSize: 24,
@@ -302,7 +320,7 @@ class _Header extends StatelessWidget {
             Padding(
               padding: EdgeInsets.symmetric(horizontal: 40),
               child: Text(
-                'Enter the 6-digit code sent to $email',
+                '${tr('auth_enter_code_sent_to_prefix')} $email',
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   color: Colors.white.withValues(alpha: 0.85),

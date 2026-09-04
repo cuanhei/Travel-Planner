@@ -31,6 +31,47 @@ const Map<String, Map<String, String>> communityStrings = {
     'community_reviews_title': 'Reviews',
     'community_reviews_count': 'reviews',
     'community_reply': 'Reply',
+    'community_title': 'Community',
+    'community_author_mei_ling': 'Mei Ling',
+    'community_author_arif_hakim': 'Arif Hakim',
+    'community_author_sophia_tan': 'Sophia Tan',
+    'community_author_daniel_wong': 'Daniel Wong',
+    'community_place_chew_jetty': 'Chew Jetty, George Town',
+    'community_place_gurney_hawker': 'Gurney Drive Hawker Centre',
+    'community_place_penang_hill': 'Penang Hill',
+    'community_caption_chew_jetty':
+        'Sunset over the stilt houses was unreal 😍 definitely worth the '
+        'early evening visit, way less crowded too.',
+    'community_caption_gurney':
+        'Char kway teow here is elite. Went back for seconds, no regrets. '
+        'Bring cash, most stalls don\'t take cards.',
+    'community_caption_penang_hill':
+        'The funicular queue was long but the view at the top made up for '
+        'it completely. Go early morning to beat the crowd and the heat.',
+    'community_time_2h_ago': '2h ago',
+    'community_time_5h_ago': '5h ago',
+    'community_time_1d_ago': '1d ago',
+    'community_time_1h_ago': '1h ago',
+    'community_time_3h_ago': '3h ago',
+    'community_comment_you': 'You',
+    'community_time_now': 'now',
+    'community_comment_1': 'Adding this to my list right now!',
+    'community_comment_2': 'Went there last month, so worth it 🙌',
+    'community_comment_3': 'How early did you go to avoid crowds?',
+    'community_review_date_2_days_ago': '2 days ago',
+    'community_review_date_1_week_ago': '1 week ago',
+    'community_review_date_3_weeks_ago': '3 weeks ago',
+    'community_review_date_1_month_ago': '1 month ago',
+    'community_review_text_1':
+        'Absolutely stunning, go at sunset for the best light. Loved every '
+        'minute!',
+    'community_review_text_2':
+        'Great spot, a bit crowded on weekends but still worth it.',
+    'community_review_text_3':
+        'One of the highlights of our whole trip. Highly recommend for '
+        'photos.',
+    'community_review_text_4':
+        'Nice experience overall, could use better signage though.',
   },
   'ms': {
     'community_subtitle': 'Kisah perjalanan daripada sesama peneroka',
@@ -62,6 +103,49 @@ const Map<String, Map<String, String>> communityStrings = {
     'community_reviews_title': 'Ulasan',
     'community_reviews_count': 'ulasan',
     'community_reply': 'Balas',
+    'community_title': 'Komuniti',
+    'community_author_mei_ling': 'Mei Ling',
+    'community_author_arif_hakim': 'Arif Hakim',
+    'community_author_sophia_tan': 'Sophia Tan',
+    'community_author_daniel_wong': 'Daniel Wong',
+    'community_place_chew_jetty': 'Jeti Chew, George Town',
+    'community_place_gurney_hawker': 'Pusat Penjaja Gurney Drive',
+    'community_place_penang_hill': 'Bukit Bendera',
+    'community_caption_chew_jetty':
+        'Matahari terbenam di rumah panggung sangat menakjubkan 😍 memang '
+        'berbaloi datang waktu senja, kurang sesak juga.',
+    'community_caption_gurney':
+        'Char kway teow di sini memang terbaik. Saya tambah lagi, tiada '
+        'penyesalan. Bawa duit tunai, kebanyakan gerai tidak terima kad.',
+    'community_caption_penang_hill':
+        'Barisan funikular panjang tetapi pemandangan di puncak berbaloi. '
+        'Pergi awal pagi untuk elak orang ramai dan kepanasan.',
+    'community_time_2h_ago': '2j lalu',
+    'community_time_5h_ago': '5j lalu',
+    'community_time_1d_ago': '1h lalu',
+    'community_time_1h_ago': '1j lalu',
+    'community_time_3h_ago': '3j lalu',
+    'community_comment_you': 'Anda',
+    'community_time_now': 'sekarang',
+    'community_comment_1': 'Saya masukkan dalam senarai saya sekarang juga!',
+    'community_comment_2': 'Pernah ke sana bulan lepas, memang berbaloi 🙌',
+    'community_comment_3': 'Awal mana anda pergi untuk elak orang ramai?',
+    'community_review_date_2_days_ago': '2 hari lalu',
+    'community_review_date_1_week_ago': '1 minggu lalu',
+    'community_review_date_3_weeks_ago': '3 minggu lalu',
+    'community_review_date_1_month_ago': '1 bulan lalu',
+    'community_review_text_1':
+        'Sangat menakjubkan, pergi waktu senja untuk cahaya terbaik. Suka '
+        'setiap saat!',
+    'community_review_text_2':
+        'Tempat yang bagus, agak sesak pada hujung minggu tetapi masih '
+        'berbaloi.',
+    'community_review_text_3':
+        'Salah satu kemuncak keseluruhan perjalanan kami. Sangat disyorkan '
+        'untuk bergambar.',
+    'community_review_text_4':
+        'Pengalaman yang baik secara keseluruhan, papan tanda boleh '
+        'diperbaiki.',
   },
   'zh': {
     'community_subtitle': '来自旅友的旅行故事',
@@ -93,6 +177,38 @@ const Map<String, Map<String, String>> communityStrings = {
     'community_reviews_title': '评价',
     'community_reviews_count': '条评价',
     'community_reply': '回复',
+    'community_title': '社区',
+    'community_author_mei_ling': '美玲',
+    'community_author_arif_hakim': 'Arif Hakim',
+    'community_author_sophia_tan': '陈苏菲',
+    'community_author_daniel_wong': '黄丹尼尔',
+    'community_place_chew_jetty': '姓周桥，乔治市',
+    'community_place_gurney_hawker': '峇都丁宜路小贩中心',
+    'community_place_penang_hill': '槟城山',
+    'community_caption_chew_jetty':
+        '高脚屋上的日落美得不真实 😍 傍晚时分来真的很值得，人也少很多。',
+    'community_caption_gurney':
+        '这里的炒粿条一流，我又加点了一份，完全不后悔。记得带现金，大部分摊位不收卡。',
+    'community_caption_penang_hill':
+        '缆车排队很长，但山顶的景色完全值得。建议清晨前往，避开人群和炎热。',
+    'community_time_2h_ago': '2小时前',
+    'community_time_5h_ago': '5小时前',
+    'community_time_1d_ago': '1天前',
+    'community_time_1h_ago': '1小时前',
+    'community_time_3h_ago': '3小时前',
+    'community_comment_you': '你',
+    'community_time_now': '刚刚',
+    'community_comment_1': '马上加入我的清单！',
+    'community_comment_2': '上个月去过，真的很值得 🙌',
+    'community_comment_3': '你多早去才能避开人群？',
+    'community_review_date_2_days_ago': '2天前',
+    'community_review_date_1_week_ago': '1周前',
+    'community_review_date_3_weeks_ago': '3周前',
+    'community_review_date_1_month_ago': '1个月前',
+    'community_review_text_1': '真的美到令人惊叹，日落时分去光线最美。每一刻都很享受！',
+    'community_review_text_2': '很棒的地方，周末有点拥挤，但仍然值得一去。',
+    'community_review_text_3': '是我们整趟旅程的亮点之一，非常推荐拍照。',
+    'community_review_text_4': '整体体验不错，指示牌可以再改善一下。',
   },
   'ja': {
     'community_subtitle': '仲間の旅行者からの旅の物語',
@@ -124,6 +240,42 @@ const Map<String, Map<String, String>> communityStrings = {
     'community_reviews_title': 'レビュー',
     'community_reviews_count': '件のレビュー',
     'community_reply': '返信',
+    'community_title': 'コミュニティ',
+    'community_author_mei_ling': 'メイ・リン',
+    'community_author_arif_hakim': 'アリフ・ハキム',
+    'community_author_sophia_tan': 'ソフィア・タン',
+    'community_author_daniel_wong': 'ダニエル・ウォン',
+    'community_place_chew_jetty': 'チュー・ジェティ、ジョージタウン',
+    'community_place_gurney_hawker': 'ガーニー・ドライブ・ホーカーセンター',
+    'community_place_penang_hill': 'ペナン・ヒル',
+    'community_caption_chew_jetty':
+        '高床式住宅に沈む夕日が本当に美しかった 😍 夕方に訪れる価値は十分あるし、人も少なめ。',
+    'community_caption_gurney':
+        'ここのチャークイティオは最高。おかわりしちゃいました、後悔なし。現金持参推奨、ほとんどの屋台はカード不可。',
+    'community_caption_penang_hill':
+        'ケーブルカーの列は長かったけど、頂上からの景色でそれも報われた。混雑と暑さを避けるなら早朝がおすすめ。',
+    'community_time_2h_ago': '2時間前',
+    'community_time_5h_ago': '5時間前',
+    'community_time_1d_ago': '1日前',
+    'community_time_1h_ago': '1時間前',
+    'community_time_3h_ago': '3時間前',
+    'community_comment_you': 'あなた',
+    'community_time_now': '今',
+    'community_comment_1': '今すぐリストに追加します！',
+    'community_comment_2': '先月行きました、本当に価値があります 🙌',
+    'community_comment_3': '混雑を避けるにはどのくらい早く行きましたか？',
+    'community_review_date_2_days_ago': '2日前',
+    'community_review_date_1_week_ago': '1週間前',
+    'community_review_date_3_weeks_ago': '3週間前',
+    'community_review_date_1_month_ago': '1ヶ月前',
+    'community_review_text_1':
+        '本当に絶景。最高の光を見るなら夕方に。最高の時間でした！',
+    'community_review_text_2':
+        '素晴らしい場所、週末は少し混みますがそれでも価値があります。',
+    'community_review_text_3':
+        '旅全体のハイライトの一つ。写真撮影に強くおすすめします。',
+    'community_review_text_4':
+        '全体的に良い体験でしたが、案内表示はもう少し改善の余地があります。',
   },
   'ko': {
     'community_subtitle': '동료 여행자들의 여행 이야기',
@@ -155,6 +307,42 @@ const Map<String, Map<String, String>> communityStrings = {
     'community_reviews_title': '리뷰',
     'community_reviews_count': '개의 리뷰',
     'community_reply': '답글',
+    'community_title': '커뮤니티',
+    'community_author_mei_ling': '메이 링',
+    'community_author_arif_hakim': '아리프 하킴',
+    'community_author_sophia_tan': '소피아 탄',
+    'community_author_daniel_wong': '다니엘 웡',
+    'community_place_chew_jetty': '추 제티, 조지타운',
+    'community_place_gurney_hawker': '거니 드라이브 호커 센터',
+    'community_place_penang_hill': '페낭 힐',
+    'community_caption_chew_jetty':
+        '수상 가옥 위로 지는 노을이 정말 비현실적이었어요 😍 저녁에 가면 사람도 훨씬 적어서 강력 추천.',
+    'community_caption_gurney':
+        '여기 차퀘이테우는 최고예요. 한 그릇 더 시켰는데 전혀 후회 없어요. 현금 챙기세요, 대부분 카드가 안 돼요.',
+    'community_caption_penang_hill':
+        '푸니쿨라 줄이 길었지만 정상에서의 전망이 그만한 가치가 있었어요. 사람과 더위를 피하려면 이른 '
+        '아침에 가세요.',
+    'community_time_2h_ago': '2시간 전',
+    'community_time_5h_ago': '5시간 전',
+    'community_time_1d_ago': '1일 전',
+    'community_time_1h_ago': '1시간 전',
+    'community_time_3h_ago': '3시간 전',
+    'community_comment_you': '나',
+    'community_time_now': '방금',
+    'community_comment_1': '지금 바로 제 리스트에 추가할게요!',
+    'community_comment_2': '지난달에 가봤는데 정말 가볼 만해요 🙌',
+    'community_comment_3': '사람 몰리기 전에 얼마나 일찍 가셨어요?',
+    'community_review_date_2_days_ago': '2일 전',
+    'community_review_date_1_week_ago': '1주 전',
+    'community_review_date_3_weeks_ago': '3주 전',
+    'community_review_date_1_month_ago': '1개월 전',
+    'community_review_text_1':
+        '정말 놀라워요, 노을 질 때 가면 빛이 최고예요. 순간순간이 다 좋았어요!',
+    'community_review_text_2': '좋은 곳이에요, 주말엔 좀 붐비지만 그래도 가볼 만해요.',
+    'community_review_text_3':
+        '이번 여행 전체에서 손꼽히는 하이라이트였어요. 사진 찍기에 강추.',
+    'community_review_text_4':
+        '전반적으로 좋은 경험이었지만 표지판은 좀 더 개선되면 좋겠어요.',
   },
   'th': {
     'community_subtitle': 'เรื่องราวการเดินทางจากนักสำรวจคนอื่น ๆ',
@@ -186,6 +374,43 @@ const Map<String, Map<String, String>> communityStrings = {
     'community_reviews_title': 'รีวิว',
     'community_reviews_count': 'รีวิว',
     'community_reply': 'ตอบกลับ',
+    'community_title': 'ชุมชน',
+    'community_author_mei_ling': 'เหมย หลิง',
+    'community_author_arif_hakim': 'อาริฟ ฮาคิม',
+    'community_author_sophia_tan': 'โซเฟีย แทน',
+    'community_author_daniel_wong': 'แดเนียล หว่อง',
+    'community_place_chew_jetty': 'ท่าเรือชิว, จอร์จทาวน์',
+    'community_place_gurney_hawker': 'ศูนย์อาหาร Gurney Drive',
+    'community_place_penang_hill': 'เขาปีนัง',
+    'community_caption_chew_jetty':
+        'พระอาทิตย์ตกเหนือบ้านเสาสวยจนไม่น่าเชื่อ 😍 ควรไปช่วงเย็น คนน้อยกว่ามากด้วย',
+    'community_caption_gurney':
+        'ผัดก๋วยเตี๋ยวที่นี่สุดยอด สั่งเพิ่มไปอีกจาน ไม่เสียใจเลย เตรียมเงินสดไป '
+        'ร้านส่วนใหญ่ไม่รับบัตร',
+    'community_caption_penang_hill':
+        'คิวรถรางยาวมาก แต่วิวด้านบนคุ้มค่าสุด ๆ ไปเช้า ๆ จะได้เลี่ยงคนและความร้อน',
+    'community_time_2h_ago': '2 ชม.ที่แล้ว',
+    'community_time_5h_ago': '5 ชม.ที่แล้ว',
+    'community_time_1d_ago': '1 วันที่แล้ว',
+    'community_time_1h_ago': '1 ชม.ที่แล้ว',
+    'community_time_3h_ago': '3 ชม.ที่แล้ว',
+    'community_comment_you': 'คุณ',
+    'community_time_now': 'ตอนนี้',
+    'community_comment_1': 'เพิ่มลงในลิสต์ของฉันเดี๋ยวนี้เลย!',
+    'community_comment_2': 'ไปมาเมื่อเดือนที่แล้ว คุ้มค่ามาก 🙌',
+    'community_comment_3': 'คุณไปแต่เช้าแค่ไหนถึงเลี่ยงคนได้?',
+    'community_review_date_2_days_ago': '2 วันที่แล้ว',
+    'community_review_date_1_week_ago': '1 สัปดาห์ที่แล้ว',
+    'community_review_date_3_weeks_ago': '3 สัปดาห์ที่แล้ว',
+    'community_review_date_1_month_ago': '1 เดือนที่แล้ว',
+    'community_review_text_1':
+        'สวยงามมาก ไปตอนพระอาทิตย์ตกจะได้แสงสวยที่สุด ชอบทุกนาทีเลย!',
+    'community_review_text_2':
+        'ที่นี่ดีมาก คนแน่นหน่อยช่วงวันหยุด แต่ก็ยังคุ้มค่าที่จะไป',
+    'community_review_text_3':
+        'เป็นหนึ่งในไฮไลต์ของทริปทั้งหมดของเรา แนะนำมากสำหรับการถ่ายรูป',
+    'community_review_text_4':
+        'โดยรวมประสบการณ์ดี แต่ป้ายบอกทางน่าจะทำให้ดีกว่านี้ได้',
   },
   'vi': {
     'community_subtitle': 'Câu chuyện du lịch từ những người bạn đồng hành',
@@ -217,6 +442,46 @@ const Map<String, Map<String, String>> communityStrings = {
     'community_reviews_title': 'Đánh giá',
     'community_reviews_count': 'đánh giá',
     'community_reply': 'Trả lời',
+    'community_title': 'Cộng đồng',
+    'community_author_mei_ling': 'Mei Ling',
+    'community_author_arif_hakim': 'Arif Hakim',
+    'community_author_sophia_tan': 'Sophia Tan',
+    'community_author_daniel_wong': 'Daniel Wong',
+    'community_place_chew_jetty': 'Cầu Tàu Họ Chew, George Town',
+    'community_place_gurney_hawker': 'Khu Ẩm Thực Gurney Drive',
+    'community_place_penang_hill': 'Đồi Penang',
+    'community_caption_chew_jetty':
+        'Hoàng hôn trên những ngôi nhà sàn đẹp không tưởng 😍 rất đáng để '
+        'ghé vào buổi tối, lại còn ít đông hơn.',
+    'community_caption_gurney':
+        'Char kway teow ở đây đỉnh cao. Mình gọi thêm phần nữa, không hối '
+        'hận. Nhớ mang tiền mặt, hầu hết quầy không nhận thẻ.',
+    'community_caption_penang_hill':
+        'Hàng chờ cáp treo khá dài nhưng view trên đỉnh bù đắp tất cả. Nên '
+        'đi sáng sớm để tránh đông người và nắng nóng.',
+    'community_time_2h_ago': '2 giờ trước',
+    'community_time_5h_ago': '5 giờ trước',
+    'community_time_1d_ago': '1 ngày trước',
+    'community_time_1h_ago': '1 giờ trước',
+    'community_time_3h_ago': '3 giờ trước',
+    'community_comment_you': 'Bạn',
+    'community_time_now': 'vừa xong',
+    'community_comment_1': 'Thêm ngay vào danh sách của mình luôn!',
+    'community_comment_2': 'Mình đi tháng trước, rất đáng 🙌',
+    'community_comment_3': 'Bạn đi sớm cỡ nào để tránh đông vậy?',
+    'community_review_date_2_days_ago': '2 ngày trước',
+    'community_review_date_1_week_ago': '1 tuần trước',
+    'community_review_date_3_weeks_ago': '3 tuần trước',
+    'community_review_date_1_month_ago': '1 tháng trước',
+    'community_review_text_1':
+        'Cực kỳ đẹp, đi lúc hoàng hôn để có ánh sáng đẹp nhất. Thích từng '
+        'khoảnh khắc!',
+    'community_review_text_2':
+        'Địa điểm tuyệt vời, hơi đông vào cuối tuần nhưng vẫn đáng đi.',
+    'community_review_text_3':
+        'Một trong những điểm nhấn của cả chuyến đi. Rất đáng để chụp ảnh.',
+    'community_review_text_4':
+        'Trải nghiệm nhìn chung tốt, biển chỉ dẫn có thể cải thiện thêm.',
   },
   'id': {
     'community_subtitle': 'Kisah perjalanan dari sesama penjelajah',
@@ -248,6 +513,48 @@ const Map<String, Map<String, String>> communityStrings = {
     'community_reviews_title': 'Ulasan',
     'community_reviews_count': 'ulasan',
     'community_reply': 'Balas',
+    'community_title': 'Komunitas',
+    'community_author_mei_ling': 'Mei Ling',
+    'community_author_arif_hakim': 'Arif Hakim',
+    'community_author_sophia_tan': 'Sophia Tan',
+    'community_author_daniel_wong': 'Daniel Wong',
+    'community_place_chew_jetty': 'Chew Jetty, George Town',
+    'community_place_gurney_hawker': 'Pusat Jajanan Gurney Drive',
+    'community_place_penang_hill': 'Bukit Penang',
+    'community_caption_chew_jetty':
+        'Matahari terbenam di atas rumah panggung sungguh luar biasa 😍 '
+        'sangat worth it dikunjungi sore hari, juga jauh lebih sepi.',
+    'community_caption_gurney':
+        'Char kway teow di sini juara. Nambah lagi, nggak nyesel. Bawa uang '
+        'tunai, kebanyakan kios tidak menerima kartu.',
+    'community_caption_penang_hill':
+        'Antrean funicular lumayan panjang tapi pemandangan di puncak '
+        'sepadan. Datang pagi-pagi untuk menghindari keramaian dan panas.',
+    'community_time_2h_ago': '2j lalu',
+    'community_time_5h_ago': '5j lalu',
+    'community_time_1d_ago': '1h lalu',
+    'community_time_1h_ago': '1j lalu',
+    'community_time_3h_ago': '3j lalu',
+    'community_comment_you': 'Anda',
+    'community_time_now': 'baru saja',
+    'community_comment_1': 'Langsung masukin daftar aku sekarang juga!',
+    'community_comment_2': 'Ke sana bulan lalu, worth it banget 🙌',
+    'community_comment_3': 'Seberapa pagi kamu ke sana biar nggak rame?',
+    'community_review_date_2_days_ago': '2 hari lalu',
+    'community_review_date_1_week_ago': '1 minggu lalu',
+    'community_review_date_3_weeks_ago': '3 minggu lalu',
+    'community_review_date_1_month_ago': '1 bulan lalu',
+    'community_review_text_1':
+        'Sangat menakjubkan, datang saat matahari terbenam untuk cahaya '
+        'terbaik. Suka setiap momennya!',
+    'community_review_text_2':
+        'Tempat yang bagus, agak ramai di akhir pekan tapi tetap worth it.',
+    'community_review_text_3':
+        'Salah satu momen terbaik dari seluruh perjalanan kami. Sangat '
+        'direkomendasikan untuk foto.',
+    'community_review_text_4':
+        'Pengalaman keseluruhan bagus, tapi papan penunjuk bisa lebih baik '
+        'lagi.',
   },
   'hi': {
     'community_subtitle': 'साथी यात्रियों की यात्रा कहानियाँ',
@@ -279,6 +586,48 @@ const Map<String, Map<String, String>> communityStrings = {
     'community_reviews_title': 'समीक्षाएं',
     'community_reviews_count': 'समीक्षाएं',
     'community_reply': 'उत्तर दें',
+    'community_title': 'समुदाय',
+    'community_author_mei_ling': 'मेई लिंग',
+    'community_author_arif_hakim': 'आरिफ हकीम',
+    'community_author_sophia_tan': 'सोफिया टैन',
+    'community_author_daniel_wong': 'डैनियल वोंग',
+    'community_place_chew_jetty': 'च्यू जेट्टी, जॉर्ज टाउन',
+    'community_place_gurney_hawker': 'गर्नी ड्राइव हॉकर सेंटर',
+    'community_place_penang_hill': 'पेनांग हिल',
+    'community_caption_chew_jetty':
+        'स्टिल्ट हाउसों पर सूर्यास्त अविश्वसनीय था 😍 शाम को जाना बिल्कुल '
+        'सही रहेगा, भीड़ भी काफी कम थी।',
+    'community_caption_gurney':
+        'यहाँ का चार क्वे तेओ बेहतरीन है। दोबारा मंगवाया, कोई अफ़सोस नहीं। '
+        'नकद साथ रखें, ज़्यादातर स्टॉल कार्ड नहीं लेते।',
+    'community_caption_penang_hill':
+        'फ्यूनिक्युलर की कतार लंबी थी लेकिन ऊपर का नज़ारा पूरी तरह इसके '
+        'लायक था। भीड़ और गर्मी से बचने के लिए सुबह जल्दी जाएं।',
+    'community_time_2h_ago': '2 घं पहले',
+    'community_time_5h_ago': '5 घं पहले',
+    'community_time_1d_ago': '1 दिन पहले',
+    'community_time_1h_ago': '1 घं पहले',
+    'community_time_3h_ago': '3 घं पहले',
+    'community_comment_you': 'आप',
+    'community_time_now': 'अभी',
+    'community_comment_1': 'इसे अभी अपनी सूची में जोड़ रहा/रही हूँ!',
+    'community_comment_2': 'पिछले महीने वहाँ गया था, बिल्कुल जाने लायक है 🙌',
+    'community_comment_3': 'भीड़ से बचने के लिए आप कितनी जल्दी गए थे?',
+    'community_review_date_2_days_ago': '2 दिन पहले',
+    'community_review_date_1_week_ago': '1 सप्ताह पहले',
+    'community_review_date_3_weeks_ago': '3 सप्ताह पहले',
+    'community_review_date_1_month_ago': '1 महीना पहले',
+    'community_review_text_1':
+        'बिल्कुल शानदार, सबसे अच्छी रोशनी के लिए सूर्यास्त के समय जाएं। हर '
+        'पल पसंद आया!',
+    'community_review_text_2':
+        'बढ़िया जगह, सप्ताहांत में थोड़ी भीड़ रहती है लेकिन फिर भी जाने '
+        'लायक है।',
+    'community_review_text_3':
+        'हमारी पूरी यात्रा के मुख्य आकर्षणों में से एक। फोटो के लिए बेहद '
+        'अनुशंसित।',
+    'community_review_text_4':
+        'कुल मिलाकर अच्छा अनुभव रहा, लेकिन साइनेज बेहतर हो सकता था।',
   },
   'ta': {
     'community_subtitle': 'சக பயணிகளின் பயணக் கதைகள்',
@@ -310,6 +659,52 @@ const Map<String, Map<String, String>> communityStrings = {
     'community_reviews_title': 'மதிப்புரைகள்',
     'community_reviews_count': 'மதிப்புரைகள்',
     'community_reply': 'பதிலளி',
+    'community_title': 'சமூகம்',
+    'community_author_mei_ling': 'மெய் லிங்',
+    'community_author_arif_hakim': 'ஆரிஃப் ஹகீம்',
+    'community_author_sophia_tan': 'சோபியா டான்',
+    'community_author_daniel_wong': 'டேனியல் வோங்',
+    'community_place_chew_jetty': 'சூ ஜெட்டி, ஜார்ஜ் டவுன்',
+    'community_place_gurney_hawker': 'கர்னி டிரைவ் ஹாக்கர் சென்டர்',
+    'community_place_penang_hill': 'பினாங்கு மலை',
+    'community_caption_chew_jetty':
+        'தூண் வீடுகளின் மேல் மறையும் சூரியன் காட்சி நம்பமுடியாத அளவு '
+        'அழகாக இருந்தது 😍 மாலை நேரத்தில் செல்வது மிகவும் மதிப்புள்ளது, '
+        'கூட்டமும் குறைவு.',
+    'community_caption_gurney':
+        'இங்குள்ள சார் க்வே தியோ அற்புதம். மறுபடியும் ஆர்டர் செய்தேன், '
+        'வருத்தமே இல்லை. பணத்துடன் செல்லுங்கள், பெரும்பாலான கடைகள் கார்டு '
+        'ஏற்காது.',
+    'community_caption_penang_hill':
+        'ஃபியூனிக்குலர் வரிசை நீளமாக இருந்தாலும் மேலே இருந்து காட்சி '
+        'அதற்கு ஈடு கொடுத்தது. கூட்டத்தையும் வெப்பத்தையும் தவிர்க்க '
+        'அதிகாலையில் செல்லுங்கள்.',
+    'community_time_2h_ago': '2 மணி நேரம் முன்பு',
+    'community_time_5h_ago': '5 மணி நேரம் முன்பு',
+    'community_time_1d_ago': '1 நாள் முன்பு',
+    'community_time_1h_ago': '1 மணி நேரம் முன்பு',
+    'community_time_3h_ago': '3 மணி நேரம் முன்பு',
+    'community_comment_you': 'நீங்கள்',
+    'community_time_now': 'இப்போது',
+    'community_comment_1': 'இதை இப்போதே எனது பட்டியலில் சேர்க்கிறேன்!',
+    'community_comment_2': 'கடந்த மாதம் அங்கு சென்றேன், முழுக்க மதிப்புள்ளது 🙌',
+    'community_comment_3': 'கூட்டத்தைத் தவிர்க்க எவ்வளவு சீக்கிரம் சென்றீர்கள்?',
+    'community_review_date_2_days_ago': '2 நாட்களுக்கு முன்பு',
+    'community_review_date_1_week_ago': '1 வாரத்திற்கு முன்பு',
+    'community_review_date_3_weeks_ago': '3 வாரங்களுக்கு முன்பு',
+    'community_review_date_1_month_ago': '1 மாதத்திற்கு முன்பு',
+    'community_review_text_1':
+        'மிகவும் அற்புதமானது, சிறந்த வெளிச்சத்திற்கு மாலை நேரத்தில் '
+        'செல்லுங்கள். ஒவ்வொரு நிமிடமும் ரசித்தேன்!',
+    'community_review_text_2':
+        'சிறந்த இடம், வார இறுதி நாட்களில் சற்று கூட்டமாக இருக்கும் '
+        'ஆனாலும் மதிப்புள்ளது.',
+    'community_review_text_3':
+        'எங்கள் முழுப் பயணத்தின் சிறப்பம்சங்களில் ஒன்று. புகைப்படங்களுக்கு '
+        'மிகவும் பரிந்துரைக்கப்படுகிறது.',
+    'community_review_text_4':
+        'ஒட்டுமொத்தமாக நல்ல அனுபவம், ஆனாலும் வழிகாட்டி பலகைகள் இன்னும் '
+        'சிறப்பாக இருக்கலாம்.',
   },
   'ar': {
     'community_subtitle': 'قصص سفر من مستكشفين آخرين',
@@ -341,6 +736,45 @@ const Map<String, Map<String, String>> communityStrings = {
     'community_reviews_title': 'التقييمات',
     'community_reviews_count': 'تقييمات',
     'community_reply': 'رد',
+    'community_title': 'المجتمع',
+    'community_author_mei_ling': 'ماي لينغ',
+    'community_author_arif_hakim': 'عارف حكيم',
+    'community_author_sophia_tan': 'صوفيا تان',
+    'community_author_daniel_wong': 'دانيال وونغ',
+    'community_place_chew_jetty': 'رصيف تشو، جورج تاون',
+    'community_place_gurney_hawker': 'مركز غورني درايف للأطعمة الشعبية',
+    'community_place_penang_hill': 'تلة بينانغ',
+    'community_caption_chew_jetty':
+        'غروب الشمس فوق المنازل الخشبية كان مذهلاً حقًا 😍 يستحق الزيارة '
+        'في المساء، والازدحام أقل بكثير أيضًا.',
+    'community_caption_gurney':
+        'تشار كواي تيو هنا رائع. طلبت طبقًا إضافيًا ولم أندم. أحضر نقودًا، '
+        'معظم الأكشاك لا تقبل البطاقات.',
+    'community_caption_penang_hill':
+        'كان طابور القطار المعلق طويلاً لكن المنظر من الأعلى كان يستحق كل '
+        'ذلك. اذهب في الصباح الباكر لتفادي الزحام والحر.',
+    'community_time_2h_ago': 'قبل ساعتين',
+    'community_time_5h_ago': 'قبل 5 ساعات',
+    'community_time_1d_ago': 'قبل يوم واحد',
+    'community_time_1h_ago': 'قبل ساعة',
+    'community_time_3h_ago': 'قبل 3 ساعات',
+    'community_comment_you': 'أنت',
+    'community_time_now': 'الآن',
+    'community_comment_1': 'سأضيف هذا إلى قائمتي فورًا!',
+    'community_comment_2': 'ذهبت إلى هناك الشهر الماضي، يستحق تمامًا 🙌',
+    'community_comment_3': 'كم بكرت للذهاب لتجنب الزحام؟',
+    'community_review_date_2_days_ago': 'قبل يومين',
+    'community_review_date_1_week_ago': 'قبل أسبوع',
+    'community_review_date_3_weeks_ago': 'قبل 3 أسابيع',
+    'community_review_date_1_month_ago': 'قبل شهر',
+    'community_review_text_1':
+        'مذهل تمامًا، اذهب عند الغروب لأفضل إضاءة. أحببت كل لحظة!',
+    'community_review_text_2':
+        'مكان رائع، مزدحم قليلاً في عطلات نهاية الأسبوع لكنه يستحق الزيارة.',
+    'community_review_text_3':
+        'كان أحد أبرز لحظات رحلتنا بأكملها. أنصح به بشدة للتصوير.',
+    'community_review_text_4':
+        'تجربة جيدة بشكل عام، لكن يمكن تحسين اللافتات الإرشادية.',
   },
   'es': {
     'community_subtitle': 'Historias de viaje de otros exploradores',
@@ -372,6 +806,51 @@ const Map<String, Map<String, String>> communityStrings = {
     'community_reviews_title': 'Reseñas',
     'community_reviews_count': 'reseñas',
     'community_reply': 'Responder',
+    'community_title': 'Comunidad',
+    'community_author_mei_ling': 'Mei Ling',
+    'community_author_arif_hakim': 'Arif Hakim',
+    'community_author_sophia_tan': 'Sophia Tan',
+    'community_author_daniel_wong': 'Daniel Wong',
+    'community_place_chew_jetty': 'Chew Jetty, George Town',
+    'community_place_gurney_hawker': 'Centro de Comida Gurney Drive',
+    'community_place_penang_hill': 'Colina de Penang',
+    'community_caption_chew_jetty':
+        'El atardecer sobre las casas de palafito fue irreal 😍 vale '
+        'totalmente la pena visitarlo al anochecer, además hay mucha menos '
+        'gente.',
+    'community_caption_gurney':
+        'El char kway teow aquí es lo máximo. Repetí, sin arrepentimientos. '
+        'Lleva efectivo, la mayoría de los puestos no aceptan tarjeta.',
+    'community_caption_penang_hill':
+        'La fila del funicular fue larga, pero la vista desde arriba lo '
+        'compensó por completo. Ve temprano para evitar el gentío y el '
+        'calor.',
+    'community_time_2h_ago': 'hace 2h',
+    'community_time_5h_ago': 'hace 5h',
+    'community_time_1d_ago': 'hace 1d',
+    'community_time_1h_ago': 'hace 1h',
+    'community_time_3h_ago': 'hace 3h',
+    'community_comment_you': 'Tú',
+    'community_time_now': 'ahora',
+    'community_comment_1': '¡Lo agrego a mi lista ahora mismo!',
+    'community_comment_2': 'Fui el mes pasado, vale totalmente la pena 🙌',
+    'community_comment_3': '¿Qué tan temprano fuiste para evitar el gentío?',
+    'community_review_date_2_days_ago': 'hace 2 días',
+    'community_review_date_1_week_ago': 'hace 1 semana',
+    'community_review_date_3_weeks_ago': 'hace 3 semanas',
+    'community_review_date_1_month_ago': 'hace 1 mes',
+    'community_review_text_1':
+        'Absolutamente impresionante, ve al atardecer para la mejor luz. '
+        '¡Me encantó cada minuto!',
+    'community_review_text_2':
+        'Un lugar excelente, un poco lleno los fines de semana pero aun '
+        'así vale la pena.',
+    'community_review_text_3':
+        'Uno de los puntos destacados de todo nuestro viaje. Muy '
+        'recomendable para fotos.',
+    'community_review_text_4':
+        'Buena experiencia en general, aunque la señalización podría '
+        'mejorar.',
   },
   'fr': {
     'community_subtitle': 'Récits de voyage d\'autres explorateurs',
@@ -403,6 +882,54 @@ const Map<String, Map<String, String>> communityStrings = {
     'community_reviews_title': 'Avis',
     'community_reviews_count': 'avis',
     'community_reply': 'Répondre',
+    'community_title': 'Communauté',
+    'community_author_mei_ling': 'Mei Ling',
+    'community_author_arif_hakim': 'Arif Hakim',
+    'community_author_sophia_tan': 'Sophia Tan',
+    'community_author_daniel_wong': 'Daniel Wong',
+    'community_place_chew_jetty': 'Chew Jetty, George Town',
+    'community_place_gurney_hawker': 'Centre de restauration Gurney Drive',
+    'community_place_penang_hill': 'Colline de Penang',
+    'community_caption_chew_jetty':
+        "Le coucher de soleil sur les maisons sur pilotis était irréel 😍 "
+        "ça vaut vraiment le coup d'y aller en début de soirée, et il y a "
+        "bien moins de monde.",
+    'community_caption_gurney':
+        "Le char kway teow ici est excellent. J'en ai repris, aucun "
+        "regret. Prévoyez du liquide, la plupart des stands n'acceptent "
+        "pas les cartes.",
+    'community_caption_penang_hill':
+        "La file pour le funiculaire était longue mais la vue au sommet "
+        "valait largement le coup. Allez-y tôt le matin pour éviter la "
+        "foule et la chaleur.",
+    'community_time_2h_ago': 'il y a 2h',
+    'community_time_5h_ago': 'il y a 5h',
+    'community_time_1d_ago': 'il y a 1j',
+    'community_time_1h_ago': 'il y a 1h',
+    'community_time_3h_ago': 'il y a 3h',
+    'community_comment_you': 'Vous',
+    'community_time_now': "à l'instant",
+    'community_comment_1': "Je l'ajoute à ma liste tout de suite !",
+    'community_comment_2':
+        "J'y suis allé le mois dernier, ça vaut vraiment le coup 🙌",
+    'community_comment_3':
+        "Vous y êtes allé à quelle heure pour éviter la foule ?",
+    'community_review_date_2_days_ago': 'il y a 2 jours',
+    'community_review_date_1_week_ago': 'il y a 1 semaine',
+    'community_review_date_3_weeks_ago': 'il y a 3 semaines',
+    'community_review_date_1_month_ago': 'il y a 1 mois',
+    'community_review_text_1':
+        "Absolument magnifique, allez-y au coucher du soleil pour la "
+        "meilleure lumière. J'ai adoré chaque instant !",
+    'community_review_text_2':
+        'Très bel endroit, un peu bondé le week-end mais ça reste '
+        'intéressant.',
+    'community_review_text_3':
+        "L'un des points forts de tout notre voyage. Fortement recommandé "
+        "pour les photos.",
+    'community_review_text_4':
+        "Bonne expérience dans l'ensemble, mais la signalisation pourrait "
+        "être améliorée.",
   },
   'de': {
     'community_subtitle': 'Reisegeschichten von anderen Entdeckern',
@@ -434,6 +961,52 @@ const Map<String, Map<String, String>> communityStrings = {
     'community_reviews_title': 'Bewertungen',
     'community_reviews_count': 'Bewertungen',
     'community_reply': 'Antworten',
+    'community_title': 'Community',
+    'community_author_mei_ling': 'Mei Ling',
+    'community_author_arif_hakim': 'Arif Hakim',
+    'community_author_sophia_tan': 'Sophia Tan',
+    'community_author_daniel_wong': 'Daniel Wong',
+    'community_place_chew_jetty': 'Chew Jetty, George Town',
+    'community_place_gurney_hawker': 'Gurney Drive Hawker Centre',
+    'community_place_penang_hill': 'Penang Hill',
+    'community_caption_chew_jetty':
+        'Der Sonnenuntergang über den Pfahlbauten war unwirklich schön 😍 '
+        'der frühe Abendbesuch lohnt sich definitiv, und es ist viel '
+        'weniger überlaufen.',
+    'community_caption_gurney':
+        'Das Char Kway Teow hier ist erstklassig. Habe nachbestellt, keine '
+        'Reue. Bargeld mitbringen, die meisten Stände nehmen keine Karten.',
+    'community_caption_penang_hill':
+        'Die Schlange für die Standseilbahn war lang, aber die Aussicht '
+        'oben hat es wettgemacht. Geh früh morgens hin, um Menschenmassen '
+        'und Hitze zu vermeiden.',
+    'community_time_2h_ago': 'vor 2 Std.',
+    'community_time_5h_ago': 'vor 5 Std.',
+    'community_time_1d_ago': 'vor 1 Tag',
+    'community_time_1h_ago': 'vor 1 Std.',
+    'community_time_3h_ago': 'vor 3 Std.',
+    'community_comment_you': 'Du',
+    'community_time_now': 'jetzt',
+    'community_comment_1': 'Setze das sofort auf meine Liste!',
+    'community_comment_2': 'War letzten Monat dort, absolut lohnenswert 🙌',
+    'community_comment_3':
+        'Wie früh warst du dort, um die Menschenmassen zu vermeiden?',
+    'community_review_date_2_days_ago': 'vor 2 Tagen',
+    'community_review_date_1_week_ago': 'vor 1 Woche',
+    'community_review_date_3_weeks_ago': 'vor 3 Wochen',
+    'community_review_date_1_month_ago': 'vor 1 Monat',
+    'community_review_text_1':
+        'Absolut atemberaubend, geh bei Sonnenuntergang für das beste '
+        'Licht. Jede Minute war toll!',
+    'community_review_text_2':
+        'Toller Ort, am Wochenende etwas überlaufen, aber trotzdem '
+        'lohnenswert.',
+    'community_review_text_3':
+        'Eines der Highlights unserer ganzen Reise. Sehr empfehlenswert '
+        'für Fotos.',
+    'community_review_text_4':
+        'Insgesamt eine gute Erfahrung, die Beschilderung könnte aber '
+        'besser sein.',
   },
   'pt': {
     'community_subtitle': 'Histórias de viagem de outros exploradores',
@@ -465,6 +1038,50 @@ const Map<String, Map<String, String>> communityStrings = {
     'community_reviews_title': 'Avaliações',
     'community_reviews_count': 'avaliações',
     'community_reply': 'Responder',
+    'community_title': 'Comunidade',
+    'community_author_mei_ling': 'Mei Ling',
+    'community_author_arif_hakim': 'Arif Hakim',
+    'community_author_sophia_tan': 'Sophia Tan',
+    'community_author_daniel_wong': 'Daniel Wong',
+    'community_place_chew_jetty': 'Chew Jetty, George Town',
+    'community_place_gurney_hawker': 'Centro Gastronômico Gurney Drive',
+    'community_place_penang_hill': 'Colina de Penang',
+    'community_caption_chew_jetty':
+        'O pôr do sol sobre as casas de palafitas foi surreal 😍 vale '
+        'muito a pena visitar no fim da tarde, e tem bem menos gente '
+        'também.',
+    'community_caption_gurney':
+        'O char kway teow daqui é imbatível. Pedi mais uma porção, sem '
+        'arrependimentos. Leve dinheiro, a maioria das barracas não aceita '
+        'cartão.',
+    'community_caption_penang_hill':
+        'A fila do funicular foi longa, mas a vista lá em cima compensou '
+        'totalmente. Vá bem cedo para evitar multidões e o calor.',
+    'community_time_2h_ago': 'há 2h',
+    'community_time_5h_ago': 'há 5h',
+    'community_time_1d_ago': 'há 1d',
+    'community_time_1h_ago': 'há 1h',
+    'community_time_3h_ago': 'há 3h',
+    'community_comment_you': 'Você',
+    'community_time_now': 'agora',
+    'community_comment_1': 'Já vou adicionar isso à minha lista!',
+    'community_comment_2': 'Fui no mês passado, vale muito a pena 🙌',
+    'community_comment_3': 'Que horas você foi para evitar as multidões?',
+    'community_review_date_2_days_ago': 'há 2 dias',
+    'community_review_date_1_week_ago': 'há 1 semana',
+    'community_review_date_3_weeks_ago': 'há 3 semanas',
+    'community_review_date_1_month_ago': 'há 1 mês',
+    'community_review_text_1':
+        'Absolutamente deslumbrante, vá ao pôr do sol para a melhor luz. '
+        'Adorei cada minuto!',
+    'community_review_text_2':
+        'Ótimo lugar, um pouco cheio nos fins de semana, mas ainda vale a '
+        'pena.',
+    'community_review_text_3':
+        'Um dos destaques de toda a nossa viagem. Super recomendo para '
+        'fotos.',
+    'community_review_text_4':
+        'Experiência boa no geral, mas a sinalização poderia ser melhor.',
   },
   'ru': {
     'community_subtitle': 'Дорожные истории от других путешественников',
@@ -496,5 +1113,49 @@ const Map<String, Map<String, String>> communityStrings = {
     'community_reviews_title': 'Отзывы',
     'community_reviews_count': 'отзывов',
     'community_reply': 'Ответить',
+    'community_title': 'Сообщество',
+    'community_author_mei_ling': 'Мэй Линг',
+    'community_author_arif_hakim': 'Ариф Хаким',
+    'community_author_sophia_tan': 'София Тан',
+    'community_author_daniel_wong': 'Дэниел Вонг',
+    'community_place_chew_jetty': 'Пристань Чью, Джорджтаун',
+    'community_place_gurney_hawker': 'Фуд-корт Gurney Drive',
+    'community_place_penang_hill': 'Пенанг-Хилл',
+    'community_caption_chew_jetty':
+        'Закат над домами на сваях был нереально красив 😍 однозначно '
+        'стоит приехать вечером, да и людей намного меньше.',
+    'community_caption_gurney':
+        'Чар квей тео здесь просто топ. Взял добавку, ни капли не жалею. '
+        'Берите наличные, большинство точек карты не принимают.',
+    'community_caption_penang_hill':
+        'Очередь на фуникулёр была длинной, но вид сверху того стоил. '
+        'Приезжайте рано утром, чтобы избежать толп и жары.',
+    'community_time_2h_ago': '2 ч назад',
+    'community_time_5h_ago': '5 ч назад',
+    'community_time_1d_ago': '1 д назад',
+    'community_time_1h_ago': '1 ч назад',
+    'community_time_3h_ago': '3 ч назад',
+    'community_comment_you': 'Вы',
+    'community_time_now': 'сейчас',
+    'community_comment_1': 'Добавляю это в свой список прямо сейчас!',
+    'community_comment_2':
+        'Ездил туда в прошлом месяце, однозначно того стоит 🙌',
+    'community_comment_3':
+        'Во сколько вы поехали, чтобы избежать толпы?',
+    'community_review_date_2_days_ago': '2 дня назад',
+    'community_review_date_1_week_ago': '1 неделю назад',
+    'community_review_date_3_weeks_ago': '3 недели назад',
+    'community_review_date_1_month_ago': '1 месяц назад',
+    'community_review_text_1':
+        'Совершенно потрясающе, приезжайте на закате для лучшего света. '
+        'Понравилась каждая минута!',
+    'community_review_text_2':
+        'Отличное место, немного людно по выходным, но всё равно того '
+        'стоит.',
+    'community_review_text_3':
+        'Один из ярких моментов всей нашей поездки. Очень рекомендую для '
+        'фото.',
+    'community_review_text_4':
+        'В целом хороший опыт, но указатели могли бы быть лучше.',
   },
 };

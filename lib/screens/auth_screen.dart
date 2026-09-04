@@ -11,6 +11,8 @@ import '../widgets/gradient_button.dart';
 import 'email_two_factor_screen.dart';
 import 'forgot_password_screen.dart';
 import 'home_screen.dart';
+import 'profile/privacy_policy_screen.dart';
+import 'profile/terms_of_service_screen.dart';
 import 'verify_email_screen.dart';
 
 /// Combined sign in / sign up screen reached from the welcome carousel.
@@ -27,6 +29,7 @@ class _AuthScreenState extends State<AuthScreen> {
   bool _obscureConfirm = true;
   bool _loading = false;
   bool _rememberMe = true;
+  bool _agreedToTerms = false;
 
   final _nameController = TextEditingController();
   final _emailController = TextEditingController();
@@ -81,7 +84,8 @@ class _AuthScreenState extends State<AuthScreen> {
         Validators.confirmPassword(
           _confirmController.text,
           _passwordController.text,
-        );
+        ) ??
+        (_agreedToTerms ? null : tr('auth_must_agree_terms'));
   }
 
   Future<void> _submit() async {
@@ -95,6 +99,14 @@ class _AuthScreenState extends State<AuthScreen> {
     try {
       if (_isSignIn) {
         final email = _emailController.text.trim();
+        final lockedUntil = await AuthService.instance.checkLoginLockout(
+          email,
+        );
+        if (lockedUntil != null) {
+          if (!mounted) return;
+          _showError(_lockoutMessage(lockedUntil));
+          return;
+        }
         await AuthService.instance.signIn(
           email: email,
           password: _passwordController.text,
@@ -155,9 +167,16 @@ class _AuthScreenState extends State<AuthScreen> {
       }
     } on AuthException catch (e) {
       if (_isSignIn && isInvalidCredentials(e)) {
-        final registered = await AuthService.instance.emailExists(
-          _emailController.text.trim(),
+        final email = _emailController.text.trim();
+        final lockedUntil = await AuthService.instance.recordFailedLogin(
+          email,
         );
+        if (!mounted) return;
+        if (lockedUntil != null) {
+          _showError(_lockoutMessage(lockedUntil));
+          return;
+        }
+        final registered = await AuthService.instance.emailExists(email);
         if (!mounted) return;
         _showError(
           registered
@@ -179,6 +198,17 @@ class _AuthScreenState extends State<AuthScreen> {
 
   String get _emailAlreadyExistsMessage => tr('auth_email_already_exists');
 
+  /// "Too many attempts. Try again in N min." — N rounded up so a lockout
+  /// that has, say, 40 seconds left still reads "1 min" rather than "0
+  /// min".
+  String _lockoutMessage(DateTime lockedUntil) {
+    final remaining = lockedUntil.difference(DateTime.now());
+    final minutes = remaining.inSeconds <= 0
+        ? 1
+        : (remaining.inSeconds / 60).ceil();
+    return '${tr('auth_too_many_attempts_prefix')} $minutes ${tr('auth_min_suffix')}';
+  }
+
   bool _isEmailAlreadyExists(AuthException e) =>
       e.code == 'user_already_exists' ||
       e.code == 'email_exists' ||
@@ -198,6 +228,27 @@ class _AuthScreenState extends State<AuthScreen> {
         content: Text('$provider ${tr('common_coming_soon').toLowerCase()}'),
       ),
     );
+  }
+
+  Future<void> _signInWithGoogle() async {
+    if (_loading) return;
+    setState(() => _loading = true);
+    try {
+      // Redirects the whole page to Google, so nothing after this line
+      // normally runs — the app reloads at redirectTo once the user
+      // finishes on Google's side, and SplashScreen picks up the resulting
+      // session from there.
+      await AuthService.instance.signInWithGoogle();
+    } on AuthException catch (e) {
+      if (!mounted) return;
+      _showError(friendlyAuthError(e));
+    } catch (e, st) {
+      debugPrint('AuthScreen._signInWithGoogle unexpected error: $e\n$st');
+      if (!mounted) return;
+      _showError(tr('common_error_generic'));
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
   }
 
   @override
@@ -299,6 +350,12 @@ class _AuthScreenState extends State<AuthScreen> {
                                   ),
                                 ),
                               ],
+                            )
+                          else
+                            _TermsCheckbox(
+                              value: _agreedToTerms,
+                              onChanged: (v) =>
+                                  setState(() => _agreedToTerms = v),
                             ),
                           SizedBox(height: 12),
                           GradientButton(
@@ -345,7 +402,7 @@ class _AuthScreenState extends State<AuthScreen> {
                             children: [
                               _SocialButton(
                                 label: 'G',
-                                onTap: () => _comingSoon('Google'),
+                                onTap: _signInWithGoogle,
                               ),
                               SizedBox(width: 16),
                               _SocialButton(
@@ -601,6 +658,71 @@ class _RememberMeCheckbox extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+/// Required-before-sign-up checkbox linking out to the Terms of Service and
+/// Privacy Policy screens (also reachable from Settings > About).
+class _TermsCheckbox extends StatelessWidget {
+  const _TermsCheckbox({required this.value, required this.onChanged});
+
+  final bool value;
+  final ValueChanged<bool> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final linkStyle = TextStyle(
+      color: AppColors.accent,
+      fontWeight: FontWeight.w700,
+      fontSize: 12.5,
+    );
+    final textStyle = TextStyle(
+      color: context.colors.muted,
+      fontWeight: FontWeight.w600,
+      fontSize: 12.5,
+    );
+
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SizedBox(
+          width: 20,
+          height: 20,
+          child: Checkbox(
+            value: value,
+            onChanged: (v) => onChanged(v ?? false),
+            activeColor: context.colors.ink,
+            visualDensity: VisualDensity.compact,
+            materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+          ),
+        ),
+        SizedBox(width: 8),
+        Expanded(
+          child: Padding(
+            padding: const EdgeInsets.only(top: 3),
+            child: Wrap(
+              crossAxisAlignment: WrapCrossAlignment.center,
+              children: [
+                Text(tr('auth_agree_terms_prefix'), style: textStyle),
+                GestureDetector(
+                  onTap: () => Navigator.of(context).push(
+                    MaterialPageRoute(builder: (_) => TermsOfServiceScreen()),
+                  ),
+                  child: Text(tr('auth_terms_of_service'), style: linkStyle),
+                ),
+                Text(tr('auth_agree_terms_and'), style: textStyle),
+                GestureDetector(
+                  onTap: () => Navigator.of(context).push(
+                    MaterialPageRoute(builder: (_) => PrivacyPolicyScreen()),
+                  ),
+                  child: Text(tr('auth_privacy_policy'), style: linkStyle),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
     );
   }
 }

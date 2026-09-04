@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../services/locale_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/destination_search_bar.dart';
 import '../../widgets/section_header.dart';
@@ -34,91 +35,88 @@ class Place {
   /// a formatted range like "RM 30 – 50" or "Free".
   final String avgBudget;
   final double? distanceKm;
+
+  /// Identity is by [name] rather than every field, since translated
+  /// fields (area, description, avgBudget) are recomputed fresh on each
+  /// access to [places] — two instances for the same catalog entry must
+  /// still compare equal across locale changes and rebuilds.
+  @override
+  bool operator ==(Object other) => other is Place && other.name == name;
+
+  @override
+  int get hashCode => name.hashCode;
 }
 
-final places = [
+List<Place> get places => [
   Place(
     name: 'Penang Hill',
-    area: 'Air Itam, Penang',
+    area: tr('explore_area_air_itam'),
     category: 'Nature',
     rating: 4.8,
     reviews: 2140,
     gradient: AppColors.lagoon,
     icon: Icons.terrain_rounded,
-    description:
-        'A hill station offering panoramic views of George Town, reached '
-        'by a historic funicular railway. Cooler air, gardens, and a '
-        'canopy walkway make it a favorite half-day trip.',
+    description: tr('explore_desc_penang_hill'),
     avgBudget: 'RM 30 – 50',
     distanceKm: 8.2,
   ),
   Place(
     name: 'Batu Ferringhi',
-    area: 'Tanjung Bungah, Penang',
+    area: tr('explore_area_tanjung_bungah'),
     category: 'Beach',
     rating: 4.6,
     reviews: 1560,
     gradient: AppColors.sunset,
     icon: Icons.beach_access_rounded,
-    description:
-        'A lively beach strip lined with resorts, a night market, and '
-        'water sports. Great for sunset walks and street food.',
+    description: tr('explore_desc_batu_ferringhi'),
     avgBudget: 'RM 20 – 60',
     distanceKm: 12.5,
   ),
   Place(
     name: 'Chew Jetty',
-    area: 'George Town, Penang',
+    area: tr('explore_area_george_town'),
     category: 'Culture',
     rating: 4.7,
     reviews: 3980,
     gradient: AppColors.horizon,
     icon: Icons.holiday_village_rounded,
-    description:
-        'A centuries-old stilt village built over water by the Chew clan. '
-        'Wander wooden boardwalks lined with shops, cafes, and sea views.',
-    avgBudget: 'Free – RM 20',
+    description: tr('explore_desc_chew_jetty'),
+    avgBudget: '${tr('explore_free_word')} – RM 20',
     distanceKm: 2.1,
   ),
   Place(
     name: 'The Top Komtar',
-    area: 'George Town, Penang',
+    area: tr('explore_area_george_town'),
     category: 'Shopping',
     rating: 4.5,
     reviews: 1120,
     gradient: AppColors.dusk,
     icon: Icons.visibility_rounded,
-    description:
-        'An observation deck and rooftop attraction atop Komtar Tower, '
-        'with a glass walk and 360° views over George Town.',
+    description: tr('explore_desc_komtar'),
     avgBudget: 'RM 30 – 80',
     distanceKm: 0.5,
   ),
   Place(
     name: 'Gurney Drive Hawker Centre',
-    area: 'Gurney Drive, Penang',
+    area: tr('explore_area_gurney_drive'),
     category: 'Food',
     rating: 4.7,
     reviews: 2670,
     gradient: AppColors.sunset,
     icon: Icons.restaurant_rounded,
-    description:
-        'A legendary open-air food court along the seafront, famous for '
-        'char kway teow, laksa, and fresh seafood stalls.',
+    description: tr('explore_desc_gurney'),
     avgBudget: 'RM 15 – 40',
     distanceKm: 3.4,
   ),
   Place(
     name: 'Upside Down Museum',
-    area: 'George Town, Penang',
+    area: tr('explore_area_george_town'),
     category: 'Nightlife',
     rating: 4.4,
     reviews: 890,
     gradient: AppColors.lagoon,
     icon: Icons.nightlife_rounded,
-    description:
-        'A quirky photo-op museum with upside-down rooms — a fun evening '
-        'stop for playful souvenir photos.',
+    description: tr('explore_desc_updown_museum'),
     avgBudget: 'RM 40 – 60',
     distanceKm: 1.8,
   ),
@@ -155,7 +153,7 @@ class _ExploreTabState extends State<ExploreTab> {
         padding: EdgeInsets.fromLTRB(24, 20, 24, 24),
         children: [
           Text(
-            'Explore',
+            tr('explore_title'),
             style: TextStyle(
               color: context.colors.ink,
               fontSize: 24,
@@ -164,7 +162,7 @@ class _ExploreTabState extends State<ExploreTab> {
           ),
           SizedBox(height: 4),
           Text(
-            'Discover more of Penang',
+            tr('explore_subtitle'),
             style: TextStyle(color: context.colors.muted, fontSize: 13.5),
           ),
           SizedBox(height: 20),
@@ -176,7 +174,7 @@ class _ExploreTabState extends State<ExploreTab> {
               scrollDirection: Axis.horizontal,
               children: [
                 _CategoryChip(
-                  label: 'All',
+                  label: tr('explore_all'),
                   icon: Icons.apps_rounded,
                   selected: _selectedCategory == null,
                   onTap: () => setState(() => _selectedCategory = null),
@@ -186,7 +184,7 @@ class _ExploreTabState extends State<ExploreTab> {
                   (c) => Padding(
                     padding: EdgeInsets.only(right: 8),
                     child: _CategoryChip(
-                      label: c.label,
+                      label: tr('explore_category_${c.label.toLowerCase()}'),
                       icon: c.icon,
                       selected: _selectedCategory == c.label,
                       onTap: () => setState(() => _selectedCategory = c.label),
@@ -194,7 +192,7 @@ class _ExploreTabState extends State<ExploreTab> {
                   ),
                 ),
                 _CategoryChip(
-                  label: 'Browse all',
+                  label: tr('explore_browse_all'),
                   icon: Icons.grid_view_rounded,
                   selected: false,
                   onTap: () => Navigator.of(
@@ -206,7 +204,7 @@ class _ExploreTabState extends State<ExploreTab> {
           ),
           SizedBox(height: 24),
           SectionHeader(
-            title: 'Nearby Places',
+            title: tr('explore_nearby_places'),
             onAction: () => Navigator.of(
               context,
             ).push(MaterialPageRoute(builder: (_) => NearbyPlacesScreen())),
@@ -227,8 +225,9 @@ class _ExploreTabState extends State<ExploreTab> {
           SizedBox(height: 28),
           Text(
             _selectedCategory == null
-                ? 'Popular Destinations'
-                : '$_selectedCategory Spots',
+                ? tr('explore_popular_destinations')
+                : '${tr('explore_category_${_selectedCategory!.toLowerCase()}')} '
+                      '${tr('explore_spots_suffix')}',
             style: TextStyle(
               color: context.colors.ink,
               fontSize: 18,

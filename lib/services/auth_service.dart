@@ -71,7 +71,100 @@ class AuthService {
     return _auth.signInWithPassword(email: email, password: password);
   }
 
+  /// Starts the "Continue with Google" flow. On web this redirects the
+  /// whole page to Google's sign-in screen and back to [redirectTo]
+  /// (defaulting to this page's own origin, e.g. `http://localhost:8766`,
+  /// which must be registered in both the Google Cloud OAuth client and the
+  /// Supabase project's Auth > URL Configuration > Redirect URLs) — Supabase
+  /// then picks the resulting session up automatically from the URL on the
+  /// next app load, the same way `SplashScreen` already checks [isSignedIn].
+  ///
+  /// Requires the Google provider to be enabled (with a Client ID/Secret)
+  /// under Supabase Auth > Providers first; see SUPABASE_SETUP.md.
+  Future<bool> signInWithGoogle() {
+    return _auth.signInWithOAuth(
+      OAuthProvider.google,
+      redirectTo: kIsWeb ? Uri.base.origin : null,
+    );
+  }
+
   Future<void> signOut() => _auth.signOut();
+
+  /// Server-side account lockout after repeated failed sign-ins (Sign In
+  /// screen) — tracked in `public.login_lockouts` via SECURITY DEFINER
+  /// functions (see supabase/migrations/0014_login_lockout.sql), so it
+  /// can't be bypassed by clearing local storage or switching devices.
+  /// Keyed by email, since a failed attempt happens before Supabase knows
+  /// which user it is.
+  ///
+  /// Returns the lockout end time if [email] is currently locked out, or
+  /// null otherwise. Call before [signIn] so a locked-out account never
+  /// even reaches Supabase's own rate limiter. Fails open (returns null)
+  /// if the check itself errors — e.g. the migration hasn't been applied
+  /// yet — so a broken/missing lockout check can never block sign-in.
+  Future<DateTime?> checkLoginLockout(String email) async {
+    try {
+      final result = await Supabase.instance.client.rpc(
+        'check_login_lockout',
+        params: {'p_email': email},
+      );
+      return result == null ? null : DateTime.parse(result as String);
+    } catch (e) {
+      debugPrint('checkLoginLockout failed, skipping: $e');
+      return null;
+    }
+  }
+
+  /// Records a failed sign-in attempt for [email]. Returns the lockout end
+  /// time if this attempt just triggered a lockout (5 failures within 15
+  /// minutes) — each successive lockout is 5 minutes longer than the last
+  /// (5, 10, 15, ...) until a successful sign-in resets it — or null if
+  /// [email] isn't locked out yet. Fails open (returns null) on error, same
+  /// as [checkLoginLockout].
+  Future<DateTime?> recordFailedLogin(String email) async {
+    try {
+      final result = await Supabase.instance.client.rpc(
+        'record_failed_login',
+        params: {'p_email': email},
+      );
+      final rows = result as List;
+      if (rows.isEmpty) return null;
+      final lockedUntil =
+          (rows.first as Map<String, dynamic>)['locked_until'] as String?;
+      return lockedUntil == null ? null : DateTime.parse(lockedUntil);
+    } catch (e) {
+      debugPrint('recordFailedLogin failed, skipping: $e');
+      return null;
+    }
+  }
+
+  /// Clears any failed-login streak for [email] — called automatically
+  /// after a successful sign-in (see the `onAuthStateChange` listener in
+  /// `main.dart`).
+  Future<void> clearLoginLockout(String email) async {
+    try {
+      await Supabase.instance.client.rpc(
+        'clear_login_lockout',
+        params: {'p_email': email},
+      );
+    } catch (e) {
+      debugPrint('clearLoginLockout failed, skipping: $e');
+    }
+  }
+
+  /// Permanently deletes the signed-in user's account (Privacy & Security >
+  /// Delete Account) via the `delete_own_account` SECURITY DEFINER DB
+  /// function (see supabase/migrations/0012_delete_own_account.sql), which
+  /// removes the row from `auth.users` and cascades through profiles,
+  /// trips, and everything else owned by this user.
+  ///
+  /// Only clears the *local* session afterwards — the account (and its
+  /// refresh token) is already gone server-side by that point, so a normal
+  /// server-side sign-out call would just fail.
+  Future<void> deleteAccount() async {
+    await Supabase.instance.client.rpc('delete_own_account');
+    await _auth.signOut(scope: SignOutScope.local);
+  }
 
   /// Re-verifies the signed-in user's current password (e.g. before letting
   /// them change it) by attempting a fresh sign-in with it. Throws an

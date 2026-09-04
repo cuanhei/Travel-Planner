@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../models/trip_stop_location.dart';
+import '../../services/locale_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/detail_header.dart';
 import 'stop_map_picker.dart';
@@ -37,13 +38,15 @@ class _StopSelectionScreenState extends State<StopSelectionScreen> {
         child: Column(
           children: [
             DetailHeader(
-              title: 'Select Stops',
-              subtitle: '${_stops.length} stop${_stops.length == 1 ? '' : 's'} added',
+              title: tr('trip_select_stops_title'),
+              subtitle: '${_stops.length} '
+                  '${_stops.length == 1 ? tr('trip_stop_singular') : tr('trip_stops_word')} '
+                  '${tr('trip_stops_added_suffix')}',
               trailing: TextButton(
                 onPressed: () => Navigator.of(context).pop(_stops),
-                child: const Text(
-                  'Done',
-                  style: TextStyle(fontWeight: FontWeight.w800),
+                child: Text(
+                  tr('trip_done_badge'),
+                  style: const TextStyle(fontWeight: FontWeight.w800),
                 ),
               ),
             ),

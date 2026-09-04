@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../services/locale_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/detail_header.dart';
 import 'packing_item_form_screen.dart';
@@ -29,6 +30,21 @@ const packingCategorySuggestions = [
   'Documents',
 ];
 
+const _categoryTranslationKeys = {
+  'Clothing': 'utilities_category_clothing',
+  'Toiletries': 'utilities_category_toiletries',
+  'Electronics': 'utilities_category_electronics',
+  'Documents': 'utilities_category_documents',
+};
+
+/// Translates a fixed packing category label; a custom category a
+/// traveler typed in has no fixed-language key, so it's shown exactly
+/// as entered.
+String translatedPackingCategory(String label) {
+  final key = _categoryTranslationKeys[label];
+  return key == null ? label : tr(key);
+}
+
 /// Packing checklist grouped by category — add, edit, or remove items,
 /// and check them off as they're packed.
 class PackingListScreen extends StatefulWidget {
@@ -40,20 +56,20 @@ class PackingListScreen extends StatefulWidget {
 
 class _PackingListScreenState extends State<PackingListScreen> {
   final _items = [
-    PackingItem(id: 1, label: 'Light shirts & shorts', category: 'Clothing', packed: true),
-    PackingItem(id: 2, label: 'Swimwear', category: 'Clothing', packed: true),
-    PackingItem(id: 3, label: 'Comfortable walking shoes', category: 'Clothing'),
-    PackingItem(id: 4, label: 'Rain jacket', category: 'Clothing'),
-    PackingItem(id: 5, label: 'Sunscreen (SPF 50+)', category: 'Toiletries', packed: true),
-    PackingItem(id: 6, label: 'Toothbrush & toothpaste', category: 'Toiletries'),
-    PackingItem(id: 7, label: 'Insect repellent', category: 'Toiletries'),
-    PackingItem(id: 8, label: 'Phone charger', category: 'Electronics', packed: true),
-    PackingItem(id: 9, label: 'Power bank', category: 'Electronics'),
-    PackingItem(id: 10, label: 'Universal adapter', category: 'Electronics'),
-    PackingItem(id: 11, label: 'Camera', category: 'Electronics'),
-    PackingItem(id: 12, label: 'Passport / IC', category: 'Documents', packed: true),
-    PackingItem(id: 13, label: 'Hotel booking confirmation', category: 'Documents'),
-    PackingItem(id: 14, label: 'Travel insurance', category: 'Documents'),
+    PackingItem(id: 1, label: tr('utilities_item_light_shirts_shorts'), category: 'Clothing', packed: true),
+    PackingItem(id: 2, label: tr('utilities_item_swimwear'), category: 'Clothing', packed: true),
+    PackingItem(id: 3, label: tr('utilities_item_walking_shoes'), category: 'Clothing'),
+    PackingItem(id: 4, label: tr('utilities_item_rain_jacket'), category: 'Clothing'),
+    PackingItem(id: 5, label: tr('utilities_item_sunscreen'), category: 'Toiletries', packed: true),
+    PackingItem(id: 6, label: tr('utilities_item_toothbrush'), category: 'Toiletries'),
+    PackingItem(id: 7, label: tr('utilities_item_insect_repellent'), category: 'Toiletries'),
+    PackingItem(id: 8, label: tr('utilities_item_phone_charger'), category: 'Electronics', packed: true),
+    PackingItem(id: 9, label: tr('utilities_item_power_bank'), category: 'Electronics'),
+    PackingItem(id: 10, label: tr('utilities_item_universal_adapter'), category: 'Electronics'),
+    PackingItem(id: 11, label: tr('utilities_item_camera'), category: 'Electronics'),
+    PackingItem(id: 12, label: tr('utilities_item_passport_ic'), category: 'Documents', packed: true),
+    PackingItem(id: 13, label: tr('utilities_item_hotel_booking'), category: 'Documents'),
+    PackingItem(id: 14, label: tr('utilities_item_travel_insurance'), category: 'Documents'),
   ];
 
   List<String> get _existingCategories =>
@@ -104,8 +120,8 @@ class _PackingListScreenState extends State<PackingListScreen> {
         child: Column(
           children: [
             DetailHeader(
-              title: 'Packing List',
-              subtitle: '$packedCount of ${_items.length} packed',
+              title: tr('utilities_packing_list_title'),
+              subtitle: '$packedCount ${tr('utilities_of')} ${_items.length} ${tr('utilities_packed')}',
               trailing: IconButton(
                 onPressed: _addItem,
                 icon: Icon(Icons.add_rounded, color: context.colors.ink),
@@ -133,7 +149,7 @@ class _PackingListScreenState extends State<PackingListScreen> {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              entry.key,
+                              translatedPackingCategory(entry.key),
                               style: TextStyle(
                                 color: context.colors.ink,
                                 fontWeight: FontWeight.w800,
@@ -211,7 +227,7 @@ class _EmptyState extends StatelessWidget {
             Icon(Icons.checklist_rounded, color: context.colors.muted, size: 44),
             const SizedBox(height: 16),
             Text(
-              'Nothing on your list yet',
+              tr('utilities_empty_packing_title'),
               style: TextStyle(
                 color: context.colors.ink,
                 fontWeight: FontWeight.w800,
@@ -220,7 +236,7 @@ class _EmptyState extends StatelessWidget {
             ),
             const SizedBox(height: 6),
             Text(
-              'Add the first thing you need to pack.',
+              tr('utilities_empty_packing_subtitle'),
               textAlign: TextAlign.center,
               style: TextStyle(color: context.colors.muted, fontSize: 12.5),
             ),
@@ -231,16 +247,16 @@ class _EmptyState extends StatelessWidget {
               child: InkWell(
                 borderRadius: BorderRadius.circular(14),
                 onTap: onAdd,
-                child: const Padding(
-                  padding: EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Icon(Icons.add_rounded, color: Colors.white, size: 18),
-                      SizedBox(width: 6),
+                      const Icon(Icons.add_rounded, color: Colors.white, size: 18),
+                      const SizedBox(width: 6),
                       Text(
-                        'Add Item',
-                        style: TextStyle(
+                        tr('utilities_add_item'),
+                        style: const TextStyle(
                           color: Colors.white,
                           fontWeight: FontWeight.w700,
                           fontSize: 13,

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../services/locale_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/map_grid_painter.dart';
 import '../../widgets/map_label_pill.dart';
@@ -123,8 +124,8 @@ class _LocationMapPickerState extends State<LocationMapPicker> {
                 top: 10,
                 child: MapLabelPill(
                   text: shownPlaces.isEmpty
-                      ? 'No matches — add it yourself'
-                      : 'Tap pins to select',
+                      ? tr('trip_map_no_matches')
+                      : tr('trip_map_tap_pins'),
                 ),
               ),
             if (widget.showSearch)
@@ -229,9 +230,9 @@ class _SearchField extends StatelessWidget {
                   fontSize: 13.5,
                   fontWeight: FontWeight.w600,
                 ),
-                decoration: const InputDecoration(
-                  hintText: 'Search a place to pin it…',
-                  hintStyle: TextStyle(
+                decoration: InputDecoration(
+                  hintText: tr('trip_map_search_hint'),
+                  hintStyle: const TextStyle(
                     color: Color(0xFF6E7A93),
                     fontWeight: FontWeight.w500,
                   ),
@@ -328,16 +329,16 @@ class _SearchResults extends StatelessWidget {
                   color: Color(0xFFFF7A59),
                 ),
                 title: Text(
-                  'Drop a pin for "${query.trim()}"',
+                  '${tr('trip_map_drop_pin_for')} "${query.trim()}"',
                   style: const TextStyle(
                     color: Color(0xFF0B1D3A),
                     fontWeight: FontWeight.w700,
                     fontSize: 13,
                   ),
                 ),
-                subtitle: const Text(
-                  'Add as a custom stop',
-                  style: TextStyle(color: Color(0xFF6E7A93), fontSize: 11),
+                subtitle: Text(
+                  tr('trip_map_add_custom_stop'),
+                  style: const TextStyle(color: Color(0xFF6E7A93), fontSize: 11),
                 ),
                 onTap: onAddCustom,
               ),
@@ -390,14 +391,14 @@ class _MapPinButton extends StatelessWidget {
 Place buildCustomPlace(String name) {
   return Place(
     name: name,
-    area: 'Custom location',
+    area: tr('trip_custom_location_area'),
     category: 'Custom',
     rating: 0,
     reviews: 0,
     gradient: AppColors.dusk,
     icon: Icons.location_pin,
-    description: 'A custom stop you added yourself.',
-    avgBudget: 'Varies',
+    description: tr('trip_custom_stop_description'),
+    avgBudget: tr('trip_budget_varies'),
     distanceKm: 5,
   );
 }
@@ -412,7 +413,7 @@ Future<Place?> showAddCustomLocationDialog(BuildContext context) {
         backgroundColor: dialogContext.colors.card,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         title: Text(
-          'Add a Location',
+          tr('trip_add_location_title'),
           style: TextStyle(
             color: dialogContext.colors.ink,
             fontWeight: FontWeight.w800,
@@ -423,14 +424,14 @@ Future<Place?> showAddCustomLocationDialog(BuildContext context) {
           autofocus: true,
           style: TextStyle(color: dialogContext.colors.ink),
           decoration: InputDecoration(
-            hintText: 'e.g. Tropical Spice Garden',
+            hintText: tr('trip_add_location_hint'),
             hintStyle: TextStyle(color: dialogContext.colors.muted),
           ),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(dialogContext).pop(),
-            child: const Text('Cancel'),
+            child: Text(tr('trip_cancel')),
           ),
           FilledButton(
             onPressed: () {
@@ -441,7 +442,7 @@ Future<Place?> showAddCustomLocationDialog(BuildContext context) {
             style: FilledButton.styleFrom(
               backgroundColor: dialogContext.colors.ink,
             ),
-            child: const Text('Add'),
+            child: Text(tr('trip_add_button')),
           ),
         ],
       );

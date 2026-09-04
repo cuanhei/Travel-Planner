@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../services/locale_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/detail_header.dart';
 import '../transport/transport_routes_screen.dart';
@@ -9,10 +10,10 @@ enum _TransportMode { undecided, publicTransport, eHailing, walk }
 
 extension on _TransportMode {
   String get label => switch (this) {
-    _TransportMode.undecided => 'Choose transport',
-    _TransportMode.publicTransport => 'Public transport',
-    _TransportMode.eHailing => 'E-hailing',
-    _TransportMode.walk => 'Walking',
+    _TransportMode.undecided => tr('trip_mode_choose'),
+    _TransportMode.publicTransport => tr('trip_mode_public_transport'),
+    _TransportMode.eHailing => tr('trip_mode_ehailing'),
+    _TransportMode.walk => tr('trip_mode_walking'),
   };
 
   IconData get icon => switch (this) {
@@ -67,101 +68,103 @@ class DailyTimelineScreen extends StatefulWidget {
   State<DailyTimelineScreen> createState() => _DailyTimelineScreenState();
 }
 
+List<({String label, String date, List<_TimelineEntry> items})> _buildDays() => [
+  (
+    label: '${tr('trip_day_word')} 1',
+    date: 'Aug 14',
+    items: <_TimelineEntry>[
+      _Activity(
+        '8:00 AM',
+        tr('trip_activity_breakfast_hotel_title'),
+        tr('trip_activity_breakfast_hotel_subtitle'),
+        Icons.free_breakfast_rounded,
+        completed: true,
+      ),
+      _Transport(15, mode: _TransportMode.walk),
+      _Activity(
+        '10:00 AM',
+        tr('trip_stop_komtar_name'),
+        tr('trip_stop_komtar_subtitle'),
+        Icons.location_city_rounded,
+        completed: true,
+      ),
+      _Transport(4, mode: _TransportMode.walk),
+      _Activity(
+        '1:00 PM',
+        tr('trip_activity_lunch_komtar_title'),
+        tr('trip_activity_lunch_komtar_subtitle'),
+        Icons.restaurant_rounded,
+        completed: true,
+      ),
+      _Transport(10, mode: _TransportMode.walk),
+      _Activity(
+        '4:00 PM',
+        tr('trip_activity_stroll_street_art_title'),
+        tr('trip_activity_stroll_street_art_subtitle'),
+        Icons.palette_rounded,
+        completed: true,
+      ),
+    ],
+  ),
+  (
+    label: '${tr('trip_day_word')} 2',
+    date: 'Aug 15',
+    items: <_TimelineEntry>[
+      _Activity(
+        '9:30 AM',
+        tr('trip_activity_breakfast_nearby_title'),
+        tr('trip_activity_breakfast_nearby_subtitle'),
+        Icons.coffee_rounded,
+        completed: true,
+      ),
+      _Transport(18),
+      _Activity(
+        '1:00 PM',
+        tr('trip_stop_gurney_name'),
+        tr('trip_stop_gurney_subtitle'),
+        Icons.shopping_bag_rounded,
+      ),
+      _Transport(6, mode: _TransportMode.walk),
+      _Activity(
+        '6:30 PM',
+        tr('trip_activity_dinner_gurney_title'),
+        tr('trip_activity_dinner_gurney_subtitle'),
+        Icons.restaurant_rounded,
+      ),
+    ],
+  ),
+  (
+    label: '${tr('trip_day_word')} 3',
+    date: 'Aug 16',
+    items: <_TimelineEntry>[
+      _Activity(
+        '11:00 AM',
+        tr('trip_activity_checkout_title'),
+        tr('trip_activity_checkout_subtitle'),
+        Icons.luggage_rounded,
+      ),
+      _Transport(25),
+      _Activity(
+        '4:00 PM',
+        tr('trip_stop_queensbay_name'),
+        tr('trip_stop_queensbay_subtitle'),
+        Icons.storefront_rounded,
+      ),
+      _Transport(30),
+      _Activity(
+        '8:00 PM',
+        tr('trip_activity_airport_title'),
+        tr('trip_activity_airport_subtitle'),
+        Icons.flight_takeoff_rounded,
+      ),
+    ],
+  ),
+];
+
 class _DailyTimelineScreenState extends State<DailyTimelineScreen> {
   int _day = 0;
 
-  static final _days = [
-    (
-      label: 'Day 1',
-      date: 'Aug 14',
-      items: <_TimelineEntry>[
-        _Activity(
-          '8:00 AM',
-          'Breakfast at hotel',
-          'Start the day fueled up',
-          Icons.free_breakfast_rounded,
-          completed: true,
-        ),
-        _Transport(15, mode: _TransportMode.walk),
-        _Activity(
-          '10:00 AM',
-          'Komtar, George Town',
-          'Shopping & observation deck',
-          Icons.location_city_rounded,
-          completed: true,
-        ),
-        _Transport(4, mode: _TransportMode.walk),
-        _Activity(
-          '1:00 PM',
-          'Lunch at Komtar food court',
-          'Local Penang hawker food',
-          Icons.restaurant_rounded,
-          completed: true,
-        ),
-        _Transport(10, mode: _TransportMode.walk),
-        _Activity(
-          '4:00 PM',
-          'Stroll George Town street art',
-          'Free time exploring murals',
-          Icons.palette_rounded,
-          completed: true,
-        ),
-      ],
-    ),
-    (
-      label: 'Day 2',
-      date: 'Aug 15',
-      items: <_TimelineEntry>[
-        _Activity(
-          '9:30 AM',
-          'Breakfast nearby',
-          'Local kopitiam',
-          Icons.coffee_rounded,
-          completed: true,
-        ),
-        _Transport(18),
-        _Activity(
-          '1:00 PM',
-          'Gurney Drive & Plaza',
-          'Shopping and seaside walk',
-          Icons.shopping_bag_rounded,
-        ),
-        _Transport(6, mode: _TransportMode.walk),
-        _Activity(
-          '6:30 PM',
-          'Dinner at Gurney food stalls',
-          'Famous hawker street food',
-          Icons.restaurant_rounded,
-        ),
-      ],
-    ),
-    (
-      label: 'Day 3',
-      date: 'Aug 16',
-      items: <_TimelineEntry>[
-        _Activity(
-          '11:00 AM',
-          'Check out & luggage drop',
-          'Prep for last stop',
-          Icons.luggage_rounded,
-        ),
-        _Transport(25),
-        _Activity(
-          '4:00 PM',
-          'Queensbay Mall',
-          'Final shopping & souvenirs',
-          Icons.storefront_rounded,
-        ),
-        _Transport(30),
-        _Activity(
-          '8:00 PM',
-          'Head to airport',
-          'End of trip',
-          Icons.flight_takeoff_rounded,
-        ),
-      ],
-    ),
-  ];
+  late final _days = _buildDays();
 
   Future<void> _pickTransportMode(_Transport transport) async {
     final selected = await showModalBottomSheet<_TransportMode>(
@@ -199,9 +202,9 @@ class _DailyTimelineScreenState extends State<DailyTimelineScreen> {
       body: SafeArea(
         child: Column(
           children: [
-            const DetailHeader(
-              title: 'Daily Timeline',
-              subtitle: 'Your day-by-day schedule',
+            DetailHeader(
+              title: tr('trip_daily_timeline_title'),
+              subtitle: tr('trip_daily_timeline_subtitle'),
             ),
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 24),
@@ -385,8 +388,8 @@ class _ActivityRow extends StatelessWidget {
                     color: done.withValues(alpha: 0.12),
                     borderRadius: BorderRadius.circular(8),
                   ),
-                  child: const Text(
-                    'Done',
+                  child: Text(
+                    tr('trip_done_badge'),
                     style: TextStyle(
                       color: done,
                       fontSize: 9.5,
@@ -421,16 +424,16 @@ class _ActivityRow extends StatelessWidget {
               child: InkWell(
                 borderRadius: BorderRadius.circular(12),
                 onTap: onComplete,
-                child: const Padding(
-                  padding: EdgeInsets.symmetric(horizontal: 14, vertical: 9),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Icon(Icons.check_rounded, color: Colors.white, size: 15),
-                      SizedBox(width: 6),
+                      const Icon(Icons.check_rounded, color: Colors.white, size: 15),
+                      const SizedBox(width: 6),
                       Text(
-                        'Complete',
-                        style: TextStyle(
+                        tr('trip_complete_button'),
+                        style: const TextStyle(
                           color: Colors.white,
                           fontWeight: FontWeight.w700,
                           fontSize: 12.5,
@@ -490,7 +493,8 @@ class _TransportRow extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        '~${transport.estimatedMinutes} min transport',
+                        '~${transport.estimatedMinutes} '
+                        '${tr('trip_min_transport_suffix')}',
                         style: TextStyle(
                           color: context.colors.ink,
                           fontWeight: FontWeight.w700,
@@ -542,7 +546,7 @@ class _TransportModeSheet extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              'How do you want to get there?',
+              tr('trip_transport_dialog_title'),
               style: TextStyle(
                 color: context.colors.ink,
                 fontWeight: FontWeight.w800,
@@ -551,13 +555,13 @@ class _TransportModeSheet extends StatelessWidget {
             ),
             const SizedBox(height: 4),
             Text(
-              'Choose how to travel to the next stop',
+              tr('trip_transport_dialog_subtitle'),
               style: TextStyle(color: context.colors.muted, fontSize: 12.5),
             ),
             const SizedBox(height: 18),
             _ModeOption(
               mode: _TransportMode.publicTransport,
-              description: 'See live bus options and directions',
+              description: tr('trip_desc_public_transport'),
               selected: current == _TransportMode.publicTransport,
               onTap: () =>
                   Navigator.of(context).pop(_TransportMode.publicTransport),
@@ -565,14 +569,14 @@ class _TransportModeSheet extends StatelessWidget {
             const SizedBox(height: 10),
             _ModeOption(
               mode: _TransportMode.eHailing,
-              description: 'Book a Grab or taxi ride',
+              description: tr('trip_desc_ehailing'),
               selected: current == _TransportMode.eHailing,
               onTap: () => Navigator.of(context).pop(_TransportMode.eHailing),
             ),
             const SizedBox(height: 10),
             _ModeOption(
               mode: _TransportMode.walk,
-              description: 'Free, and a good stretch of the legs',
+              description: tr('trip_desc_walking'),
               selected: current == _TransportMode.walk,
               onTap: () => Navigator.of(context).pop(_TransportMode.walk),
             ),

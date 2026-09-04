@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../services/locale_service.dart';
 import '../theme/app_theme.dart';
 import 'explore/explore_tab.dart';
 import 'explore/place_details_screen.dart';
@@ -16,7 +17,11 @@ class SearchDestinationScreen extends StatefulWidget {
 
 class _SearchDestinationScreenState extends State<SearchDestinationScreen> {
   final _controller = TextEditingController();
-  final _recent = ['Gurney Drive', 'Penang Hill', 'Komtar'];
+  late final _recent = [
+    tr('home_recent_gurney_drive'),
+    tr('home_destination_penang_hill'),
+    tr('home_recent_komtar'),
+  ];
   String _query = '';
 
   @override
@@ -76,7 +81,7 @@ class _SearchDestinationScreenState extends State<SearchDestinationScreen> {
                                 fontSize: 14,
                               ),
                               decoration: InputDecoration(
-                                hintText: 'Search destinations…',
+                                hintText: tr('home_search_destinations_hint'),
                                 hintStyle: TextStyle(
                                   color: context.colors.muted,
                                 ),
@@ -110,7 +115,7 @@ class _SearchDestinationScreenState extends State<SearchDestinationScreen> {
                       padding: EdgeInsets.fromLTRB(24, 8, 24, 24),
                       children: [
                         Text(
-                          'Recent Searches',
+                          tr('home_recent_searches'),
                           style: TextStyle(
                             color: context.colors.ink,
                             fontWeight: FontWeight.w800,
@@ -145,7 +150,7 @@ class _SearchDestinationScreenState extends State<SearchDestinationScreen> {
                         ),
                         SizedBox(height: 20),
                         Text(
-                          'Popular Right Now',
+                          tr('home_popular_right_now'),
                           style: TextStyle(
                             color: context.colors.ink,
                             fontWeight: FontWeight.w800,
@@ -159,7 +164,7 @@ class _SearchDestinationScreenState extends State<SearchDestinationScreen> {
                   : results.isEmpty
                   ? Center(
                       child: Text(
-                        'No destinations found',
+                        tr('home_no_destinations_found'),
                         style: TextStyle(color: context.colors.muted),
                       ),
                     )

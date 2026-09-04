@@ -6,6 +6,7 @@ import 'package:geolocator/geolocator.dart';
 import 'package:latlong2/latlong.dart';
 
 import '../../models/trip_stop_location.dart';
+import '../../services/locale_service.dart';
 import '../../services/photon_service.dart';
 
 const _malaysiaCenter = LatLng(3.1390, 101.6869); // Kuala Lumpur
@@ -85,7 +86,7 @@ class _StopMapPickerState extends State<StopMapPicker> {
           _suggestions = const [];
           _searching = false;
         });
-        _showMessage('Search failed: $e');
+        _showMessage('${tr('trip_search_failed_prefix')}: $e');
       }
     });
   }
@@ -109,11 +110,11 @@ class _StopMapPickerState extends State<StopMapPicker> {
       }
       if (permission == LocationPermission.denied ||
           permission == LocationPermission.deniedForever) {
-        _showMessage('Location permission denied.');
+        _showMessage(tr('trip_location_permission_denied'));
         return;
       }
       if (!await Geolocator.isLocationServiceEnabled()) {
-        _showMessage('Turn on location services to use this.');
+        _showMessage(tr('trip_turn_on_location_services'));
         return;
       }
       final position = await Geolocator.getCurrentPosition(
@@ -126,7 +127,7 @@ class _StopMapPickerState extends State<StopMapPicker> {
       setState(() {
         _pending = stop ??
             TripStopLocation(
-              name: 'My location',
+              name: tr('trip_my_location'),
               address:
                   '${point.latitude.toStringAsFixed(5)}, ${point.longitude.toStringAsFixed(5)}',
               latitude: point.latitude,
@@ -134,7 +135,7 @@ class _StopMapPickerState extends State<StopMapPicker> {
             );
       });
     } catch (e) {
-      _showMessage('Could not get your location: $e');
+      _showMessage('${tr('trip_could_not_get_location_prefix')}: $e');
     } finally {
       if (mounted) setState(() => _locating = false);
     }
@@ -313,9 +314,9 @@ class _SearchBar extends StatelessWidget {
                   color: Color(0xFF0B1D3A),
                   fontWeight: FontWeight.w600,
                 ),
-                decoration: const InputDecoration(
-                  hintText: 'Search a place, e.g. Komtar…',
-                  hintStyle: TextStyle(
+                decoration: InputDecoration(
+                  hintText: tr('trip_search_place_komtar_hint'),
+                  hintStyle: const TextStyle(
                     color: Color(0xFF6E7A93),
                     fontWeight: FontWeight.w500,
                   ),
@@ -456,11 +457,11 @@ class _PendingStopCard extends StatelessWidget {
               child: InkWell(
                 borderRadius: BorderRadius.circular(12),
                 onTap: onConfirm,
-                child: const Padding(
-                  padding: EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                   child: Text(
-                    'Add Stop',
-                    style: TextStyle(
+                    tr('trip_add_stop_title'),
+                    style: const TextStyle(
                       color: Colors.white,
                       fontWeight: FontWeight.w700,
                       fontSize: 13,

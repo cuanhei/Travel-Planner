@@ -6,6 +6,7 @@ import 'package:latlong2/latlong.dart';
 
 import '../../models/malaysia_city.dart';
 import '../../models/trip_stop_location.dart';
+import '../../services/locale_service.dart';
 import '../../services/route_optimizer.dart';
 import '../../services/schedule_builder.dart';
 import '../../services/trip_service.dart';
@@ -46,15 +47,15 @@ class _WeatherOption {
   final bool goodForOutdoor;
 }
 
-const _weatherOptions = [
-  _WeatherOption('Sunny', Icons.wb_sunny_rounded, Color(0xFFFFB347), true),
+List<_WeatherOption> _weatherOptions() => [
+  _WeatherOption(tr('trip_weather_sunny'), Icons.wb_sunny_rounded, const Color(0xFFFFB347), true),
   _WeatherOption(
-    'Partly Cloudy',
+    tr('trip_weather_partly_cloudy'),
     Icons.wb_cloudy_rounded,
-    Color(0xFF2E9CCA),
+    const Color(0xFF2E9CCA),
     true,
   ),
-  _WeatherOption('Rain Showers', Icons.grain_rounded, Color(0xFF5C6BC0), false),
+  _WeatherOption(tr('trip_weather_rain_showers'), Icons.grain_rounded, const Color(0xFF5C6BC0), false),
 ];
 
 class _TransportLeg {
@@ -144,10 +145,11 @@ class OptimizedItineraryScreen extends StatelessWidget {
   static const _placesPerDay = 2;
 
   List<_DayPlan> _buildSchedule() {
+    final weatherOptions = _weatherOptions();
     final dayCount = math.max(1, (places.length / _placesPerDay).ceil());
     final dayWeather = List.generate(
       dayCount,
-      (i) => _weatherOptions[i % _weatherOptions.length],
+      (i) => weatherOptions[i % weatherOptions.length],
     );
 
     final outdoor =
@@ -187,9 +189,9 @@ class OptimizedItineraryScreen extends StatelessWidget {
         final isOutdoor = outdoor.contains(place);
         final reason = isOutdoor
             ? (dayWeather[d].goodForOutdoor
-                  ? 'Scheduled for clear weather'
-                  : 'Rain possible — bring a light jacket')
-            : 'Indoor-friendly, weather-flexible pick';
+                  ? tr('trip_reason_clear_weather')
+                  : tr('trip_reason_rain_possible'))
+            : tr('trip_reason_indoor_flexible');
         _TransportLeg? leg;
         if (i > 0) {
           leg = _legBetween(dayPlaces[i - 1], place);
@@ -223,19 +225,19 @@ class OptimizedItineraryScreen extends StatelessWidget {
     final delta = ((b.distanceKm ?? 0) - (a.distanceKm ?? 0)).abs();
     if (delta < 2) {
       return _TransportLeg(
-        'Walk',
+        tr('trip_transport_walk'),
         Icons.directions_walk_rounded,
         '${math.max(4, (delta * 12).round())} min',
       );
     } else if (delta < 6) {
       return _TransportLeg(
-        'Rapid Penang Bus',
+        tr('trip_transport_rapid_bus'),
         Icons.directions_bus_filled_rounded,
         '${math.max(10, (delta * 4).round())} min',
       );
     }
     return _TransportLeg(
-      'E-hailing (Grab)',
+      tr('trip_transport_ehailing'),
       Icons.local_taxi_rounded,
       '${math.max(10, (delta * 2.2).round())} min',
     );
@@ -262,9 +264,9 @@ class OptimizedItineraryScreen extends StatelessWidget {
         child: Column(
           children: [
             DetailHeader(
-              title: tripName.isEmpty ? 'Optimized Itinerary' : tripName,
+              title: tripName.isEmpty ? tr('trip_optimized_itinerary_title') : tripName,
               subtitle: description.isEmpty
-                  ? 'Ordered by route, weather, and transport'
+                  ? tr('trip_optimized_itinerary_subtitle')
                   : description,
             ),
             Expanded(
@@ -275,17 +277,17 @@ class OptimizedItineraryScreen extends StatelessWidget {
                     children: [
                       _SummaryStat(
                         icon: Icons.flag_rounded,
-                        label: 'Stops',
+                        label: tr('trip_stat_stops'),
                         value: '${places.length}',
                       ),
                       _SummaryStat(
                         icon: Icons.calendar_today_rounded,
-                        label: 'Days',
+                        label: tr('trip_stat_days'),
                         value: '${days.length}',
                       ),
                       _SummaryStat(
                         icon: Icons.directions_transit_rounded,
-                        label: 'Travel Time',
+                        label: tr('trip_stat_travel_time'),
                         value: '${totalTravelMinutes}m',
                       ),
                     ],
@@ -304,7 +306,7 @@ class OptimizedItineraryScreen extends StatelessWidget {
                     // there's nothing geographic to save beyond the trip
                     // itself — no stops, no schedule.
                     onSave: () => TripService().createTrip(
-                      name: tripName.isEmpty ? 'My Trip' : tripName,
+                      name: tripName.isEmpty ? tr('trip_my_trip_default') : tripName,
                       description: description,
                       startCity: startCity,
                       endCity: endCity,
@@ -377,7 +379,7 @@ class _RealItineraryView extends StatelessWidget {
 
   Future<String> _save() {
     return TripService().createTrip(
-      name: screen.tripName.isEmpty ? 'My Trip' : screen.tripName,
+      name: screen.tripName.isEmpty ? tr('trip_my_trip_default') : screen.tripName,
       description: screen.description,
       startCity: screen.startCity,
       endCity: screen.endCity,
@@ -433,7 +435,7 @@ class _RealItineraryView extends StatelessWidget {
             day: day.day,
             time: day.endTime,
             duration: Duration.zero,
-          ).copyWith(name: 'Back to ${hotel.name}'),
+          ).copyWith(name: '${tr('trip_back_to_prefix')} ${hotel.name}'),
         );
       }
     }
@@ -479,8 +481,8 @@ class _RealItineraryView extends StatelessWidget {
                 backgroundColor: context.colors.ink,
                 content: Text(
                   screen.tripName.isEmpty
-                      ? 'Trip created!'
-                      : '"${screen.tripName}" created!',
+                      ? tr('trip_created_generic')
+                      : '"${screen.tripName}" ${tr('trip_created_suffix')}',
                 ),
               ),
             );
@@ -499,8 +501,8 @@ class _RealItineraryView extends StatelessWidget {
         child: Column(
           children: [
             DetailHeader(
-              title: screen.tripName.isEmpty ? 'Optimized Itinerary' : screen.tripName,
-              subtitle: 'Planned day by day, based near each hotel',
+              title: screen.tripName.isEmpty ? tr('trip_optimized_itinerary_title') : screen.tripName,
+              subtitle: tr('trip_planned_day_by_day'),
             ),
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 20),
@@ -514,7 +516,7 @@ class _RealItineraryView extends StatelessWidget {
                 child: ClipRRect(
                   borderRadius: BorderRadius.circular(20),
                   child: _RouteMap(
-                    startLabel: screen.startLabel ?? 'Start',
+                    startLabel: screen.startLabel ?? tr('trip_start_label'),
                     startPoint: startPoint,
                     endLabel: screen.endLabel,
                     endPoint: screen.endPoint,
@@ -529,8 +531,8 @@ class _RealItineraryView extends StatelessWidget {
                 padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
                 children: [
                   _RouteStopTile(
-                    label: screen.startLabel ?? 'Start',
-                    subtitle: 'Starting point',
+                    label: screen.startLabel ?? tr('trip_start_label'),
+                    subtitle: tr('trip_starting_point'),
                     icon: Icons.flag_rounded,
                     color: const Color(0xFF11998E),
                     isLast: false,
@@ -575,7 +577,7 @@ class _RealItineraryView extends StatelessWidget {
                   if (screen.endLabel != null)
                     _RouteStopTile(
                       label: screen.endLabel!,
-                      subtitle: 'Final destination',
+                      subtitle: tr('trip_final_destination'),
                       icon: Icons.sports_score_rounded,
                       color: const Color(0xFFFF7A59),
                       isLast: true,
@@ -583,7 +585,7 @@ class _RealItineraryView extends StatelessWidget {
                   const SizedBox(height: 12),
                   _SaveTripButton(
                     tripName: screen.tripName,
-                    label: 'Review Schedule',
+                    label: tr('trip_review_schedule_title'),
                     icon: Icons.edit_calendar_rounded,
                     navigateOnly: true,
                     onSave: () async {
@@ -725,7 +727,8 @@ class _SummaryBar extends StatelessWidget {
           const SizedBox(width: 10),
           Expanded(
             child: Text(
-              '$stopCount stop${stopCount == 1 ? '' : 's'} · optimized route',
+              '$stopCount ${stopCount == 1 ? tr('trip_stop_singular') : tr('trip_stops_word')} '
+              '· ${tr('trip_optimized_route_suffix')}',
               style: TextStyle(
                 color: context.colors.ink,
                 fontWeight: FontWeight.w700,
@@ -777,7 +780,9 @@ class _DayHeader extends StatelessWidget {
                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                 decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(20)),
                 child: Text(
-                  dateLabel == null ? 'Day $day' : 'Day $day · $dateLabel',
+                  dateLabel == null
+                      ? '${tr('trip_day_word')} $day'
+                      : '${tr('trip_day_word')} $day · $dateLabel',
                   style: const TextStyle(
                     color: Colors.white,
                     fontWeight: FontWeight.w800,
@@ -987,14 +992,14 @@ class _SaveTripButton extends StatefulWidget {
   const _SaveTripButton({
     required this.tripName,
     required this.onSave,
-    this.label = 'Save Trip',
+    this.label,
     this.icon = Icons.bookmark_added_rounded,
     this.navigateOnly = false,
   });
 
   final String tripName;
   final Future<String> Function() onSave;
-  final String label;
+  final String? label;
   final IconData icon;
   final bool navigateOnly;
 
@@ -1015,7 +1020,7 @@ class _SaveTripButtonState extends State<_SaveTripButton> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           behavior: SnackBarBehavior.floating,
-          content: Text('Could not save trip: $e'),
+          content: Text('${tr('trip_could_not_save_trip_prefix')}: $e'),
         ),
       );
       return;
@@ -1032,8 +1037,8 @@ class _SaveTripButtonState extends State<_SaveTripButton> {
         backgroundColor: context.colors.ink,
         content: Text(
           widget.tripName.isEmpty
-              ? 'Trip saved to My Trips!'
-              : '"${widget.tripName}" saved to My Trips!',
+              ? tr('trip_trip_saved_generic')
+              : '"${widget.tripName}" ${tr('trip_saved_to_my_trips_suffix')}',
         ),
       ),
     );
@@ -1042,7 +1047,7 @@ class _SaveTripButtonState extends State<_SaveTripButton> {
   @override
   Widget build(BuildContext context) {
     return GradientButton(
-      label: widget.label,
+      label: widget.label ?? tr('trip_save_trip_button'),
       icon: widget.icon,
       loading: _saving,
       onPressed: _saving ? () {} : _handleTap,
@@ -1260,18 +1265,18 @@ class _StopCard extends StatelessWidget {
                           ).withValues(alpha: 0.14),
                           borderRadius: BorderRadius.circular(20),
                         ),
-                        child: const Row(
+                        child: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            Icon(
+                            const Icon(
                               Icons.auto_awesome_rounded,
                               size: 10,
                               color: Color(0xFF8E63CE),
                             ),
-                            SizedBox(width: 3),
+                            const SizedBox(width: 3),
                             Text(
-                              'Added for you',
-                              style: TextStyle(
+                              tr('trip_added_for_you'),
+                              style: const TextStyle(
                                 color: Color(0xFF8E63CE),
                                 fontSize: 9.5,
                                 fontWeight: FontWeight.w700,

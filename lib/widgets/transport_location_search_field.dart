@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../models/transport_location.dart';
+import '../services/locale_service.dart';
 import '../services/transport_location_service.dart';
 
 const _debounceDuration = Duration(milliseconds: 400);
@@ -18,7 +19,7 @@ class TransportLocationSearchField extends StatefulWidget {
     super.key,
     required this.value,
     required this.onChanged,
-    this.hintText = 'Search a location…',
+    this.hintText,
     this.selectedIcon = Icons.location_on_rounded,
     this.maxDropdownHeight = 220,
     this.helperText,
@@ -36,7 +37,7 @@ class TransportLocationSearchField extends StatefulWidget {
   /// Called with the picked location, or null when the selection is
   /// cleared.
   final ValueChanged<TransportLocation?> onChanged;
-  final String hintText;
+  final String? hintText;
   final IconData selectedIcon;
   final double maxDropdownHeight;
 
@@ -127,7 +128,7 @@ class _TransportLocationSearchFieldState
       setState(() {
         _results = const [];
         _searching = false;
-        _error = 'Could not search locations. Check your connection and try again.';
+        _error = tr('transport_could_not_search_locations');
         _hasSearched = true;
       });
     }
@@ -200,7 +201,7 @@ class _TransportLocationSearchFieldState
                       fontWeight: FontWeight.w600,
                     ),
                     decoration: InputDecoration(
-                      hintText: widget.hintText,
+                      hintText: widget.hintText ?? tr('transport_search_location_hint'),
                       hintStyle: const TextStyle(
                         color: Color(0xFF6E7A93),
                         fontWeight: FontWeight.w500,
@@ -373,11 +374,11 @@ class _ResultsDropdown extends StatelessWidget {
       );
     }
     if (results.isEmpty) {
-      return const Padding(
-        padding: EdgeInsets.all(16),
+      return Padding(
+        padding: const EdgeInsets.all(16),
         child: Text(
-          'No destinations found',
-          style: TextStyle(color: Color(0xFF6E7A93), fontSize: 12.5),
+          tr('transport_no_destinations_found'),
+          style: const TextStyle(color: Color(0xFF6E7A93), fontSize: 12.5),
         ),
       );
     }

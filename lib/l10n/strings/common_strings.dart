@@ -19,6 +19,9 @@ const Map<String, Map<String, String>> commonStrings = {
     'common_loading': 'Loading...',
     'common_coming_soon': 'Coming soon',
     'common_error_generic': 'Something went wrong. Please try again.',
+    'common_search_country_or_code': 'Search country or code',
+    'common_search_country': 'Search country',
+    'common_no_countries_found': 'No countries found',
   },
   'ms': {
     'common_nav_home': 'Utama',
@@ -38,6 +41,9 @@ const Map<String, Map<String, String>> commonStrings = {
     'common_loading': 'Memuatkan...',
     'common_coming_soon': 'Akan datang',
     'common_error_generic': 'Sesuatu tidak kena. Sila cuba lagi.',
+    'common_search_country_or_code': 'Cari negara atau kod',
+    'common_search_country': 'Cari negara',
+    'common_no_countries_found': 'Tiada negara dijumpai',
   },
   'zh': {
     'common_nav_home': '首页',
@@ -57,6 +63,9 @@ const Map<String, Map<String, String>> commonStrings = {
     'common_loading': '加载中...',
     'common_coming_soon': '即将推出',
     'common_error_generic': '出了点问题，请重试。',
+    'common_search_country_or_code': '搜索国家或区号',
+    'common_search_country': '搜索国家',
+    'common_no_countries_found': '未找到国家',
   },
   'ja': {
     'common_nav_home': 'ホーム',
@@ -76,6 +85,9 @@ const Map<String, Map<String, String>> commonStrings = {
     'common_loading': '読み込み中...',
     'common_coming_soon': '近日公開',
     'common_error_generic': '問題が発生しました。もう一度お試しください。',
+    'common_search_country_or_code': '国名または国番号を検索',
+    'common_search_country': '国を検索',
+    'common_no_countries_found': '国が見つかりません',
   },
   'ko': {
     'common_nav_home': '홈',
@@ -95,6 +107,9 @@ const Map<String, Map<String, String>> commonStrings = {
     'common_loading': '로딩 중...',
     'common_coming_soon': '출시 예정',
     'common_error_generic': '문제가 발생했습니다. 다시 시도해 주세요.',
+    'common_search_country_or_code': '국가 또는 코드 검색',
+    'common_search_country': '국가 검색',
+    'common_no_countries_found': '국가를 찾을 수 없습니다',
   },
   'th': {
     'common_nav_home': 'หน้าแรก',
@@ -114,6 +129,9 @@ const Map<String, Map<String, String>> commonStrings = {
     'common_loading': 'กำลังโหลด...',
     'common_coming_soon': 'เร็ว ๆ นี้',
     'common_error_generic': 'เกิดข้อผิดพลาด กรุณาลองอีกครั้ง',
+    'common_search_country_or_code': 'ค้นหาประเทศหรือรหัส',
+    'common_search_country': 'ค้นหาประเทศ',
+    'common_no_countries_found': 'ไม่พบประเทศ',
   },
   'vi': {
     'common_nav_home': 'Trang chủ',
@@ -133,6 +151,9 @@ const Map<String, Map<String, String>> commonStrings = {
     'common_loading': 'Đang tải...',
     'common_coming_soon': 'Sắp ra mắt',
     'common_error_generic': 'Đã xảy ra lỗi. Vui lòng thử lại.',
+    'common_search_country_or_code': 'Tìm quốc gia hoặc mã',
+    'common_search_country': 'Tìm quốc gia',
+    'common_no_countries_found': 'Không tìm thấy quốc gia',
   },
   'id': {
     'common_nav_home': 'Beranda',
@@ -152,6 +173,9 @@ const Map<String, Map<String, String>> commonStrings = {
     'common_loading': 'Memuat...',
     'common_coming_soon': 'Segera hadir',
     'common_error_generic': 'Terjadi kesalahan. Silakan coba lagi.',
+    'common_search_country_or_code': 'Cari negara atau kode',
+    'common_search_country': 'Cari negara',
+    'common_no_countries_found': 'Tidak ada negara yang ditemukan',
   },
   'hi': {
     'common_nav_home': 'होम',
@@ -171,6 +195,9 @@ const Map<String, Map<String, String>> commonStrings = {
     'common_loading': 'लोड हो रहा है...',
     'common_coming_soon': 'जल्द आ रहा है',
     'common_error_generic': 'कुछ गलत हो गया। कृपया पुनः प्रयास करें।',
+    'common_search_country_or_code': 'देश या कोड खोजें',
+    'common_search_country': 'देश खोजें',
+    'common_no_countries_found': 'कोई देश नहीं मिला',
   },
   'ta': {
     'common_nav_home': 'முகப்பு',
@@ -190,6 +217,9 @@ const Map<String, Map<String, String>> commonStrings = {
     'common_loading': 'ஏற்றுகிறது...',
     'common_coming_soon': 'விரைவில் வருகிறது',
     'common_error_generic': 'ஏதோ தவறு நடந்தது. மீண்டும் முயற்சிக்கவும்.',
+    'common_search_country_or_code': 'நாடு அல்லது குறியீட்டைத் தேடுங்கள்',
+    'common_search_country': 'நாட்டைத் தேடுங்கள்',
+    'common_no_countries_found': 'நாடுகள் எதுவும் கிடைக்கவில்லை',
   },
   'ar': {
     'common_nav_home': 'الرئيسية',
@@ -209,6 +239,9 @@ const Map<String, Map<String, String>> commonStrings = {
     'common_loading': 'جارٍ التحميل...',
     'common_coming_soon': 'قريباً',
     'common_error_generic': 'حدث خطأ ما. حاول مرة أخرى.',
+    'common_search_country_or_code': 'ابحث عن الدولة أو الرمز',
+    'common_search_country': 'ابحث عن الدولة',
+    'common_no_countries_found': 'لم يتم العثور على دول',
   },
   'es': {
     'common_nav_home': 'Inicio',
@@ -228,6 +261,9 @@ const Map<String, Map<String, String>> commonStrings = {
     'common_loading': 'Cargando...',
     'common_coming_soon': 'Próximamente',
     'common_error_generic': 'Algo salió mal. Inténtalo de nuevo.',
+    'common_search_country_or_code': 'Buscar país o código',
+    'common_search_country': 'Buscar país',
+    'common_no_countries_found': 'No se encontraron países',
   },
   'fr': {
     'common_nav_home': 'Accueil',
@@ -247,6 +283,9 @@ const Map<String, Map<String, String>> commonStrings = {
     'common_loading': 'Chargement...',
     'common_coming_soon': 'Bientôt disponible',
     'common_error_generic': "Une erreur s'est produite. Veuillez réessayer.",
+    'common_search_country_or_code': 'Rechercher un pays ou un code',
+    'common_search_country': 'Rechercher un pays',
+    'common_no_countries_found': 'Aucun pays trouvé',
   },
   'de': {
     'common_nav_home': 'Start',
@@ -266,6 +305,9 @@ const Map<String, Map<String, String>> commonStrings = {
     'common_loading': 'Lädt...',
     'common_coming_soon': 'Demnächst',
     'common_error_generic': 'Etwas ist schiefgelaufen. Bitte versuche es erneut.',
+    'common_search_country_or_code': 'Land oder Code suchen',
+    'common_search_country': 'Land suchen',
+    'common_no_countries_found': 'Keine Länder gefunden',
   },
   'pt': {
     'common_nav_home': 'Início',
@@ -285,6 +327,9 @@ const Map<String, Map<String, String>> commonStrings = {
     'common_loading': 'Carregando...',
     'common_coming_soon': 'Em breve',
     'common_error_generic': 'Algo deu errado. Tente novamente.',
+    'common_search_country_or_code': 'Buscar país ou código',
+    'common_search_country': 'Buscar país',
+    'common_no_countries_found': 'Nenhum país encontrado',
   },
   'ru': {
     'common_nav_home': 'Главная',
@@ -304,5 +349,8 @@ const Map<String, Map<String, String>> commonStrings = {
     'common_loading': 'Загрузка...',
     'common_coming_soon': 'Скоро',
     'common_error_generic': 'Что-то пошло не так. Попробуйте еще раз.',
+    'common_search_country_or_code': 'Поиск страны или кода',
+    'common_search_country': 'Поиск страны',
+    'common_no_countries_found': 'Страны не найдены',
   },
 };

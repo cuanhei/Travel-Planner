@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../services/locale_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/detail_header.dart';
 import 'explore_tab.dart';
@@ -20,8 +21,8 @@ class NearbyPlacesScreen extends StatelessWidget {
         child: Column(
           children: [
             DetailHeader(
-              title: 'Nearby Places',
-              subtitle: 'Sorted by distance from you',
+              title: tr('explore_nearby_places'),
+              subtitle: tr('explore_sorted_by_distance'),
             ),
             Expanded(
               child: ListView.builder(

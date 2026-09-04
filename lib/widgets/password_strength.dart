@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../services/locale_service.dart';
 import '../theme/app_theme.dart';
 import '../utils/validators.dart';
 
@@ -33,9 +34,9 @@ class PasswordStrengthMeter extends StatelessWidget {
       PasswordStrength.strong => Color(0xFF11998E),
     };
     final label = switch (strength) {
-      PasswordStrength.weak => 'Weak',
-      PasswordStrength.fair => 'Fair',
-      PasswordStrength.strong => 'Strong',
+      PasswordStrength.weak => tr('auth_strength_weak'),
+      PasswordStrength.fair => tr('auth_strength_fair'),
+      PasswordStrength.strong => tr('auth_strength_strong'),
     };
 
     return Row(
@@ -83,18 +84,18 @@ class PasswordRequirementsList extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final requirements = [
-      (label: 'At least 8 characters', met: Validators.hasMinLength(password)),
+      (label: tr('auth_password_req_min_length'), met: Validators.hasMinLength(password)),
       (
-        label: 'One uppercase letter (A-Z)',
+        label: tr('auth_password_req_uppercase'),
         met: Validators.hasUppercase(password),
       ),
       (
-        label: 'One lowercase letter (a-z)',
+        label: tr('auth_password_req_lowercase'),
         met: Validators.hasLowercase(password),
       ),
-      (label: 'One number (0-9)', met: Validators.hasNumber(password)),
+      (label: tr('auth_password_req_number'), met: Validators.hasNumber(password)),
       (
-        label: 'One special character (e.g. @ ! # - _)',
+        label: tr('auth_password_req_special'),
         met: Validators.hasSpecialChar(password),
       ),
     ];

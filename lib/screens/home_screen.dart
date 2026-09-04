@@ -2,6 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:latlong2/latlong.dart';
 
+import '../services/auth_service.dart';
+import '../services/locale_service.dart';
+import '../services/profile_service.dart';
 import '../services/trip_service.dart';
 import '../services/weather_service.dart';
 import '../theme/app_theme.dart';
@@ -9,11 +12,13 @@ import '../utils/weather_display.dart';
 import '../widgets/coming_soon.dart';
 import '../widgets/destination_search_bar.dart';
 import '../widgets/section_header.dart';
+import '../widgets/user_avatar.dart';
 import 'activity_log_screen.dart';
 import 'community/community_tab.dart';
 import 'explore/explore_tab.dart';
 import 'group/join_trip_screen.dart';
 import 'notifications_screen.dart';
+import 'profile/edit_profile_screen.dart';
 import 'profile/profile_tab.dart';
 import 'transport/transport_routes_screen.dart';
 import 'trip/create_trip_screen.dart';
@@ -34,12 +39,16 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   int _navIndex = 0;
 
-  static final _tabs = [
-    (icon: Icons.home_rounded, label: 'Home'),
-    (icon: Icons.luggage_rounded, label: 'Trips'),
-    (icon: Icons.explore_rounded, label: 'Explore'),
-    (icon: Icons.groups_rounded, label: 'Community'),
-    (icon: Icons.person_rounded, label: 'Profile'),
+  // Not static — labels must re-evaluate `tr()` on every rebuild so a
+  // language change (which rebuilds the whole app, see `main.dart`)
+  // actually retranslates them, instead of being frozen at whatever
+  // language was active the first time this widget was ever built.
+  List<({IconData icon, String label})> get _tabs => [
+    (icon: Icons.home_rounded, label: tr('common_nav_home')),
+    (icon: Icons.luggage_rounded, label: tr('common_nav_trips')),
+    (icon: Icons.explore_rounded, label: tr('common_nav_explore')),
+    (icon: Icons.groups_rounded, label: tr('common_nav_community')),
+    (icon: Icons.person_rounded, label: tr('common_nav_profile')),
   ];
 
   static final _bodies = [
@@ -49,6 +58,12 @@ class _HomeScreenState extends State<HomeScreen> {
     CommunityTab(),
     ProfileTab(),
   ];
+
+  @override
+  void initState() {
+    super.initState();
+    ProfileService.instance.load();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -113,8 +128,9 @@ class _DashboardBody extends StatelessWidget {
             child: Padding(
               padding: EdgeInsets.only(right: 24),
               child: SectionHeader(
-                title: 'Explore Destinations',
-                onAction: () => showComingSoon(context, 'Explore'),
+                title: tr('home_section_explore_destinations'),
+                onAction: () =>
+                    showComingSoon(context, tr('common_nav_explore')),
               ),
             ),
           ),
@@ -125,7 +141,7 @@ class _DashboardBody extends StatelessWidget {
           padding: EdgeInsets.fromLTRB(24, 28, 24, 0),
           sliver: SliverToBoxAdapter(
             child: SectionHeader(
-              title: 'Recent Activity',
+              title: tr('home_section_recent_activity'),
               onAction: () => Navigator.of(context).push(
                 MaterialPageRoute(builder: (_) => const ActivityLogScreen()),
               ),
@@ -147,70 +163,63 @@ class _GreetingBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Good morning ☀️',
-                style: TextStyle(
-                  color: context.colors.muted,
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600,
+    return ValueListenableBuilder<UserProfile?>(
+      valueListenable: ProfileService.instance.current,
+      builder: (context, profile, _) {
+        final name = profile?.fullName.isNotEmpty ?? false
+            ? profile!.fullName
+            : AuthService.instance.currentUserName;
+        return Row(
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    tr('home_greeting'),
+                    style: TextStyle(
+                      color: context.colors.muted,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  SizedBox(height: 4),
+                  Text(
+                    '${tr('home_hi')}, $name',
+                    style: TextStyle(
+                      color: context.colors.ink,
+                      fontSize: 24,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            _IconBadgeButton(
+              icon: Icons.notifications_none_rounded,
+              hasBadge: true,
+              onTap: () => Navigator.of(context).push(
+                MaterialPageRoute(builder: (_) => NotificationsScreen()),
+              ),
+            ),
+            SizedBox(width: 12),
+            MouseRegion(
+              cursor: SystemMouseCursors.click,
+              child: GestureDetector(
+                onTap: () => Navigator.of(context).push(
+                  MaterialPageRoute(builder: (_) => const EditProfileScreen()),
+                ),
+                child: UserAvatar(
+                  name: name,
+                  avatarUrl: profile?.avatarUrl,
+                  size: 46,
+                  borderWidth: 2,
                 ),
               ),
-              SizedBox(height: 4),
-              Text(
-                'Hi, Alex',
-                style: TextStyle(
-                  color: context.colors.ink,
-                  fontSize: 24,
-                  fontWeight: FontWeight.w800,
-                ),
-              ),
-            ],
-          ),
-        ),
-        _IconBadgeButton(
-          icon: Icons.notifications_none_rounded,
-          hasBadge: true,
-          onTap: () => Navigator.of(
-            context,
-          ).push(MaterialPageRoute(builder: (_) => NotificationsScreen())),
-        ),
-        SizedBox(width: 12),
-        Container(
-          width: 46,
-          height: 46,
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            gradient: LinearGradient(
-              colors: AppColors.sunset,
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
             ),
-            border: Border.all(color: Colors.white, width: 2),
-            boxShadow: [
-              BoxShadow(
-                color: context.colors.ink.withValues(alpha: 0.12),
-                blurRadius: 10,
-                offset: Offset(0, 4),
-              ),
-            ],
-          ),
-          alignment: Alignment.center,
-          child: Text(
-            'A',
-            style: TextStyle(
-              color: Colors.white,
-              fontWeight: FontWeight.w800,
-              fontSize: 18,
-            ),
-          ),
-        ),
-      ],
+          ],
+        );
+      },
     );
   }
 }
@@ -309,7 +318,7 @@ class _UpcomingTripCard extends StatelessWidget {
                   borderRadius: BorderRadius.circular(20),
                 ),
                 child: Text(
-                  'UPCOMING TRIP',
+                  tr('home_upcoming_trip_badge'),
                   style: TextStyle(
                     color: Colors.white,
                     fontSize: 11,
@@ -328,7 +337,7 @@ class _UpcomingTripCard extends StatelessWidget {
               Icon(Icons.location_on_rounded, color: Colors.white70, size: 18),
               SizedBox(width: 4),
               Text(
-                'Penang, Malaysia',
+                tr('home_demo_destination'),
                 style: TextStyle(
                   color: Colors.white,
                   fontSize: 22,
@@ -339,7 +348,7 @@ class _UpcomingTripCard extends StatelessWidget {
           ),
           SizedBox(height: 6),
           Text(
-            'Komtar → Gurney → Queensbay',
+            tr('home_demo_route'),
             style: TextStyle(color: Colors.white70, fontSize: 13.5),
           ),
           SizedBox(height: 22),
@@ -349,7 +358,7 @@ class _UpcomingTripCard extends StatelessWidget {
               SizedBox(width: 10),
               Expanded(
                 child: Text(
-                  '3 stops · 3 days',
+                  tr('home_demo_stats'),
                   style: TextStyle(
                     color: Colors.white,
                     fontWeight: FontWeight.w700,
@@ -375,7 +384,7 @@ class _UpcomingTripCard extends StatelessWidget {
                   child: Padding(
                     padding: EdgeInsets.symmetric(horizontal: 16, vertical: 11),
                     child: Text(
-                      'View Itinerary',
+                      tr('home_view_itinerary'),
                       style: TextStyle(
                         color: context.colors.ink,
                         fontWeight: FontWeight.w700,
@@ -430,7 +439,7 @@ class _QuickActions extends StatelessWidget {
     final actions = [
       (
         icon: Icons.add_rounded,
-        label: 'New Trip',
+        label: tr('home_action_new_trip'),
         color: AppColors.accent,
         onTap: () => Navigator.of(
           context,
@@ -438,7 +447,7 @@ class _QuickActions extends StatelessWidget {
       ),
       (
         icon: Icons.train_rounded,
-        label: 'Transport',
+        label: tr('home_action_transport'),
         color: Color(0xFF5C6BC0),
         onTap: () => Navigator.of(context).push(
           MaterialPageRoute(
@@ -448,7 +457,7 @@ class _QuickActions extends StatelessWidget {
       ),
       (
         icon: Icons.group_add_rounded,
-        label: 'Join Trip',
+        label: tr('home_action_join_trip'),
         color: Color(0xFF11998E),
         onTap: () => Navigator.of(
           context,
@@ -462,7 +471,7 @@ class _QuickActions extends StatelessWidget {
       // ),
       (
         icon: Icons.map_rounded,
-        label: 'Map',
+        label: tr('home_action_map'),
         color: Color(0xFFFFB347),
         onTap: () => Navigator.of(
           context,
@@ -562,17 +571,17 @@ class _WeatherCardState extends State<_WeatherCard> {
     });
     try {
       if (!await Geolocator.isLocationServiceEnabled()) {
-        throw Exception('Location services are turned off.');
+        throw Exception(tr('home_location_services_off'));
       }
       var permission = await Geolocator.checkPermission();
       if (permission == LocationPermission.denied) {
         permission = await Geolocator.requestPermission();
       }
       if (permission == LocationPermission.deniedForever) {
-        throw Exception('Location permission is permanently denied.');
+        throw Exception(tr('home_location_permission_denied_forever'));
       }
       if (permission == LocationPermission.denied) {
-        throw Exception('Location permission is needed for local weather.');
+        throw Exception(tr('home_location_permission_needed'));
       }
       final position = await Geolocator.getCurrentPosition(
         locationSettings: const LocationSettings(accuracy: LocationAccuracy.high),
@@ -638,7 +647,10 @@ class _WeatherCardState extends State<_WeatherCard> {
     if (error != null) return _WeatherError(message: error, onRetry: _load);
     final weather = _weather;
     if (weather == null) {
-      return _WeatherError(message: 'No forecast available.', onRetry: _load);
+      return _WeatherError(
+        message: tr('home_weather_no_forecast'),
+        onRetry: _load,
+      );
     }
     return _WeatherContent(weather: weather);
   }
@@ -660,8 +672,7 @@ class _WeatherOutsideMalaysiaNotice extends StatelessWidget {
         SizedBox(width: 8),
         Expanded(
           child: Text(
-            'Weather forecast will only show for your current location if '
-            'you are in Malaysia.',
+            tr('home_weather_outside_malaysia'),
             style: TextStyle(color: context.colors.muted, fontSize: 12.5),
           ),
         ),
@@ -675,20 +686,20 @@ class _WeatherLoading extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const SizedBox(
+    return SizedBox(
       height: 96,
       child: Center(
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            SizedBox(
+            const SizedBox(
               width: 16,
               height: 16,
               child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
             ),
-            SizedBox(width: 10),
+            const SizedBox(width: 10),
             Text(
-              'Getting your local weather…',
+              tr('home_weather_loading'),
               style: TextStyle(
                 color: Colors.white,
                 fontSize: 12.5,
@@ -728,9 +739,9 @@ class _WeatherError extends StatelessWidget {
             const SizedBox(height: 6),
             GestureDetector(
               onTap: onRetry,
-              child: const Text(
-                'Retry',
-                style: TextStyle(
+              child: Text(
+                tr('home_weather_retry'),
+                style: const TextStyle(
                   color: Colors.white,
                   fontWeight: FontWeight.w800,
                   fontSize: 12,
@@ -754,9 +765,9 @@ class _WeatherContent extends StatelessWidget {
   Widget build(BuildContext context) {
     final forecast = weather.forecast;
     final periods = [
-      (label: 'Morning', text: forecast.morningForecast),
-      (label: 'Afternoon', text: forecast.afternoonForecast),
-      (label: 'Night', text: forecast.nightForecast),
+      (label: tr('home_period_morning'), text: forecast.morningForecast),
+      (label: tr('home_period_afternoon'), text: forecast.afternoonForecast),
+      (label: tr('home_period_night'), text: forecast.nightForecast),
     ];
 
     return Column(
@@ -770,7 +781,7 @@ class _WeatherContent extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    '${weather.areaLabel}, Malaysia',
+                    '${weather.areaLabel}, ${tr('home_malaysia_word')}',
                     style: TextStyle(
                       color: Colors.white70,
                       fontSize: 12.5,
@@ -1015,31 +1026,35 @@ class _Destination {
   final IconData icon;
 }
 
-final _destinations = [
+// A function, not a top-level `final` — a top-level `final` is only ever
+// evaluated once (the first time it's touched), so any `tr()` calls in it
+// would stay frozen at whichever language was active at that moment. This
+// re-evaluates on every call, i.e. every rebuild.
+List<_Destination> _destinations() => [
   _Destination(
-    name: 'Penang Hill',
-    country: 'Air Itam',
+    name: tr('home_destination_penang_hill'),
+    country: tr('home_area_air_itam'),
     rating: 4.8,
     gradient: AppColors.lagoon,
     icon: Icons.terrain_rounded,
   ),
   _Destination(
-    name: 'Batu Ferringhi',
-    country: 'Tanjung Bungah',
+    name: tr('home_destination_batu_ferringhi'),
+    country: tr('home_area_tanjung_bungah'),
     rating: 4.6,
     gradient: AppColors.sunset,
     icon: Icons.beach_access_rounded,
   ),
   _Destination(
-    name: 'Chew Jetty',
-    country: 'George Town',
+    name: tr('home_destination_chew_jetty'),
+    country: tr('home_area_george_town'),
     rating: 4.7,
     gradient: AppColors.horizon,
     icon: Icons.holiday_village_rounded,
   ),
   _Destination(
-    name: 'The Top Komtar',
-    country: 'George Town',
+    name: tr('home_destination_top_komtar'),
+    country: tr('home_area_george_town'),
     rating: 4.5,
     gradient: AppColors.dusk,
     icon: Icons.visibility_rounded,
@@ -1051,15 +1066,16 @@ class _DestinationsCarousel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final destinations = _destinations();
     return SizedBox(
       height: 200,
       child: ListView.separated(
         scrollDirection: Axis.horizontal,
         padding: EdgeInsets.symmetric(horizontal: 24),
-        itemCount: _destinations.length,
+        itemCount: destinations.length,
         separatorBuilder: (_, _) => SizedBox(width: 14),
         itemBuilder: (context, index) =>
-            _DestinationCard(destination: _destinations[index]),
+            _DestinationCard(destination: destinations[index]),
       ),
     );
   }
@@ -1190,23 +1206,25 @@ class _Activity {
   final Color color;
 }
 
-final _activities = [
+// A function, not a top-level `final` — see the comment on `_destinations`
+// above for why.
+List<_Activity> _activities() => [
   _Activity(
     icon: Icons.add_location_alt_rounded,
-    title: 'Added Queensbay Mall to your itinerary',
-    time: '2h ago',
+    title: tr('home_activity_added_queensbay'),
+    time: tr('home_time_2h_ago'),
     color: AppColors.accent,
   ),
   _Activity(
     icon: Icons.check_circle_rounded,
-    title: 'Checked in at Komtar, George Town',
-    time: '1d ago',
+    title: tr('home_activity_checked_in_komtar'),
+    time: tr('home_time_1d_ago'),
     color: Color(0xFF11998E),
   ),
   _Activity(
     icon: Icons.star_rounded,
-    title: 'Rated Gurney Drive & Plaza 4.5 stars',
-    time: '2d ago',
+    title: tr('home_activity_rated_gurney'),
+    time: tr('home_time_2d_ago'),
     color: Color(0xFFFFB347),
   ),
 ];
@@ -1217,7 +1235,7 @@ class _RecentActivityList extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Column(
-      children: _activities.map((a) => _ActivityTile(activity: a)).toList(),
+      children: _activities().map((a) => _ActivityTile(activity: a)).toList(),
     );
   }
 }

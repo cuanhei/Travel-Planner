@@ -1,55 +1,57 @@
 import 'package:flutter/material.dart';
 
+import '../../services/locale_service.dart';
 import '../../services/trip_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/detail_header.dart';
 import '../trip/trip_details_screen.dart';
 
+List<({String title, String place, String dates, List<Color> gradient, IconData icon})> _savedTrips() => [
+  (
+    title: tr('saved_trip1_title'),
+    place: tr('home_demo_destination'),
+    dates: 'Aug 14 – Aug 16',
+    gradient: AppColors.horizon,
+    icon: Icons.location_city_rounded,
+  ),
+  (
+    title: tr('saved_trip2_title'),
+    place: tr('saved_place_ipoh'),
+    dates: tr('saved_trip_draft'),
+    gradient: AppColors.dusk,
+    icon: Icons.coffee_rounded,
+  ),
+  (
+    title: tr('saved_trip3_title'),
+    place: tr('saved_place_sabah'),
+    dates: tr('saved_trip_draft'),
+    gradient: AppColors.lagoon,
+    icon: Icons.forest_rounded,
+  ),
+];
+
 /// Bookmarked / saved itineraries (draft or inspiration trips).
 class SavedTripsScreen extends StatelessWidget {
   const SavedTripsScreen({super.key});
 
-  static final _trips = [
-    (
-      title: 'Penang Adventure',
-      place: 'Penang, Malaysia',
-      dates: 'Aug 14 – Aug 16',
-      gradient: AppColors.horizon,
-      icon: Icons.location_city_rounded,
-    ),
-    (
-      title: 'Weekend in Ipoh',
-      place: 'Ipoh, Malaysia',
-      dates: 'Draft itinerary',
-      gradient: AppColors.dusk,
-      icon: Icons.coffee_rounded,
-    ),
-    (
-      title: 'Borneo Rainforest Trip',
-      place: 'Sabah, Malaysia',
-      dates: 'Draft itinerary',
-      gradient: AppColors.lagoon,
-      icon: Icons.forest_rounded,
-    ),
-  ];
-
   @override
   Widget build(BuildContext context) {
+    final trips = _savedTrips();
     return Scaffold(
       backgroundColor: context.colors.surface,
       body: SafeArea(
         child: Column(
           children: [
             DetailHeader(
-              title: 'Saved Trips',
-              subtitle: 'Itineraries you\'ve bookmarked',
+              title: tr('saved_trips_title'),
+              subtitle: tr('saved_trips_subtitle'),
             ),
             Expanded(
               child: ListView.builder(
                 padding: EdgeInsets.fromLTRB(24, 8, 24, 24),
-                itemCount: _trips.length,
+                itemCount: trips.length,
                 itemBuilder: (context, index) {
-                  final t = _trips[index];
+                  final t = trips[index];
                   return Material(
                     color: context.colors.card,
                     borderRadius: BorderRadius.circular(18),

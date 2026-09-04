@@ -4,6 +4,7 @@ import 'strings/common_strings.dart';
 import 'strings/community_strings.dart';
 import 'strings/explore_strings.dart';
 import 'strings/group_strings.dart';
+import 'strings/home_strings.dart';
 import 'strings/saved_strings.dart';
 import 'strings/transport_strings.dart';
 import 'strings/trip_strings.dart';
@@ -17,6 +18,7 @@ import 'strings/weather_strings.dart';
 final Map<String, Map<String, String>> translations = _merge([
   commonStrings,
   authStrings,
+  homeStrings,
   tripStrings,
   weatherStrings,
   transportStrings,

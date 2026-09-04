@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 
 import '../../models/join_request.dart';
 import '../../services/group_service.dart';
+import '../../services/locale_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/detail_header.dart';
 
@@ -60,7 +61,7 @@ class _InviteMemberScreenState extends State<InviteMemberScreen> {
       SnackBar(
         behavior: SnackBarBehavior.floating,
         backgroundColor: context.colors.ink,
-        content: const Text('Code copied to clipboard'),
+        content: Text(tr('group_code_copied_snackbar')),
       ),
     );
   }
@@ -73,7 +74,7 @@ class _InviteMemberScreenState extends State<InviteMemberScreen> {
         backgroundColor: dialogContext.colors.card,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         title: Text(
-          'Decline ${request.displayName}\'s request',
+          '${tr('group_decline_request_from_prefix')} ${request.displayName}',
           style: TextStyle(
             color: dialogContext.colors.ink,
             fontWeight: FontWeight.w800,
@@ -86,7 +87,7 @@ class _InviteMemberScreenState extends State<InviteMemberScreen> {
           maxLines: 3,
           style: TextStyle(color: dialogContext.colors.ink),
           decoration: InputDecoration(
-            hintText: 'Let them know why (optional)',
+            hintText: tr('group_reason_hint_optional'),
             filled: true,
             fillColor: dialogContext.colors.surface,
             border: OutlineInputBorder(
@@ -102,13 +103,13 @@ class _InviteMemberScreenState extends State<InviteMemberScreen> {
         actions: [
           TextButton(
             onPressed: () => Navigator.of(dialogContext).pop(),
-            child: const Text('Cancel'),
+            child: Text(tr('common_cancel')),
           ),
           FilledButton(
             onPressed: () =>
                 Navigator.of(dialogContext).pop(controller.text.trim()),
             style: FilledButton.styleFrom(backgroundColor: Colors.redAccent),
-            child: const Text('Decline'),
+            child: Text(tr('group_decline_button')),
           ),
         ],
       ),
@@ -142,8 +143,8 @@ class _InviteMemberScreenState extends State<InviteMemberScreen> {
         backgroundColor: context.colors.ink,
         content: Text(
           approve
-              ? '${request.displayName} added to the group'
-              : "${request.displayName}'s request was declined",
+              ? '${request.displayName} ${tr('group_member_added_suffix')}'
+              : '${request.displayName} ${tr('group_request_declined_suffix')}',
         ),
       ),
     );
@@ -157,8 +158,8 @@ class _InviteMemberScreenState extends State<InviteMemberScreen> {
         child: Column(
           children: [
             DetailHeader(
-              title: 'Invite Member',
-              subtitle: 'Add someone to ${widget.tripName}',
+              title: tr('group_invite_title'),
+              subtitle: '${tr('group_invite_subtitle_prefix')} ${widget.tripName}',
             ),
             Expanded(
               child: ListView(
@@ -196,9 +197,9 @@ class _InviteMemberScreenState extends State<InviteMemberScreen> {
                             color: Colors.white.withValues(alpha: 0.18),
                             borderRadius: BorderRadius.circular(20),
                           ),
-                          child: const Text(
-                            'GROUP INVITE CODE',
-                            style: TextStyle(
+                          child: Text(
+                            tr('group_invite_code_badge'),
+                            style: const TextStyle(
                               color: Colors.white,
                               fontSize: 10.5,
                               fontWeight: FontWeight.w800,
@@ -228,7 +229,7 @@ class _InviteMemberScreenState extends State<InviteMemberScreen> {
                               ),
                         const SizedBox(height: 4),
                         Text(
-                          'Expires in 24 hours',
+                          tr('group_invite_code_expiry'),
                           style: TextStyle(
                             color: Colors.white.withValues(alpha: 0.75),
                             fontSize: 11.5,
@@ -259,7 +260,7 @@ class _InviteMemberScreenState extends State<InviteMemberScreen> {
                                         ),
                                         const SizedBox(width: 6),
                                         Text(
-                                          'Copy Code',
+                                          tr('group_copy_code'),
                                           style: TextStyle(
                                             color: context.colors.ink,
                                             fontWeight: FontWeight.w700,
@@ -305,7 +306,7 @@ class _InviteMemberScreenState extends State<InviteMemberScreen> {
                           Row(
                             children: [
                               Text(
-                                'Join Requests',
+                                tr('group_join_requests_header'),
                                 style: TextStyle(
                                   color: context.colors.ink,
                                   fontWeight: FontWeight.w800,
@@ -347,7 +348,7 @@ class _InviteMemberScreenState extends State<InviteMemberScreen> {
                                 borderRadius: BorderRadius.circular(16),
                               ),
                               child: Text(
-                                'No pending requests right now.',
+                                tr('group_no_pending_requests'),
                                 textAlign: TextAlign.center,
                                 style: TextStyle(
                                   color: context.colors.muted,
@@ -369,7 +370,7 @@ class _InviteMemberScreenState extends State<InviteMemberScreen> {
                   ),
                   const SizedBox(height: 28),
                   Text(
-                    'How it works',
+                    tr('group_how_it_works'),
                     style: TextStyle(
                       color: context.colors.ink,
                       fontWeight: FontWeight.w800,
@@ -379,21 +380,18 @@ class _InviteMemberScreenState extends State<InviteMemberScreen> {
                   const SizedBox(height: 14),
                   _StepTile(
                     number: '1',
-                    title: 'Share this code',
-                    subtitle:
-                        'Send it to your friend however you like — chat, text, or in person.',
+                    title: tr('group_step1_title'),
+                    subtitle: tr('group_step1_subtitle'),
                   ),
                   _StepTile(
                     number: '2',
-                    title: 'They enter it in the app',
-                    subtitle:
-                        'From "Join a Trip", they type in the 6-character code.',
+                    title: tr('group_step2_title'),
+                    subtitle: tr('group_step2_subtitle'),
                   ),
                   _StepTile(
                     number: '3',
-                    title: 'You approve their request',
-                    subtitle:
-                        'They appear here as a join request — approve it and they\'re in the group.',
+                    title: tr('group_invite_step3_title'),
+                    subtitle: tr('group_invite_step3_subtitle'),
                     isLast: true,
                   ),
                 ],
@@ -461,7 +459,7 @@ class _RequestTile extends StatelessWidget {
                 ),
                 const SizedBox(height: 2),
                 Text(
-                  'Wants to join',
+                  tr('group_wants_to_join_prefix'),
                   style: TextStyle(color: context.colors.muted, fontSize: 11.5),
                 ),
               ],

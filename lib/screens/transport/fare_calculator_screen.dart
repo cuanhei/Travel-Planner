@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../services/locale_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/detail_header.dart';
 import '../../widgets/gradient_button.dart';
@@ -20,25 +21,25 @@ class _FareCalculatorScreenState extends State<FareCalculatorScreen> {
   Widget build(BuildContext context) {
     final fares = [
       (
-        mode: 'Rapid Penang Bus',
+        mode: tr('transport_mode_bus'),
         icon: Icons.directions_bus_filled_rounded,
         color: Color(0xFF5C6BC0),
         fare: (1.2 + _distance * 0.15),
       ),
       (
-        mode: 'E-hailing (Grab)',
+        mode: tr('transport_mode_ehailing'),
         icon: Icons.local_taxi_rounded,
         color: AppColors.accent,
         fare: (3.5 + _distance * 1.6),
       ),
       (
-        mode: 'Taxi',
+        mode: tr('transport_mode_taxi'),
         icon: Icons.local_taxi_rounded,
         color: Color(0xFFFFB347),
         fare: (3.0 + _distance * 2.0),
       ),
       (
-        mode: 'Bicycle Rental',
+        mode: tr('transport_mode_bicycle'),
         icon: Icons.directions_bike_rounded,
         color: Color(0xFF11998E),
         fare: 5.0,
@@ -51,8 +52,8 @@ class _FareCalculatorScreenState extends State<FareCalculatorScreen> {
         child: Column(
           children: [
             DetailHeader(
-              title: 'Fare Calculator',
-              subtitle: 'Estimate transport cost',
+              title: tr('transport_fare_calc_title'),
+              subtitle: tr('transport_fare_calc_subtitle'),
             ),
             Expanded(
               child: ListView(
@@ -77,7 +78,7 @@ class _FareCalculatorScreenState extends State<FareCalculatorScreen> {
                         Row(
                           children: [
                             Text(
-                              'Distance',
+                              tr('transport_distance'),
                               style: TextStyle(
                                 color: context.colors.ink,
                                 fontWeight: FontWeight.w700,
@@ -108,7 +109,7 @@ class _FareCalculatorScreenState extends State<FareCalculatorScreen> {
                         ),
                         SizedBox(height: 8),
                         GradientButton(
-                          label: 'Calculate Fares',
+                          label: tr('transport_calculate_fares'),
                           icon: Icons.calculate_rounded,
                           height: 48,
                           onPressed: () => setState(() => _calculated = true),
@@ -119,7 +120,7 @@ class _FareCalculatorScreenState extends State<FareCalculatorScreen> {
                   SizedBox(height: 24),
                   if (_calculated) ...[
                     Text(
-                      'Estimated Fares',
+                      tr('transport_estimated_fares'),
                       style: TextStyle(
                         color: context.colors.ink,
                         fontWeight: FontWeight.w800,
@@ -182,7 +183,7 @@ class _FareCalculatorScreenState extends State<FareCalculatorScreen> {
                       padding: EdgeInsets.symmetric(vertical: 40),
                       child: Center(
                         child: Text(
-                          'Adjust distance and tap Calculate',
+                          tr('transport_adjust_distance_hint'),
                           style: TextStyle(color: context.colors.muted),
                         ),
                       ),

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../services/locale_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/detail_header.dart';
 import '../../widgets/gradient_button.dart';
@@ -28,34 +29,41 @@ class _AddToTripScreenState extends State<AddToTripScreen> {
       SnackBar(
         behavior: SnackBarBehavior.floating,
         backgroundColor: context.colors.ink,
-        content: Text('Added ${widget.place.name} to "${trip.title}"'),
+        content: Text(
+          '${tr('trip_added_prefix')} ${widget.place.name} '
+          '${tr('trip_to_word')} "${trip.title}"',
+        ),
       ),
     );
   }
 
   @override
   Widget build(BuildContext context) {
+    final trips = upcomingTrips();
     return Scaffold(
       backgroundColor: context.colors.surface,
       body: SafeArea(
         child: Column(
           children: [
-            DetailHeader(title: 'Add to Trip', subtitle: widget.place.name),
+            DetailHeader(
+              title: tr('trip_add_to_trip_title'),
+              subtitle: widget.place.name,
+            ),
             Expanded(
-              child: upcomingTrips.isEmpty
+              child: trips.isEmpty
                   ? _EmptyState(place: widget.place)
                   : ListView(
                       padding: const EdgeInsets.fromLTRB(24, 8, 24, 24),
                       children: [
                         Text(
-                          'Choose which trip to add this stop to',
+                          tr('trip_choose_trip_hint'),
                           style: TextStyle(
                             color: context.colors.muted,
                             fontSize: 12.5,
                           ),
                         ),
                         const SizedBox(height: 16),
-                        ...upcomingTrips.map(
+                        ...trips.map(
                           (trip) => _TripOption(
                             trip: trip,
                             selected: _selected == trip,
@@ -67,11 +75,11 @@ class _AddToTripScreenState extends State<AddToTripScreen> {
                       ],
                     ),
             ),
-            if (upcomingTrips.isNotEmpty)
+            if (trips.isNotEmpty)
               Padding(
                 padding: const EdgeInsets.fromLTRB(24, 0, 24, 16),
                 child: GradientButton(
-                  label: 'Add to Trip',
+                  label: tr('trip_add_to_trip_title'),
                   icon: Icons.playlist_add_check_rounded,
                   onPressed: _selected == null ? () {} : _confirm,
                 ),
@@ -207,7 +215,7 @@ class _NewTripOption extends StatelessWidget {
             const SizedBox(width: 14),
             Expanded(
               child: Text(
-                'Create a new trip for ${place.name}',
+                '${tr('trip_create_new_trip_for')} ${place.name}',
                 style: TextStyle(
                   color: context.colors.ink,
                   fontWeight: FontWeight.w700,
@@ -237,7 +245,7 @@ class _EmptyState extends StatelessWidget {
           Icon(Icons.luggage_rounded, color: context.colors.muted, size: 48),
           const SizedBox(height: 16),
           Text(
-            'No upcoming trips yet',
+            tr('trip_no_upcoming_trips'),
             style: TextStyle(
               color: context.colors.ink,
               fontWeight: FontWeight.w800,
@@ -246,13 +254,14 @@ class _EmptyState extends StatelessWidget {
           ),
           const SizedBox(height: 6),
           Text(
-            'Create a trip first, then add ${place.name} to it.',
+            '${tr('trip_create_trip_first')} ${place.name} '
+            '${tr('trip_to_it_suffix')}',
             textAlign: TextAlign.center,
             style: TextStyle(color: context.colors.muted, fontSize: 12.5),
           ),
           const SizedBox(height: 20),
           GradientButton(
-            label: 'Create Trip',
+            label: tr('trip_create_trip_title'),
             icon: Icons.add_rounded,
             expand: false,
             onPressed: () => Navigator.of(

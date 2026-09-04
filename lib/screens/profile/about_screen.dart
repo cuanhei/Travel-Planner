@@ -1,11 +1,14 @@
 import 'package:flutter/material.dart';
 
+import '../../services/locale_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/detail_header.dart';
 import '../../widgets/list_tile_card.dart';
+import 'privacy_policy_screen.dart';
+import 'terms_of_service_screen.dart';
 
-/// UI-only "About" screen: app identity, version, and links out to
-/// legal pages (not implemented — this is a demo app).
+/// "About" screen: app identity, version, and links out to the Terms of
+/// Service and Privacy Policy pages.
 class AboutScreen extends StatelessWidget {
   const AboutScreen({super.key});
 
@@ -16,7 +19,7 @@ class AboutScreen extends StatelessWidget {
       body: SafeArea(
         child: Column(
           children: [
-            const DetailHeader(title: 'About TravelPlanner'),
+            DetailHeader(title: tr('auth_about')),
             Expanded(
               child: ListView(
                 padding: const EdgeInsets.fromLTRB(24, 8, 24, 24),
@@ -62,7 +65,7 @@ class AboutScreen extends StatelessWidget {
                         ),
                         const SizedBox(height: 4),
                         Text(
-                          'Version 1.0.0',
+                          '${tr('auth_version_prefix')} 1.0.0',
                           style: TextStyle(
                             color: context.colors.muted,
                             fontSize: 12.5,
@@ -79,9 +82,7 @@ class AboutScreen extends StatelessWidget {
                       borderRadius: BorderRadius.circular(18),
                     ),
                     child: Text(
-                      'TravelPlanner helps you plan trips end to end — '
-                      'itineraries, weather, transport, budget, and group '
-                      'coordination, all in one place.',
+                      tr('auth_about_description'),
                       textAlign: TextAlign.center,
                       style: TextStyle(
                         color: context.colors.muted,
@@ -93,39 +94,22 @@ class AboutScreen extends StatelessWidget {
                   const SizedBox(height: 24),
                   ListTileCard(
                     icon: Icons.description_outlined,
-                    title: 'Terms of Service',
-                    onTap: () => ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        behavior: SnackBarBehavior.floating,
-                        backgroundColor: context.colors.ink,
-                        content: const Text('Not available in this demo'),
-                      ),
+                    title: tr('auth_terms_of_service'),
+                    onTap: () => Navigator.of(context).push(
+                      MaterialPageRoute(builder: (_) => const TermsOfServiceScreen()),
                     ),
                   ),
                   ListTileCard(
                     icon: Icons.privacy_tip_outlined,
-                    title: 'Privacy Policy',
-                    onTap: () => ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        behavior: SnackBarBehavior.floating,
-                        backgroundColor: context.colors.ink,
-                        content: const Text('Not available in this demo'),
-                      ),
-                    ),
-                  ),
-                  ListTileCard(
-                    icon: Icons.code_rounded,
-                    title: 'Open Source Licenses',
-                    onTap: () => showLicensePage(
-                      context: context,
-                      applicationName: 'TravelPlanner',
-                      applicationVersion: '1.0.0',
+                    title: tr('auth_privacy_policy'),
+                    onTap: () => Navigator.of(context).push(
+                      MaterialPageRoute(builder: (_) => const PrivacyPolicyScreen()),
                     ),
                   ),
                   const SizedBox(height: 16),
                   Center(
                     child: Text(
-                      'Made with Flutter 💙',
+                      tr('auth_made_with_flutter'),
                       style: TextStyle(
                         color: context.colors.muted,
                         fontSize: 11.5,

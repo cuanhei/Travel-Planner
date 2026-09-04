@@ -3,6 +3,7 @@ import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 
 import '../../models/trip_stop_location.dart';
+import '../../services/locale_service.dart';
 import '../../services/trip_service.dart';
 import '../../theme/app_theme.dart';
 import '../../utils/malaysia_bounds.dart';
@@ -110,9 +111,9 @@ class _TripMapScreenState extends State<TripMapScreen> {
       body: SafeArea(
         child: Column(
           children: [
-            const DetailHeader(
-              title: 'Trip Map',
-              subtitle: 'Every stop on this trip',
+            DetailHeader(
+              title: tr('trip_map_title_word'),
+              subtitle: tr('trip_every_stop_on_trip'),
             ),
             Expanded(
               child: StreamBuilder<List<TripStopLocation>>(
@@ -358,9 +359,9 @@ class _TripStopSearchField extends StatelessWidget {
                   fontSize: 13.5,
                   fontWeight: FontWeight.w600,
                 ),
-                decoration: const InputDecoration(
-                  hintText: 'Search trip stops…',
-                  hintStyle: TextStyle(
+                decoration: InputDecoration(
+                  hintText: tr('trip_search_trip_stops_hint'),
+                  hintStyle: const TextStyle(
                     color: Color(0xFF6E7A93),
                     fontWeight: FontWeight.w500,
                   ),
@@ -401,11 +402,11 @@ class _TripStopDropdown extends StatelessWidget {
       child: ConstrainedBox(
         constraints: const BoxConstraints(maxHeight: 220),
         child: stops.isEmpty
-            ? const Padding(
-                padding: EdgeInsets.all(16),
+            ? Padding(
+                padding: const EdgeInsets.all(16),
                 child: Text(
-                  'No matching stops',
-                  style: TextStyle(color: Color(0xFF6E7A93), fontSize: 12.5),
+                  tr('trip_no_matching_stops'),
+                  style: const TextStyle(color: Color(0xFF6E7A93), fontSize: 12.5),
                 ),
               )
             : ListView.builder(
@@ -451,7 +452,7 @@ class _NoStopsState extends StatelessWidget {
           Icon(Icons.flag_outlined, color: context.colors.muted, size: 34),
           const SizedBox(height: 10),
           Text(
-            'No stops added yet',
+            tr('trip_no_stops_added_yet'),
             style: TextStyle(
               color: context.colors.ink,
               fontWeight: FontWeight.w700,
@@ -460,7 +461,7 @@ class _NoStopsState extends StatelessWidget {
           ),
           const SizedBox(height: 4),
           Text(
-            'Add stops to this trip to see them on the map.',
+            tr('trip_add_stops_to_see_map'),
             textAlign: TextAlign.center,
             style: TextStyle(color: context.colors.muted, fontSize: 12),
           ),
@@ -486,7 +487,7 @@ class _ErrorState extends StatelessWidget {
             Icon(Icons.error_outline_rounded, color: context.colors.muted, size: 30),
             const SizedBox(height: 10),
             Text(
-              'Could not load trip stops.',
+              tr('trip_could_not_load_trip_stops'),
               style: TextStyle(
                 color: context.colors.ink,
                 fontWeight: FontWeight.w700,

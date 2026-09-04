@@ -11,6 +11,8 @@ const Map<String, Map<String, String>> savedStrings = {
     'saved_trip1_title': 'Penang Adventure',
     'saved_trip2_title': 'Weekend in Ipoh',
     'saved_trip3_title': 'Borneo Rainforest Trip',
+    'saved_place_ipoh': 'Ipoh, Malaysia',
+    'saved_place_sabah': 'Sabah, Malaysia',
   },
   'ms': {
     'saved_places_title': 'Tempat Disimpan',
@@ -22,6 +24,8 @@ const Map<String, Map<String, String>> savedStrings = {
     'saved_trip1_title': 'Pengembaraan Penang',
     'saved_trip2_title': 'Hujung Minggu di Ipoh',
     'saved_trip3_title': 'Perjalanan Hutan Hujan Borneo',
+    'saved_place_ipoh': 'Ipoh, Malaysia',
+    'saved_place_sabah': 'Sabah, Malaysia',
   },
   'zh': {
     'saved_places_title': '收藏地点',
@@ -33,6 +37,8 @@ const Map<String, Map<String, String>> savedStrings = {
     'saved_trip1_title': '槟城探险之旅',
     'saved_trip2_title': '怡保周末游',
     'saved_trip3_title': '婆罗洲雨林之旅',
+    'saved_place_ipoh': '怡保，马来西亚',
+    'saved_place_sabah': '沙巴，马来西亚',
   },
   'ja': {
     'saved_places_title': '保存した場所',
@@ -44,6 +50,8 @@ const Map<String, Map<String, String>> savedStrings = {
     'saved_trip1_title': 'ペナン・アドベンチャー',
     'saved_trip2_title': 'イポーでの週末',
     'saved_trip3_title': 'ボルネオ熱帯雨林の旅',
+    'saved_place_ipoh': 'イポー、マレーシア',
+    'saved_place_sabah': 'サバ州、マレーシア',
   },
   'ko': {
     'saved_places_title': '저장한 장소',
@@ -55,6 +63,8 @@ const Map<String, Map<String, String>> savedStrings = {
     'saved_trip1_title': '페낭 어드벤처',
     'saved_trip2_title': '이포 주말 여행',
     'saved_trip3_title': '보르네오 열대우림 여행',
+    'saved_place_ipoh': '이포, 말레이시아',
+    'saved_place_sabah': '사바, 말레이시아',
   },
   'th': {
     'saved_places_title': 'สถานที่ที่บันทึกไว้',
@@ -66,6 +76,8 @@ const Map<String, Map<String, String>> savedStrings = {
     'saved_trip1_title': 'การผจญภัยที่ปีนัง',
     'saved_trip2_title': 'วันหยุดสุดสัปดาห์ที่อิโปห์',
     'saved_trip3_title': 'ทริปป่าฝนบอร์เนียว',
+    'saved_place_ipoh': 'อิโปห์ มาเลเซีย',
+    'saved_place_sabah': 'ซาบาห์ มาเลเซีย',
   },
   'vi': {
     'saved_places_title': 'Địa Điểm Đã Lưu',
@@ -77,6 +89,8 @@ const Map<String, Map<String, String>> savedStrings = {
     'saved_trip1_title': 'Khám Phá Penang',
     'saved_trip2_title': 'Cuối Tuần Ở Ipoh',
     'saved_trip3_title': 'Chuyến Đi Rừng Mưa Borneo',
+    'saved_place_ipoh': 'Ipoh, Malaysia',
+    'saved_place_sabah': 'Sabah, Malaysia',
   },
   'id': {
     'saved_places_title': 'Tempat Tersimpan',
@@ -88,6 +102,8 @@ const Map<String, Map<String, String>> savedStrings = {
     'saved_trip1_title': 'Petualangan Penang',
     'saved_trip2_title': 'Akhir Pekan di Ipoh',
     'saved_trip3_title': 'Perjalanan Hutan Hujan Borneo',
+    'saved_place_ipoh': 'Ipoh, Malaysia',
+    'saved_place_sabah': 'Sabah, Malaysia',
   },
   'hi': {
     'saved_places_title': 'सहेजे गए स्थान',
@@ -99,6 +115,8 @@ const Map<String, Map<String, String>> savedStrings = {
     'saved_trip1_title': 'पेनांग एडवेंचर',
     'saved_trip2_title': 'इपोह में सप्ताहांत',
     'saved_trip3_title': 'बोर्नियो वर्षावन यात्रा',
+    'saved_place_ipoh': 'इपोह, मलेशिया',
+    'saved_place_sabah': 'साबाह, मलेशिया',
   },
   'ta': {
     'saved_places_title': 'சேமிக்கப்பட்ட இடங்கள்',
@@ -110,6 +128,8 @@ const Map<String, Map<String, String>> savedStrings = {
     'saved_trip1_title': 'பினாங்கு சாகச பயணம்',
     'saved_trip2_title': 'இப்போவில் வார இறுதி',
     'saved_trip3_title': 'போர்னியோ மழைக்காடு பயணம்',
+    'saved_place_ipoh': 'இப்போ, மலேசியா',
+    'saved_place_sabah': 'சபா, மலேசியா',
   },
   'ar': {
     'saved_places_title': 'الأماكن المحفوظة',
@@ -121,6 +141,8 @@ const Map<String, Map<String, String>> savedStrings = {
     'saved_trip1_title': 'مغامرة بينانغ',
     'saved_trip2_title': 'عطلة نهاية الأسبوع في إيبوه',
     'saved_trip3_title': 'رحلة غابة بورنيو المطيرة',
+    'saved_place_ipoh': 'إيبوه، ماليزيا',
+    'saved_place_sabah': 'صباح، ماليزيا',
   },
   'es': {
     'saved_places_title': 'Lugares Guardados',
@@ -132,6 +154,8 @@ const Map<String, Map<String, String>> savedStrings = {
     'saved_trip1_title': 'Aventura en Penang',
     'saved_trip2_title': 'Fin de Semana en Ipoh',
     'saved_trip3_title': 'Viaje a la Selva de Borneo',
+    'saved_place_ipoh': 'Ipoh, Malasia',
+    'saved_place_sabah': 'Sabah, Malasia',
   },
   'fr': {
     'saved_places_title': 'Lieux Enregistrés',
@@ -143,6 +167,8 @@ const Map<String, Map<String, String>> savedStrings = {
     'saved_trip1_title': 'Aventure à Penang',
     'saved_trip2_title': 'Week-end à Ipoh',
     'saved_trip3_title': 'Voyage dans la Forêt Tropicale de Bornéo',
+    'saved_place_ipoh': 'Ipoh, Malaisie',
+    'saved_place_sabah': 'Sabah, Malaisie',
   },
   'de': {
     'saved_places_title': 'Gespeicherte Orte',
@@ -154,6 +180,8 @@ const Map<String, Map<String, String>> savedStrings = {
     'saved_trip1_title': 'Penang-Abenteuer',
     'saved_trip2_title': 'Wochenende in Ipoh',
     'saved_trip3_title': 'Borneo-Regenwald-Reise',
+    'saved_place_ipoh': 'Ipoh, Malaysia',
+    'saved_place_sabah': 'Sabah, Malaysia',
   },
   'pt': {
     'saved_places_title': 'Locais Salvos',
@@ -165,6 +193,8 @@ const Map<String, Map<String, String>> savedStrings = {
     'saved_trip1_title': 'Aventura em Penang',
     'saved_trip2_title': 'Fim de Semana em Ipoh',
     'saved_trip3_title': 'Viagem à Floresta Tropical de Bornéu',
+    'saved_place_ipoh': 'Ipoh, Malásia',
+    'saved_place_sabah': 'Sabah, Malásia',
   },
   'ru': {
     'saved_places_title': 'Сохранённые места',
@@ -176,5 +206,7 @@ const Map<String, Map<String, String>> savedStrings = {
     'saved_trip1_title': 'Приключение в Пенанге',
     'saved_trip2_title': 'Выходные в Ипохе',
     'saved_trip3_title': 'Поездка в тропический лес Борнео',
+    'saved_place_ipoh': 'Ипох, Малайзия',
+    'saved_place_sabah': 'Сабах, Малайзия',
   },
 };

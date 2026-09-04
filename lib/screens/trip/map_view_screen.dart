@@ -3,6 +3,7 @@ import 'package:geolocator/geolocator.dart';
 import 'package:latlong2/latlong.dart';
 
 import '../../models/transport_location.dart';
+import '../../services/locale_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/detail_header.dart';
 import '../../widgets/route_map_view.dart';
@@ -43,7 +44,7 @@ class _MapViewScreenState extends State<MapViewScreen> {
     });
     try {
       if (!await Geolocator.isLocationServiceEnabled()) {
-        _failLocate('Location services are turned off.');
+        _failLocate(tr('trip_location_services_off'));
         return;
       }
       var permission = await Geolocator.checkPermission();
@@ -51,13 +52,11 @@ class _MapViewScreenState extends State<MapViewScreen> {
         permission = await Geolocator.requestPermission();
       }
       if (permission == LocationPermission.deniedForever) {
-        _failLocate(
-          'Location permission is permanently denied. Enable it in Settings.',
-        );
+        _failLocate(tr('trip_location_permission_denied_forever_settings'));
         return;
       }
       if (permission == LocationPermission.denied) {
-        _failLocate('Location permission denied.');
+        _failLocate(tr('trip_location_permission_denied'));
         return;
       }
       final position = await Geolocator.getCurrentPosition(
@@ -69,7 +68,7 @@ class _MapViewScreenState extends State<MapViewScreen> {
         _locatingCurrentPosition = false;
       });
     } catch (_) {
-      _failLocate('Unable to retrieve your current location.');
+      _failLocate(tr('trip_location_unable_retrieve'));
     }
   }
 
@@ -88,9 +87,9 @@ class _MapViewScreenState extends State<MapViewScreen> {
       body: SafeArea(
         child: Column(
           children: [
-            const DetailHeader(
-              title: 'Map View',
-              subtitle: 'Search anywhere in Malaysia',
+            DetailHeader(
+              title: tr('trip_map_view_title'),
+              subtitle: tr('trip_map_view_subtitle_search'),
             ),
             Expanded(
               child: Padding(
@@ -102,7 +101,7 @@ class _MapViewScreenState extends State<MapViewScreen> {
                       value: _searchedLocation,
                       onChanged: (loc) =>
                           setState(() => _searchedLocation = loc),
-                      hintText: 'Search a place in Malaysia…',
+                      hintText: tr('trip_search_place_malaysia_hint'),
                       selectedIcon: Icons.location_on_rounded,
                     ),
                     if (_locatingCurrentPosition) ...[
@@ -116,7 +115,7 @@ class _MapViewScreenState extends State<MapViewScreen> {
                           ),
                           const SizedBox(width: 8),
                           Text(
-                            'Getting your location…',
+                            tr('trip_getting_location'),
                             style: TextStyle(
                               color: context.colors.muted,
                               fontSize: 11.5,
@@ -142,7 +141,7 @@ class _MapViewScreenState extends State<MapViewScreen> {
                           GestureDetector(
                             onTap: _locateCurrentPosition,
                             child: Text(
-                              'Retry',
+                              tr('trip_retry'),
                               style: TextStyle(
                                 color: AppColors.accent,
                                 fontWeight: FontWeight.w700,

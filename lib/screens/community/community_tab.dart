@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../services/locale_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/coming_soon.dart';
 import 'add_post_screen.dart';
@@ -45,41 +46,41 @@ class Post {
   final int comments;
 }
 
-final feedPosts = [
+// A function, not a top-level `final` — a top-level `final` is only ever
+// evaluated once (the first time it's touched), so any `tr()` calls in it
+// would stay frozen at whichever language was active at that moment. This
+// re-evaluates on every call, i.e. every rebuild. User-submitted posts
+// (via AddPostScreen) are kept separately, in `_CommunityTabState._userPosts`,
+// so they aren't lost on rebuild the way re-calling this would lose them.
+List<Post> _seedPosts() => [
   Post(
-    author: 'Mei Ling',
+    author: tr('community_author_mei_ling'),
     avatarColor: Color(0xFFFF7A59),
-    place: 'Chew Jetty, George Town',
-    time: '2h ago',
-    caption:
-        'Sunset over the stilt houses was unreal 😍 definitely worth the '
-        'early evening visit, way less crowded too.',
+    place: tr('community_place_chew_jetty'),
+    time: tr('community_time_2h_ago'),
+    caption: tr('community_caption_chew_jetty'),
     gradient: AppColors.horizon,
     icon: Icons.holiday_village_rounded,
     likes: 128,
     comments: 14,
   ),
   Post(
-    author: 'Arif Hakim',
+    author: tr('community_author_arif_hakim'),
     avatarColor: Color(0xFF5C6BC0),
-    place: 'Gurney Drive Hawker Centre',
-    time: '5h ago',
-    caption:
-        'Char kway teow here is elite. Went back for seconds, no regrets. '
-        'Bring cash, most stalls don\'t take cards.',
+    place: tr('community_place_gurney_hawker'),
+    time: tr('community_time_5h_ago'),
+    caption: tr('community_caption_gurney'),
     gradient: AppColors.sunset,
     icon: Icons.restaurant_rounded,
     likes: 96,
     comments: 21,
   ),
   Post(
-    author: 'Sophia Tan',
+    author: tr('community_author_sophia_tan'),
     avatarColor: Color(0xFF11998E),
-    place: 'Penang Hill',
-    time: '1d ago',
-    caption:
-        'The funicular queue was long but the view at the top made up for '
-        'it completely. Go early morning to beat the crowd and the heat.',
+    place: tr('community_place_penang_hill'),
+    time: tr('community_time_1d_ago'),
+    caption: tr('community_caption_penang_hill'),
     gradient: AppColors.lagoon,
     icon: Icons.terrain_rounded,
     likes: 203,
@@ -96,16 +97,19 @@ class CommunityTab extends StatefulWidget {
 }
 
 class _CommunityTabState extends State<CommunityTab> {
+  final _userPosts = <Post>[];
+
   Future<void> _addPost() async {
     final post = await Navigator.of(
       context,
     ).push<Post>(MaterialPageRoute(builder: (_) => const AddPostScreen()));
     if (post == null) return;
-    setState(() => feedPosts.insert(0, post));
+    setState(() => _userPosts.insert(0, post));
   }
 
   @override
   Widget build(BuildContext context) {
+    final posts = [..._userPosts, ..._seedPosts()];
     return SafeArea(
       child: ListView(
         padding: EdgeInsets.fromLTRB(24, 20, 24, 24),
@@ -114,7 +118,7 @@ class _CommunityTabState extends State<CommunityTab> {
             children: [
               Expanded(
                 child: Text(
-                  'Community',
+                  tr('community_title'),
                   style: TextStyle(
                     color: context.colors.ink,
                     fontSize: 24,
@@ -142,11 +146,11 @@ class _CommunityTabState extends State<CommunityTab> {
           ),
           SizedBox(height: 4),
           Text(
-            'Travel stories from fellow explorers',
+            tr('community_subtitle'),
             style: TextStyle(color: context.colors.muted, fontSize: 13.5),
           ),
           SizedBox(height: 20),
-          ...feedPosts.map((p) => _PostCard(post: p)),
+          ...posts.map((p) => _PostCard(post: p)),
         ],
       ),
     );
@@ -245,7 +249,7 @@ class _PostCard extends StatelessWidget {
               _PostAction(
                 icon: Icons.favorite_border_rounded,
                 label: '${post.likes}',
-                onTap: () => showComingSoon(context, 'Like'),
+                onTap: () => showComingSoon(context, tr('community_like')),
               ),
               SizedBox(width: 18),
               _PostAction(
@@ -259,7 +263,7 @@ class _PostCard extends StatelessWidget {
               ),
               Spacer(),
               GestureDetector(
-                onTap: () => showComingSoon(context, 'Share'),
+                onTap: () => showComingSoon(context, tr('community_share')),
                 child: Icon(
                   Icons.share_outlined,
                   color: context.colors.muted,

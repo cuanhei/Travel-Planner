@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../models/transit_route.dart';
 import '../../models/transport_location.dart';
+import '../../services/locale_service.dart';
 import '../../services/transit_navigation_controller.dart';
 import '../../utils/format.dart';
 import '../../utils/transit_vehicle_display.dart';
@@ -78,7 +79,7 @@ class _TransitNavigationScreenState extends State<TransitNavigationScreen> {
         return _LoadingState(onClose: _endNavigation);
       case NavigationStatus.error:
         return _ErrorState(
-          message: _controller.error ?? 'Navigation could not start.',
+          message: _controller.error ?? tr('transport_navigation_could_not_start'),
           onClose: _endNavigation,
         );
       case NavigationStatus.arrived:
@@ -102,16 +103,16 @@ class _LoadingState extends StatelessWidget {
     return Column(
       children: [
         _CloseBar(onClose: onClose),
-        const Expanded(
+        Expanded(
           child: Center(
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                CircularProgressIndicator(color: Colors.white),
-                SizedBox(height: 16),
+                const CircularProgressIndicator(color: Colors.white),
+                const SizedBox(height: 16),
                 Text(
-                  'Getting your location…',
-                  style: TextStyle(color: Colors.white70, fontSize: 13.5),
+                  tr('transport_getting_location'),
+                  style: const TextStyle(color: Colors.white70, fontSize: 13.5),
                 ),
               ],
             ),
@@ -158,7 +159,7 @@ class _ErrorState extends StatelessWidget {
                       foregroundColor: Colors.white,
                       side: const BorderSide(color: Colors.white54),
                     ),
-                    child: const Text('Close'),
+                    child: Text(tr('transport_close_word')),
                   ),
                 ],
               ),
@@ -192,9 +193,9 @@ class _ArrivedState extends StatelessWidget {
             child: const Icon(Icons.check_rounded, color: Colors.white, size: 40),
           ),
           const SizedBox(height: 18),
-          const Text(
-            'You have arrived',
-            style: TextStyle(
+          Text(
+            tr('transport_you_have_arrived'),
+            style: const TextStyle(
               color: Colors.white,
               fontWeight: FontWeight.w800,
               fontSize: 18,
@@ -211,9 +212,9 @@ class _ArrivedState extends StatelessWidget {
                 borderRadius: BorderRadius.circular(14),
               ),
             ),
-            child: const Text(
-              'End Navigation',
-              style: TextStyle(fontWeight: FontWeight.w700),
+            child: Text(
+              tr('transport_end_navigation'),
+              style: const TextStyle(fontWeight: FontWeight.w700),
             ),
           ),
         ],
@@ -246,7 +247,7 @@ class _WalkingNavigation extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      step.instructions ?? 'Continue toward your stop',
+                      step.instructions ?? tr('transport_continue_toward_stop'),
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                       style: const TextStyle(
@@ -290,7 +291,7 @@ class _WalkingNavigation extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'Walk to ${controller.walkTargetLabel}',
+                      tr('transport_step_walk_to_title').replaceAll('{stop}', controller.walkTargetLabel),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: const TextStyle(
@@ -341,7 +342,7 @@ class _TransitNavigation extends StatelessWidget {
       details?.vehicleType ?? TransitVehicleType.other,
     );
     final lineLabel = details == null
-        ? 'Transit'
+        ? tr('transport_transit_word')
         : (details.lineShortName?.isNotEmpty == true
             ? '${display.label} ${details.lineShortName}'
             : details.lineName);
@@ -377,12 +378,12 @@ class _TransitNavigation extends StatelessWidget {
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      'Get off: ${details?.arrivalStop ?? '—'}',
+                      '${tr('transport_get_off_prefix')}: ${details?.arrivalStop ?? '—'}',
                       style: const TextStyle(color: Colors.white70, fontSize: 12.5),
                     ),
                     if (gettingReady) ...[
                       const SizedBox(height: 8),
-                      const _WarningChip(text: 'Get ready to get off'),
+                      _WarningChip(text: tr('transport_get_ready_off')),
                     ],
                   ],
                 ),
@@ -401,8 +402,10 @@ class _TransitNavigation extends StatelessWidget {
             children: [
               Text(
                 controller.stopsRemaining != null
-                    ? '${controller.stopsRemaining} stop${controller.stopsRemaining == 1 ? '' : 's'} remaining'
-                    : 'Riding $lineLabel',
+                    ? '${controller.stopsRemaining} '
+                          '${controller.stopsRemaining == 1 ? tr('transport_stop_word_singular') : tr('transport_stop_word_plural')} '
+                          '${tr('transport_remaining_word')}'
+                    : '${tr('transport_riding_prefix')} $lineLabel',
                 style: const TextStyle(
                   color: Colors.white,
                   fontWeight: FontWeight.w800,
@@ -412,8 +415,9 @@ class _TransitNavigation extends StatelessWidget {
               const SizedBox(height: 3),
               Text(
                 details?.headsign != null
-                    ? 'Towards ${details!.headsign} · Board at ${details.departureStop}'
-                    : 'Board at ${details?.departureStop ?? '—'}',
+                    ? '${tr('transport_towards_prefix')} ${details!.headsign} · '
+                          '${tr('transport_board_at_prefix')} ${details.departureStop}'
+                    : '${tr('transport_board_at_prefix')} ${details?.departureStop ?? '—'}',
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: const TextStyle(color: Colors.white60, fontSize: 12),
@@ -431,14 +435,14 @@ class _AlightNowRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const Row(
+    return Row(
       children: [
-        Icon(Icons.directions_walk_rounded, color: Colors.white, size: 24),
-        SizedBox(width: 10),
+        const Icon(Icons.directions_walk_rounded, color: Colors.white, size: 24),
+        const SizedBox(width: 10),
         Expanded(
           child: Text(
-            'Get off here',
-            style: TextStyle(
+            tr('transport_get_off_here'),
+            style: const TextStyle(
               color: Colors.white,
               fontWeight: FontWeight.w800,
               fontSize: 17,

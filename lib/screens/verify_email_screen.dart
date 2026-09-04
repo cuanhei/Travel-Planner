@@ -4,7 +4,9 @@ import 'package:supabase_flutter/supabase_flutter.dart' show AuthException;
 
 import '../services/auth_error_messages.dart';
 import '../services/auth_service.dart';
+import '../services/locale_service.dart';
 import '../theme/app_theme.dart';
+import '../widgets/code_expiry_timer.dart';
 import '../widgets/gradient_button.dart';
 import 'home_screen.dart';
 
@@ -26,7 +28,9 @@ class _VerifyEmailScreenState extends State<VerifyEmailScreen> {
   bool _verified = false;
   bool _hasError = false;
   bool _loading = false;
+  bool _codeExpired = false;
   int _cooldown = 30;
+  int _codeRequestId = 0;
 
   @override
   void initState() {
@@ -71,6 +75,10 @@ class _VerifyEmailScreenState extends State<VerifyEmailScreen> {
   }
 
   Future<void> _verify() async {
+    if (_codeExpired) {
+      _showError(tr('auth_code_expired_error'));
+      return;
+    }
     if (_code.length < _digits) {
       setState(() => _hasError = true);
       return;
@@ -93,7 +101,7 @@ class _VerifyEmailScreenState extends State<VerifyEmailScreen> {
       _showError(friendlyAuthError(e));
     } catch (_) {
       setState(() => _hasError = true);
-      _showError('Something went wrong. Please try again.');
+      _showError(tr('common_error_generic'));
     } finally {
       if (mounted) setState(() => _loading = false);
     }
@@ -103,11 +111,17 @@ class _VerifyEmailScreenState extends State<VerifyEmailScreen> {
     if (widget.email == null) return;
     try {
       await AuthService.instance.resendSignupCode(widget.email!);
+      if (mounted) {
+        setState(() {
+          _codeExpired = false;
+          _codeRequestId++;
+        });
+      }
       _startCooldown();
     } on AuthException catch (e) {
       _showError(friendlyAuthError(e));
     } catch (_) {
-      _showError('Something went wrong. Please try again.');
+      _showError(tr('common_error_generic'));
     }
   }
 
@@ -159,6 +173,9 @@ class _VerifyEmailScreenState extends State<VerifyEmailScreen> {
                                 hasError: _hasError,
                                 loading: _loading,
                                 cooldown: _cooldown,
+                                codeRequestId: _codeRequestId,
+                                onExpired: () =>
+                                    setState(() => _codeExpired = true),
                                 onChanged: _onChanged,
                                 onVerify: _verify,
                                 onResend: _cooldown == 0 ? _resend : null,
@@ -229,7 +246,7 @@ class _Header extends StatelessWidget {
             ),
             SizedBox(height: 16),
             Text(
-              verified ? 'Email Verified!' : 'Verify Your Email',
+              verified ? tr('auth_email_verified_title') : tr('auth_verify_your_email_title'),
               style: TextStyle(
                 color: Colors.white,
                 fontSize: 24,
@@ -241,8 +258,8 @@ class _Header extends StatelessWidget {
               padding: EdgeInsets.symmetric(horizontal: 40),
               child: Text(
                 verified
-                    ? "You're all set to start exploring"
-                    : "We've sent a 6-digit code to your email",
+                    ? tr('auth_all_set_explore')
+                    : tr('auth_enter_reset_code_subtitle'),
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   color: Colors.white.withValues(alpha: 0.85),
@@ -266,6 +283,8 @@ class _CodeView extends StatelessWidget {
     required this.hasError,
     required this.loading,
     required this.cooldown,
+    required this.codeRequestId,
+    required this.onExpired,
     required this.onChanged,
     required this.onVerify,
     required this.onResend,
@@ -277,6 +296,8 @@ class _CodeView extends StatelessWidget {
   final bool hasError;
   final bool loading;
   final int cooldown;
+  final int codeRequestId;
+  final VoidCallback onExpired;
   final void Function(int, String) onChanged;
   final VoidCallback onVerify;
   final VoidCallback? onResend;
@@ -293,7 +314,7 @@ class _CodeView extends StatelessWidget {
               TextSpan(
                 style: TextStyle(color: context.colors.muted, height: 1.5),
                 children: [
-                  TextSpan(text: 'Code sent to '),
+                  TextSpan(text: tr('auth_code_sent_to')),
                   TextSpan(
                     text: email,
                     style: TextStyle(
@@ -351,13 +372,15 @@ class _CodeView extends StatelessWidget {
           Padding(
             padding: EdgeInsets.only(top: 10),
             child: Text(
-              'Enter the full 6-digit code',
+              tr('auth_enter_full_code'),
               style: TextStyle(color: Colors.redAccent, fontSize: 12),
             ),
           ),
-        SizedBox(height: 28),
+        SizedBox(height: 14),
+        CodeExpiryTimer(resetKey: codeRequestId, onExpired: onExpired),
+        SizedBox(height: 14),
         GradientButton(
-          label: 'Verify Email',
+          label: tr('auth_verify_email_button'),
           onPressed: onVerify,
           loading: loading,
         ),
@@ -367,7 +390,7 @@ class _CodeView extends StatelessWidget {
           child: TextButton(
             onPressed: onResend,
             child: Text(
-              onResend == null ? 'Resend code in ${cooldown}s' : 'Resend Code',
+              onResend == null ? '${tr('auth_resend_in_seconds')} ${cooldown}s' : tr('auth_resend_code'),
               style: TextStyle(
                 color: onResend == null
                     ? context.colors.muted
@@ -392,13 +415,13 @@ class _VerifiedView extends StatelessWidget {
       children: [
         SizedBox(height: 12),
         Text(
-          'Your email address has been confirmed.',
+          tr('auth_email_confirmed_body'),
           textAlign: TextAlign.center,
           style: TextStyle(color: context.colors.muted, height: 1.5),
         ),
         SizedBox(height: 28),
         GradientButton(
-          label: 'Continue',
+          label: tr('auth_continue_button'),
           onPressed: () => Navigator.of(context).pushAndRemoveUntil(
             MaterialPageRoute(builder: (_) => HomeScreen()),
             (route) => false,

@@ -4,6 +4,7 @@ import 'package:latlong2/latlong.dart';
 
 import '../../models/malaysia_city.dart';
 import '../../models/trip_stop_location.dart';
+import '../../services/locale_service.dart';
 import '../../services/malaysia_location_service.dart';
 import '../../services/photon_service.dart';
 import '../../theme/app_theme.dart';
@@ -35,15 +36,19 @@ bool _isSameDate(DateTime a, DateTime b) =>
 /// [category] is the [Place.category] / [TripStopLocation.category] value
 /// matched against when generating recommendations; [label] is the more
 /// specific, traveler-facing name shown on the chip.
-const _interestOptions = [
-  (label: 'Hotel', icon: Icons.hotel_rounded, category: 'Hotel'),
-  (label: 'Restaurant', icon: Icons.restaurant_rounded, category: 'Food'),
-  (label: 'Shopping', icon: Icons.shopping_bag_rounded, category: 'Shopping'),
-  (label: 'Museum', icon: Icons.museum_rounded, category: 'Culture'),
-  (label: 'Beach', icon: Icons.beach_access_rounded, category: 'Beach'),
-  (label: 'Nature', icon: Icons.terrain_rounded, category: 'Nature'),
+// A function, not `const` — `tr()` isn't a compile-time constant, and
+// (as elsewhere in this app) a `const`/`final` list would only ever be
+// evaluated once, freezing these labels at whichever language was active
+// at that moment instead of retranslating on a language change.
+List<({String label, IconData icon, String category})> _interestOptions() => [
+  (label: tr('trip_interest_hotel'), icon: Icons.hotel_rounded, category: 'Hotel'),
+  (label: tr('trip_interest_restaurant'), icon: Icons.restaurant_rounded, category: 'Food'),
+  (label: tr('trip_interest_shopping'), icon: Icons.shopping_bag_rounded, category: 'Shopping'),
+  (label: tr('trip_interest_museum'), icon: Icons.museum_rounded, category: 'Culture'),
+  (label: tr('trip_interest_beach'), icon: Icons.beach_access_rounded, category: 'Beach'),
+  (label: tr('trip_interest_nature'), icon: Icons.terrain_rounded, category: 'Nature'),
   (
-    label: 'Attraction',
+    label: tr('trip_interest_attraction'),
     icon: Icons.attractions_rounded,
     category: 'Attraction',
   ),
@@ -234,9 +239,9 @@ class _CreateTripScreenState extends State<CreateTripScreen> {
       body: SafeArea(
         child: Column(
           children: [
-            const DetailHeader(
-              title: 'Create Trip',
-              subtitle: 'Name it, pick your spots, we\'ll plan the rest',
+            DetailHeader(
+              title: tr('trip_create_trip_title'),
+              subtitle: tr('trip_create_trip_subtitle'),
             ),
             Expanded(
               child: ListView(
@@ -244,15 +249,15 @@ class _CreateTripScreenState extends State<CreateTripScreen> {
                 children: [
                   _SectionCard(
                     icon: Icons.edit_note_rounded,
-                    title: 'Trip Details',
+                    title: tr('trip_section_trip_details'),
                     children: [
-                      _FieldLabel('Trip Name'),
+                      _FieldLabel(tr('trip_field_trip_name')),
                       _InputBox(
                         controller: _nameController,
                         icon: Icons.edit_rounded,
                       ),
                       const SizedBox(height: 18),
-                      _FieldLabel('Description (optional)'),
+                      _FieldLabel(tr('trip_field_description_optional')),
                       _InputBox(
                         controller: _descriptionController,
                         icon: Icons.notes_rounded,
@@ -263,15 +268,15 @@ class _CreateTripScreenState extends State<CreateTripScreen> {
                   const SizedBox(height: 16),
                   _SectionCard(
                     icon: Icons.map_rounded,
-                    title: 'Travel Information',
+                    title: tr('trip_section_travel_information'),
                     children: [
-                      _FieldLabel('Starting From'),
+                      _FieldLabel(tr('trip_field_starting_from')),
                       _CityField(city: _startCity, onTap: _pickStartCity),
                       const SizedBox(height: 18),
-                      _FieldLabel('Ending At'),
+                      _FieldLabel(tr('trip_field_ending_at')),
                       _CityField(city: _endCity, onTap: _pickEndCity),
                       const SizedBox(height: 18),
-                      _FieldLabel('Travel Dates & Time'),
+                      _FieldLabel(tr('trip_field_travel_dates_time')),
                       _ScheduleField(
                         dateRange: _dateRange,
                         startTime: _startTime,
@@ -285,7 +290,7 @@ class _CreateTripScreenState extends State<CreateTripScreen> {
                       //   onChanged: (v) => setState(() => _travelers = v),
                       // ),
                       // const SizedBox(height: 18),
-                      _FieldLabel('Budget'),
+                      _FieldLabel(tr('trip_budget_word')),
                       _InputBox(
                         controller: _budgetController,
                         icon: Icons.account_balance_wallet_rounded,
@@ -296,9 +301,9 @@ class _CreateTripScreenState extends State<CreateTripScreen> {
                   const SizedBox(height: 16),
                   _SectionCard(
                     icon: Icons.pin_drop_rounded,
-                    title: 'Locations',
+                    title: tr('trip_section_locations'),
                     trailing: Text(
-                      '${_mapPickedStops.length} selected',
+                      '${_mapPickedStops.length} ${tr('trip_selected_word')}',
                       style: TextStyle(
                         color: context.colors.muted,
                         fontSize: 12,
@@ -307,7 +312,7 @@ class _CreateTripScreenState extends State<CreateTripScreen> {
                     ),
                     children: [
                       Text(
-                        'Search real places on the map — try "Komtar" or "Chew Jetty".',
+                        tr('trip_locations_hint_map'),
                         style: TextStyle(
                           color: context.colors.muted,
                           fontSize: 12,
@@ -324,7 +329,7 @@ class _CreateTripScreenState extends State<CreateTripScreen> {
                       const SizedBox(height: 12),
                       if (_mapPickedStops.isEmpty)
                         Text(
-                          'No locations picked yet.',
+                          tr('trip_no_locations_picked'),
                           style: TextStyle(
                             color: context.colors.muted,
                             fontSize: 12,
@@ -404,7 +409,7 @@ class _CreateTripScreenState extends State<CreateTripScreen> {
                   const SizedBox(height: 16),
                   _SectionCard(
                     icon: Icons.tune_rounded,
-                    title: 'Preferences',
+                    title: tr('trip_section_preferences'),
                     children: [
                       Row(
                         children: [
@@ -428,7 +433,7 @@ class _CreateTripScreenState extends State<CreateTripScreen> {
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Text(
-                                  'Auto-recommend more places',
+                                  tr('trip_auto_recommend_title'),
                                   style: TextStyle(
                                     color: context.colors.ink,
                                     fontWeight: FontWeight.w700,
@@ -437,7 +442,7 @@ class _CreateTripScreenState extends State<CreateTripScreen> {
                                 ),
                                 const SizedBox(height: 2),
                                 Text(
-                                  'Add AI-suggested spots that match your interests',
+                                  tr('trip_auto_recommend_desc'),
                                   style: TextStyle(
                                     color: context.colors.muted,
                                     fontSize: 11.5,
@@ -464,12 +469,12 @@ class _CreateTripScreenState extends State<CreateTripScreen> {
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
                                   const SizedBox(height: 18),
-                                  _FieldLabel('Interests'),
+                                  _FieldLabel(tr('trip_field_interests')),
                                   const SizedBox(height: 4),
                                   Wrap(
                                     spacing: 10,
                                     runSpacing: 10,
-                                    children: _interestOptions.map((opt) {
+                                    children: _interestOptions().map((opt) {
                                       final isSelected = _selectedInterests
                                           .contains(opt.category);
                                       return GestureDetector(
@@ -540,7 +545,7 @@ class _CreateTripScreenState extends State<CreateTripScreen> {
                   ),
                   const SizedBox(height: 32),
                   GradientButton(
-                    label: 'Plan My Trip',
+                    label: tr('trip_plan_my_trip'),
                     icon: Icons.route_rounded,
                     loading: _saving,
                     onPressed: _canSubmit ? _submit : () {},
@@ -703,7 +708,7 @@ class _CityField extends StatelessWidget {
             const SizedBox(width: 12),
             Expanded(
               child: Text(
-                city?.label ?? 'Select a city',
+                city?.label ?? tr('trip_select_a_city'),
                 overflow: TextOverflow.ellipsis,
                 style: TextStyle(
                   color: city == null
@@ -777,7 +782,7 @@ class _CityPickerSheetState extends State<_CityPickerSheet> {
                   onChanged: (v) => setState(() => _query = v),
                   style: TextStyle(color: context.colors.ink),
                   decoration: InputDecoration(
-                    hintText: 'Search city or state…',
+                    hintText: tr('trip_search_city_state_hint'),
                     hintStyle: TextStyle(color: context.colors.muted),
                     prefixIcon: Icon(
                       Icons.search_rounded,
@@ -805,7 +810,8 @@ class _CityPickerSheetState extends State<_CityPickerSheet> {
                         child: Padding(
                           padding: const EdgeInsets.all(24),
                           child: Text(
-                            'Could not load cities: ${snapshot.error}',
+                            '${tr('trip_could_not_load_cities_prefix')}: '
+                            '${snapshot.error}',
                             textAlign: TextAlign.center,
                             style: TextStyle(color: context.colors.muted),
                           ),
@@ -828,7 +834,7 @@ class _CityPickerSheetState extends State<_CityPickerSheet> {
                     if (filtered.isEmpty) {
                       return Center(
                         child: Text(
-                          'No matching city',
+                          tr('trip_no_matching_city'),
                           style: TextStyle(color: context.colors.muted),
                         ),
                       );
@@ -911,7 +917,9 @@ class _ScheduleField extends StatelessWidget {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Text(
-                    range == null ? 'Select travel dates' : _formatDateRange(range),
+                    range == null
+                        ? tr('trip_select_travel_dates')
+                        : _formatDateRange(range),
                     style: TextStyle(
                       color: range == null
                           ? context.colors.muted
@@ -1040,7 +1048,7 @@ class _DatesPickerSheetState extends State<_DatesPickerSheet> {
                   children: [
                     Expanded(
                       child: Text(
-                        'Travel Dates & Time',
+                        tr('trip_field_travel_dates_time'),
                         style: TextStyle(
                           color: context.colors.ink,
                           fontWeight: FontWeight.w800,
@@ -1050,8 +1058,8 @@ class _DatesPickerSheetState extends State<_DatesPickerSheet> {
                     ),
                     TextButton(
                       onPressed: _confirm,
-                      child: const Text(
-                        'Done',
+                      child: Text(
+                        tr('common_done'),
                         style: TextStyle(fontWeight: FontWeight.w800),
                       ),
                     ),
@@ -1063,7 +1071,7 @@ class _DatesPickerSheetState extends State<_DatesPickerSheet> {
                   controller: scrollController,
                   padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
                   children: [
-                    _SheetSectionLabel('Travel Dates'),
+                    _SheetSectionLabel(tr('trip_field_travel_dates')),
                     _RangeCalendar(
                       start: _start,
                       end: _end,
@@ -1082,7 +1090,7 @@ class _DatesPickerSheetState extends State<_DatesPickerSheet> {
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              _SheetSectionLabel('Start Time'),
+                              _SheetSectionLabel(tr('trip_start_time')),
                               SizedBox(
                                 height: 130,
                                 child: CupertinoDatePicker(
@@ -1111,7 +1119,7 @@ class _DatesPickerSheetState extends State<_DatesPickerSheet> {
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              _SheetSectionLabel('End Time'),
+                              _SheetSectionLabel(tr('trip_end_time')),
                               SizedBox(
                                 height: 130,
                                 child: CupertinoDatePicker(

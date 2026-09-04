@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../services/achievement_service.dart';
 import '../../services/auth_service.dart';
 import '../../services/locale_service.dart';
 import '../../services/profile_service.dart';
@@ -10,13 +11,27 @@ import '../saved/saved_places_screen.dart';
 import '../saved/saved_trips_screen.dart';
 import '../welcome_screen.dart';
 import 'achievements_screen.dart';
+import 'edit_profile_screen.dart';
 import 'settings_screen.dart';
 import 'travel_history_screen.dart';
 
 /// "Profile" bottom-nav tab: identity header, stats, and a menu into the
 /// rest of the profile-related modules.
-class ProfileTab extends StatelessWidget {
+class ProfileTab extends StatefulWidget {
   const ProfileTab({super.key});
+
+  @override
+  State<ProfileTab> createState() => _ProfileTabState();
+}
+
+class _ProfileTabState extends State<ProfileTab> {
+  late Future<AchievementStats> _stats;
+
+  @override
+  void initState() {
+    super.initState();
+    _stats = AchievementService().loadStats();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -35,11 +50,19 @@ class ProfileTab extends StatelessWidget {
                   : (AuthService.instance.currentUser?.email ?? '');
               return Row(
                 children: [
-                  UserAvatar(
-                    name: name,
-                    avatarUrl: profile?.avatarUrl,
-                    size: 64,
-                    borderWidth: 3,
+                  MouseRegion(
+                    cursor: SystemMouseCursors.click,
+                    child: GestureDetector(
+                      onTap: () => Navigator.of(context).push(
+                        MaterialPageRoute(builder: (_) => const EditProfileScreen()),
+                      ),
+                      child: UserAvatar(
+                        name: name,
+                        avatarUrl: profile?.avatarUrl,
+                        size: 64,
+                        borderWidth: 3,
+                      ),
+                    ),
                   ),
                   SizedBox(width: 16),
                   Expanded(
@@ -79,13 +102,24 @@ class ProfileTab extends StatelessWidget {
             },
           ),
           SizedBox(height: 24),
-          Row(
-            children: [
-              _StatTile(label: tr('auth_trips'), value: '5'),
-              _StatTile(label: tr('auth_countries'), value: '3'),
-              _StatTile(label: tr('auth_reviews'), value: '12'),
-              _StatTile(label: tr('auth_badges'), value: '6'),
-            ],
+          FutureBuilder<AchievementStats>(
+            future: _stats,
+            builder: (context, snapshot) {
+              final stats = snapshot.data ?? AchievementStats.zero;
+              return Row(
+                children: [
+                  _StatTile(
+                    label: tr('auth_trips'),
+                    value: '${stats.tripCount}',
+                  ),
+                  _StatTile(label: tr('auth_reviews'), value: '0'),
+                  _StatTile(
+                    label: tr('auth_badges'),
+                    value: '${earnedBadgeCount(stats)}',
+                  ),
+                ],
+              );
+            },
           ),
           SizedBox(height: 28),
           ListTileCard(

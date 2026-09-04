@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../services/locale_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/detail_header.dart';
 
@@ -53,8 +54,8 @@ class _CurrencyConverterScreenState extends State<CurrencyConverterScreen> {
         child: Column(
           children: [
             DetailHeader(
-              title: 'Currency Converter',
-              subtitle: 'Rates for reference only',
+              title: tr('utilities_currency_converter_title'),
+              subtitle: tr('utilities_currency_converter_subtitle'),
             ),
             Expanded(
               child: ListView(

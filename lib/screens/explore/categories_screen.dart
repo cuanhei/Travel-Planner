@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../services/locale_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/detail_header.dart';
 import 'explore_tab.dart';
@@ -36,7 +37,10 @@ class _CategoriesScreenState extends State<CategoriesScreen> {
       body: SafeArea(
         child: Column(
           children: [
-            DetailHeader(title: 'Categories', subtitle: 'Browse by interest'),
+            DetailHeader(
+              title: tr('explore_categories_title'),
+              subtitle: tr('explore_categories_subtitle'),
+            ),
             Padding(
               padding: EdgeInsets.symmetric(horizontal: 24),
               child: GridView.builder(
@@ -47,7 +51,7 @@ class _CategoriesScreenState extends State<CategoriesScreen> {
                   crossAxisCount: 3,
                   mainAxisSpacing: 12,
                   crossAxisSpacing: 12,
-                  childAspectRatio: 0.95,
+                  childAspectRatio: 0.8,
                 ),
                 itemBuilder: (context, index) {
                   final c = categories[index];
@@ -78,14 +82,19 @@ class _CategoriesScreenState extends State<CategoriesScreen> {
                             size: 26,
                           ),
                           SizedBox(height: 8),
-                          Text(
-                            c.label,
-                            style: TextStyle(
-                              color: selected
-                                  ? Colors.white
-                                  : context.colors.ink,
-                              fontWeight: FontWeight.w700,
-                              fontSize: 12.5,
+                          Flexible(
+                            child: Text(
+                              tr('explore_category_${c.label.toLowerCase()}'),
+                              textAlign: TextAlign.center,
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                color: selected
+                                    ? Colors.white
+                                    : context.colors.ink,
+                                fontWeight: FontWeight.w700,
+                                fontSize: 12.5,
+                              ),
                             ),
                           ),
                         ],
@@ -100,7 +109,7 @@ class _CategoriesScreenState extends State<CategoriesScreen> {
               child: results.isEmpty
                   ? Center(
                       child: Text(
-                        'Pick a category to see places',
+                        tr('explore_pick_category'),
                         style: TextStyle(color: context.colors.muted),
                       ),
                     )

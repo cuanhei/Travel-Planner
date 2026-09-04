@@ -12,7 +12,7 @@ import '../../widgets/list_tile_card.dart';
 import '../welcome_screen.dart';
 import 'about_screen.dart';
 import 'change_password_screen.dart';
-import 'edit_profile_screen.dart';
+import 'emergency_contact_screen.dart';
 import 'help_center_screen.dart';
 import 'language_screen.dart';
 import 'privacy_security_screen.dart';
@@ -54,11 +54,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
     }
   }
 
-  Future<void> _toggleEmailUpdates(bool value) async {
-    await NotificationPrefsService.instance.setEmailUpdatesEnabled(value);
-    _showMessage(value ? tr('auth_email_updates_on') : tr('auth_email_updates_off'));
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -89,12 +84,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
                             title: tr('auth_trip_reminders'),
                             value: pushOn && prefs.tripRemindersEnabled,
                             onChanged: pushOn ? _toggleTripReminders : null,
-                          ),
-                          _SwitchCard(
-                            icon: Icons.email_outlined,
-                            title: tr('auth_email_updates'),
-                            value: prefs.emailUpdatesEnabled,
-                            onChanged: _toggleEmailUpdates,
                           ),
                         ],
                       );
@@ -133,13 +122,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   SizedBox(height: 20),
                   _SectionLabel(tr('auth_account')),
                   ListTileCard(
-                    icon: Icons.person_outline_rounded,
-                    title: tr('auth_edit_profile'),
-                    onTap: () => Navigator.of(context).push(
-                      MaterialPageRoute(builder: (_) => const EditProfileScreen()),
-                    ),
-                  ),
-                  ListTileCard(
                     icon: Icons.lock_outline_rounded,
                     title: tr('auth_change_password_title'),
                     onTap: () => Navigator.of(context).push(
@@ -164,6 +146,17 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     title: tr('auth_help_center'),
                     onTap: () => Navigator.of(context).push(
                       MaterialPageRoute(builder: (_) => const HelpCenterScreen()),
+                    ),
+                  ),
+                  ListTileCard(
+                    icon: Icons.contact_phone_outlined,
+                    title: tr('auth_emergency_contact'),
+                    subtitle: tr('auth_emergency_contact_subtitle'),
+                    iconColor: Colors.redAccent,
+                    onTap: () => Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => const EmergencyContactScreen(),
+                      ),
                     ),
                   ),
                   ListTileCard(

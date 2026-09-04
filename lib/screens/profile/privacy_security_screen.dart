@@ -3,9 +3,14 @@ import 'package:supabase_flutter/supabase_flutter.dart' show AuthException;
 
 import '../../services/auth_error_messages.dart';
 import '../../services/auth_service.dart';
+import '../../services/locale_service.dart';
+import '../../services/profile_service.dart';
 import '../../widgets/detail_header.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/list_tile_card.dart';
+import '../auth_screen.dart';
+import 'login_activity_screen.dart';
+import 'view_profile_screen.dart';
 
 /// Privacy preferences are UI-only; Two-Factor Authentication is wired to
 /// real Supabase email-OTP 2FA (see `AuthService`'s `emailTwoFactorEnabled`/
@@ -20,17 +25,41 @@ class PrivacySecurityScreen extends StatefulWidget {
 }
 
 class _PrivacySecurityScreenState extends State<PrivacySecurityScreen> {
-  bool _publicProfile = false;
+  bool _publicProfile = true;
+  bool _publicProfileBusy = false;
   bool _shareActivityWithFriends = true;
   bool _locationSharing = true;
 
   bool _twoFactorEnabled = false;
   bool _twoFactorBusy = false;
 
+  bool _deletingAccount = false;
+
   @override
   void initState() {
     super.initState();
     _twoFactorEnabled = AuthService.instance.emailTwoFactorEnabled;
+    _publicProfile = ProfileService.instance.current.value?.isPublic ?? true;
+  }
+
+  Future<void> _onPublicProfileChanged(bool isPublic) async {
+    if (_publicProfileBusy) return;
+    setState(() => _publicProfileBusy = true);
+    try {
+      await ProfileService.instance.setPublicProfile(isPublic);
+      if (!mounted) return;
+      setState(() => _publicProfile = isPublic);
+      _showSnack(
+        isPublic
+            ? tr('auth_profile_now_public')
+            : tr('auth_profile_now_private'),
+      );
+    } catch (e) {
+      debugPrint('setPublicProfile failed: $e');
+      _showSnack(tr('common_error_generic'), error: true);
+    } finally {
+      if (mounted) setState(() => _publicProfileBusy = false);
+    }
   }
 
   Future<void> _onTwoFactorChanged(bool enable) async {
@@ -42,13 +71,13 @@ class _PrivacySecurityScreenState extends State<PrivacySecurityScreen> {
       setState(() => _twoFactorEnabled = enable);
       _showSnack(
         enable
-            ? 'Two-factor authentication is now on'
-            : 'Two-factor authentication is now off',
+            ? tr('auth_2fa_now_on')
+            : tr('auth_2fa_now_off'),
       );
     } on AuthException catch (e) {
       _showSnack(friendlyAuthError(e), error: true);
     } catch (_) {
-      _showSnack('Something went wrong. Please try again.', error: true);
+      _showSnack(tr('common_error_generic'), error: true);
     } finally {
       if (mounted) setState(() => _twoFactorBusy = false);
     }
@@ -66,44 +95,53 @@ class _PrivacySecurityScreenState extends State<PrivacySecurityScreen> {
   }
 
   Future<void> _confirmDeleteAccount() async {
+    if (_deletingAccount) return;
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
         backgroundColor: dialogContext.colors.card,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         title: Text(
-          'Delete your account?',
+          tr('auth_delete_account_confirm_title'),
           style: TextStyle(
             color: dialogContext.colors.ink,
             fontWeight: FontWeight.w800,
           ),
         ),
         content: Text(
-          'This permanently removes your profile, trips, and activity. '
-          'This can\'t be undone.',
+          tr('auth_delete_account_confirm_body'),
           style: TextStyle(color: dialogContext.colors.muted),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(dialogContext).pop(false),
-            child: const Text('Cancel'),
+            child: Text(tr('common_cancel')),
           ),
           FilledButton(
             onPressed: () => Navigator.of(dialogContext).pop(true),
             style: FilledButton.styleFrom(backgroundColor: Colors.redAccent),
-            child: const Text('Delete'),
+            child: Text(tr('common_delete')),
           ),
         ],
       ),
     );
-    if (confirmed == true && mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          behavior: SnackBarBehavior.floating,
-          backgroundColor: Colors.redAccent,
-          content: const Text('Account deletion isn\'t available in this demo'),
-        ),
+    if (confirmed != true || !mounted) return;
+
+    setState(() => _deletingAccount = true);
+    try {
+      await AuthService.instance.deleteAccount();
+      if (!mounted) return;
+      Navigator.of(context).pushAndRemoveUntil(
+        MaterialPageRoute(builder: (_) => AuthScreen()),
+        (route) => false,
       );
+    } on AuthException catch (e) {
+      _showSnack(friendlyAuthError(e), error: true);
+    } catch (e) {
+      debugPrint('deleteAccount failed: $e');
+      _showSnack(tr('common_error_generic'), error: true);
+    } finally {
+      if (mounted) setState(() => _deletingAccount = false);
     }
   }
 
@@ -114,68 +152,105 @@ class _PrivacySecurityScreenState extends State<PrivacySecurityScreen> {
       body: SafeArea(
         child: Column(
           children: [
-            const DetailHeader(
-              title: 'Privacy & Security',
-              subtitle: 'Control what you share and with whom',
+            DetailHeader(
+              title: tr('auth_privacy_security'),
+              subtitle: tr('auth_privacy_security_subtitle'),
             ),
             Expanded(
               child: ListView(
                 padding: const EdgeInsets.fromLTRB(24, 8, 24, 24),
                 children: [
-                  _SectionLabel('Visibility'),
+                  _SectionLabel(tr('auth_visibility_section')),
                   _SwitchCard(
                     icon: Icons.public_rounded,
-                    title: 'Public Profile',
-                    subtitle: 'Anyone can view your profile and reviews',
+                    title: tr('auth_public_profile'),
+                    subtitle: _publicProfile
+                        ? tr('auth_public_profile_on_desc')
+                        : tr('auth_public_profile_off_desc'),
                     value: _publicProfile,
-                    onChanged: (v) => setState(() => _publicProfile = v),
+                    busy: _publicProfileBusy,
+                    onChanged: _onPublicProfileChanged,
+                  ),
+                  ListTileCard(
+                    icon: Icons.visibility_outlined,
+                    title: tr('auth_preview_my_profile'),
+                    subtitle: tr('auth_preview_my_profile_desc'),
+                    onTap: () {
+                      final uid = AuthService.instance.currentUser?.id;
+                      if (uid == null) return;
+                      Navigator.of(context).push(
+                        MaterialPageRoute(
+                          builder: (_) => ViewProfileScreen(userId: uid),
+                        ),
+                      );
+                    },
                   ),
                   _SwitchCard(
                     icon: Icons.group_rounded,
-                    title: 'Share Activity With Friends',
-                    subtitle: 'Trip check-ins and reviews appear to friends',
+                    title: tr('auth_share_activity_friends'),
+                    subtitle: tr('auth_share_activity_friends_desc'),
                     value: _shareActivityWithFriends,
                     onChanged: (v) =>
                         setState(() => _shareActivityWithFriends = v),
                   ),
                   _SwitchCard(
                     icon: Icons.location_on_outlined,
-                    title: 'Location Sharing',
-                    subtitle: 'Used for nearby recommendations on this trip',
+                    title: tr('auth_location_sharing'),
+                    subtitle: tr('auth_location_sharing_desc'),
                     value: _locationSharing,
                     onChanged: (v) => setState(() => _locationSharing = v),
                   ),
                   const SizedBox(height: 20),
-                  _SectionLabel('Security'),
+                  _SectionLabel(tr('auth_security_section')),
                   _SwitchCard(
                     icon: Icons.verified_user_outlined,
-                    title: 'Two-Factor Authentication',
+                    title: tr('auth_two_factor_title'),
                     subtitle: _twoFactorEnabled
-                        ? 'Enabled — a code is emailed to you when signing in'
-                        : 'Email a code to you as an extra step when signing in',
+                        ? tr('auth_two_factor_enabled_desc')
+                        : tr('auth_two_factor_disabled_desc'),
                     value: _twoFactorEnabled,
                     busy: _twoFactorBusy,
                     onChanged: _onTwoFactorChanged,
                   ),
+                  ListTileCard(
+                    icon: Icons.history_rounded,
+                    title: tr('auth_login_activity_title'),
+                    subtitle: tr('auth_login_activity_subtitle'),
+                    onTap: () => Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => LoginActivityScreen(),
+                      ),
+                    ),
+                  ),
                   const SizedBox(height: 20),
-                  _SectionLabel('Your Data'),
+                  _SectionLabel(tr('auth_your_data_section')),
                   ListTileCard(
                     icon: Icons.download_rounded,
-                    title: 'Download My Data',
-                    subtitle: 'Export your trips and activity',
+                    title: tr('auth_download_my_data'),
+                    subtitle: tr('auth_download_my_data_desc'),
                     onTap: () => ScaffoldMessenger.of(context).showSnackBar(
                       SnackBar(
                         behavior: SnackBarBehavior.floating,
                         backgroundColor: context.colors.ink,
-                        content: const Text('Export isn\'t available in this demo'),
+                        content: Text(tr('auth_export_not_available_demo')),
                       ),
                     ),
                   ),
                   ListTileCard(
                     icon: Icons.delete_outline_rounded,
-                    title: 'Delete Account',
+                    title: tr('auth_delete_account'),
                     iconColor: Colors.redAccent,
-                    onTap: _confirmDeleteAccount,
+                    trailing: _deletingAccount
+                        ? SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: context.colors.muted,
+                            ),
+                          )
+                        : null,
+                    onTap: _deletingAccount ? null : _confirmDeleteAccount,
                   ),
                 ],
               ),

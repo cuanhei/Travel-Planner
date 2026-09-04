@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../../services/locale_service.dart';
 import '../../services/support_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/detail_header.dart';
@@ -10,37 +11,12 @@ import 'support_ticket_screen.dart';
 
 const _supportEmail = 'tadmin082@gmail.com';
 
-const _faqs = [
-  (
-    question: 'How do I create a new trip?',
-    answer: 'Go to the Trips tab and tap the "+" button, or use "New Trip" '
-        'from the home dashboard\'s quick actions. Fill in your destination, '
-        'dates, and interests, then let the AI planner build your itinerary.',
-  ),
-  (
-    question: 'Can I edit my itinerary after it\'s created?',
-    answer: 'Yes — open your trip, tap the edit icon to update trip details, '
-        'or use "Edit Schedule" from the tools grid to add, remove, or '
-        'reorder stops day by day.',
-  ),
-  (
-    question: 'How does the budget tracker work?',
-    answer: 'Set a total budget in Budget Planner, then log expenses under '
-        'each category. Split Expenses divides costs among your travel '
-        'group and tracks who owes the trip organizer.',
-  ),
-  (
-    question: 'Does the app work offline?',
-    answer: 'Core planning features work without a connection, but live '
-        'data like weather and bus departures needs an internet connection '
-        'to refresh.',
-  ),
-  (
-    question: 'How do I invite friends to a trip?',
-    answer: 'From Group Travel, tap "Invite Member" to generate a join '
-        'code, or share it directly. Friends enter the code from "Join a '
-        'Trip" on the home dashboard.',
-  ),
+List<({String question, String answer})> _faqs() => [
+  (question: tr('auth_faq_q1'), answer: tr('auth_faq_a1')),
+  (question: tr('auth_faq_q2'), answer: tr('auth_faq_a2')),
+  (question: tr('auth_faq_q3'), answer: tr('auth_faq_a3')),
+  (question: tr('auth_faq_q4'), answer: tr('auth_faq_a4')),
+  (question: tr('auth_faq_q5'), answer: tr('auth_faq_a5')),
 ];
 
 /// Help center: an FAQ list, a "Contact Support" action that opens Gmail's
@@ -90,7 +66,7 @@ class _HelpCenterScreenState extends State<HelpCenterScreen> {
         SnackBar(
           behavior: SnackBarBehavior.floating,
           backgroundColor: Colors.redAccent,
-          content: Text('Couldn\'t open Gmail compose for $_supportEmail'),
+          content: Text('${tr('auth_couldnt_open_gmail_prefix')} $_supportEmail'),
         ),
       );
     }
@@ -117,18 +93,19 @@ class _HelpCenterScreenState extends State<HelpCenterScreen> {
   @override
   Widget build(BuildContext context) {
     final q = _query.trim().toLowerCase();
+    final faqs = _faqs();
     final filtered = q.isEmpty
-        ? _faqs
-        : _faqs.where((f) => f.question.toLowerCase().contains(q)).toList();
+        ? faqs
+        : faqs.where((f) => f.question.toLowerCase().contains(q)).toList();
 
     return Scaffold(
       backgroundColor: context.colors.surface,
       body: SafeArea(
         child: Column(
           children: [
-            const DetailHeader(
-              title: 'Help Center',
-              subtitle: 'Answers to common questions',
+            DetailHeader(
+              title: tr('auth_help_center'),
+              subtitle: tr('auth_help_center_subtitle'),
             ),
             Expanded(
               child: ListView(
@@ -158,7 +135,7 @@ class _HelpCenterScreenState extends State<HelpCenterScreen> {
                               fontSize: 14,
                             ),
                             decoration: InputDecoration(
-                              hintText: 'Search for a topic…',
+                              hintText: tr('auth_search_topic_hint'),
                               hintStyle: TextStyle(color: context.colors.muted),
                               border: InputBorder.none,
                               isDense: true,
@@ -170,7 +147,7 @@ class _HelpCenterScreenState extends State<HelpCenterScreen> {
                   ),
                   const SizedBox(height: 20),
                   Text(
-                    'Frequently Asked Questions',
+                    tr('auth_faq_title'),
                     style: TextStyle(
                       color: context.colors.ink,
                       fontWeight: FontWeight.w800,
@@ -182,7 +159,7 @@ class _HelpCenterScreenState extends State<HelpCenterScreen> {
                     Padding(
                       padding: const EdgeInsets.symmetric(vertical: 20),
                       child: Text(
-                        'No matching questions — try Contact Support below.',
+                        tr('auth_no_matching_questions'),
                         style: TextStyle(
                           color: context.colors.muted,
                           fontSize: 12.5,
@@ -203,7 +180,7 @@ class _HelpCenterScreenState extends State<HelpCenterScreen> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          'Still need help?',
+                          tr('auth_still_need_help'),
                           style: TextStyle(
                             color: context.colors.ink,
                             fontWeight: FontWeight.w800,
@@ -212,7 +189,7 @@ class _HelpCenterScreenState extends State<HelpCenterScreen> {
                         ),
                         const SizedBox(height: 4),
                         Text(
-                          'Our support team typically replies within a day.',
+                          tr('auth_support_reply_time'),
                           style: TextStyle(
                             color: context.colors.muted,
                             fontSize: 12,
@@ -220,7 +197,7 @@ class _HelpCenterScreenState extends State<HelpCenterScreen> {
                         ),
                         const SizedBox(height: 14),
                         GradientButton(
-                          label: 'Contact Support',
+                          label: tr('auth_contact_support'),
                           icon: Icons.mail_outline_rounded,
                           height: 48,
                           onPressed: _openContactSupport,
@@ -230,7 +207,7 @@ class _HelpCenterScreenState extends State<HelpCenterScreen> {
                   ),
                   const SizedBox(height: 24),
                   Text(
-                    'Your Requests',
+                    tr('auth_your_requests'),
                     style: TextStyle(
                       color: context.colors.ink,
                       fontWeight: FontWeight.w800,
@@ -257,7 +234,7 @@ class _HelpCenterScreenState extends State<HelpCenterScreen> {
                       final tickets = snapshot.data ?? const [];
                       if (tickets.isEmpty) {
                         return Text(
-                          'You haven\'t contacted support yet.',
+                          tr('auth_havent_contacted_support'),
                           style: TextStyle(
                             color: context.colors.muted,
                             fontSize: 12.5,
@@ -270,7 +247,7 @@ class _HelpCenterScreenState extends State<HelpCenterScreen> {
                               (t) => ListTileCard(
                                 icon: Icons.chat_bubble_outline_rounded,
                                 title: t.subject,
-                                subtitle: 'Sent ${_formatDate(t.createdAt)}',
+                                subtitle: '${tr('auth_sent_prefix')} ${_formatDate(t.createdAt)}',
                                 onTap: () => _openTicket(t),
                               ),
                             )

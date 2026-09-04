@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../services/locale_service.dart';
 import '../../services/support_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/detail_header.dart';
@@ -63,7 +64,7 @@ class _SupportTicketScreenState extends State<SupportTicketScreen> {
         SnackBar(
           behavior: SnackBarBehavior.floating,
           backgroundColor: Colors.redAccent,
-          content: const Text('Something went wrong. Please try again.'),
+          content: Text(tr('common_error_generic')),
         ),
       );
     } finally {
@@ -81,7 +82,7 @@ class _SupportTicketScreenState extends State<SupportTicketScreen> {
           children: [
             DetailHeader(
               title: widget.subject,
-              subtitle: 'Support request',
+              subtitle: tr('auth_support_request_word'),
               trailing: IconButton(
                 onPressed: _refresh,
                 icon: Icon(Icons.refresh_rounded, color: context.colors.ink),
@@ -97,7 +98,7 @@ class _SupportTicketScreenState extends State<SupportTicketScreen> {
                   if (snapshot.hasError) {
                     return Center(
                       child: Text(
-                        'Couldn\'t load this conversation.',
+                        tr('auth_couldnt_load_conversation'),
                         style: TextStyle(color: context.colors.muted),
                       ),
                     );
@@ -106,7 +107,7 @@ class _SupportTicketScreenState extends State<SupportTicketScreen> {
                   if (messages.isEmpty) {
                     return Center(
                       child: Text(
-                        'No messages yet.',
+                        tr('auth_no_messages_yet'),
                         style: TextStyle(color: context.colors.muted),
                       ),
                     );
@@ -129,7 +130,7 @@ class _SupportTicketScreenState extends State<SupportTicketScreen> {
                       controller: _controller,
                       style: TextStyle(color: context.colors.ink, fontSize: 13),
                       decoration: InputDecoration(
-                        hintText: 'Send a follow-up…',
+                        hintText: tr('auth_send_followup_hint'),
                         hintStyle: TextStyle(color: context.colors.muted),
                         filled: true,
                         fillColor: context.colors.card,
@@ -205,7 +206,7 @@ class _MessageBubble extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              isCustomer ? 'You' : 'Support Team',
+              isCustomer ? tr('auth_you_word') : tr('auth_support_team_word'),
               style: TextStyle(
                 color: isCustomer
                     ? Colors.white.withValues(alpha: 0.8)

@@ -4,6 +4,7 @@ import '../../models/budget_category.dart';
 import '../../models/expense.dart';
 import '../../services/budget_service.dart';
 import '../../services/group_service.dart';
+import '../../services/locale_service.dart';
 import '../../services/trip_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/detail_header.dart';
@@ -65,6 +66,22 @@ BudgetCategory categoryVisuals(String label) => budgetCategories.firstWhere(
   orElse: () => _otherCategoryVisual(label),
 );
 
+const _categoryTranslationKeys = {
+  'Accommodation': 'budget_category_accommodation',
+  'Food & Drinks': 'budget_category_food',
+  'Transport': 'budget_category_transport',
+  'Shopping': 'budget_category_shopping',
+  'Activities': 'budget_category_activities',
+};
+
+/// Translates a fixed budget category label; a custom ("Other") category
+/// a traveler typed in has no fixed-language key, so it's shown exactly
+/// as entered.
+String translatedCategoryLabel(String label) {
+  final key = _categoryTranslationKeys[label];
+  return key == null ? label : tr(key);
+}
+
 /// Formats an RM amount, showing decimals only when it actually has
 /// cents — RM 1500 stays whole, RM 12.50 keeps its cents instead of
 /// being silently rounded away to RM 13 by a flat `toStringAsFixed(0)`.
@@ -118,17 +135,17 @@ class _BudgetPlannerScreenState extends State<BudgetPlannerScreen> {
           future: _tripFuture,
           builder: (context, tripSnap) {
             if (tripSnap.connectionState != ConnectionState.done) {
-              return const Column(
+              return Column(
                 children: [
-                  DetailHeader(title: 'Budget Planner'),
-                  Expanded(child: Center(child: CircularProgressIndicator())),
+                  DetailHeader(title: tr('budget_planner_title')),
+                  const Expanded(child: Center(child: CircularProgressIndicator())),
                 ],
               );
             }
             if (tripSnap.hasError) {
               return Column(
                 children: [
-                  const DetailHeader(title: 'Budget Planner'),
+                  DetailHeader(title: tr('budget_planner_title')),
                   Expanded(
                     child: Center(
                       child: Padding(
@@ -282,7 +299,7 @@ class _BudgetPlannerContent extends StatelessWidget {
                 return Column(
                   children: [
                     DetailHeader(
-                      title: 'Budget Planner',
+                      title: tr('budget_planner_title'),
                       subtitle: tripName,
                       trailing: IconButton(
                         onPressed: () => Navigator.of(context).push(
@@ -326,7 +343,7 @@ class _BudgetPlannerContent extends StatelessWidget {
                                   children: [
                                     Expanded(
                                       child: Text(
-                                        'Total Budget',
+                                        tr('budget_total_budget'),
                                         style: TextStyle(
                                           color: Colors.white70,
                                           fontSize: 12.5,
@@ -383,7 +400,8 @@ class _BudgetPlannerContent extends StatelessWidget {
                                 ),
                                 SizedBox(height: 8),
                                 Text(
-                                  'RM ${formatAmount(totalSpent)} spent · RM ${formatAmount(totalBudget - totalSpent)} remaining',
+                                  'RM ${formatAmount(totalSpent)} ${tr('budget_spent')} · '
+                                  'RM ${formatAmount(totalBudget - totalSpent)} ${tr('budget_remaining')}',
                                   style: TextStyle(
                                     color: Colors.white.withValues(alpha: 0.85),
                                     fontSize: 12,
@@ -396,7 +414,7 @@ class _BudgetPlannerContent extends StatelessWidget {
                           Row(
                             children: [
                               Text(
-                                'By Category',
+                                tr('budget_by_category'),
                                 style: TextStyle(
                                   color: context.colors.ink,
                                   fontWeight: FontWeight.w800,
@@ -427,7 +445,7 @@ class _BudgetPlannerContent extends StatelessWidget {
                                   ),
                                 ),
                                 child: Text(
-                                  'View expenses',
+                                  tr('budget_view_expenses'),
                                   style: TextStyle(
                                     color: AppColors.accent,
                                     fontWeight: FontWeight.w700,
@@ -490,7 +508,7 @@ class _BudgetPlannerContent extends StatelessWidget {
                                           SizedBox(width: 10),
                                           Expanded(
                                             child: Text(
-                                              label,
+                                              translatedCategoryLabel(label),
                                               style: TextStyle(
                                                 color: context.colors.ink,
                                                 fontWeight: FontWeight.w700,
@@ -500,7 +518,7 @@ class _BudgetPlannerContent extends StatelessWidget {
                                           ),
                                           Text(
                                             planned <= 0
-                                                ? 'RM ${formatAmount(spent)} spent · no budget set'
+                                                ? 'RM ${formatAmount(spent)} ${tr('budget_spent')} · ${tr('budget_no_budget_set')}'
                                                 : 'RM ${formatAmount(spent)} / ${formatAmount(planned)}',
                                             style: TextStyle(
                                               color: context.colors.muted,
@@ -595,7 +613,7 @@ class _EditBudgetSheetState extends State<_EditBudgetSheet> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                'Edit Total Budget',
+                tr('budget_edit_total_title'),
                 style: TextStyle(
                   color: context.colors.ink,
                   fontWeight: FontWeight.w800,
@@ -604,7 +622,7 @@ class _EditBudgetSheetState extends State<_EditBudgetSheet> {
               ),
               const SizedBox(height: 4),
               Text(
-                'Set how much you plan to spend on this trip',
+                tr('budget_edit_total_subtitle'),
                 style: TextStyle(color: context.colors.muted, fontSize: 12.5),
               ),
               const SizedBox(height: 18),
@@ -657,7 +675,7 @@ class _EditBudgetSheetState extends State<_EditBudgetSheet> {
               ),
               const SizedBox(height: 22),
               GradientButton(
-                label: 'Save Budget',
+                label: tr('budget_save_budget_button'),
                 icon: Icons.check_rounded,
                 onPressed: _value > 0
                     ? () => Navigator.of(context).pop(_value)
@@ -707,16 +725,17 @@ class _CategoryBudgetDialogState extends State<_CategoryBudgetDialog> {
   void _save() {
     final value = double.tryParse(_controller.text.trim());
     if (value == null || value < 0) {
-      setState(() => _error = 'Enter a valid amount');
+      setState(() => _error = tr('budget_enter_valid_amount'));
       return;
     }
     final remaining = widget.totalBudget - widget.otherCategoriesTotal;
     if (widget.totalBudget > 0 && value > remaining) {
       setState(() {
         _error =
-            'That\'s RM ${formatAmount(value - remaining)} over your '
-            'RM ${formatAmount(widget.totalBudget)} total budget · '
-            'RM ${formatAmount(remaining.clamp(0, double.infinity))} left to allocate';
+            "${tr('budget_thats_word')} RM ${formatAmount(value - remaining)} "
+            "${tr('budget_over_your_word')} RM ${formatAmount(widget.totalBudget)} "
+            "${tr('budget_total_budget_suffix_word')} · "
+            "RM ${formatAmount(remaining.clamp(0, double.infinity))} ${tr('budget_left_to_allocate')}";
       });
       return;
     }
@@ -729,7 +748,7 @@ class _CategoryBudgetDialogState extends State<_CategoryBudgetDialog> {
       backgroundColor: context.colors.card,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
       title: Text(
-        '${widget.label} budget',
+        '${translatedCategoryLabel(widget.label)} ${tr('budget_category_budget_suffix')}',
         style: TextStyle(
           color: context.colors.ink,
           fontWeight: FontWeight.w800,
@@ -759,7 +778,7 @@ class _CategoryBudgetDialogState extends State<_CategoryBudgetDialog> {
                 fontWeight: FontWeight.w700,
                 fontSize: 18,
               ),
-              hintText: 'How much do you plan to spend?',
+              hintText: tr('budget_how_much_hint'),
               filled: true,
               fillColor: context.colors.surface,
               border: OutlineInputBorder(
@@ -788,12 +807,12 @@ class _CategoryBudgetDialogState extends State<_CategoryBudgetDialog> {
       actions: [
         TextButton(
           onPressed: () => Navigator.of(context).pop(),
-          child: const Text('Cancel'),
+          child: Text(tr('common_cancel')),
         ),
         FilledButton(
           onPressed: _save,
           style: FilledButton.styleFrom(backgroundColor: context.colors.ink),
-          child: const Text('Save'),
+          child: Text(tr('common_save')),
         ),
       ],
     );
@@ -846,9 +865,10 @@ class _ManageCategoriesSheetState extends State<_ManageCategoriesSheet> {
     if (widget.totalBudget > 0 && sum > widget.totalBudget) {
       setState(() {
         _error =
-            'Categories add up to RM ${formatAmount(sum)}, which is '
-            'RM ${formatAmount(sum - widget.totalBudget)} over your '
-            'RM ${formatAmount(widget.totalBudget)} total budget';
+            "${tr('budget_categories_add_up_to')} ${formatAmount(sum)}, "
+            "${tr('budget_which_is_word')} RM ${formatAmount(sum - widget.totalBudget)} "
+            "${tr('budget_over_your_word')} RM ${formatAmount(widget.totalBudget)} "
+            "${tr('budget_total_budget_suffix_word')}";
       });
       return;
     }
@@ -874,7 +894,7 @@ class _ManageCategoriesSheetState extends State<_ManageCategoriesSheet> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                'Plan Categories',
+                tr('budget_plan_categories_title'),
                 style: TextStyle(
                   color: context.colors.ink,
                   fontWeight: FontWeight.w800,
@@ -884,8 +904,9 @@ class _ManageCategoriesSheetState extends State<_ManageCategoriesSheet> {
               const SizedBox(height: 4),
               Text(
                 widget.totalBudget > 0
-                    ? 'Set how much you plan to spend in each category · RM ${formatAmount(widget.totalBudget)} total'
-                    : 'Set how much you plan to spend in each category',
+                    ? "${tr('budget_plan_categories_subtitle')} · "
+                          "RM ${formatAmount(widget.totalBudget)} ${tr('budget_total_word')}"
+                    : tr('budget_plan_categories_subtitle'),
                 style: TextStyle(color: context.colors.muted, fontSize: 12.5),
               ),
               const SizedBox(height: 18),
@@ -898,7 +919,7 @@ class _ManageCategoriesSheetState extends State<_ManageCategoriesSheet> {
                       const SizedBox(width: 10),
                       Expanded(
                         child: Text(
-                          c.label,
+                          translatedCategoryLabel(c.label),
                           style: TextStyle(
                             color: context.colors.ink,
                             fontWeight: FontWeight.w700,
@@ -954,7 +975,7 @@ class _ManageCategoriesSheetState extends State<_ManageCategoriesSheet> {
               ],
               const SizedBox(height: 10),
               GradientButton(
-                label: 'Save Categories',
+                label: tr('budget_save_categories_button'),
                 icon: Icons.check_rounded,
                 onPressed: _save,
               ),

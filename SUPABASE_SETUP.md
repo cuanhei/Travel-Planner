@@ -88,7 +88,15 @@ Editor** in the dashboard:
   row the moment someone signs up. Then also run
   [`supabase/migrations/0002_create_support_tickets.sql`](supabase/migrations/0002_create_support_tickets.sql)
   to add the `support_tickets` / `support_messages` tables used by the Help
-  Center (Profile → Help Center → Contact Support).
+  Center (Profile → Help Center → Contact Support), and
+  [`supabase/migrations/0009_create_emergency_contacts.sql`](supabase/migrations/0009_create_emergency_contacts.sql)
+  for the `emergency_contacts` table used by Settings → Emergency Contact,
+  [`supabase/migrations/0014_login_lockout.sql`](supabase/migrations/0014_login_lockout.sql)
+  for the Sign In screen's account lockout after repeated failed attempts,
+  and
+  [`supabase/migrations/0015_login_activity.sql`](supabase/migrations/0015_login_activity.sql)
+  for the `login_activity` table used by Settings → Privacy & Security →
+  Login Activity.
 - **Already ran an earlier version of the schema**: check
   `supabase/migrations/` and run whichever of the numbered migrations you
   haven't applied yet, in order — this repo currently carries migrations
@@ -131,12 +139,20 @@ Auth/Profile/Budget/Group to work.
   `--dart-define`.
 - `lib/services/auth_service.dart` — wraps every Supabase Auth call used by
   the module (`signUp`, `signIn`, `signOut`, `sendPasswordResetEmail`,
-  `updatePassword`, `verifySignupCode`, `resendSignupCode`).
+  `updatePassword`, `verifySignupCode`, `resendSignupCode`,
+  `signInWithGoogle`, `checkLoginLockout`/`recordFailedLogin`/
+  `clearLoginLockout`).
+- `lib/services/login_activity_service.dart` — records and lists recent
+  sign-ins (Settings → Privacy & Security → Login Activity).
 - `lib/services/profile_service.dart` — reads/updates the signed-in user's
   `profiles` row for the Profile module.
-- `lib/main.dart` — initializes Supabase on startup. Password reset is
-  entirely in-app (email → 6-digit code → Reset Password screen), so
-  there's no redirect/URL handling to worry about.
+- `lib/main.dart` — initializes Supabase on startup, then listens on
+  `auth.onAuthStateChange` for the `signedIn` event (fires on an actual new
+  sign-in — password or Google OAuth — never on a page reload that merely
+  restores an existing session) to record login activity and clear any
+  lockout streak. Password reset is entirely in-app (email → 6-digit code →
+  Reset Password screen), so there's no redirect/URL handling to worry
+  about there.
 - `lib/utils/validators.dart` — client-side field validation (email format,
   password strength, confirm-password match) shown inline before a request
   is even sent.
@@ -146,3 +162,66 @@ Auth/Profile/Budget/Group to work.
 - `supabase/schema.sql` / `supabase/migrations/` — the full database
   schema (see step 4 above), shared with the Budget/Group Travel modules
   (see the main `README.md` for those).
+
+## Optional: Email alert on new sign-in
+
+Sends "New sign-in to your account" to the user's own email every time
+`login_activity` gets a new row (see step 4 and `lib/main.dart`'s
+`onAuthStateChange` listener) — i.e. once per real password or Google
+sign-in. This is the one piece that isn't just a SQL migration: it needs an
+actual serverless function and a real email-sending service, so it's
+skippable if you just want the rest of the app working.
+
+1. **Get a Resend API key** — sign up free at
+   [resend.com](https://resend.com) (no credit card, no domain
+   verification needed — the free tier's shared `onboarding@resend.dev`
+   sender works fine for this). **API Keys** → **Create API Key** → copy
+   the `re_...` value.
+
+2. **Install the Supabase CLI** and log in:
+   ```
+   npm install -g supabase
+   supabase login
+   ```
+   This opens a browser to authorize the CLI against your Supabase
+   account.
+
+3. **Link this repo to your project** (run from the `travelplanner/`
+   folder — find `YOUR_PROJECT_REF` in the dashboard URL,
+   `supabase.com/dashboard/project/YOUR_PROJECT_REF`):
+   ```
+   supabase link --project-ref YOUR_PROJECT_REF
+   ```
+
+4. **Set the Resend key as a function secret** (the function also needs
+   `SUPABASE_URL`/`SUPABASE_SERVICE_ROLE_KEY`, but Supabase injects those
+   into every deployed function automatically — no need to set them
+   yourself):
+   ```
+   supabase secrets set RESEND_API_KEY=re_your_key_here
+   ```
+
+5. **Deploy the function**:
+   ```
+   supabase functions deploy send-login-alert
+   ```
+
+6. **Wire up the Database Webhook** — dashboard → **Database** →
+   **Webhooks** → **Create a new hook**:
+   - **Table**: `login_activity`
+   - **Events**: `Insert` only
+   - **Type**: `Supabase Edge Functions` → select `send-login-alert`
+     (if your dashboard only offers `HTTP Request` instead, set the URL to
+     `https://YOUR_PROJECT_REF.supabase.co/functions/v1/send-login-alert`
+     and add header `Authorization: Bearer YOUR_SERVICE_ROLE_KEY` from
+     Project Settings > API — the function's default JWT verification
+     rejects the call otherwise)
+
+7. **Test**: sign out and sign back in to the app — an email should land
+   in that account's inbox within a few seconds. Check **Edge Functions**
+   → `send-login-alert` → **Logs** in the dashboard if it doesn't; the
+   function logs (and swallows) lookup/send failures rather than throwing,
+   so a bad `RESEND_API_KEY` or webhook payload shows up there, not as an
+   error in the app.
+
+Source: `supabase/functions/send-login-alert/index.ts`.

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../services/auth_service.dart';
+import '../services/locale_service.dart';
 import '../services/remember_me_service.dart';
 import '../services/supabase_config.dart';
 import '../theme/app_theme.dart';
@@ -79,7 +80,7 @@ class _SplashScreenState extends State<SplashScreen> {
               ),
               SizedBox(height: 20),
               Text(
-                'Travel Trip Planner',
+                tr('auth_app_name'),
                 style: TextStyle(
                   color: Colors.white,
                   fontSize: 24,
@@ -89,7 +90,7 @@ class _SplashScreenState extends State<SplashScreen> {
               ),
               SizedBox(height: 6),
               Text(
-                'Plan every journey, beautifully',
+                tr('auth_app_tagline'),
                 style: TextStyle(
                   color: Colors.white.withValues(alpha: 0.8),
                   fontSize: 13.5,

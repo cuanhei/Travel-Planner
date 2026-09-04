@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../services/locale_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/gradient_button.dart';
 import '../community/add_review_screen.dart';
@@ -105,46 +106,57 @@ class _PlaceDetailsScreenState extends State<PlaceDetailsScreen> {
                         size: 16,
                       ),
                       SizedBox(width: 4),
-                      Text(
-                        place.area,
-                        style: TextStyle(
-                          color: context.colors.muted,
-                          fontSize: 13,
+                      Expanded(
+                        child: Text(
+                          place.area,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            color: context.colors.muted,
+                            fontSize: 13,
+                          ),
                         ),
                       ),
                     ],
                   ),
                   SizedBox(height: 14),
-                  Row(
+                  Wrap(
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    spacing: 8,
+                    runSpacing: 6,
                     children: [
-                      _Tag(label: place.category),
-                      SizedBox(width: 8),
-                      Icon(
-                        Icons.star_rounded,
-                        color: Color(0xFFFFB347),
-                        size: 18,
-                      ),
-                      SizedBox(width: 2),
-                      Text(
-                        '${place.rating}',
-                        style: TextStyle(
-                          color: context.colors.ink,
-                          fontWeight: FontWeight.w800,
-                          fontSize: 13,
-                        ),
-                      ),
-                      Text(
-                        ' (${place.reviews})',
-                        style: TextStyle(
-                          color: context.colors.muted,
-                          fontSize: 12,
-                        ),
+                      _Tag(label: tr('explore_category_${place.category.toLowerCase()}')),
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            Icons.star_rounded,
+                            color: Color(0xFFFFB347),
+                            size: 18,
+                          ),
+                          SizedBox(width: 2),
+                          Text(
+                            '${place.rating}',
+                            style: TextStyle(
+                              color: context.colors.ink,
+                              fontWeight: FontWeight.w800,
+                              fontSize: 13,
+                            ),
+                          ),
+                          Text(
+                            ' (${place.reviews})',
+                            style: TextStyle(
+                              color: context.colors.muted,
+                              fontSize: 12,
+                            ),
+                          ),
+                        ],
                       ),
                     ],
                   ),
                   SizedBox(height: 20),
                   Text(
-                    'About',
+                    tr('explore_about'),
                     style: TextStyle(
                       color: context.colors.ink,
                       fontWeight: FontWeight.w800,
@@ -175,12 +187,16 @@ class _PlaceDetailsScreenState extends State<PlaceDetailsScreen> {
                           size: 18,
                         ),
                         SizedBox(width: 10),
-                        Text(
-                          'Open today · 9:00 AM – 10:00 PM',
-                          style: TextStyle(
-                            color: context.colors.ink,
-                            fontWeight: FontWeight.w600,
-                            fontSize: 12.5,
+                        Expanded(
+                          child: Text(
+                            '${tr('explore_open_today')} · 9:00 AM – 10:00 PM',
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              color: context.colors.ink,
+                              fontWeight: FontWeight.w600,
+                              fontSize: 12.5,
+                            ),
                           ),
                         ),
                       ],
@@ -203,7 +219,7 @@ class _PlaceDetailsScreenState extends State<PlaceDetailsScreen> {
                         SizedBox(width: 10),
                         Expanded(
                           child: Text(
-                            'Average budget',
+                            tr('explore_average_budget'),
                             style: TextStyle(
                               color: context.colors.ink,
                               fontWeight: FontWeight.w600,
@@ -211,12 +227,17 @@ class _PlaceDetailsScreenState extends State<PlaceDetailsScreen> {
                             ),
                           ),
                         ),
-                        Text(
-                          '${place.avgBudget} / person',
-                          style: TextStyle(
-                            color: context.colors.ink,
-                            fontWeight: FontWeight.w800,
-                            fontSize: 12.5,
+                        Flexible(
+                          child: Text(
+                            '${place.avgBudget} ${tr('explore_per_person')}',
+                            textAlign: TextAlign.end,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              color: context.colors.ink,
+                              fontWeight: FontWeight.w800,
+                              fontSize: 12.5,
+                            ),
                           ),
                         ),
                       ],
@@ -225,12 +246,16 @@ class _PlaceDetailsScreenState extends State<PlaceDetailsScreen> {
                   SizedBox(height: 24),
                   Row(
                     children: [
-                      Text(
-                        'Reviews',
-                        style: TextStyle(
-                          color: context.colors.ink,
-                          fontWeight: FontWeight.w800,
-                          fontSize: 15,
+                      Flexible(
+                        child: Text(
+                          tr('explore_reviews'),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            color: context.colors.ink,
+                            fontWeight: FontWeight.w800,
+                            fontSize: 15,
+                          ),
                         ),
                       ),
                       Spacer(),
@@ -242,7 +267,7 @@ class _PlaceDetailsScreenState extends State<PlaceDetailsScreen> {
                           ),
                         ),
                         child: Text(
-                          'See all',
+                          tr('explore_see_all'),
                           style: TextStyle(
                             color: AppColors.accent,
                             fontWeight: FontWeight.w700,
@@ -262,18 +287,23 @@ class _PlaceDetailsScreenState extends State<PlaceDetailsScreen> {
                       ),
                       SizedBox(width: 6),
                       Text(
-                        '${place.rating} out of 5',
+                        '${place.rating} ${tr('explore_out_of_5')}',
                         style: TextStyle(
                           color: context.colors.ink,
                           fontWeight: FontWeight.w700,
                           fontSize: 13,
                         ),
                       ),
-                      Text(
-                        ' from ${place.reviews} reviews',
-                        style: TextStyle(
-                          color: context.colors.muted,
-                          fontSize: 12,
+                      SizedBox(width: 2),
+                      Expanded(
+                        child: Text(
+                          '${tr('explore_from')} ${place.reviews} ${tr('explore_reviews_word')}',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            color: context.colors.muted,
+                            fontSize: 12,
+                          ),
                         ),
                       ),
                     ],
@@ -283,7 +313,7 @@ class _PlaceDetailsScreenState extends State<PlaceDetailsScreen> {
                     children: [
                       Expanded(
                         child: GradientButton(
-                          label: 'Add Review',
+                          label: tr('explore_add_review'),
                           icon: Icons.rate_review_rounded,
                           colors: AppColors.dusk,
                           height: 48,
@@ -298,7 +328,7 @@ class _PlaceDetailsScreenState extends State<PlaceDetailsScreen> {
                       SizedBox(width: 12),
                       Expanded(
                         child: GradientButton(
-                          label: 'Add to Trip',
+                          label: tr('explore_add_to_trip'),
                           icon: Icons.playlist_add_check_rounded,
                           height: 48,
                           onPressed: () => Navigator.of(context).push(

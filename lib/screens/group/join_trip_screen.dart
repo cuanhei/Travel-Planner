@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 
 import '../../models/join_request.dart';
 import '../../services/group_service.dart';
+import '../../services/locale_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/detail_header.dart';
 import '../../widgets/gradient_button.dart';
@@ -64,8 +65,8 @@ class _JoinTripScreenState extends State<JoinTripScreen> {
       SnackBar(
         behavior: SnackBarBehavior.floating,
         backgroundColor: context.colors.ink,
-        content: const Text(
-          'Request sent! Waiting for the organizer to approve.',
+        content: Text(
+          tr('group_request_sent_snackbar'),
         ),
       ),
     );
@@ -80,8 +81,8 @@ class _JoinTripScreenState extends State<JoinTripScreen> {
         child: Column(
           children: [
             DetailHeader(
-              title: 'Join a Trip',
-              subtitle: 'Enter a friend\'s invite code',
+              title: tr('group_join_trip_title'),
+              subtitle: tr('group_join_trip_subtitle'),
             ),
             Expanded(
               child: ListView(
@@ -105,7 +106,7 @@ class _JoinTripScreenState extends State<JoinTripScreen> {
                   ),
                   const SizedBox(height: 24),
                   Text(
-                    'Invite Code',
+                    tr('group_invite_code_label'),
                     textAlign: TextAlign.center,
                     style: TextStyle(
                       color: context.colors.ink,
@@ -115,7 +116,7 @@ class _JoinTripScreenState extends State<JoinTripScreen> {
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    'Ask the trip organizer for their 6-character code',
+                    tr('group_invite_code_ask'),
                     textAlign: TextAlign.center,
                     style: TextStyle(
                       color: context.colors.muted,
@@ -161,7 +162,7 @@ class _JoinTripScreenState extends State<JoinTripScreen> {
                   ),
                   const SizedBox(height: 28),
                   GradientButton(
-                    label: 'Join Trip',
+                    label: tr('group_join_trip_button'),
                     icon: Icons.group_add_rounded,
                     onPressed: _canJoin ? () => _join() : () {},
                   ),
@@ -175,7 +176,7 @@ class _JoinTripScreenState extends State<JoinTripScreen> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            'Your Requests',
+                            tr('group_your_requests_title'),
                             style: TextStyle(
                               color: context.colors.ink,
                               fontWeight: FontWeight.w800,
@@ -206,9 +207,9 @@ class _RequestStatusTile extends StatelessWidget {
   final MyJoinRequest request;
 
   (Color, String) get _statusVisuals => switch (request.status) {
-    'approved' => (const Color(0xFF11998E), 'Approved'),
-    'rejected' => (Colors.redAccent, 'Declined'),
-    _ => (const Color(0xFFFFB347), 'Pending'),
+    'approved' => (const Color(0xFF11998E), tr('group_status_approved')),
+    'rejected' => (Colors.redAccent, tr('group_status_declined')),
+    _ => (const Color(0xFFFFB347), tr('group_status_pending')),
   };
 
   @override
