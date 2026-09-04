@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'nearby_place.dart';
+import 'visit_duration.dart';
 
 /// A real, geocoded location picked for a trip stop — via Photon search,
 /// Google Places search (Create Trip's stop picker), a manual tap on the
@@ -109,6 +110,12 @@ class TripStopLocation {
 
   /// Icon representing [category], for chips, list tiles, and cards.
   IconData get categoryIcon => iconForCategory(category);
+
+  /// Estimated minutes a traveler spends here (see [estimateVisitDuration])
+  /// — used to work out how many stops reasonably fit in a day. Falls
+  /// back to [defaultVisitDurationMinutes] for a Photon/OSM stop, which
+  /// carries no [primaryType]/[types] at all.
+  int get estimatedVisitMinutes => estimateVisitDuration(primaryType, types);
 
   factory TripStopLocation.fromMap(Map<String, dynamic> map) {
     return TripStopLocation(
