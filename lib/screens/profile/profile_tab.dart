@@ -32,12 +32,6 @@ class _ProfileTabState extends State<ProfileTab> {
     _stats.then(_onStatsLoaded);
   }
 
-  /// Persists any newly-completed category badges and pops a SnackBar for
-  /// any badge earned since this device last checked — see
-  /// `AchievementService.syncCategoryBadges`/`checkNewlyEarnedBadges`.
-  /// The Profile tab is the natural place for this: it's the screen most
-  /// sessions land on or pass through, so an unlock is surfaced quickly
-  /// without polling.
   Future<void> _onStatsLoaded(AchievementStats stats) async {
     final service = AchievementService();
     await service.syncCategoryBadges(stats);

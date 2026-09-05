@@ -5,9 +5,6 @@ import '../../services/locale_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/detail_header.dart';
 
-/// Badges and milestones — all locked by default, unlocked live from the
-/// signed-in user's real Trip/Budget/Group/Community activity (see
-/// `achievement_service.dart`).
 class AchievementsScreen extends StatefulWidget {
   const AchievementsScreen({super.key});
 
@@ -25,12 +22,6 @@ class _AchievementsScreenState extends State<AchievementsScreen> {
     _stats.then(_onStatsLoaded);
   }
 
-  /// Same unlock bookkeeping as `ProfileTab._onStatsLoaded` — duplicated
-  /// (rather than only living on the Profile tab) so opening this screen
-  /// directly still surfaces an unlock, and so whichever screen the user
-  /// visits first is the one that gets to show it (the other's
-  /// `checkNewlyEarnedBadges` call sees it's already been recorded and
-  /// stays quiet).
   Future<void> _onStatsLoaded(AchievementStats stats) async {
     final service = AchievementService();
     await service.syncCategoryBadges(stats);

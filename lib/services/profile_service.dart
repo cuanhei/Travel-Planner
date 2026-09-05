@@ -34,25 +34,12 @@ class UserProfile {
   final String? nationality;
   final String? address;
 
-  /// Achievement categories ('trip', 'budget', 'community') this user has
-  /// 100% completed — see `AchievementService.syncCategoryBadges` (which
-  /// writes this) and `categoryBadgeInfo` (which renders it). Shown
-  /// beside the name on the Profile tab, Preview My Profile, and a
-  /// Community author's [ViewProfileScreen].
   final List<String> earnedCategoryBadges;
 
-  /// When this account was registered — the `profiles` row's `created_at`,
-  /// set once at sign-up by the `handle_new_user` DB trigger (see
-  /// `supabase/schema.sql`) and never updated afterwards.
   final DateTime? createdAt;
 
   final bool isPublic;
 
-  /// Settings → Privacy & Security → "Location Sharing". Gates whether
-  /// Community posts show this user's real IP address or "Unknown" (see
-  /// `PostCard` and `CommunityService.addPost`/`_hydratePosts`) — read live
-  /// at display time, not frozen when a post was made, so flipping this
-  /// immediately changes what already-published posts show.
   final bool locationSharingEnabled;
 
   factory UserProfile.fromRow(Map<String, dynamic> row) => UserProfile(
@@ -152,8 +139,6 @@ class ProfileService {
     await load();
   }
 
-  /// Turns Settings → Privacy & Security → "Location Sharing" on/off — see
-  /// [UserProfile.locationSharingEnabled].
   Future<void> setLocationSharingEnabled(bool enabled) async {
     final user = _client.auth.currentUser;
     if (user == null) return;
@@ -164,9 +149,6 @@ class ProfileService {
     await load();
   }
 
-  /// Writes the signed-in user's newly-completed Achievement categories —
-  /// see `AchievementService.syncCategoryBadges`, the only caller. A no-op
-  /// write is avoided by that caller comparing against [current] first.
   Future<void> setEarnedCategoryBadges(List<String> categories) async {
     final user = _client.auth.currentUser;
     if (user == null) return;
@@ -177,12 +159,6 @@ class ProfileService {
     await load();
   }
 
-  /// Fetches any user's profile row by id, for [ViewProfileScreen]. Every
-  /// signed-in user can read any profile row (needed to render trip-mates'
-  /// names elsewhere in the app — see `schema.sql`'s
-  /// `profiles_select_authenticated` policy), so [isPublic] is enforced
-  /// by the viewing screen deciding what to *show*, not by the database
-  /// deciding what it will *return*.
   Future<UserProfile?> getById(String userId) async {
     final row = await _client
         .from('profiles')

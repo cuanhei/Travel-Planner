@@ -4,29 +4,20 @@ import '../models/trip.dart';
 import '../services/locale_service.dart';
 import '../theme/app_theme.dart';
 
-/// How many days out an upcoming trip still counts as "near" for reminder
-/// purposes. Shared by the Home dashboard banner and the full reminders
-/// list so both agree on what "near" means.
 const int kTripReminderWindowDays = 3;
 
-/// Every trip that currently deserves a reminder — any ongoing trip, plus
-/// every upcoming trip starting within [kTripReminderWindowDays] — ongoing
-/// trips first, then soonest-upcoming first.
 List<Trip> tripsNeedingReminder(List<Trip> trips) {
   final ongoing = trips.where((t) => t.status == TripStatus.current).toList();
-  final upcoming =
-      trips.where((t) {
-          final days = t.daysUntilStart;
-          return t.status == TripStatus.upcoming &&
-              days != null &&
-              days >= 0 &&
-              days <= kTripReminderWindowDays;
-        }).toList()
-        ..sort((a, b) => a.daysUntilStart!.compareTo(b.daysUntilStart!));
+  final upcoming = trips.where((t) {
+    final days = t.daysUntilStart;
+    return t.status == TripStatus.upcoming &&
+        days != null &&
+        days >= 0 &&
+        days <= kTripReminderWindowDays;
+  }).toList()..sort((a, b) => a.daysUntilStart!.compareTo(b.daysUntilStart!));
   return [...ongoing, ...upcoming];
 }
 
-/// The human-readable reminder message for one trip.
 String tripReminderMessage(Trip trip) {
   final place = trip.destination.isEmpty ? trip.name : trip.destination;
   String template;
@@ -45,8 +36,6 @@ String tripReminderMessage(Trip trip) {
       .replaceAll('{days}', '${trip.daysUntilStart ?? 0}');
 }
 
-/// One reminder, as a tappable pill card — used both for the single banner
-/// on the Home dashboard and for each row of the full Trip Reminders list.
 class TripReminderCard extends StatelessWidget {
   const TripReminderCard({
     super.key,
@@ -60,9 +49,6 @@ class TripReminderCard extends StatelessWidget {
   final bool ongoing;
   final VoidCallback onTap;
 
-  /// How many *other* trips also currently need a reminder. When > 0 (only
-  /// ever passed by the dashboard banner, which shows just the top trip),
-  /// a small "+N" badge hints there's more to see behind this one card.
   final int moreCount;
 
   @override

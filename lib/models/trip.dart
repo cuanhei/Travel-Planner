@@ -120,8 +120,6 @@ class Trip {
     return end.difference(start).inDays + 1;
   }
 
-  /// Calendar days from today until [startDate] (0 = starts today,
-  /// negative = already started); null if [startDate] is unset.
   int? get daysUntilStart {
     final start = startDate;
     if (start == null) return null;

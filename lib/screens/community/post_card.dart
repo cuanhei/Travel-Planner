@@ -193,17 +193,6 @@ class PostCard extends StatelessWidget {
   }
 }
 
-/// The post's "IP: George Town" / "IP: Unknown" line (Settings →
-/// Privacy & Security → "Location Sharing") — [CommunityPost.ipAddress]
-/// is a real-GPS-resolved area name despite the field/column name, not
-/// a literal IP (see `PostLocationService`). For the signed-in user's
-/// own posts, this reads the live [ProfileService.instance.current]
-/// value instead of [CommunityPost.authorLocationSharingEnabled] — the
-/// value hydrated when the feed was fetched — so flipping the setting
-/// updates every already-visible post of theirs immediately, with no
-/// refetch or page reload. Someone else's posts fall back to that
-/// hydrated value, since there's no live channel to a stranger's
-/// settings here.
 class _PostIpLine extends StatelessWidget {
   const _PostIpLine({required this.post});
 
@@ -235,12 +224,6 @@ class _PostIpLine extends StatelessWidget {
   }
 }
 
-/// A post's attached photos/videos — [media] itself is capped at
-/// [CommunityService.maxPostMedia] by [AddPostScreen]. A single attachment
-/// renders exactly as before (its own aspect ratio, scaled to the card's
-/// width); two or three become a swipeable, equally-sized-tile carousel
-/// with a dot indicator, since a `PageView` needs one fixed height for
-/// every page regardless of each attachment's own aspect ratio.
 class _PostMediaGallery extends StatefulWidget {
   const _PostMediaGallery({required this.media});
 

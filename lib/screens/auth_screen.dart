@@ -126,12 +126,6 @@ class _AuthScreenState extends State<AuthScreen> {
             (route) => false,
           );
         } else if (response.user?.identities?.isEmpty ?? false) {
-          // Supabase deliberately can't tell a real signup from a repeat of
-          // an already-registered (and confirmed) email via an error — it
-          // returns this same "success" shape either way, distinguishable
-          // only by an empty `identities` list, to prevent account
-          // enumeration. The `emailExists` pre-check above normally catches
-          // this first; this is a fallback for when that RPC is unavailable.
           _showError(_emailAlreadyExistsMessage);
         } else {
           Navigator.of(context).push(
@@ -170,9 +164,6 @@ class _AuthScreenState extends State<AuthScreen> {
 
   String get _emailAlreadyExistsMessage => tr('auth_email_already_exists');
 
-  /// "Too many attempts. Try again in N min." — N rounded up so a lockout
-  /// that has, say, 40 seconds left still reads "1 min" rather than "0
-  /// min".
   String _lockoutMessage(DateTime lockedUntil) {
     final remaining = lockedUntil.difference(DateTime.now());
     final minutes = remaining.inSeconds <= 0
@@ -557,8 +548,6 @@ class _RememberMeCheckbox extends StatelessWidget {
   }
 }
 
-/// Required-before-sign-up checkbox linking out to the Terms of Service and
-/// Privacy Policy screens (also reachable from Settings > About).
 class _TermsCheckbox extends StatelessWidget {
   const _TermsCheckbox({required this.value, required this.onChanged});
 

@@ -12,13 +12,6 @@ import '../auth_screen.dart';
 import 'login_activity_screen.dart';
 import 'view_profile_screen.dart';
 
-/// Most privacy preferences here are UI-only. Two exceptions: Two-Factor
-/// Authentication is wired to real Supabase email-OTP 2FA (see
-/// `AuthService`'s `emailTwoFactorEnabled`/`setEmailTwoFactorEnabled`/
-/// `*LoginEmailCode*` methods and `EmailTwoFactorScreen`) — a 6-digit code is
-/// emailed at sign-in whenever the user has turned this on. And Location
-/// Sharing (see `ProfileService.setLocationSharingEnabled`) gates whether
-/// Community posts show this user's real IP or "Unknown" (see `PostCard`).
 class PrivacySecurityScreen extends StatefulWidget {
   const PrivacySecurityScreen({super.key});
 

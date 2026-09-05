@@ -8,10 +8,6 @@ import '../../widgets/detail_header.dart';
 import '../../widgets/trip_reminder_support.dart';
 import 'trip_details_screen.dart';
 
-/// Every trip currently due a reminder (ongoing, or starting within
-/// [kTripReminderWindowDays]), one card each. The Home dashboard only ever
-/// shows a single banner to stay uncluttered — this is where tapping it
-/// leads when there's more than one to see.
 class TripRemindersScreen extends StatelessWidget {
   const TripRemindersScreen({super.key});
 

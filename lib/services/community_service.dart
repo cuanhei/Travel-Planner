@@ -181,12 +181,6 @@ class CommunityService {
         ),
     ]);
 
-    // Captured on every post regardless of the Location Sharing setting —
-    // that setting only gates whether PostCard *displays* this later (see
-    // `_hydratePosts` and `post_location_service.dart`), not whether it's
-    // recorded. Column is still named `ip_address` (see
-    // `0026_post_ip_and_location_sharing.sql`), but holds a resolved area
-    // name like "George Town" now, not a raw IP.
     final areaName = await PostLocationService().resolveCurrentAreaName();
 
     final row = await _client
@@ -205,13 +199,6 @@ class CommunityService {
         .select('id')
         .single();
 
-    // A follow-up write rather than setting `ip_address` in the insert
-    // above: the `posts` table was hand-provisioned directly on the
-    // shared Supabase project (see the class doc comment above), and
-    // apparently carries a server-side trigger there that captures the
-    // request's real IP into this column on insert regardless of what
-    // the client sends — this second write runs after that trigger has
-    // already fired, so it's what the column actually ends up holding.
     await _client
         .from('posts')
         .update({'ip_address': areaName})

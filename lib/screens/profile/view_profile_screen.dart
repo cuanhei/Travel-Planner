@@ -29,19 +29,6 @@ const _monthNames = [
 String _formatDate(DateTime d) =>
     '${d.day} ${_monthNames[d.month - 1]} ${d.year}';
 
-/// Read-only view of a user's profile — the "other side" of the
-/// Instagram-style public/private switch in Settings → Privacy &
-/// Security. A public profile shows everything; a private one is
-/// limited to name, photo, and bio, with a "This account is private"
-/// notice instead of the rest — unless [userId] is the signed-in user's
-/// own id, in which case everything always shows regardless of that
-/// switch, since the restriction is about hiding details from others.
-///
-/// Reachable via Settings → Privacy & Security → "Preview My Profile"
-/// (always the signed-in user's own [userId]) and by tapping a post
-/// author's avatar in the Community feed (`PostCard`) — either the
-/// signed-in user's own posts or someone else's, since [ProfileService.
-/// getById] just returns whichever profile row [userId] points at.
 class ViewProfileScreen extends StatefulWidget {
   const ViewProfileScreen({super.key, required this.userId});
 
@@ -84,10 +71,7 @@ class _ViewProfileScreenState extends State<ViewProfileScreen> {
                       ),
                     );
                   }
-                  // The private-profile restriction is about hiding your
-                  // details from *other* people — viewing your own profile
-                  // (e.g. tapping your own avatar on a Community post)
-                  // always shows everything, same as Edit Profile would.
+
                   final isOwnProfile =
                       profile.id == AuthService.instance.currentUser?.id;
                   return ListView(
@@ -119,11 +103,6 @@ class _ProfileHeader extends StatelessWidget {
 
   final UserProfile profile;
 
-  /// Whether the signed-in viewer is looking at their own profile — the
-  /// private-account lock icon is about warning a *viewer* that they're
-  /// only seeing a limited view of someone else, so it stays hidden here
-  /// even when [profile.isPublic] is off, since the full details below
-  /// are already showing regardless (see [ViewProfileScreen]).
   final bool isOwnProfile;
 
   @override

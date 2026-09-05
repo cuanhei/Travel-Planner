@@ -6,10 +6,6 @@ import 'locale_service.dart';
 import 'profile_service.dart';
 import 'supabase_config.dart';
 
-/// The signed-in user's real activity counts, used to decide which
-/// Achievements badges are earned — computed from actual Trip/Budget/
-/// Community data (`trip_members`, `trips`, `expenses`, `posts`), never
-/// hardcoded.
 class AchievementStats {
   const AchievementStats({
     required this.tripCount,
@@ -30,9 +26,6 @@ class AchievementStats {
   final int tripCount;
   final int distinctDestinations;
 
-  /// Sum of `expenses.amount` across every expense the user has logged
-  /// (any trip, any category) — what the Budget badges below track,
-  /// rather than how many separate expense rows exist.
   final double totalSpent;
   final int maxGroupSize;
   final int organizedTripCount;
@@ -62,11 +55,6 @@ class AchievementStats {
   );
 }
 
-/// Formats an RM amount the same way Budget does (`budget_planner_screen
-/// .dart`'s `formatAmount`) — duplicated rather than imported, since a
-/// service reaching into a screen file for a formatter would be a
-/// backwards dependency. Shows decimals only when the amount actually
-/// has cents.
 String _formatAmount(double amount) {
   final rounded = double.parse(amount.toStringAsFixed(2));
   return rounded % 1 == 0
@@ -74,14 +62,6 @@ String _formatAmount(double amount) {
       : rounded.toStringAsFixed(2);
 }
 
-/// One entry on the Achievements grid. [id] is a stable key (never
-/// translated, never renamed) used to persist "already notified about
-/// this one" locally and to group badges into [category] — 'trip',
-/// 'budget', or 'community' — for the category-completion title (see
-/// [earnedCategoryKeys]). [description] is the static "what this badge
-/// is for" text shown in the tap-to-view detail sheet; [progress] is the
-/// live "here's what's left" hint shown both in the grid (while locked)
-/// and in that same detail sheet.
 class AchievementBadge {
   const AchievementBadge({
     required this.id,
@@ -303,9 +283,6 @@ List<AchievementBadge> achievementBadges() => [
 int earnedBadgeCount(AchievementStats stats) =>
     achievementBadges().where((b) => b.isEarned?.call(stats) ?? false).length;
 
-/// The three achievement categories a user can 100%-complete, and the
-/// title/icon/color shown for each once they have — see
-/// [earnedCategoryKeys] and `AchievementService.syncCategoryBadges`.
 class CategoryBadgeInfo {
   const CategoryBadgeInfo({
     required this.title,
@@ -341,9 +318,6 @@ CategoryBadgeInfo categoryBadgeInfo(String category) => switch (category) {
   ),
 };
 
-/// Which categories ('trip', 'budget', 'community') [stats] has *every*
-/// badge earned in — the set `AchievementService.syncCategoryBadges`
-/// persists to `profiles.earned_category_badges`.
 List<String> earnedCategoryKeys(AchievementStats stats) {
   final byCategory = <String, List<AchievementBadge>>{};
   for (final b in achievementBadges()) {
@@ -383,9 +357,6 @@ class AchievementService {
     var maxTripDurationDays = 0;
     var maxPlanningLeadDays = 0;
 
-    // Trip-derived stats only make sense with at least one trip — skip the
-    // three trip/member queries entirely rather than filtering on an empty
-    // id list.
     if (tripIds.isNotEmpty) {
       final tripRows = await _client
           .from('trips')
@@ -475,10 +446,6 @@ class AchievementService {
     );
   }
 
-  /// Writes [stats]'s fully-completed categories to the signed-in user's
-  /// profile row (skipping the write if nothing changed since the last
-  /// sync), so other viewers — who can't compute this themselves; see
-  /// `0031_add_earned_category_badges.sql` — see it too.
   Future<void> syncCategoryBadges(AchievementStats stats) async {
     if (_client.auth.currentUser == null) return;
     final earned = earnedCategoryKeys(stats);
@@ -492,15 +459,6 @@ class AchievementService {
     await ProfileService.instance.setEarnedCategoryBadges(earned);
   }
 
-  /// Compares [stats]'s currently-earned badges against what this device
-  /// last saw (in `SharedPreferences`, keyed by user id) and returns the
-  /// ones newly earned since then — for `AchievementsScreen`/`ProfileTab`
-  /// to pop a SnackBar for. Always updates the stored set as a side
-  /// effect. The very first time this runs for an account, everything
-  /// already earned is recorded as a baseline *without* being reported as
-  /// "newly" earned — otherwise a long-time user's first load after this
-  /// feature ships would get flooded with unlock toasts for things they
-  /// achieved months ago.
   Future<List<AchievementBadge>> checkNewlyEarnedBadges(
     AchievementStats stats,
   ) async {

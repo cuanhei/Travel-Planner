@@ -28,22 +28,8 @@ class CommunityPost {
   final int authorColor;
   final String? authorAvatarUrl;
 
-  /// The `posts.ip_address` column — named for what it held originally,
-  /// but resolved to a short area name (e.g. "George Town") from the
-  /// poster's real GPS position at post time (`PostLocationService`, via
-  /// `CommunityService.addPost`), not a raw IP. `null` if that lookup
-  /// failed (no permission, GPS off, etc). Whether `PostCard` actually
-  /// shows this or "Unknown" is gated by [authorLocationSharingEnabled],
-  /// not by this being null.
   final String? ipAddress;
 
-  /// The author's Settings → Privacy & Security → "Location Sharing"
-  /// value *as of when this post was hydrated* — for the current user's
-  /// own posts, `PostCard` prefers the live value from
-  /// `ProfileService.instance.current` instead, so toggling the setting
-  /// updates already-visible posts immediately without needing a fresh
-  /// fetch; this hydrated value is what other authors' posts fall back
-  /// to.
   final bool authorLocationSharingEnabled;
   final String placeName;
   final String caption;

@@ -11,9 +11,6 @@ import '../widgets/code_expiry_timer.dart';
 import '../widgets/gradient_button.dart';
 import 'reset_password_screen.dart';
 
-/// Requests a Supabase password-reset code, then lets the user enter the
-/// 6-digit code emailed to them. Verifying it establishes a recovery
-/// session and opens the Reset Password screen.
 class ForgotPasswordScreen extends StatefulWidget {
   const ForgotPasswordScreen({super.key});
 
@@ -27,7 +24,10 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
   static final _digits = 6;
 
   final _emailController = TextEditingController();
-  final _codeControllers = List.generate(_digits, (_) => TextEditingController());
+  final _codeControllers = List.generate(
+    _digits,
+    (_) => TextEditingController(),
+  );
   final _codeFocusNodes = List.generate(_digits, (_) => FocusNode());
 
   _Step _step = _Step.request;
@@ -289,7 +289,9 @@ class _Header extends StatelessWidget {
             ),
             SizedBox(height: 16),
             Text(
-              isCode ? tr('auth_enter_reset_code_title') : tr('auth_forgot_password_title'),
+              isCode
+                  ? tr('auth_enter_reset_code_title')
+                  : tr('auth_forgot_password_title'),
               style: TextStyle(
                 color: Colors.white,
                 fontSize: 24,
@@ -516,7 +518,9 @@ class _CodeView extends StatelessWidget {
           child: TextButton(
             onPressed: onResend,
             child: Text(
-              onResend == null ? '${tr('auth_resend_in_seconds')} ${cooldown}s' : tr('auth_resend_code'),
+              onResend == null
+                  ? '${tr('auth_resend_in_seconds')} ${cooldown}s'
+                  : tr('auth_resend_code'),
               style: TextStyle(
                 color: onResend == null
                     ? context.colors.muted
