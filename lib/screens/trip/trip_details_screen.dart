@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../models/trip.dart';
+import '../../services/budget_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/section_header.dart';
 import '../budget/budget_planner_screen.dart';
@@ -237,44 +238,63 @@ class _StatsRow extends StatelessWidget {
       (label: 'Travelers', value: '2', icon: Icons.people_alt_rounded),
     ];
 
+    Widget tile(IconData icon, String value, String label) {
+      return Container(
+        margin: EdgeInsets.only(right: 10),
+        padding: EdgeInsets.symmetric(vertical: 14),
+        decoration: BoxDecoration(
+          color: context.colors.card,
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: [
+            BoxShadow(
+              color: context.colors.ink.withValues(alpha: 0.05),
+              blurRadius: 10,
+              offset: Offset(0, 4),
+            ),
+          ],
+        ),
+        child: Column(
+          children: [
+            Icon(icon, color: AppColors.accent, size: 18),
+            SizedBox(height: 6),
+            Text(
+              value,
+              style: TextStyle(
+                color: context.colors.ink,
+                fontWeight: FontWeight.w800,
+                fontSize: 14,
+              ),
+            ),
+            SizedBox(height: 2),
+            Text(
+              label,
+              style: TextStyle(color: context.colors.muted, fontSize: 10.5),
+            ),
+          ],
+        ),
+      );
+    }
+
     return Row(
       children: stats.map((s) {
-        return Expanded(
-          child: Container(
-            margin: EdgeInsets.only(right: 10),
-            padding: EdgeInsets.symmetric(vertical: 14),
-            decoration: BoxDecoration(
-              color: context.colors.card,
-              borderRadius: BorderRadius.circular(16),
-              boxShadow: [
-                BoxShadow(
-                  color: context.colors.ink.withValues(alpha: 0.05),
-                  blurRadius: 10,
-                  offset: Offset(0, 4),
-                ),
-              ],
+        if (s.label == 'Budget') {
+          return Expanded(
+            // Live rather than the `trip` snapshot's own value: `trip` is
+            // whatever was passed in when this screen was opened, so
+            // editing the budget from inside Budget Planner and coming
+            // back here wouldn't otherwise be reflected until this whole
+            // screen was reopened with a freshly-fetched Trip.
+            child: StreamBuilder<double>(
+              stream: BudgetService().watchTotalBudget(trip.id),
+              builder: (context, snapshot) => tile(
+                s.icon,
+                'RM${formatAmount(snapshot.data ?? trip.totalBudget)}',
+                s.label,
+              ),
             ),
-            child: Column(
-              children: [
-                Icon(s.icon, color: AppColors.accent, size: 18),
-                SizedBox(height: 6),
-                Text(
-                  s.value,
-                  style: TextStyle(
-                    color: context.colors.ink,
-                    fontWeight: FontWeight.w800,
-                    fontSize: 14,
-                  ),
-                ),
-                SizedBox(height: 2),
-                Text(
-                  s.label,
-                  style: TextStyle(color: context.colors.muted, fontSize: 10.5),
-                ),
-              ],
-            ),
-          ),
-        );
+          );
+        }
+        return Expanded(child: tile(s.icon, s.value, s.label));
       }).toList(),
     );
   }

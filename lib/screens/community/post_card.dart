@@ -1,12 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../models/community_post.dart';
-import '../../services/profile_service.dart';
 import '../../theme/app_theme.dart';
 import '../../utils/time_ago.dart';
-import '../../widgets/user_avatar.dart';
-import '../profile/view_profile_screen.dart';
 import 'post_media_view.dart';
 
 /// Cover-gradient key options a post can be tagged with, keyed by the text
@@ -59,7 +55,6 @@ class PostCard extends StatelessWidget {
     required this.onReact,
     required this.onComment,
     required this.onShare,
-    this.onEdit,
   });
 
   final CommunityPost post;
@@ -70,17 +65,9 @@ class PostCard extends StatelessWidget {
   final VoidCallback onComment;
   final VoidCallback onShare;
 
-  /// Opens the post for editing. Only ever passed by callers that also
-  /// checked `post.authorId` against the signed-in user — this widget does
-  /// the same check itself below to decide whether to show the edit icon
-  /// at all, so a `null` [onEdit] on someone else's post never matters.
-  final VoidCallback? onEdit;
-
   @override
   Widget build(BuildContext context) {
     final hasReactions = post.reactionCounts.values.any((c) => c > 0);
-    final isOwnPost =
-        post.authorId == Supabase.instance.client.auth.currentUser?.id;
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
       padding: const EdgeInsets.all(16),
@@ -100,17 +87,15 @@ class PostCard extends StatelessWidget {
         children: [
           Row(
             children: [
-              GestureDetector(
-                onTap: () => Navigator.of(context).push(
-                  MaterialPageRoute(
-                    builder: (_) => ViewProfileScreen(userId: post.authorId),
+              CircleAvatar(
+                radius: 18,
+                backgroundColor: Color(post.authorColor),
+                child: Text(
+                  post.authorName[0].toUpperCase(),
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w800,
                   ),
-                ),
-                child: UserAvatar(
-                  name: post.authorName,
-                  avatarUrl: post.authorAvatarUrl,
-                  size: 36,
-                  borderWidth: 0,
                 ),
               ),
               const SizedBox(width: 10),
@@ -118,29 +103,16 @@ class PostCard extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Row(
-                      children: [
-                        Flexible(
-                          child: Text(
-                            post.authorName,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                              color: context.colors.ink,
-                              fontWeight: FontWeight.w700,
-                              fontSize: 13.5,
-                            ),
-                          ),
-                        ),
-                        if (isOwnPost) ...[
-                          const SizedBox(width: 6),
-                          const _YouBadge(),
-                        ],
-                      ],
+                    Text(
+                      post.authorName,
+                      style: TextStyle(
+                        color: context.colors.ink,
+                        fontWeight: FontWeight.w700,
+                        fontSize: 13.5,
+                      ),
                     ),
                     Text(
-                      '${post.placeName} · ${post.category} · '
-                      '${timeAgo(post.createdAt)}'
-                      '${post.isEdited ? ' · Edited' : ''}',
+                      '${post.placeName} · ${post.category} · ${timeAgo(post.createdAt)}',
                       style: TextStyle(
                         color: context.colors.muted,
                         fontSize: 11.5,
@@ -149,15 +121,6 @@ class PostCard extends StatelessWidget {
                   ],
                 ),
               ),
-              if (isOwnPost && onEdit != null)
-                GestureDetector(
-                  onTap: onEdit,
-                  child: Icon(
-                    Icons.edit_outlined,
-                    color: context.colors.muted,
-                    size: 18,
-                  ),
-                ),
             ],
           ),
           const SizedBox(height: 12),
@@ -201,56 +164,7 @@ class PostCard extends StatelessWidget {
               ),
             ],
           ),
-          const SizedBox(height: 8),
-          // For the signed-in user's own posts, reads Location Sharing
-          // live from ProfileService rather than the value hydrated into
-          // [post] at feed-fetch time — so flipping the Settings toggle
-          // updates this line immediately, with no feed refresh needed.
-          // (A post from someone else still reflects whatever their
-          // profile looked like at fetch time; there's no live cross-user
-          // subscription for this.)
-          ValueListenableBuilder<UserProfile?>(
-            valueListenable: ProfileService.instance.current,
-            builder: (context, profile, _) {
-              final sharingEnabled = isOwnPost
-                  ? (profile?.locationSharingEnabled ??
-                        post.authorLocationSharingEnabled)
-                  : post.authorLocationSharingEnabled;
-              final display = sharingEnabled
-                  ? (post.locationName ?? 'Unknown')
-                  : 'Unknown';
-              return Text(
-                'IP: $display',
-                style: TextStyle(color: context.colors.muted, fontSize: 10.5),
-              );
-            },
-          ),
         ],
-      ),
-    );
-  }
-}
-
-/// Small blue pill next to the author's name on the signed-in user's own
-/// posts, so their posts stand out at a glance while scrolling the feed.
-class _YouBadge extends StatelessWidget {
-  const _YouBadge();
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
-      decoration: BoxDecoration(
-        color: const Color(0xFF3B82F6),
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: const Text(
-        'You',
-        style: TextStyle(
-          color: Colors.white,
-          fontSize: 10,
-          fontWeight: FontWeight.w800,
-        ),
       ),
     );
   }

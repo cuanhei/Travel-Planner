@@ -3,21 +3,20 @@ import 'package:supabase_flutter/supabase_flutter.dart' show AuthException;
 
 import '../services/auth_error_messages.dart';
 import '../services/auth_service.dart';
-import '../services/locale_service.dart';
 import '../theme/app_theme.dart';
 import '../utils/validators.dart';
 import '../widgets/gradient_button.dart';
-import '../widgets/password_strength.dart';
-import 'auth_screen.dart';
 
 /// "Set a new password" screen, reached once a recovery session has been
-/// established by entering the 6-digit code from `forgot_password_screen.dart`.
+/// established from a password-reset email link (see `main.dart`).
 class ResetPasswordScreen extends StatefulWidget {
   const ResetPasswordScreen({super.key});
 
   @override
   State<ResetPasswordScreen> createState() => _ResetPasswordScreenState();
 }
+
+enum _Strength { weak, fair, strong }
 
 class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
   final _formKey = GlobalKey<FormState>();
@@ -27,7 +26,7 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
   bool _obscureConfirm = true;
   bool _done = false;
   bool _loading = false;
-  PasswordStrength _strength = PasswordStrength.weak;
+  _Strength _strength = _Strength.weak;
 
   @override
   void dispose() {
@@ -37,7 +36,17 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
   }
 
   void _onPasswordChanged(String value) {
-    setState(() => _strength = calculatePasswordStrength(value));
+    setState(() {
+      if (Validators.newPassword(value) == null) {
+        _strength = _Strength.strong;
+      } else if (value.length >= 8 &&
+          RegExp(r'[A-Za-z]').hasMatch(value) &&
+          RegExp(r'[0-9]').hasMatch(value)) {
+        _strength = _Strength.fair;
+      } else {
+        _strength = _Strength.weak;
+      }
+    });
   }
 
   Future<void> _submit() async {
@@ -46,17 +55,12 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
     setState(() => _loading = true);
     try {
       await AuthService.instance.updatePassword(_passwordController.text);
-      // Verifying the recovery code left the user signed in under a
-      // short-lived recovery session — sign out so "Back to Sign In"
-      // requires actually typing the new password, confirming it was set
-      // correctly.
-      await AuthService.instance.signOut();
       if (!mounted) return;
       setState(() => _done = true);
     } on AuthException catch (e) {
       _showError(friendlyAuthError(e));
     } catch (_) {
-      _showError(tr('common_error_generic'));
+      _showError('Something went wrong. Please try again.');
     } finally {
       if (mounted) setState(() => _loading = false);
     }
@@ -186,7 +190,7 @@ class _Header extends StatelessWidget {
             ),
             SizedBox(height: 16),
             Text(
-              done ? tr('auth_password_reset_done_title') : tr('auth_reset_password_title'),
+              done ? 'Password Reset!' : 'Reset Password',
               style: TextStyle(
                 color: Colors.white,
                 fontSize: 24,
@@ -198,8 +202,8 @@ class _Header extends StatelessWidget {
               padding: EdgeInsets.symmetric(horizontal: 40),
               child: Text(
                 done
-                    ? tr('auth_password_reset_done_subtitle')
-                    : tr('auth_reset_password_subtitle'),
+                    ? 'Your password has been changed successfully'
+                    : 'Create a new password for your account',
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   color: Colors.white.withValues(alpha: 0.85),
@@ -235,7 +239,7 @@ class _FormView extends StatelessWidget {
   final TextEditingController confirmController;
   final bool obscurePassword;
   final bool obscureConfirm;
-  final PasswordStrength strength;
+  final _Strength strength;
   final bool loading;
   final ValueChanged<String> onPasswordChanged;
   final VoidCallback onTogglePassword;
@@ -259,7 +263,7 @@ class _FormView extends StatelessWidget {
             ),
             validator: Validators.newPassword,
             decoration: InputDecoration(
-              labelText: tr('auth_new_password'),
+              labelText: 'New Password',
               prefixIcon: Icon(
                 Icons.lock_outline_rounded,
                 color: context.colors.muted,
@@ -293,9 +297,7 @@ class _FormView extends StatelessWidget {
             ),
           ),
           SizedBox(height: 10),
-          PasswordStrengthMeter(strength: strength),
-          SizedBox(height: 12),
-          PasswordRequirementsList(password: passwordController.text),
+          _StrengthMeter(strength: strength),
           SizedBox(height: 16),
           TextFormField(
             controller: confirmController,
@@ -307,7 +309,7 @@ class _FormView extends StatelessWidget {
             validator: (v) =>
                 Validators.confirmPassword(v, passwordController.text),
             decoration: InputDecoration(
-              labelText: tr('auth_confirm_password'),
+              labelText: 'Confirm Password',
               prefixIcon: Icon(
                 Icons.lock_outline_rounded,
                 color: context.colors.muted,
@@ -342,12 +344,66 @@ class _FormView extends StatelessWidget {
           ),
           SizedBox(height: 28),
           GradientButton(
-            label: tr('auth_reset_password_title'),
+            label: 'Reset Password',
             onPressed: onSubmit,
             loading: loading,
           ),
         ],
       ),
+    );
+  }
+}
+
+class _StrengthMeter extends StatelessWidget {
+  const _StrengthMeter({required this.strength});
+
+  final _Strength strength;
+
+  @override
+  Widget build(BuildContext context) {
+    final level = _Strength.values.indexOf(strength);
+    final color = switch (strength) {
+      _Strength.weak => Colors.redAccent,
+      _Strength.fair => Colors.orangeAccent,
+      _Strength.strong => Color(0xFF11998E),
+    };
+    final label = switch (strength) {
+      _Strength.weak => 'Weak',
+      _Strength.fair => 'Fair',
+      _Strength.strong => 'Strong',
+    };
+
+    return Row(
+      children: [
+        Expanded(
+          child: Row(
+            children: List.generate(3, (i) {
+              final filled = i <= level;
+              return Expanded(
+                child: Container(
+                  height: 4,
+                  margin: EdgeInsets.only(right: i < 2 ? 6 : 0),
+                  decoration: BoxDecoration(
+                    color: filled
+                        ? color
+                        : context.colors.muted.withValues(alpha: 0.2),
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              );
+            }),
+          ),
+        ),
+        SizedBox(width: 10),
+        Text(
+          label,
+          style: TextStyle(
+            color: color,
+            fontSize: 12,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+      ],
     );
   }
 }
@@ -362,17 +418,14 @@ class _DoneView extends StatelessWidget {
       children: [
         SizedBox(height: 12),
         Text(
-          tr('auth_can_sign_in_now'),
+          'You can now sign in with your new password.',
           textAlign: TextAlign.center,
           style: TextStyle(color: context.colors.muted, height: 1.5),
         ),
         SizedBox(height: 28),
         GradientButton(
-          label: tr('auth_back_to_sign_in'),
-          onPressed: () => Navigator.of(context).pushAndRemoveUntil(
-            MaterialPageRoute(builder: (_) => AuthScreen()),
-            (route) => false,
-          ),
+          label: 'Back to Sign In',
+          onPressed: () => Navigator.of(context).popUntil((r) => r.isFirst),
         ),
       ],
     );

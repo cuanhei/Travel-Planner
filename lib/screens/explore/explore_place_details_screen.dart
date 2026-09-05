@@ -4,23 +4,23 @@ import 'package:latlong2/latlong.dart';
 
 import '../../models/nearby_place.dart';
 import '../../models/trip.dart';
-import '../../services/community_service.dart';
 import '../../services/trip_service.dart';
 import '../../theme/app_theme.dart';
+import '../../widgets/coming_soon.dart';
 import '../../widgets/gradient_button.dart';
 import '../../widgets/route_map_view.dart';
-import '../community/review_details_screen.dart';
 
 /// Full profile for a real place — currently only reached from Explore's
 /// Nearby Places (Google Places API (New) data), but named/shaped to
 /// become the shared details screen once Popular Destinations moves off
 /// its dummy `Place` catalog too. Shows every field the app actually has
 /// (name, address, photo, type, open/closed status, distance, location).
-/// No description or budget from Google: those aren't part of the Nearby
-/// Search field mask. Ratings/reviews are this app's own review system
-/// (`CommunityService`/`reviews` table), keyed by [NearbyPlace.name] the
-/// same way `ReviewDetailsScreen` keys them by `place_name` elsewhere —
-/// there's no separate place id to join on.
+/// No rating, reviews, description, or budget: those aren't part of the
+/// Nearby Search field mask, and reviews specifically will come from
+/// this app's own review system later, not Google's — so there's no
+/// reviews section here at all yet, unlike `PlaceDetailsScreen` (which
+/// stays untouched, still backing the dummy Popular Destinations catalog
+/// for now).
 class ExplorePlaceDetailsScreen extends StatefulWidget {
   const ExplorePlaceDetailsScreen({super.key, required this.place});
 
@@ -33,45 +33,12 @@ class ExplorePlaceDetailsScreen extends StatefulWidget {
 
 class _ExplorePlaceDetailsScreenState
     extends State<ExplorePlaceDetailsScreen> {
-  final _reviewService = CommunityService();
-  final _tripService = TripService();
   LatLng? _currentPosition;
-
-  /// Whether the user can review this place — true once they have an
-  /// unused visit (via [TripService.visitCount]) not yet spent on a review
-  /// (via [CommunityService.myReviewCount]). Mirrors the gating on
-  /// [ReviewDetailsScreen]'s "Write a Review" button, so the top-level
-  /// "Add Review" button here reflects the same rule up front instead of
-  /// only surfacing it after drilling in.
-  bool _canReview = false;
-
-  /// Whether the place has ever been visited at all, once loaded — used to
-  /// pick the disabled-button message.
-  bool _everVisited = false;
 
   @override
   void initState() {
     super.initState();
     _locateCurrentPosition();
-    _loadCanReview();
-  }
-
-  /// Re-checked after returning from [ReviewDetailsScreen] — a review
-  /// submitted there spends the visit that unlocked it, so this button
-  /// needs to go back to disabled without requiring the user to leave and
-  /// reopen this screen.
-  Future<void> _loadCanReview() async {
-    final results = await Future.wait([
-      _tripService.visitCount(widget.place.name),
-      _reviewService.myReviewCount(widget.place.name),
-    ]);
-    if (!mounted) return;
-    final visits = results[0];
-    final reviewsSoFar = results[1];
-    setState(() {
-      _everVisited = visits > 0;
-      _canReview = visits > reviewsSoFar;
-    });
   }
 
   /// One-shot GPS fetch for the location map's "you are here" marker —
@@ -257,20 +224,6 @@ class _ExplorePlaceDetailsScreenState
                   ],
                   const SizedBox(height: 24),
                   Text(
-                    'Reviews',
-                    style: TextStyle(
-                      color: context.colors.ink,
-                      fontWeight: FontWeight.w800,
-                      fontSize: 15,
-                    ),
-                  ),
-                  const SizedBox(height: 10),
-                  _ReviewsSummaryCard(
-                    service: _reviewService,
-                    placeName: place.name,
-                  ),
-                  const SizedBox(height: 24),
-                  Text(
                     'Location',
                     style: TextStyle(
                       color: context.colors.ink,
@@ -290,55 +243,19 @@ class _ExplorePlaceDetailsScreenState
                   Row(
                     children: [
                       Expanded(
-                        child: Opacity(
-                          opacity: _canReview ? 1 : 0.5,
-                          child: OutlinedButton.icon(
-                            onPressed: () {
-                              if (!_canReview) {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(
-                                    behavior: SnackBarBehavior.floating,
-                                    content: Text(
-                                      _everVisited
-                                          ? "You've already reviewed this "
-                                                'place — visit it again to '
-                                                'write another review.'
-                                          : 'You can review a destination '
-                                                'after visiting it on a trip '
-                                                "that's finished.",
-                                    ),
-                                  ),
-                                );
-                                return;
-                              }
-                              Navigator.of(context)
-                                  .push(
-                                    MaterialPageRoute(
-                                      builder: (_) => ReviewDetailsScreen(
-                                        placeName: place.name,
-                                      ),
-                                    ),
-                                  )
-                                  .then((_) => _loadCanReview());
-                            },
-                            icon: const Icon(
-                              Icons.rate_review_outlined,
-                              size: 18,
+                        child: OutlinedButton.icon(
+                          onPressed: () =>
+                              showComingSoon(context, 'Add Review'),
+                          icon: const Icon(Icons.rate_review_outlined, size: 18),
+                          label: const Text('Add Review'),
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: context.colors.ink,
+                            side: BorderSide(
+                              color: context.colors.muted.withValues(alpha: 0.3),
                             ),
-                            label: const Text('Add Review'),
-                            style: OutlinedButton.styleFrom(
-                              foregroundColor: context.colors.ink,
-                              side: BorderSide(
-                                color: context.colors.muted.withValues(
-                                  alpha: 0.3,
-                                ),
-                              ),
-                              padding: const EdgeInsets.symmetric(
-                                vertical: 14,
-                              ),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(28),
-                              ),
+                            padding: const EdgeInsets.symmetric(vertical: 14),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(28),
                             ),
                           ),
                         ),
@@ -369,89 +286,6 @@ class _ExplorePlaceDetailsScreenState
       backgroundColor: Colors.transparent,
       isScrollControlled: true,
       builder: (_) => _AddToTripSheet(place: place),
-    );
-  }
-}
-
-/// Tappable "X.X ★ (N reviews)" summary — live via
-/// [CommunityService.watchRatingSummaries] so a review submitted from
-/// [ReviewDetailsScreen] updates this the moment its Realtime stream
-/// picks up the new row. Shows a neutral "No reviews yet" state instead
-/// of a bare 0.0 when [placeName] has none. Tapping either state opens
-/// the full [ReviewDetailsScreen] (list + "Write a Review").
-class _ReviewsSummaryCard extends StatelessWidget {
-  const _ReviewsSummaryCard({required this.service, required this.placeName});
-
-  final CommunityService service;
-  final String placeName;
-
-  @override
-  Widget build(BuildContext context) {
-    return StreamBuilder<Map<String, ({double average, int count})>>(
-      stream: service.watchRatingSummaries([placeName]),
-      builder: (context, snapshot) {
-        final summary = snapshot.data?[placeName];
-        return GestureDetector(
-          onTap: () => Navigator.of(context).push(
-            MaterialPageRoute(
-              builder: (_) => ReviewDetailsScreen(placeName: placeName),
-            ),
-          ),
-          child: Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(14),
-            decoration: BoxDecoration(
-              color: context.colors.card,
-              borderRadius: BorderRadius.circular(16),
-            ),
-            child: Row(
-              children: [
-                if (summary != null) ...[
-                  Text(
-                    summary.average.toStringAsFixed(1),
-                    style: TextStyle(
-                      color: context.colors.ink,
-                      fontWeight: FontWeight.w800,
-                      fontSize: 20,
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Row(
-                    children: List.generate(
-                      5,
-                      (i) => Icon(
-                        i < summary.average.round()
-                            ? Icons.star_rounded
-                            : Icons.star_border_rounded,
-                        color: const Color(0xFFFFB347),
-                        size: 16,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      '${summary.count} review${summary.count == 1 ? '' : 's'}',
-                      style: TextStyle(color: context.colors.muted, fontSize: 12.5),
-                    ),
-                  ),
-                ] else
-                  Expanded(
-                    child: Text(
-                      'No reviews yet — be the first!',
-                      style: TextStyle(color: context.colors.muted, fontSize: 12.5),
-                    ),
-                  ),
-                Icon(
-                  Icons.chevron_right_rounded,
-                  color: context.colors.muted,
-                  size: 20,
-                ),
-              ],
-            ),
-          ),
-        );
-      },
     );
   }
 }

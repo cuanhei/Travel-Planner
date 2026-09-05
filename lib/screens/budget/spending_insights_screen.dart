@@ -27,7 +27,11 @@ class SpendingInsightsScreen extends StatelessWidget {
         child: StreamBuilder<List<Expense>>(
           stream: budgetService.watchExpenses(tripId),
           builder: (context, snapshot) {
-            final expenses = snapshot.data ?? const <Expense>[];
+            // Personal expenses are private spending, excluded from
+            // this trip-wide breakdown — see budget_planner_screen.
+            final expenses = (snapshot.data ?? const <Expense>[])
+                .where((e) => e.isShared)
+                .toList();
             final total = expenses.fold<double>(0, (s, e) => s + e.amount);
 
             final byStop = <String, List<Expense>>{};

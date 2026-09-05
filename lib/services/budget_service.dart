@@ -289,6 +289,7 @@ class BudgetService {
     required DateTime spentAt,
     String? stopPlace,
     List<String> photoUrls = const [],
+    bool isShared = true,
   }) async {
     final row = await _client
         .from('expenses')
@@ -304,6 +305,7 @@ class BudgetService {
             createdAt: spentAt,
             stopPlace: stopPlace,
             photoUrls: photoUrls,
+            isShared: isShared,
           ).toInsertMap(),
         )
         .select()
@@ -321,6 +323,7 @@ class BudgetService {
     // the edit sheet always knows the full current photo set (kept,
     // added to, or removed from), so this fully replaces what's stored.
     List<String> photoUrls = const [],
+    bool isShared = true,
   }) async {
     await _client
         .from('expenses')
@@ -330,6 +333,7 @@ class BudgetService {
           'amount': amount,
           'stop_place': stopPlace,
           'photo_urls': photoUrls,
+          'is_shared': isShared,
         })
         .eq('id', expenseId);
   }
@@ -397,6 +401,26 @@ class BudgetService {
 
   // ---- Balances / splits ------------------------------------------------
 
+  /// Sum of this viewer's own personal (not shared) expenses in
+  /// [tripId] — the part of Budget Planner's overall total that
+  /// [getBalances] leaves out of the equal split. Expense Split shows
+  /// this as a note so its numbers don't look like they're missing
+  /// money. Explicitly scoped to `_uid` (not just relying on RLS) since
+  /// personal expenses are private — this must never sum other
+  /// members' personal spending into a number shown to this viewer.
+  Future<double> getPersonalExpensesTotal(String tripId) async {
+    final rows = await _client
+        .from('expenses')
+        .select('amount')
+        .eq('trip_id', tripId)
+        .eq('is_shared', false)
+        .eq('user_id', _uid);
+    return (rows as List).fold<double>(
+      0,
+      (sum, r) => sum + (r['amount'] as num).toDouble(),
+    );
+  }
+
   /// Every trip member's paid total, summed from [expenses] — the
   /// Expense Split screen derives each person's fair share and the
   /// settle-up plan from these totals directly.
@@ -422,10 +446,14 @@ class BudgetService {
       for (final p in profiles as List) p['id'] as String: p,
     };
 
+    // is_shared = false is personal spending, excluded from the
+    // equal-split calculation (still counted in the Budget Planner's
+    // own totals, which read straight from watchExpenses instead).
     final expenseRows = await _client
         .from('expenses')
         .select('user_id, amount')
-        .eq('trip_id', tripId);
+        .eq('trip_id', tripId)
+        .eq('is_shared', true);
     final paidByUser = <String, double>{};
     for (final row in expenseRows as List) {
       final userId = row['user_id'] as String;

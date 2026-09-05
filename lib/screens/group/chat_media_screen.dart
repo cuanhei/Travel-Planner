@@ -2,12 +2,13 @@ import 'package:flutter/material.dart';
 
 import '../../models/chat_attachment.dart';
 import '../../theme/app_theme.dart';
-import '../../widgets/chat/fullscreen_image_viewer.dart';
-import '../../widgets/chat/fullscreen_video_viewer.dart';
 import '../../widgets/detail_header.dart';
+import 'chat_media_viewer_screen.dart';
 
 /// Grid of every photo/video sent in a conversation — tapping one opens
-/// the same full-screen viewer as tapping it in the chat itself.
+/// a swipeable, WhatsApp-style viewer (left/right arrows, plus
+/// swiping) starting at that item, over every other photo/video in the
+/// grid.
 class ChatMediaScreen extends StatelessWidget {
   const ChatMediaScreen({
     super.key,
@@ -52,9 +53,10 @@ class ChatMediaScreen extends StatelessWidget {
                         return GestureDetector(
                           onTap: () => Navigator.of(context).push(
                             MaterialPageRoute(
-                              builder: (_) => isImage
-                                  ? FullscreenImageViewer(url: attachment.url)
-                                  : FullscreenVideoViewer(url: attachment.url),
+                              builder: (_) => ChatMediaViewerScreen(
+                                attachments: attachments,
+                                initialIndex: index,
+                              ),
                               fullscreenDialog: true,
                             ),
                           ),

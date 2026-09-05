@@ -1,8 +1,5 @@
-import 'dart:async';
-
 import 'package:flutter/material.dart';
 
-import '../../models/community_feed_event.dart';
 import '../../models/community_post.dart';
 import '../../services/community_service.dart';
 import '../../theme/app_theme.dart';
@@ -12,9 +9,8 @@ import 'comments_screen.dart';
 import 'post_card.dart';
 import 'share_post_sheet.dart';
 
-/// "Community" bottom-nav tab: a travel-experience feed backed by Supabase
-/// (`posts`, `post_likes`, `comments`), loaded page by page rather than as
-/// one live stream of the whole table — see [CommunityService.fetchFeedPage].
+/// "Community" bottom-nav tab: a live travel-experience feed backed by
+/// Supabase (`posts`, `post_likes`, `comments`).
 class CommunityTab extends StatefulWidget {
   const CommunityTab({super.key});
 
@@ -23,380 +19,164 @@ class CommunityTab extends StatefulWidget {
 }
 
 class _CommunityTabState extends State<CommunityTab> {
-  static const _pageSize = 10;
-
   final _service = CommunityService();
-  final _scrollController = ScrollController();
 
   /// `null` = "All" — otherwise one of [categories]' labels, the same set
   /// a post is tagged with in [AddPostScreen].
   String? _selectedCategory;
 
-  final List<CommunityPost> _posts = [];
-  bool _initialLoading = true;
-  bool _loadingMore = false;
-  bool _hasMore = true;
-  Object? _error;
-
-  /// Set when [CommunityService.watchFeedActivity] reports a post from
-  /// someone else — shown as a banner rather than acted on automatically,
-  /// since splicing it into the paginated list would shift every
-  /// already-loaded page's offset.
-  bool _hasNewPosts = false;
-
-  StreamSubscription<CommunityFeedEvent>? _activitySub;
-
-  @override
-  void initState() {
-    super.initState();
-    _scrollController.addListener(_onScroll);
-    _loadInitial();
-    _activitySub = _service.watchFeedActivity().listen(_onFeedEvent);
-  }
-
-  @override
-  void dispose() {
-    _scrollController
-      ..removeListener(_onScroll)
-      ..dispose();
-    _activitySub?.cancel();
-    super.dispose();
-  }
-
-  void _onFeedEvent(CommunityFeedEvent event) {
-    switch (event) {
-      case NewPostAvailable():
-        if (!mounted || _initialLoading) return;
-        setState(() => _hasNewPosts = true);
-      case PostReactionsChanged(
-        :final postId,
-        :final reactionCounts,
-        :final likesCount,
-      ):
-        final index = _posts.indexWhere((p) => p.id == postId);
-        if (!mounted || index == -1) return;
-        setState(() {
-          _posts[index] = _posts[index].copyWith(
-            reactionCounts: reactionCounts,
-            likesCount: likesCount,
-          );
-        });
-      case PostCommentCountChanged(:final postId, :final delta):
-        final index = _posts.indexWhere((p) => p.id == postId);
-        if (!mounted || index == -1) return;
-        setState(() {
-          final current = _posts[index];
-          _posts[index] = current.copyWith(
-            commentsCount: (current.commentsCount + delta).clamp(0, 1 << 30),
-          );
-        });
-    }
-  }
-
-  Future<void> _refreshFromBanner() async {
-    setState(() => _hasNewPosts = false);
-    await _scrollController.animateTo(
-      0,
-      duration: const Duration(milliseconds: 300),
-      curve: Curves.easeOut,
-    );
-    await _loadInitial();
-  }
-
-  void _onScroll() {
-    if (!_hasMore || _loadingMore || _initialLoading) return;
-    final position = _scrollController.position;
-    if (position.pixels > position.maxScrollExtent - 300) {
-      _loadMore();
-    }
-  }
-
-  Future<void> _loadInitial() async {
-    setState(() {
-      _initialLoading = true;
-      _error = null;
-    });
-    try {
-      final page = await _service.fetchFeedPage(
-        category: _selectedCategory,
-        offset: 0,
-        limit: _pageSize,
-      );
-      if (!mounted) return;
-      setState(() {
-        _posts
-          ..clear()
-          ..addAll(page);
-        _hasMore = page.length == _pageSize;
-        _initialLoading = false;
-        _hasNewPosts = false;
-      });
-    } catch (e) {
-      if (!mounted) return;
-      setState(() {
-        _error = e;
-        _initialLoading = false;
-      });
-    }
-  }
-
-  Future<void> _loadMore() async {
-    setState(() => _loadingMore = true);
-    try {
-      final page = await _service.fetchFeedPage(
-        category: _selectedCategory,
-        offset: _posts.length,
-        limit: _pageSize,
-      );
-      if (!mounted) return;
-      setState(() {
-        _posts.addAll(page);
-        _hasMore = page.length == _pageSize;
-        _loadingMore = false;
-      });
-    } catch (_) {
-      if (!mounted) return;
-      // Leave `_hasMore` alone so scrolling near the bottom again retries.
-      setState(() => _loadingMore = false);
-    }
-  }
-
-  void _selectCategory(String? category) {
-    if (category == _selectedCategory) return;
-    setState(() => _selectedCategory = category);
-    _loadInitial();
-  }
+  /// Subscribed once for the lifetime of this screen — calling
+  /// [CommunityService.watchFeed] fresh on every `build()` would tear down
+  /// and re-create the Realtime subscription (and its initial fetch) on
+  /// every rebuild, so a reaction/like written right around a rebuild could
+  /// get silently dropped instead of reflected in the UI.
+  late final Stream<List<CommunityPost>> _feedStream = _service.watchFeed();
 
   Future<void> _addPost() async {
     await Navigator.of(
       context,
     ).push<bool>(MaterialPageRoute(builder: (_) => const AddPostScreen()));
-    _loadInitial();
-  }
-
-  Future<void> _editPost(CommunityPost post) async {
-    await Navigator.of(context).push<bool>(
-      MaterialPageRoute(
-        builder: (_) => AddPostScreen(existingPost: post),
-      ),
-    );
-    _loadInitial();
-  }
-
-  /// Applies a reaction change to the local list immediately — the feed no
-  /// longer has a live subscription to fall back on for this — then sends
-  /// it to the backend.
-  Future<void> _react(CommunityPost post, String? reactionType) async {
-    if (reactionType == post.myReaction) return;
-    final counts = Map<String, int>.from(post.reactionCounts);
-    final previous = post.myReaction;
-    if (previous != null) {
-      final left = (counts[previous] ?? 1) - 1;
-      if (left <= 0) {
-        counts.remove(previous);
-      } else {
-        counts[previous] = left;
-      }
-    }
-    if (reactionType != null) {
-      counts[reactionType] = (counts[reactionType] ?? 0) + 1;
-    }
-    final updated = post.copyWith(
-      myReaction: reactionType,
-      clearMyReaction: reactionType == null,
-      reactionCounts: counts,
-      likesCount: counts.values.fold<int>(0, (a, b) => a + b),
-    );
-    final index = _posts.indexWhere((p) => p.id == post.id);
-    if (index != -1) setState(() => _posts[index] = updated);
-
-    await _service.setReaction(
-      post.id,
-      reactionType: reactionType,
-      currentReaction: previous,
-    );
+    // The feed stream picks up the new post via Realtime automatically —
+    // nothing to do with the result here.
   }
 
   @override
   Widget build(BuildContext context) {
     return SafeArea(
-      child: RefreshIndicator(
-        onRefresh: _loadInitial,
-        child: ListView(
-          controller: _scrollController,
-          physics: const AlwaysScrollableScrollPhysics(),
-          padding: const EdgeInsets.fromLTRB(24, 20, 24, 24),
-          children: [
-            Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    'Community',
-                    style: TextStyle(
-                      color: context.colors.ink,
-                      fontSize: 24,
-                      fontWeight: FontWeight.w800,
-                    ),
-                  ),
-                ),
-                Material(
-                  color: context.colors.ink,
-                  shape: const CircleBorder(),
-                  child: InkWell(
-                    customBorder: const CircleBorder(),
-                    onTap: _addPost,
-                    child: const Padding(
-                      padding: EdgeInsets.all(10),
-                      child: Icon(
-                        Icons.add_rounded,
-                        color: Colors.white,
-                        size: 22,
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 4),
-            Text(
-              'Travel stories from fellow explorers',
-              style: TextStyle(color: context.colors.muted, fontSize: 13.5),
-            ),
-            const SizedBox(height: 16),
-            SizedBox(
-              height: 36,
-              child: ListView(
-                scrollDirection: Axis.horizontal,
+      child: StreamBuilder<List<CommunityPost>>(
+        stream: _feedStream,
+        builder: (context, snapshot) {
+          final posts = snapshot.data ?? const <CommunityPost>[];
+          final filtered = _selectedCategory == null
+              ? posts
+              : posts.where((p) => p.category == _selectedCategory).toList();
+          return ListView(
+            padding: const EdgeInsets.fromLTRB(24, 20, 24, 24),
+            children: [
+              Row(
                 children: [
-                  _CategoryChip(
-                    label: 'All',
-                    icon: Icons.apps_rounded,
-                    selected: _selectedCategory == null,
-                    onTap: () => _selectCategory(null),
-                  ),
-                  for (final c in categories)
-                    Padding(
-                      padding: const EdgeInsets.only(left: 8),
-                      child: _CategoryChip(
-                        label: c.label,
-                        icon: c.icon,
-                        selected: _selectedCategory == c.label,
-                        onTap: () => _selectCategory(c.label),
-                      ),
-                    ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 16),
-            if (_hasNewPosts)
-              Padding(
-                padding: const EdgeInsets.only(bottom: 16),
-                child: Material(
-                  color: Colors.transparent,
-                  child: InkWell(
-                    borderRadius: BorderRadius.circular(14),
-                    onTap: _refreshFromBanner,
-                    child: Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.symmetric(vertical: 10),
-                      decoration: BoxDecoration(
+                  Expanded(
+                    child: Text(
+                      'Community',
+                      style: TextStyle(
                         color: context.colors.ink,
-                        borderRadius: BorderRadius.circular(14),
-                      ),
-                      alignment: Alignment.center,
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: const [
-                          Icon(
-                            Icons.arrow_upward_rounded,
-                            color: Colors.white,
-                            size: 15,
-                          ),
-                          SizedBox(width: 6),
-                          Text(
-                            'New posts — tap to refresh',
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontWeight: FontWeight.w700,
-                              fontSize: 12.5,
-                            ),
-                          ),
-                        ],
+                        fontSize: 24,
+                        fontWeight: FontWeight.w800,
                       ),
                     ),
                   ),
-                ),
-              ),
-            if (_error != null)
-              Padding(
-                padding: const EdgeInsets.only(top: 40),
-                child: Center(
-                  child: Column(
-                    children: [
-                      Text(
-                        "Couldn't load the community feed.",
-                        textAlign: TextAlign.center,
-                        style: TextStyle(color: context.colors.muted),
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        '$_error',
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                          color: context.colors.muted,
-                          fontSize: 11.5,
+                  Material(
+                    color: context.colors.ink,
+                    shape: const CircleBorder(),
+                    child: InkWell(
+                      customBorder: const CircleBorder(),
+                      onTap: _addPost,
+                      child: const Padding(
+                        padding: EdgeInsets.all(10),
+                        child: Icon(
+                          Icons.add_rounded,
+                          color: Colors.white,
+                          size: 22,
                         ),
                       ),
-                      const SizedBox(height: 12),
-                      OutlinedButton(
-                        onPressed: _loadInitial,
-                        child: const Text('Retry'),
-                      ),
-                    ],
-                  ),
-                ),
-              )
-            else if (_initialLoading)
-              const Padding(
-                padding: EdgeInsets.only(top: 40),
-                child: Center(child: CircularProgressIndicator()),
-              )
-            else if (_posts.isEmpty)
-              Padding(
-                padding: const EdgeInsets.only(top: 40),
-                child: Center(
-                  child: Text(
-                    _selectedCategory == null
-                        ? 'No posts yet — be the first to share a travel moment!'
-                        : 'No $_selectedCategory posts yet.',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(color: context.colors.muted),
-                  ),
-                ),
-              )
-            else ...[
-              ..._posts.map(
-                (p) => PostCard(
-                  post: p,
-                  onReact: (reactionType) => _react(p, reactionType),
-                  onComment: () => Navigator.of(context).push(
-                    MaterialPageRoute(
-                      builder: (_) =>
-                          CommentsScreen(postId: p.id, place: p.placeName),
                     ),
                   ),
-                  onShare: () => showSharePostSheet(context, p),
-                  onEdit: () => _editPost(p),
+                ],
+              ),
+              const SizedBox(height: 4),
+              Text(
+                'Travel stories from fellow explorers',
+                style: TextStyle(color: context.colors.muted, fontSize: 13.5),
+              ),
+              const SizedBox(height: 16),
+              SizedBox(
+                height: 36,
+                child: ListView(
+                  scrollDirection: Axis.horizontal,
+                  children: [
+                    _CategoryChip(
+                      label: 'All',
+                      icon: Icons.apps_rounded,
+                      selected: _selectedCategory == null,
+                      onTap: () => setState(() => _selectedCategory = null),
+                    ),
+                    for (final c in categories)
+                      Padding(
+                        padding: const EdgeInsets.only(left: 8),
+                        child: _CategoryChip(
+                          label: c.label,
+                          icon: c.icon,
+                          selected: _selectedCategory == c.label,
+                          onTap: () => setState(() => _selectedCategory = c.label),
+                        ),
+                      ),
+                  ],
                 ),
               ),
-              if (_loadingMore)
+              const SizedBox(height: 16),
+              if (snapshot.hasError)
+                Padding(
+                  padding: const EdgeInsets.only(top: 40),
+                  child: Center(
+                    child: Column(
+                      children: [
+                        Text(
+                          'Couldn\'t load the community feed.',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(color: context.colors.muted),
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          '${snapshot.error}',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            color: context.colors.muted,
+                            fontSize: 11.5,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                )
+              else if (!snapshot.hasData)
                 const Padding(
-                  padding: EdgeInsets.symmetric(vertical: 20),
+                  padding: EdgeInsets.only(top: 40),
                   child: Center(child: CircularProgressIndicator()),
+                )
+              else if (filtered.isEmpty)
+                Padding(
+                  padding: const EdgeInsets.only(top: 40),
+                  child: Center(
+                    child: Text(
+                      _selectedCategory == null
+                          ? 'No posts yet — be the first to share a travel moment!'
+                          : 'No $_selectedCategory posts yet.',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(color: context.colors.muted),
+                    ),
+                  ),
+                )
+              else
+                ...filtered.map(
+                  (p) => PostCard(
+                    post: p,
+                    onReact: (reactionType) => _service.setReaction(
+                      p.id,
+                      reactionType: reactionType,
+                      currentReaction: p.myReaction,
+                    ),
+                    onComment: () => Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) =>
+                            CommentsScreen(postId: p.id, place: p.placeName),
+                      ),
+                    ),
+                    onShare: () => showSharePostSheet(context, p),
+                  ),
                 ),
             ],
-          ],
-        ),
+          );
+        },
       ),
     );
   }

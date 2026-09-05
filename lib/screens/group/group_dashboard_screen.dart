@@ -4,6 +4,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../models/direct_message.dart';
 import '../../models/group_member.dart';
 import '../../models/group_message.dart';
+import '../../models/trip.dart';
 import '../../services/chat_service.dart';
 import '../../services/direct_message_service.dart';
 import '../../services/group_service.dart';
@@ -32,12 +33,7 @@ class _GroupDashboardScreenState extends State<GroupDashboardScreen> {
   final _tripService = TripService();
   final _chatService = ChatService();
   final _dmService = DirectMessageService();
-  late final Future<(String, String)> _tripFuture = _loadTrip();
-
-  Future<(String, String)> _loadTrip() async {
-    final tripName = await _tripService.getTripName(widget.tripId);
-    return (widget.tripId, tripName);
-  }
+  late final Future<Trip> _tripFuture = _tripService.getTrip(widget.tripId);
 
   Future<void> _removeMember(String tripId, GroupMember member) async {
     final confirmed = await showDialog<bool>(
@@ -78,7 +74,7 @@ class _GroupDashboardScreenState extends State<GroupDashboardScreen> {
     return Scaffold(
       backgroundColor: context.colors.surface,
       body: SafeArea(
-        child: FutureBuilder<(String, String)>(
+        child: FutureBuilder<Trip>(
           future: _tripFuture,
           builder: (context, tripSnap) {
             if (tripSnap.connectionState != ConnectionState.done) {
@@ -108,7 +104,10 @@ class _GroupDashboardScreenState extends State<GroupDashboardScreen> {
                 ],
               );
             }
-            final (tripId, tripName) = tripSnap.data!;
+            final trip = tripSnap.data!;
+            final tripId = trip.id;
+            final tripName = trip.name;
+            final hasEnded = trip.status == TripStatus.past;
 
             final myUid = Supabase.instance.client.auth.currentUser?.id;
 
@@ -127,18 +126,28 @@ class _GroupDashboardScreenState extends State<GroupDashboardScreen> {
                       subtitle:
                           '$tripName · ${members.length} member${members.length == 1 ? '' : 's'}',
                       trailing: isOrganizer
-                          ? IconButton(
-                              onPressed: () => Navigator.of(context).push(
-                                MaterialPageRoute(
-                                  builder: (_) => InviteMemberScreen(
-                                    tripId: tripId,
-                                    tripName: tripName,
-                                  ),
+                          ? Tooltip(
+                              message: hasEnded
+                                  ? "This trip has ended — you can't add "
+                                        'more people to it'
+                                  : 'Add people',
+                              child: IconButton(
+                                onPressed: hasEnded
+                                    ? null
+                                    : () => Navigator.of(context).push(
+                                        MaterialPageRoute(
+                                          builder: (_) => InviteMemberScreen(
+                                            tripId: tripId,
+                                            tripName: tripName,
+                                          ),
+                                        ),
+                                      ),
+                                icon: Icon(
+                                  Icons.person_add_alt_1_rounded,
+                                  color: hasEnded
+                                      ? context.colors.muted
+                                      : context.colors.ink,
                                 ),
-                              ),
-                              icon: Icon(
-                                Icons.person_add_alt_1_rounded,
-                                color: context.colors.ink,
                               ),
                             )
                           : null,
