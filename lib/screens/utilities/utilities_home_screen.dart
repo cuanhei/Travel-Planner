@@ -12,7 +12,9 @@ import 'translator_screen.dart';
 /// Hub linking into the trip utility tools: packing list, currency
 /// converter, translator, and emergency contacts.
 class UtilitiesHomeScreen extends StatelessWidget {
-  const UtilitiesHomeScreen({super.key});
+  const UtilitiesHomeScreen({super.key, required this.tripId});
+
+  final String tripId;
 
   @override
   Widget build(BuildContext context) {
@@ -65,7 +67,7 @@ class UtilitiesHomeScreen extends StatelessWidget {
                     iconColor: Colors.redAccent,
                     onTap: () => Navigator.of(context).push(
                       MaterialPageRoute(
-                        builder: (_) => EmergencyContactsScreen(),
+                        builder: (_) => EmergencyContactsScreen(tripId: tripId),
                       ),
                     ),
                   ),

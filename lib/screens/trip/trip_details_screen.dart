@@ -435,9 +435,11 @@ class _ToolsGrid extends StatelessWidget {
         label: 'Utilities',
         icon: Icons.checklist_rounded,
         color: Color(0xFF11998E),
-        onTap: () => Navigator.of(
-          context,
-        ).push(MaterialPageRoute(builder: (_) => UtilitiesHomeScreen())),
+        onTap: () => Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (_) => UtilitiesHomeScreen(tripId: tripId),
+          ),
+        ),
       ),
       (
         label: 'Group',

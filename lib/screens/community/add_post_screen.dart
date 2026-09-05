@@ -15,7 +15,7 @@ import '../explore/explore_tab.dart' show categories;
 import 'crop_image_screen.dart';
 import 'post_card.dart' show communityGradients;
 
-/// Accepted formats for a post's photo/video attachment. [FileType.media]
+/// Accepted formats for a post's photo/video attachments. [FileType.media]
 /// already restricts the native picker to images/videos, but that filter
 /// isn't guaranteed on every platform, so the extension is checked again
 /// against these explicit allow-lists before a pick is accepted.
@@ -41,10 +41,11 @@ typedef _PickedMedia = ({
   bool isVideo,
 });
 
-/// "New post" composer for the Community feed — caption, location, and a
-/// category (sets the icon), with a live preview of the resulting post
-/// card. Posts to `posts` on submit; a post with no photo/video falls back
-/// to a gradient cover (see [communityGradients]).
+/// "New post" composer for the Community feed — caption, location, a
+/// category (sets the icon), and up to [CommunityService.maxPostMedia]
+/// photos/videos, with a live preview of the resulting post card. Posts to
+/// `posts` on submit; a post with no photo/video falls back to a gradient
+/// cover (see [communityGradients]).
 ///
 /// Doubles as the editor when [existingPost] is passed (only ever by the
 /// post's own author — [PostCard] only shows the edit affordance when
@@ -60,6 +61,8 @@ class AddPostScreen extends StatefulWidget {
 }
 
 class _AddPostScreenState extends State<AddPostScreen> {
+  static const _maxMedia = CommunityService.maxPostMedia;
+
   final _service = CommunityService();
   final _captionController = TextEditingController();
   final _placeController = TextEditingController();
@@ -77,13 +80,21 @@ class _AddPostScreenState extends State<AddPostScreen> {
     if (existing == null) {
       return _placeController.text.trim().isNotEmpty ||
           _captionController.text.trim().isNotEmpty ||
-          _mediaBytes != null;
+          _mediaBytesList.isNotEmpty;
     }
     return _placeController.text.trim() != existing.placeName ||
         _captionController.text.trim() != existing.caption ||
         categories[_categoryIndex].label != existing.category ||
-        _mediaBytes != null ||
-        _existingMediaUrl != existing.mediaUrl;
+        _mediaBytesList.isNotEmpty ||
+        !_sameMedia(_existingMedia, existing.media);
+  }
+
+  bool _sameMedia(List<PostMedia> a, List<PostMedia> b) {
+    if (a.length != b.length) return false;
+    for (var i = 0; i < a.length; i++) {
+      if (a[i].url != b[i].url || a[i].type != b[i].type) return false;
+    }
+    return true;
   }
 
   /// "Discard changes?" prompt shown when the back button/gesture fires
@@ -129,24 +140,33 @@ class _AddPostScreenState extends State<AddPostScreen> {
 
   Map<String, dynamic>? _myProfile;
 
-  Uint8List? _mediaBytes;
-  String? _mediaExtension;
-  String? _mediaType;
-  String? _mediaFileName;
+  /// Freshly picked media, local and not yet uploaded — parallel lists
+  /// (index `i` is one attachment: bytes/extension/type/filename).
+  final List<Uint8List> _mediaBytesList = [];
+  final List<String> _mediaExtensions = [];
+  final List<String> _mediaTypes = [];
+  final List<String> _mediaFileNames = [];
   bool _pickingMedia = false;
   String? _mediaError;
 
-  /// The post's media at load time, in edit mode — shown until [_mediaBytes]
-  /// (a fresh pick) or a remove tap (see [_removeMedia]) replaces it. `null`
-  /// in create mode, where there's nothing to start from.
-  String? _existingMediaUrl;
-  String? _existingMediaType;
+  /// The post's media at load time, in edit mode — individually removable
+  /// via [_removeExistingMedia], separately from freshly picked
+  /// [_mediaBytesList]. Empty in create mode, where there's nothing to
+  /// start from.
+  late final List<PostMedia> _existingMedia = List.of(
+    widget.existingPost?.media ?? const [],
+  );
+
+  int get _totalMediaCount => _existingMedia.length + _mediaBytesList.length;
 
   /// Picks a source (camera photo/video, or gallery — or straight to
   /// gallery where there's no camera to offer), normalizes whatever comes
   /// back to bytes via [_captureFromCamera]/[_pickFromGallery], then routes
-  /// a croppable image through [CropImageScreen] before storing it.
+  /// a croppable image through [CropImageScreen] before appending it to
+  /// the attachment list.
   Future<void> _pickMedia() async {
+    if (_totalMediaCount >= _maxMedia) return;
+
     final source = cameraAvailable
         ? await showModalBottomSheet<_MediaSource>(
             context: context,
@@ -179,17 +199,17 @@ class _AddPostScreenState extends State<AddPostScreen> {
         );
         if (!mounted) return;
         setState(() {
-          _mediaBytes = cropped ?? picked.bytes;
-          _mediaExtension = cropped != null ? 'jpg' : picked.extension;
-          _mediaType = 'image';
-          _mediaFileName = picked.fileName;
+          _mediaBytesList.add(cropped ?? picked.bytes);
+          _mediaExtensions.add(cropped != null ? 'jpg' : picked.extension);
+          _mediaTypes.add('image');
+          _mediaFileNames.add(picked.fileName);
         });
       } else {
         setState(() {
-          _mediaBytes = picked.bytes;
-          _mediaExtension = picked.extension;
-          _mediaType = picked.isVideo ? 'video' : 'image';
-          _mediaFileName = picked.fileName;
+          _mediaBytesList.add(picked.bytes);
+          _mediaExtensions.add(picked.extension);
+          _mediaTypes.add(picked.isVideo ? 'video' : 'image');
+          _mediaFileNames.add(picked.fileName);
         });
       }
     } catch (e) {
@@ -253,28 +273,20 @@ class _AddPostScreenState extends State<AddPostScreen> {
     );
   }
 
-  Future<void> _recropMedia() async {
-    final bytes = _mediaBytes;
-    if (bytes == null) return;
-    final cropped = await Navigator.of(context).push<Uint8List>(
-      MaterialPageRoute(builder: (_) => CropImageScreen(imageBytes: bytes)),
-    );
-    if (cropped == null || !mounted) return;
+  void _removeMedia(int index) {
     setState(() {
-      _mediaBytes = cropped;
-      _mediaExtension = 'jpg';
+      _mediaBytesList.removeAt(index);
+      _mediaExtensions.removeAt(index);
+      _mediaTypes.removeAt(index);
+      _mediaFileNames.removeAt(index);
+      _mediaError = null;
     });
   }
 
-  void _removeMedia() {
+  void _removeExistingMedia(int index) {
     setState(() {
-      _mediaBytes = null;
-      _mediaExtension = null;
-      _mediaType = null;
-      _mediaFileName = null;
+      _existingMedia.removeAt(index);
       _mediaError = null;
-      _existingMediaUrl = null;
-      _existingMediaType = null;
     });
   }
 
@@ -289,8 +301,6 @@ class _AddPostScreenState extends State<AddPostScreen> {
         (c) => c.label == existing.category,
       );
       if (_categoryIndex == -1) _categoryIndex = 0;
-      _existingMediaUrl = existing.mediaUrl;
-      _existingMediaType = existing.mediaType;
     }
     _service.getMyProfile().then((profile) {
       if (mounted) setState(() => _myProfile = profile);
@@ -321,16 +331,18 @@ class _AddPostScreenState extends State<AddPostScreen> {
     if (!_canPost) return;
     setState(() => _posting = true);
     try {
+      final newMedia = [
+        for (var i = 0; i < _mediaBytesList.length; i++)
+          (_mediaBytesList[i], _mediaExtensions[i], _mediaTypes[i]),
+      ];
       if (_isEditing) {
         await _service.updatePost(
           postId: widget.existingPost!.id,
           placeName: _placeController.text.trim(),
           caption: _captionController.text.trim(),
           category: categories[_categoryIndex].label,
-          mediaBytes: _mediaBytes,
-          mediaExtension: _mediaExtension,
-          mediaType: _mediaType,
-          removeMedia: _mediaBytes == null && _existingMediaUrl == null,
+          keepMedia: _existingMedia,
+          newMedia: newMedia,
         );
       } else {
         await _service.addPost(
@@ -338,9 +350,7 @@ class _AddPostScreenState extends State<AddPostScreen> {
           caption: _captionController.text.trim(),
           category: categories[_categoryIndex].label,
           coverGradient: _gradientKeys[_gradientIndex],
-          mediaBytes: _mediaBytes,
-          mediaExtension: _mediaExtension,
-          mediaType: _mediaType,
+          media: newMedia,
         );
       }
       if (mounted) Navigator.of(context).pop(true);
@@ -427,22 +437,29 @@ class _AddPostScreenState extends State<AddPostScreen> {
                       onChanged: (_) => setState(() {}),
                     ),
                     const SizedBox(height: 24),
-                    _FieldLabel('Photo or video'),
+                    _FieldLabel('Photos or videos (up to $_maxMedia)'),
                     _MediaPicker(
-                      bytes: _mediaBytes,
-                      existingUrl: _mediaBytes == null
-                          ? _existingMediaUrl
-                          : null,
-                      mediaType: _mediaType ?? _existingMediaType,
-                      fileName: _mediaFileName,
+                      existingMedia: _existingMedia,
+                      newBytes: _mediaBytesList,
+                      newTypes: _mediaTypes,
+                      newFileNames: _mediaFileNames,
                       loading: _pickingMedia,
-                      errorText: _mediaError,
+                      canAddMore: _totalMediaCount < _maxMedia,
                       onPick: _pickMedia,
-                      onRemove: _removeMedia,
-                      onRecrop: _mediaBytes != null && _mediaType == 'image'
-                          ? _recropMedia
-                          : null,
+                      onRemoveExisting: _removeExistingMedia,
+                      onRemoveNew: _removeMedia,
                     ),
+                    if (_mediaError != null) ...[
+                      const SizedBox(height: 6),
+                      Text(
+                        _mediaError!,
+                        style: const TextStyle(
+                          color: Color(0xFFE0554B),
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
                     const SizedBox(height: 24),
                     _FieldLabel('Category'),
                     const SizedBox(height: 4),
@@ -512,11 +529,9 @@ class _AddPostScreenState extends State<AddPostScreen> {
                       place: _placeController.text.trim().isEmpty
                           ? 'Location'
                           : _placeController.text.trim(),
-                      mediaBytes: _mediaBytes,
-                      existingMediaUrl: _mediaBytes == null
-                          ? _existingMediaUrl
-                          : null,
-                      mediaType: _mediaType ?? _existingMediaType,
+                      existingMedia: _existingMedia,
+                      newBytes: _mediaBytesList,
+                      newTypes: _mediaTypes,
                     ),
                     const SizedBox(height: 32),
                     GradientButton(
@@ -543,21 +558,22 @@ class _PostPreview extends StatelessWidget {
     this.authorAvatarUrl,
     required this.caption,
     required this.place,
-    this.mediaBytes,
-    this.existingMediaUrl,
-    this.mediaType,
+    required this.existingMedia,
+    required this.newBytes,
+    required this.newTypes,
   });
 
   final String authorName;
   final String? authorAvatarUrl;
   final String caption;
   final String place;
-  final Uint8List? mediaBytes;
-  final String? existingMediaUrl;
-  final String? mediaType;
+  final List<PostMedia> existingMedia;
+  final List<Uint8List> newBytes;
+  final List<String> newTypes;
 
   @override
   Widget build(BuildContext context) {
+    final tileCount = existingMedia.length + newBytes.length;
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -617,37 +633,49 @@ class _PostPreview extends StatelessWidget {
               height: 1.4,
             ),
           ),
-          if (mediaBytes != null || existingMediaUrl != null) ...[
+          if (tileCount > 0) ...[
             const SizedBox(height: 10),
-            ClipRRect(
-              borderRadius: BorderRadius.circular(14),
-              // Video stays a fixed-height icon card (no real frame to
-              // size to here); a photo shows at its own aspect ratio
-              // scaled to width, matching what was actually cropped
-              // instead of being cover-cropped again into a fixed box.
-              child: mediaType == 'video'
-                  ? Container(
-                      height: 100,
-                      width: double.infinity,
-                      color: Colors.black87,
-                      alignment: Alignment.center,
-                      child: const Icon(
-                        Icons.play_circle_fill_rounded,
-                        color: Colors.white70,
-                        size: 32,
-                      ),
-                    )
-                  : mediaBytes != null
-                  ? Image.memory(
-                      mediaBytes!,
-                      width: double.infinity,
-                      fit: BoxFit.fitWidth,
-                    )
-                  : Image.network(
-                      existingMediaUrl!,
-                      width: double.infinity,
-                      fit: BoxFit.fitWidth,
-                    ),
+            SizedBox(
+              height: 90,
+              child: ListView.separated(
+                scrollDirection: Axis.horizontal,
+                itemCount: tileCount,
+                separatorBuilder: (_, _) => const SizedBox(width: 8),
+                itemBuilder: (context, i) {
+                  final isExisting = i < existingMedia.length;
+                  final type = isExisting
+                      ? existingMedia[i].type
+                      : newTypes[i - existingMedia.length];
+                  return ClipRRect(
+                    borderRadius: BorderRadius.circular(12),
+                    child: type == 'video'
+                        ? Container(
+                            width: 90,
+                            height: 90,
+                            color: Colors.black87,
+                            alignment: Alignment.center,
+                            child: const Icon(
+                              Icons.play_circle_fill_rounded,
+                              color: Colors.white70,
+                              size: 28,
+                            ),
+                          )
+                        : SizedBox(
+                            width: 90,
+                            height: 90,
+                            child: isExisting
+                                ? Image.network(
+                                    existingMedia[i].url,
+                                    fit: BoxFit.cover,
+                                  )
+                                : Image.memory(
+                                    newBytes[i - existingMedia.length],
+                                    fit: BoxFit.cover,
+                                  ),
+                          ),
+                  );
+                },
+              ),
             ),
           ],
         ],
@@ -656,189 +684,149 @@ class _PostPreview extends StatelessWidget {
   }
 }
 
-/// Tap-to-pick box for a post's optional photo/video attachment. Shows a
-/// dashed-style placeholder when empty, a preview (image) or filename card
-/// (video — no live decode here, just confirmation of what was picked) with
-/// a remove button once something's selected.
+/// Horizontal row of picked-media thumbnails (each removable) plus a
+/// trailing "add" tile, for [AddPostScreen]'s photo/video attachments.
+/// [existingMedia] (network, edit mode only) come first, then the freshly
+/// picked, local [newBytes]/[newTypes]/[newFileNames] — each with its own
+/// remove callback since they're removed from different lists. A video
+/// tile (existing or new) shows a filename/icon card rather than a live
+/// decode, matching the single-attachment picker this replaced.
 class _MediaPicker extends StatelessWidget {
   const _MediaPicker({
-    required this.bytes,
-    this.existingUrl,
-    required this.mediaType,
-    required this.fileName,
+    required this.existingMedia,
+    required this.newBytes,
+    required this.newTypes,
+    required this.newFileNames,
     required this.loading,
-    required this.errorText,
+    required this.canAddMore,
     required this.onPick,
-    required this.onRemove,
-    this.onRecrop,
+    required this.onRemoveExisting,
+    required this.onRemoveNew,
   });
 
-  final Uint8List? bytes;
-
-  /// The post's media at load time, in edit mode — shown when there's no
-  /// fresh [bytes] pick yet. See `AddPostScreen._existingMediaUrl`.
-  final String? existingUrl;
-  final String? mediaType;
-  final String? fileName;
+  final List<PostMedia> existingMedia;
+  final List<Uint8List> newBytes;
+  final List<String> newTypes;
+  final List<String> newFileNames;
   final bool loading;
-  final String? errorText;
+  final bool canAddMore;
   final VoidCallback onPick;
-  final VoidCallback onRemove;
-  final VoidCallback? onRecrop;
+  final ValueChanged<int> onRemoveExisting;
+  final ValueChanged<int> onRemoveNew;
+
+  static const _size = 84.0;
+
+  Widget _thumb({required Widget child, required VoidCallback onRemove}) {
+    return Padding(
+      padding: const EdgeInsets.only(right: 10),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(14),
+        child: Stack(
+          children: [
+            SizedBox(width: _size, height: _size, child: child),
+            Positioned(
+              top: 4,
+              right: 4,
+              child: GestureDetector(
+                onTap: onRemove,
+                child: Container(
+                  padding: const EdgeInsets.all(4),
+                  decoration: const BoxDecoration(
+                    color: Colors.black54,
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(
+                    Icons.close_rounded,
+                    color: Colors.white,
+                    size: 14,
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _videoTile(String? fileName) {
+    return Container(
+      color: Colors.black87,
+      alignment: Alignment.center,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(
+            Icons.movie_creation_outlined,
+            color: Colors.white70,
+            size: 22,
+          ),
+          if (fileName != null) ...[
+            const SizedBox(height: 4),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 4),
+              child: Text(
+                fileName,
+                style: const TextStyle(color: Colors.white70, fontSize: 9),
+                overflow: TextOverflow.ellipsis,
+                textAlign: TextAlign.center,
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
-    final hasError = errorText != null;
-    final hasContent = bytes != null || existingUrl != null;
-    final picker = !hasContent
-        ? GestureDetector(
-            onTap: loading ? null : onPick,
-            child: Container(
-              height: 90,
-              width: double.infinity,
-              decoration: BoxDecoration(
-                color: context.colors.card,
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(
-                  color: hasError
-                      ? const Color(0xFFE0554B)
-                      : context.colors.muted.withValues(alpha: 0.25),
-                ),
-              ),
-              alignment: Alignment.center,
-              child: loading
-                  ? const SizedBox(
-                      width: 22,
-                      height: 22,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(
-                          Icons.add_photo_alternate_outlined,
-                          color: context.colors.muted,
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          'Add a photo or video',
-                          style: TextStyle(
-                            color: context.colors.muted,
-                            fontWeight: FontWeight.w600,
-                            fontSize: 12.5,
-                          ),
-                        ),
-                      ],
-                    ),
+    return SizedBox(
+      height: _size,
+      child: ListView(
+        scrollDirection: Axis.horizontal,
+        children: [
+          for (var i = 0; i < existingMedia.length; i++)
+            _thumb(
+              onRemove: () => onRemoveExisting(i),
+              child: existingMedia[i].type == 'video'
+                  ? _videoTile(null)
+                  : Image.network(existingMedia[i].url, fit: BoxFit.cover),
             ),
-          )
-        : ClipRRect(
-            borderRadius: BorderRadius.circular(16),
-            child: Stack(
-              children: [
-                // Video stays a fixed-height filename card (no real frame
-                // to size to here); a photo shows at its own aspect ratio
-                // scaled to width — whatever came out of the crop step,
-                // not cover-cropped again into a fixed box.
-                mediaType == 'video'
-                    ? Container(
-                        height: 140,
-                        width: double.infinity,
-                        color: Colors.black87,
-                        alignment: Alignment.center,
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            const Icon(
-                              Icons.movie_creation_outlined,
-                              color: Colors.white70,
-                              size: 28,
-                            ),
-                            const SizedBox(height: 6),
-                            Text(
-                              fileName ?? 'Video attached',
-                              style: const TextStyle(
-                                color: Colors.white70,
-                                fontSize: 12,
-                              ),
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ],
-                        ),
-                      )
-                    : bytes != null
-                    ? Image.memory(
-                        bytes!,
-                        width: double.infinity,
-                        fit: BoxFit.fitWidth,
-                      )
-                    : Image.network(
-                        existingUrl!,
-                        width: double.infinity,
-                        fit: BoxFit.fitWidth,
-                      ),
-                Positioned(
-                  top: 8,
-                  right: 8,
-                  child: Row(
-                    children: [
-                      if (onRecrop != null) ...[
-                        GestureDetector(
-                          onTap: onRecrop,
-                          child: Container(
-                            padding: const EdgeInsets.all(6),
-                            decoration: const BoxDecoration(
-                              color: Colors.black54,
-                              shape: BoxShape.circle,
-                            ),
-                            child: const Icon(
-                              Icons.crop_rounded,
-                              color: Colors.white,
-                              size: 16,
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                      ],
-                      GestureDetector(
-                        onTap: onRemove,
-                        child: Container(
-                          padding: const EdgeInsets.all(6),
-                          decoration: const BoxDecoration(
-                            color: Colors.black54,
-                            shape: BoxShape.circle,
-                          ),
-                          child: const Icon(
-                            Icons.close_rounded,
-                            color: Colors.white,
-                            size: 16,
-                          ),
-                        ),
-                      ),
-                    ],
+          for (var i = 0; i < newBytes.length; i++)
+            _thumb(
+              onRemove: () => onRemoveNew(i),
+              child: newTypes[i] == 'video'
+                  ? _videoTile(newFileNames[i])
+                  : Image.memory(newBytes[i], fit: BoxFit.cover),
+            ),
+          if (canAddMore)
+            GestureDetector(
+              onTap: loading ? null : onPick,
+              child: Container(
+                width: _size,
+                height: _size,
+                decoration: BoxDecoration(
+                  color: context.colors.card,
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(
+                    color: context.colors.muted.withValues(alpha: 0.25),
                   ),
                 ),
-              ],
+                alignment: Alignment.center,
+                child: loading
+                    ? const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : Icon(
+                        Icons.add_photo_alternate_outlined,
+                        color: context.colors.muted,
+                      ),
+              ),
             ),
-          );
-
-    if (!hasError) return picker;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        picker,
-        Padding(
-          padding: const EdgeInsets.only(top: 6, left: 4),
-          child: Text(
-            errorText!,
-            style: const TextStyle(
-              color: Color(0xFFE0554B),
-              fontSize: 12,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 }

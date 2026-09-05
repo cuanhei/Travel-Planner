@@ -61,6 +61,56 @@ class _ReviewDetailsScreenState extends State<ReviewDetailsScreen> {
     });
   }
 
+  /// Deleting frees up the visit that review spent, so [_loadCanReview] is
+  /// re-run afterward the same way it is after `AddReviewScreen` returns —
+  /// otherwise "Write a Review" would stay disabled until the traveler left
+  /// and reopened this screen.
+  Future<void> _confirmDeleteReview(PlaceReview review) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        backgroundColor: dialogContext.colors.card,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Text(
+          'Delete review?',
+          style: TextStyle(
+            color: dialogContext.colors.ink,
+            fontWeight: FontWeight.w800,
+          ),
+        ),
+        content: Text(
+          'This review will be removed for everyone.',
+          style: TextStyle(color: dialogContext.colors.muted),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            style: FilledButton.styleFrom(backgroundColor: Colors.redAccent),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    try {
+      await _service.deleteReview(review.id);
+      await _loadCanReview();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            behavior: SnackBarBehavior.floating,
+            content: Text('Could not delete review: $e'),
+          ),
+        );
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -200,8 +250,7 @@ class _ReviewDetailsScreenState extends State<ReviewDetailsScreen> {
                             child: _RatingChip(
                               label: '$star',
                               selected: _selectedStar == star,
-                              onTap: () =>
-                                  setState(() => _selectedStar = star),
+                              onTap: () => setState(() => _selectedStar = star),
                             ),
                           ),
                       ],
@@ -241,6 +290,7 @@ class _ReviewDetailsScreenState extends State<ReviewDetailsScreen> {
                                   ),
                                 ),
                               ),
+                              onDelete: () => _confirmDeleteReview(review),
                             );
                           },
                         ),
@@ -353,13 +403,21 @@ class _RatingChip extends StatelessWidget {
 }
 
 class _ReviewTile extends StatelessWidget {
-  const _ReviewTile({required this.review, required this.onEdit});
+  const _ReviewTile({
+    required this.review,
+    required this.onEdit,
+    required this.onDelete,
+  });
 
   final PlaceReview review;
 
   /// Opens the review for editing — only shown when [review.authorId]
   /// matches the signed-in user, checked below.
   final VoidCallback onEdit;
+
+  /// Deletes the review — only shown alongside [onEdit], same ownership
+  /// check.
+  final VoidCallback onDelete;
 
   @override
   Widget build(BuildContext context) {
@@ -422,6 +480,15 @@ class _ReviewTile extends StatelessWidget {
                     size: 16,
                   ),
                 ),
+                const SizedBox(width: 12),
+                GestureDetector(
+                  onTap: onDelete,
+                  child: Icon(
+                    Icons.delete_outline_rounded,
+                    color: context.colors.muted,
+                    size: 16,
+                  ),
+                ),
                 const SizedBox(width: 10),
               ],
               Row(
@@ -469,9 +536,7 @@ class _ReviewTile extends StatelessWidget {
                         height: 72,
                         color: context.colors.surface,
                         alignment: Alignment.center,
-                        child: const CircularProgressIndicator(
-                          strokeWidth: 2,
-                        ),
+                        child: const CircularProgressIndicator(strokeWidth: 2),
                       );
                     },
                     errorBuilder: (context, error, stack) => Container(

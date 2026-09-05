@@ -10,7 +10,6 @@ import '../explore/explore_tab.dart' show categories;
 import 'add_post_screen.dart';
 import 'comments_screen.dart';
 import 'post_card.dart';
-import 'share_post_sheet.dart';
 
 /// "Community" bottom-nav tab: a travel-experience feed backed by Supabase
 /// (`posts`, `post_likes`, `comments`), loaded page by page rather than as
@@ -181,6 +180,53 @@ class _CommunityTabState extends State<CommunityTab> {
       ),
     );
     _loadInitial();
+  }
+
+  Future<void> _confirmDeletePost(CommunityPost post) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        backgroundColor: dialogContext.colors.card,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Text(
+          'Delete post?',
+          style: TextStyle(
+            color: dialogContext.colors.ink,
+            fontWeight: FontWeight.w800,
+          ),
+        ),
+        content: Text(
+          'This post, along with its likes and comments, will be removed '
+          'for everyone.',
+          style: TextStyle(color: dialogContext.colors.muted),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            style: FilledButton.styleFrom(backgroundColor: Colors.redAccent),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    try {
+      await _service.deletePost(post.id);
+      if (mounted) setState(() => _posts.removeWhere((p) => p.id == post.id));
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            behavior: SnackBarBehavior.floating,
+            content: Text('Could not delete post: $e'),
+          ),
+        );
+      }
+    }
   }
 
   /// Applies a reaction change to the local list immediately — the feed no
@@ -385,8 +431,8 @@ class _CommunityTabState extends State<CommunityTab> {
                           CommentsScreen(postId: p.id, place: p.placeName),
                     ),
                   ),
-                  onShare: () => showSharePostSheet(context, p),
                   onEdit: () => _editPost(p),
+                  onDelete: () => _confirmDeletePost(p),
                 ),
               ),
               if (_loadingMore)
