@@ -1,8 +1,12 @@
 import 'package:flutter/material.dart';
 
 import '../../models/community_post.dart';
+import '../../services/auth_service.dart';
+import '../../services/locale_service.dart';
+import '../../services/profile_service.dart';
 import '../../theme/app_theme.dart';
 import '../../utils/time_ago.dart';
+import '../profile/view_profile_screen.dart';
 import 'post_media_view.dart';
 
 /// Cover-gradient key options a post can be tagged with, keyed by the text
@@ -42,7 +46,11 @@ const _reactionEmojis = <String, String>{
 ///   matters here.
 const _emojiTextStyle = TextStyle(
   color: Colors.black,
-  fontFamilyFallback: ['Noto Color Emoji', 'Apple Color Emoji', 'Segoe UI Emoji'],
+  fontFamilyFallback: [
+    'Noto Color Emoji',
+    'Apple Color Emoji',
+    'Segoe UI Emoji',
+  ],
 );
 
 /// One Community post card — author, place, caption, cover, reactions, and
@@ -85,43 +93,52 @@ class PostCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              CircleAvatar(
-                radius: 18,
-                backgroundColor: Color(post.authorColor),
-                child: Text(
-                  post.authorName[0].toUpperCase(),
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.w800,
+          GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: () => Navigator.of(context).push(
+              MaterialPageRoute(
+                builder: (_) => ViewProfileScreen(userId: post.authorId),
+              ),
+            ),
+            child: Row(
+              children: [
+                CircleAvatar(
+                  radius: 18,
+                  backgroundColor: Color(post.authorColor),
+                  child: Text(
+                    post.authorName[0].toUpperCase(),
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w800,
+                    ),
                   ),
                 ),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      post.authorName,
-                      style: TextStyle(
-                        color: context.colors.ink,
-                        fontWeight: FontWeight.w700,
-                        fontSize: 13.5,
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        post.authorName,
+                        style: TextStyle(
+                          color: context.colors.ink,
+                          fontWeight: FontWeight.w700,
+                          fontSize: 13.5,
+                        ),
                       ),
-                    ),
-                    Text(
-                      '${post.placeName} · ${post.category} · ${timeAgo(post.createdAt)}',
-                      style: TextStyle(
-                        color: context.colors.muted,
-                        fontSize: 11.5,
+                      Text(
+                        '${post.placeName} · ${post.category} · ${timeAgo(post.createdAt)}',
+                        style: TextStyle(
+                          color: context.colors.muted,
+                          fontSize: 11.5,
+                        ),
                       ),
-                    ),
-                  ],
+                      _PostIpLine(post: post),
+                    ],
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
           const SizedBox(height: 12),
           Text(
@@ -136,7 +153,10 @@ class PostCard extends StatelessWidget {
             const SizedBox(height: 12),
             ClipRRect(
               borderRadius: BorderRadius.circular(16),
-              child: PostMediaView(url: post.mediaUrl!, mediaType: post.mediaType!),
+              child: PostMediaView(
+                url: post.mediaUrl!,
+                mediaType: post.mediaType!,
+              ),
             ),
           ],
           if (hasReactions) ...[
@@ -170,6 +190,48 @@ class PostCard extends StatelessWidget {
   }
 }
 
+/// The post's "IP: George Town" / "IP: Unknown" line (Settings →
+/// Privacy & Security → "Location Sharing") — [CommunityPost.ipAddress]
+/// is a real-GPS-resolved area name despite the field/column name, not
+/// a literal IP (see `PostLocationService`). For the signed-in user's
+/// own posts, this reads the live [ProfileService.instance.current]
+/// value instead of [CommunityPost.authorLocationSharingEnabled] — the
+/// value hydrated when the feed was fetched — so flipping the setting
+/// updates every already-visible post of theirs immediately, with no
+/// refetch or page reload. Someone else's posts fall back to that
+/// hydrated value, since there's no live channel to a stranger's
+/// settings here.
+class _PostIpLine extends StatelessWidget {
+  const _PostIpLine({required this.post});
+
+  final CommunityPost post;
+
+  @override
+  Widget build(BuildContext context) {
+    final isOwnPost = post.authorId == AuthService.instance.currentUser?.id;
+    if (!isOwnPost) {
+      return _buildText(context, post.authorLocationSharingEnabled);
+    }
+    return ValueListenableBuilder<UserProfile?>(
+      valueListenable: ProfileService.instance.current,
+      builder: (context, profile, _) => _buildText(
+        context,
+        profile?.locationSharingEnabled ?? post.authorLocationSharingEnabled,
+      ),
+    );
+  }
+
+  Widget _buildText(BuildContext context, bool locationSharingEnabled) {
+    final value = locationSharingEnabled
+        ? (post.ipAddress ?? tr('community_ip_unknown'))
+        : tr('community_ip_unknown');
+    return Text(
+      '${tr('community_ip_prefix')} $value',
+      style: TextStyle(color: context.colors.muted, fontSize: 10.5),
+    );
+  }
+}
+
 /// Small read-only "👍 3 ❤️ 1" row summarizing every reaction type that has
 /// at least one count, in [_reactionEmojis] order.
 class _ReactionSummary extends StatelessWidget {
@@ -188,7 +250,10 @@ class _ReactionSummary extends StatelessWidget {
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Text(entry.value, style: _emojiTextStyle.copyWith(fontSize: 13)),
+                  Text(
+                    entry.value,
+                    style: _emojiTextStyle.copyWith(fontSize: 13),
+                  ),
                   const SizedBox(width: 3),
                   Text(
                     '${counts[entry.key]}',
@@ -306,7 +371,8 @@ class _ReactionButtonState extends State<_ReactionButton> {
       // *different* reaction type is what long-press is for (below) — that
       // already sets it directly in one tap, no need to clear first.
       onTap: () => _react(active ? null : 'like'),
-      onLongPressStart: (details) => _openPicker(context, details.globalPosition),
+      onLongPressStart: (details) =>
+          _openPicker(context, details.globalPosition),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -333,7 +399,11 @@ class _ReactionButtonState extends State<_ReactionButton> {
 }
 
 class _PostAction extends StatelessWidget {
-  const _PostAction({required this.icon, required this.label, required this.onTap});
+  const _PostAction({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+  });
 
   final IconData icon;
   final String label;

@@ -81,9 +81,7 @@ class _AuthScreenState extends State<AuthScreen> {
     try {
       if (_isSignIn) {
         final email = _emailController.text.trim();
-        final lockedUntil = await AuthService.instance.checkLoginLockout(
-          email,
-        );
+        final lockedUntil = await AuthService.instance.checkLoginLockout(email);
         if (lockedUntil != null) {
           if (!mounted) return;
           _showError(_lockoutMessage(lockedUntil));
@@ -147,9 +145,7 @@ class _AuthScreenState extends State<AuthScreen> {
     } on AuthException catch (e) {
       if (_isSignIn && isInvalidCredentials(e)) {
         final email = _emailController.text.trim();
-        final lockedUntil = await AuthService.instance.recordFailedLogin(
-          email,
-        );
+        final lockedUntil = await AuthService.instance.recordFailedLogin(email);
         if (!mounted) return;
         if (lockedUntil != null) {
           _showError(_lockoutMessage(lockedUntil));
@@ -198,36 +194,6 @@ class _AuthScreenState extends State<AuthScreen> {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(behavior: SnackBarBehavior.floating, content: Text(message)),
     );
-  }
-
-  void _comingSoon(String provider) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        behavior: SnackBarBehavior.floating,
-        content: Text('$provider ${tr('common_coming_soon').toLowerCase()}'),
-      ),
-    );
-  }
-
-  Future<void> _signInWithGoogle() async {
-    if (_loading) return;
-    setState(() => _loading = true);
-    try {
-      // Redirects the whole page to Google, so nothing after this line
-      // normally runs — the app reloads at redirectTo once the user
-      // finishes on Google's side, and SplashScreen picks up the resulting
-      // session from there.
-      await AuthService.instance.signInWithGoogle();
-    } on AuthException catch (e) {
-      if (!mounted) return;
-      _showError(friendlyAuthError(e));
-    } catch (e, st) {
-      debugPrint('AuthScreen._signInWithGoogle unexpected error: $e\n$st');
-      if (!mounted) return;
-      _showError(tr('common_error_generic'));
-    } finally {
-      if (mounted) setState(() => _loading = false);
-    }
   }
 
   @override
@@ -311,8 +277,7 @@ class _AuthScreenState extends State<AuthScreen> {
                           SizedBox(height: 4),
                           if (_isSignIn)
                             Row(
-                              mainAxisAlignment:
-                                  MainAxisAlignment.spaceBetween,
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
                               children: [
                                 _RememberMeCheckbox(
                                   value: _rememberMe,
@@ -348,57 +313,6 @@ class _AuthScreenState extends State<AuthScreen> {
                                 : tr('auth_create_account'),
                             onPressed: _submit,
                             loading: _loading,
-                          ),
-                          SizedBox(height: 28),
-                          Row(
-                            children: [
-                              Expanded(
-                                child: Divider(
-                                  color: context.colors.muted.withValues(
-                                    alpha: 0.25,
-                                  ),
-                                ),
-                              ),
-                              Padding(
-                                padding: EdgeInsets.symmetric(horizontal: 12),
-                                child: Text(
-                                  tr('auth_or_continue_with'),
-                                  style: TextStyle(
-                                    color: context.colors.muted.withValues(
-                                      alpha: 0.8,
-                                    ),
-                                    fontSize: 13,
-                                  ),
-                                ),
-                              ),
-                              Expanded(
-                                child: Divider(
-                                  color: context.colors.muted.withValues(
-                                    alpha: 0.25,
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                          SizedBox(height: 20),
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              _SocialButton(
-                                label: 'G',
-                                onTap: _signInWithGoogle,
-                              ),
-                              SizedBox(width: 16),
-                              _SocialButton(
-                                icon: Icons.apple_rounded,
-                                onTap: () => _comingSoon('Apple'),
-                              ),
-                              SizedBox(width: 16),
-                              _SocialButton(
-                                icon: Icons.facebook_rounded,
-                                onTap: () => _comingSoon('Facebook'),
-                              ),
-                            ],
                           ),
                           SizedBox(height: 24),
                           Row(
@@ -891,47 +805,6 @@ class _SignUpFields extends StatelessWidget {
               Validators.confirmPassword(v, passwordController.text),
         ),
       ],
-    );
-  }
-}
-
-class _SocialButton extends StatelessWidget {
-  const _SocialButton({this.icon, this.label, required this.onTap});
-
-  final IconData? icon;
-  final String? label;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return Material(
-      color: context.colors.surface,
-      shape: CircleBorder(),
-      child: InkWell(
-        customBorder: CircleBorder(),
-        onTap: onTap,
-        child: Container(
-          width: 52,
-          height: 52,
-          alignment: Alignment.center,
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            border: Border.all(
-              color: context.colors.muted.withValues(alpha: 0.2),
-            ),
-          ),
-          child: icon != null
-              ? Icon(icon, color: context.colors.ink)
-              : Text(
-                  label!,
-                  style: TextStyle(
-                    fontWeight: FontWeight.w800,
-                    color: context.colors.ink,
-                    fontSize: 18,
-                  ),
-                ),
-        ),
-      ),
     );
   }
 }

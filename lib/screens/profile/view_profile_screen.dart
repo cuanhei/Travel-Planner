@@ -7,12 +7,23 @@ import '../../services/profile_service.dart';
 import '../../theme/app_theme.dart';
 import '../../utils/gender_options.dart';
 import '../../widgets/avatar_viewer.dart';
+import '../../widgets/category_badge_chip.dart';
 import '../../widgets/detail_header.dart';
 import '../../widgets/user_avatar.dart';
 
 const _monthNames = [
-  'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-  'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+  'Jan',
+  'Feb',
+  'Mar',
+  'Apr',
+  'May',
+  'Jun',
+  'Jul',
+  'Aug',
+  'Sep',
+  'Oct',
+  'Nov',
+  'Dec',
 ];
 
 String _formatDate(DateTime d) =>
@@ -82,7 +93,10 @@ class _ViewProfileScreenState extends State<ViewProfileScreen> {
                   return ListView(
                     padding: const EdgeInsets.fromLTRB(24, 8, 24, 24),
                     children: [
-                      _ProfileHeader(profile: profile),
+                      _ProfileHeader(
+                        profile: profile,
+                        isOwnProfile: isOwnProfile,
+                      ),
                       const SizedBox(height: 28),
                       if (profile.isPublic || isOwnProfile)
                         _PublicDetails(profile: profile)
@@ -101,17 +115,25 @@ class _ViewProfileScreenState extends State<ViewProfileScreen> {
 }
 
 class _ProfileHeader extends StatelessWidget {
-  const _ProfileHeader({required this.profile});
+  const _ProfileHeader({required this.profile, required this.isOwnProfile});
 
   final UserProfile profile;
+
+  /// Whether the signed-in viewer is looking at their own profile — the
+  /// private-account lock icon is about warning a *viewer* that they're
+  /// only seeing a limited view of someone else, so it stays hidden here
+  /// even when [profile.isPublic] is off, since the full details below
+  /// are already showing regardless (see [ViewProfileScreen]).
+  final bool isOwnProfile;
 
   @override
   Widget build(BuildContext context) {
     final state = ProfileAvatarState.decode(profile.avatarUrl);
     final isAvatarDesign =
         state.mode == ProfileAvatarMode.avatarDesign && state.design != null;
-    final photoUrl =
-        state.mode == ProfileAvatarMode.photo ? state.photoUrl : null;
+    final photoUrl = state.mode == ProfileAvatarMode.photo
+        ? state.photoUrl
+        : null;
     final canZoom = isAvatarDesign || (photoUrl?.isNotEmpty ?? false);
     return Column(
       children: [
@@ -121,8 +143,8 @@ class _ProfileHeader extends StatelessWidget {
             onTap: !canZoom
                 ? null
                 : isAvatarDesign
-                    ? () => showAvatarDesignViewer(context, state.design!)
-                    : () => showAvatarViewer(context, photoUrl!),
+                ? () => showAvatarDesignViewer(context, state.design!)
+                : () => showAvatarViewer(context, photoUrl!),
             child: UserAvatar(
               name: profile.fullName,
               avatarUrl: profile.avatarUrl,
@@ -132,25 +154,36 @@ class _ProfileHeader extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 14),
-        Row(
-          mainAxisSize: MainAxisSize.min,
+        Wrap(
+          alignment: WrapAlignment.center,
+          crossAxisAlignment: WrapCrossAlignment.center,
+          spacing: 8,
+          runSpacing: 4,
           children: [
-            Text(
-              profile.fullName.isEmpty ? tr('auth_traveler_default') : profile.fullName,
-              style: TextStyle(
-                color: context.colors.ink,
-                fontSize: 20,
-                fontWeight: FontWeight.w800,
-              ),
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  profile.fullName.isEmpty
+                      ? tr('auth_traveler_default')
+                      : profile.fullName,
+                  style: TextStyle(
+                    color: context.colors.ink,
+                    fontSize: 20,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                if (!profile.isPublic && !isOwnProfile) ...[
+                  const SizedBox(width: 6),
+                  Icon(
+                    Icons.lock_rounded,
+                    size: 16,
+                    color: context.colors.muted,
+                  ),
+                ],
+              ],
             ),
-            if (!profile.isPublic) ...[
-              const SizedBox(width: 6),
-              Icon(
-                Icons.lock_rounded,
-                size: 16,
-                color: context.colors.muted,
-              ),
-            ],
+            CategoryBadgeRow(categories: profile.earnedCategoryBadges),
           ],
         ),
         if (profile.bio?.isNotEmpty ?? false) ...[
@@ -226,9 +259,17 @@ class _PublicDetails extends StatelessWidget {
       if (profile.phone?.isNotEmpty ?? false)
         (Icons.phone_outlined, tr('auth_phone'), profile.phone!),
       if (profile.dateOfBirth != null)
-        (Icons.cake_outlined, tr('auth_date_of_birth'), _formatDate(profile.dateOfBirth!)),
+        (
+          Icons.cake_outlined,
+          tr('auth_date_of_birth'),
+          _formatDate(profile.dateOfBirth!),
+        ),
       if (profile.gender?.isNotEmpty ?? false)
-        (Icons.person_outline_rounded, tr('auth_gender'), genderLabel(profile.gender!)),
+        (
+          Icons.person_outline_rounded,
+          tr('auth_gender'),
+          genderLabel(profile.gender!),
+        ),
       if (profile.nationality?.isNotEmpty ?? false)
         (Icons.flag_outlined, tr('auth_nationality'), profile.nationality!),
       if (profile.address?.isNotEmpty ?? false)

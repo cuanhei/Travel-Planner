@@ -5,6 +5,7 @@ import '../../services/auth_service.dart';
 import '../../services/locale_service.dart';
 import '../../services/profile_service.dart';
 import '../../theme/app_theme.dart';
+import '../../widgets/category_badge_chip.dart';
 import '../../widgets/list_tile_card.dart';
 import '../../widgets/user_avatar.dart';
 import '../saved/saved_places_screen.dart';
@@ -31,6 +32,29 @@ class _ProfileTabState extends State<ProfileTab> {
   void initState() {
     super.initState();
     _stats = AchievementService().loadStats();
+    _stats.then(_onStatsLoaded);
+  }
+
+  /// Persists any newly-completed category badges and pops a SnackBar for
+  /// any badge earned since this device last checked — see
+  /// `AchievementService.syncCategoryBadges`/`checkNewlyEarnedBadges`.
+  /// The Profile tab is the natural place for this: it's the screen most
+  /// sessions land on or pass through, so an unlock is surfaced quickly
+  /// without polling.
+  Future<void> _onStatsLoaded(AchievementStats stats) async {
+    final service = AchievementService();
+    await service.syncCategoryBadges(stats);
+    final newlyEarned = await service.checkNewlyEarnedBadges(stats);
+    if (!mounted || newlyEarned.isEmpty) return;
+    for (final badge in newlyEarned) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            '${tr('auth_achievement_unlocked_prefix')} ${badge.label}',
+          ),
+        ),
+      );
+    }
   }
 
   @override
@@ -54,7 +78,9 @@ class _ProfileTabState extends State<ProfileTab> {
                     cursor: SystemMouseCursors.click,
                     child: GestureDetector(
                       onTap: () => Navigator.of(context).push(
-                        MaterialPageRoute(builder: (_) => const EditProfileScreen()),
+                        MaterialPageRoute(
+                          builder: (_) => const EditProfileScreen(),
+                        ),
                       ),
                       child: UserAvatar(
                         name: name,
@@ -69,13 +95,24 @@ class _ProfileTabState extends State<ProfileTab> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(
-                          name,
-                          style: TextStyle(
-                            color: context.colors.ink,
-                            fontSize: 19,
-                            fontWeight: FontWeight.w800,
-                          ),
+                        Wrap(
+                          crossAxisAlignment: WrapCrossAlignment.center,
+                          spacing: 8,
+                          runSpacing: 4,
+                          children: [
+                            Text(
+                              name,
+                              style: TextStyle(
+                                color: context.colors.ink,
+                                fontSize: 19,
+                                fontWeight: FontWeight.w800,
+                              ),
+                            ),
+                            CategoryBadgeRow(
+                              categories:
+                                  profile?.earnedCategoryBadges ?? const [],
+                            ),
+                          ],
                         ),
                         SizedBox(height: 3),
                         Text(
@@ -89,9 +126,9 @@ class _ProfileTabState extends State<ProfileTab> {
                     ),
                   ),
                   IconButton(
-                    onPressed: () => Navigator.of(context).push(
-                      MaterialPageRoute(builder: (_) => SettingsScreen()),
-                    ),
+                    onPressed: () => Navigator.of(
+                      context,
+                    ).push(MaterialPageRoute(builder: (_) => SettingsScreen())),
                     icon: Icon(
                       Icons.settings_outlined,
                       color: context.colors.ink,

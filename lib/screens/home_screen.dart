@@ -71,11 +71,13 @@ class _HomeScreenState extends State<HomeScreen> {
     (icon: Icons.explore_rounded, label: tr('common_nav_explore')),
     (icon: Icons.groups_rounded, label: tr('common_nav_community')),
     (icon: Icons.person_rounded, label: tr('common_nav_profile')),
-
   ];
 
   late final _bodies = [
-    _DashboardBody(tripCardKey: _tripCardKey, destinationsKey: _destinationsKey),
+    _DashboardBody(
+      tripCardKey: _tripCardKey,
+      destinationsKey: _destinationsKey,
+    ),
     TripsTab(),
     ExploreTab(),
     CommunityTab(),
@@ -114,7 +116,10 @@ class _HomeScreenState extends State<HomeScreen> {
 }
 
 class _DashboardBody extends StatelessWidget {
-  const _DashboardBody({required this.tripCardKey, required this.destinationsKey});
+  const _DashboardBody({
+    required this.tripCardKey,
+    required this.destinationsKey,
+  });
 
   final GlobalKey<_UpcomingTripCardState> tripCardKey;
   final GlobalKey<_DestinationsCarouselState> destinationsKey;
@@ -133,7 +138,9 @@ class _DashboardBody extends StatelessWidget {
         ),
         SliverPadding(
           padding: EdgeInsets.fromLTRB(24, 24, 24, 0),
-          sliver: SliverToBoxAdapter(child: _UpcomingTripCard(key: tripCardKey)),
+          sliver: SliverToBoxAdapter(
+            child: _UpcomingTripCard(key: tripCardKey),
+          ),
         ),
         SliverPadding(
           padding: EdgeInsets.fromLTRB(24, 28, 24, 0),
@@ -170,7 +177,9 @@ class _DashboardBody extends StatelessWidget {
                 onAction: () => Navigator.of(context).push(
                   MaterialPageRoute(
                     builder: (_) => NearbyPlacesScreen(
-                      places: destinationsKey.currentState?.destinations ?? const [],
+                      places:
+                          destinationsKey.currentState?.destinations ??
+                          const [],
                       category: 'Tourist Attractions',
                     ),
                   ),
@@ -220,7 +229,7 @@ class _GreetingBar extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    tr('home_greeting'),
+                    _greetingFor(DateTime.now()),
                     style: TextStyle(
                       color: context.colors.muted,
                       fontSize: 13,
@@ -242,9 +251,9 @@ class _GreetingBar extends StatelessWidget {
             _IconBadgeButton(
               icon: Icons.notifications_none_rounded,
               hasBadge: true,
-              onTap: () => Navigator.of(context).push(
-                MaterialPageRoute(builder: (_) => NotificationsScreen()),
-              ),
+              onTap: () => Navigator.of(
+                context,
+              ).push(MaterialPageRoute(builder: (_) => NotificationsScreen())),
             ),
             SizedBox(width: 12),
             MouseRegion(
@@ -325,7 +334,6 @@ class _IconBadgeButton extends StatelessWidget {
     );
   }
 }
-
 
 /// Featured trip on the dashboard: whichever trip is happening right now
 /// (an "ongoing" ie. [TripStatus.current] one), or failing that the
@@ -784,7 +792,9 @@ class _WeatherCardState extends State<_WeatherCard> {
         throw Exception(tr('home_location_permission_needed'));
       }
       final position = await Geolocator.getCurrentPosition(
-        locationSettings: const LocationSettings(accuracy: LocationAccuracy.high),
+        locationSettings: const LocationSettings(
+          accuracy: LocationAccuracy.high,
+        ),
       );
       final result = await _weatherService.getForecastForPosition(
         LatLng(position.latitude, position.longitude),
@@ -895,7 +905,10 @@ class _WeatherLoading extends StatelessWidget {
             const SizedBox(
               width: 16,
               height: 16,
-              child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                color: Colors.white,
+              ),
             ),
             const SizedBox(width: 10),
             Text(
@@ -1046,10 +1059,7 @@ class _PeriodTile extends StatelessWidget {
   Widget build(BuildContext context) {
     return Column(
       children: [
-        Text(
-          label,
-          style: TextStyle(color: Colors.white70, fontSize: 11),
-        ),
+        Text(label, style: TextStyle(color: Colors.white70, fontSize: 11)),
         SizedBox(height: 6),
         Icon(weatherIconFor(forecastText), color: Colors.white, size: 18),
         SizedBox(height: 6),
@@ -1126,7 +1136,9 @@ class _DestinationsCarouselState extends State<_DestinationsCarousel> {
         );
       }
       final position = await Geolocator.getCurrentPosition(
-        locationSettings: const LocationSettings(accuracy: LocationAccuracy.high),
+        locationSettings: const LocationSettings(
+          accuracy: LocationAccuracy.high,
+        ),
       );
       final center = LatLng(position.latitude, position.longitude);
 
@@ -1147,8 +1159,9 @@ class _DestinationsCarouselState extends State<_DestinationsCarousel> {
         includedTypes: const {'tourist_attraction'},
       );
       results.sort(
-        (a, b) =>
-            (a.distanceKm ?? double.infinity).compareTo(b.distanceKm ?? double.infinity),
+        (a, b) => (a.distanceKm ?? double.infinity).compareTo(
+          b.distanceKm ?? double.infinity,
+        ),
       );
       if (!mounted) return;
       setState(() {
@@ -1225,7 +1238,11 @@ class _DestinationsOutsideMalaysiaNotice extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(Icons.info_outline_rounded, size: 16, color: context.colors.muted),
+          Icon(
+            Icons.info_outline_rounded,
+            size: 16,
+            color: context.colors.muted,
+          ),
           SizedBox(width: 8),
           Expanded(
             child: Text(
@@ -1253,7 +1270,11 @@ class _DestinationsMessage extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(Icons.info_outline_rounded, size: 16, color: context.colors.muted),
+          Icon(
+            Icons.info_outline_rounded,
+            size: 16,
+            color: context.colors.muted,
+          ),
           SizedBox(width: 8),
           Expanded(
             child: Text(

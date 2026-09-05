@@ -17,12 +17,32 @@ class CommunityPost {
     required this.commentsCount,
     required this.myReaction,
     required this.createdAt,
+    this.ipAddress,
+    required this.authorLocationSharingEnabled,
   });
 
   final String id;
   final String authorId;
   final String authorName;
   final int authorColor;
+
+  /// The `posts.ip_address` column — named for what it held originally,
+  /// but resolved to a short area name (e.g. "George Town") from the
+  /// poster's real GPS position at post time (`PostLocationService`, via
+  /// `CommunityService.addPost`), not a raw IP. `null` if that lookup
+  /// failed (no permission, GPS off, etc). Whether `PostCard` actually
+  /// shows this or "Unknown" is gated by [authorLocationSharingEnabled],
+  /// not by this being null.
+  final String? ipAddress;
+
+  /// The author's Settings → Privacy & Security → "Location Sharing"
+  /// value *as of when this post was hydrated* — for the current user's
+  /// own posts, `PostCard` prefers the live value from
+  /// `ProfileService.instance.current` instead, so toggling the setting
+  /// updates already-visible posts immediately without needing a fresh
+  /// fetch; this hydrated value is what other authors' posts fall back
+  /// to.
+  final bool authorLocationSharingEnabled;
   final String placeName;
   final String caption;
   final String category;
@@ -48,7 +68,8 @@ class CommunityPost {
     required String? myReaction,
   }) {
     final profile = map['profiles'] as Map<String, dynamic>;
-    final rawCounts = map['reaction_counts'] as Map<String, dynamic>? ?? const {};
+    final rawCounts =
+        map['reaction_counts'] as Map<String, dynamic>? ?? const {};
     return CommunityPost(
       id: map['id'] as String,
       authorId: map['author_id'] as String,
@@ -65,6 +86,9 @@ class CommunityPost {
       commentsCount: map['comments_count'] as int,
       myReaction: myReaction,
       createdAt: DateTime.parse(map['created_at'] as String),
+      ipAddress: map['ip_address'] as String?,
+      authorLocationSharingEnabled:
+          (profile['location_sharing_enabled'] as bool?) ?? true,
     );
   }
 }

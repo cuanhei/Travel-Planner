@@ -21,6 +21,7 @@ class UserProfile {
     this.isPublic = true,
     this.locationSharingEnabled = true,
     this.createdAt,
+    this.earnedCategoryBadges = const [],
   });
 
   final String id;
@@ -33,6 +34,13 @@ class UserProfile {
   final String? gender;
   final String? nationality;
   final String? address;
+
+  /// Achievement categories ('trip', 'budget', 'community') this user has
+  /// 100% completed — see `AchievementService.syncCategoryBadges` (which
+  /// writes this) and `categoryBadgeInfo` (which renders it). Shown
+  /// beside the name on the Profile tab, Preview My Profile, and a
+  /// Community author's [ViewProfileScreen].
+  final List<String> earnedCategoryBadges;
 
   /// When this account was registered — the `profiles` row's `created_at`,
   /// set once at sign-up by the `handle_new_user` DB trigger (see
@@ -70,6 +78,8 @@ class UserProfile {
     createdAt: row['created_at'] == null
         ? null
         : DateTime.parse(row['created_at'] as String),
+    earnedCategoryBadges:
+        (row['earned_category_badges'] as List?)?.cast<String>() ?? const [],
   );
 }
 
@@ -169,6 +179,19 @@ class ProfileService {
     await load();
   }
 
+  /// Writes the signed-in user's newly-completed Achievement categories —
+  /// see `AchievementService.syncCategoryBadges`, the only caller. A no-op
+  /// write is avoided by that caller comparing against [current] first.
+  Future<void> setEarnedCategoryBadges(List<String> categories) async {
+    final user = _client.auth.currentUser;
+    if (user == null) return;
+    await _client
+        .from('profiles')
+        .update({'earned_category_badges': categories})
+        .eq('id', user.id);
+    await load();
+  }
+
   /// Fetches any user's profile row by id, for [ViewProfileScreen]. Every
   /// signed-in user can read any profile row (needed to render trip-mates'
   /// names elsewhere in the app — see `schema.sql`'s
@@ -197,10 +220,12 @@ class ProfileService {
   Future<Map<String, UserProfile>> findByPhones(List<String> phones) async {
     final distinctPhones = phones.toSet().toList();
     if (distinctPhones.isEmpty) return {};
-    final matches = await _client.rpc(
-      'find_profiles_by_phone',
-      params: {'p_phones': distinctPhones},
-    ) as List;
+    final matches =
+        await _client.rpc(
+              'find_profiles_by_phone',
+              params: {'p_phones': distinctPhones},
+            )
+            as List;
     if (matches.isEmpty) return {};
 
     final phoneById = <String, String>{};
@@ -232,20 +257,16 @@ class ProfileService {
         .uploadBinary(
           path,
           bytes,
-          fileOptions: FileOptions(
-            upsert: true,
-            contentType: 'image/$fileExt',
-          ),
+          fileOptions: FileOptions(upsert: true, contentType: 'image/$fileExt'),
         );
     // The storage path never changes between uploads, so the URL has to be
     // cache-busted or the browser (and Image.network's own cache) will
     // keep showing the old image.
     final url = _client.storage.from('avatars').getPublicUrl(path);
     final bustedUrl = '$url?t=${DateTime.now().millisecondsSinceEpoch}';
-    final state = ProfileAvatarState.decode(current.value?.avatarUrl).copyWith(
-      mode: ProfileAvatarMode.photo,
-      photoUrl: bustedUrl,
-    );
+    final state = ProfileAvatarState.decode(
+      current.value?.avatarUrl,
+    ).copyWith(mode: ProfileAvatarMode.photo, photoUrl: bustedUrl);
     await _client
         .from('profiles')
         .update({'avatar_url': state.encode()})
@@ -260,10 +281,9 @@ class ProfileService {
   Future<void> setAvatarDesign(AvatarConfig config) async {
     final user = _client.auth.currentUser;
     if (user == null) return;
-    final state = ProfileAvatarState.decode(current.value?.avatarUrl).copyWith(
-      mode: ProfileAvatarMode.avatarDesign,
-      design: config,
-    );
+    final state = ProfileAvatarState.decode(
+      current.value?.avatarUrl,
+    ).copyWith(mode: ProfileAvatarMode.avatarDesign, design: config);
     await _client
         .from('profiles')
         .update({'avatar_url': state.encode()})

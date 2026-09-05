@@ -23,6 +23,10 @@ create table public.profiles (
   full_name text,
   email text,
   avatar_url text,
+  -- Which Achievement categories ('trip', 'budget', 'community') this
+  -- user has 100% completed — see 0031_add_earned_category_badges.sql
+  -- for why this is stored rather than computed live by viewers.
+  earned_category_badges text[] not null default '{}',
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
