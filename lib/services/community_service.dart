@@ -19,7 +19,8 @@ import 'supabase_config.dart';
 /// `supabase/migrations/0009_community_module.sql` for the RLS/
 /// trigger/realtime setup that goes with them, and
 /// `supabase/migrations/0010_add_post_media.sql` for the post media
-/// columns + storage bucket [addPost] uploads to, and
+/// columns + storage bucket [addPost] uploads to (extended to up to 3
+/// attachments per post by `0027_post_multi_media.sql`), and
 /// `supabase/migrations/0011_add_post_reactions.sql` for the
 /// `reaction_type`/`reaction_counts` columns [setReaction] reads/writes,
 /// and `supabase/migrations/0014_add_review_photos.sql` for the
@@ -45,9 +46,7 @@ class CommunityService {
   // ---- Feed ---------------------------------------------------------
 
   /// Joins raw `posts` rows with their author's profile and the current
-  /// user's own reaction on each one (if any). Shared by [fetchFeedPage]
-  /// (one page of posts) and [watchPost] (a single post, for a shared-link
-  /// deep link landing on `PostDetailScreen`).
+  /// user's own reaction on each one (if any). Used by [fetchFeedPage].
   Future<List<CommunityPost>> _hydratePosts(
     List<Map<String, dynamic>> rows,
   ) async {
@@ -158,8 +157,7 @@ class CommunityService {
               callback: (payload) {
                 final row = payload.newRecord;
                 final rawCounts =
-                    row['reaction_counts'] as Map<String, dynamic>? ??
-                    const {};
+                    row['reaction_counts'] as Map<String, dynamic>? ?? const {};
                 emit(
                   PostReactionsChanged(
                     postId: row['id'] as String,
@@ -205,36 +203,27 @@ class CommunityService {
     return controller.stream;
   }
 
-  /// Live view of a single post, for `PostDetailScreen` (the landing
-  /// screen for a shared post link). Emits `null` if the post was deleted.
-  Stream<CommunityPost?> watchPost(String postId) {
-    return _client
-        .from('posts')
-        .stream(primaryKey: ['id'])
-        .eq('id', postId)
-        .asyncMap((rows) async {
-          final hydrated = await _hydratePosts(rows);
-          return hydrated.isEmpty ? null : hydrated.first;
-        });
-  }
+  /// Up to 3 photos/videos per post — see [addPost]/[updatePost].
+  static const maxPostMedia = 3;
 
   Future<void> addPost({
     required String placeName,
     required String caption,
     required String category,
     required String coverGradient,
-    Uint8List? mediaBytes,
-    String? mediaExtension,
-    String? mediaType,
+    List<(Uint8List bytes, String extension, String mediaType)> media =
+        const [],
   }) async {
-    String? mediaUrl;
-    if (mediaBytes != null && mediaExtension != null && mediaType != null) {
-      mediaUrl = await _uploadPostMedia(
-        bytes: mediaBytes,
-        extension: mediaExtension,
-        mediaType: mediaType,
-      );
-    }
+    assert(media.length <= maxPostMedia);
+    final uploaded = await Future.wait([
+      for (var i = 0; i < media.length; i++)
+        _uploadPostMedia(
+          bytes: media[i].$1,
+          extension: media[i].$2,
+          mediaType: media[i].$3,
+          index: i,
+        ),
+    ]);
 
     // Captured on every post regardless of the Location Sharing setting —
     // that setting only gates whether PostCard *displays* this later (see
@@ -252,9 +241,9 @@ class CommunityService {
           'caption': caption.trim(),
           'category': category,
           'cover_gradient': coverGradient,
-          if (mediaUrl != null) ...{
-            'media_url': mediaUrl,
-            'media_type': mediaType,
+          if (uploaded.isNotEmpty) ...{
+            'media_urls': uploaded,
+            'media_types': [for (final m in media) m.$3],
           },
         })
         .select('id')
@@ -277,41 +266,45 @@ class CommunityService {
   /// `posts_update_own` RLS policy, so a caller that isn't the author gets
   /// [StateError] rather than a silent no-op.
   ///
-  /// Media is left untouched unless [mediaBytes] (a fresh pick, uploaded and
-  /// swapped in) or [removeMedia] (clears it entirely) says otherwise —
-  /// distinct from [addPost], which never needs to represent "leave what's
-  /// already there alone".
+  /// [keepMedia] are attachments already on the post the user chose not to
+  /// remove; [newMedia] are fresh picks to upload, appended after them —
+  /// together they replace `media_urls`/`media_types` outright, since
+  /// there's no way to patch an array column in place. Passing both empty
+  /// clears the post's media entirely.
   Future<void> updatePost({
     required String postId,
     required String placeName,
     required String caption,
     required String category,
-    Uint8List? mediaBytes,
-    String? mediaExtension,
-    String? mediaType,
-    bool removeMedia = false,
+    List<PostMedia> keepMedia = const [],
+    List<(Uint8List bytes, String extension, String mediaType)> newMedia =
+        const [],
   }) async {
-    final updates = <String, dynamic>{
-      'place_name': placeName.trim(),
-      'caption': caption.trim(),
-      'category': category,
-    };
-    if (mediaBytes != null && mediaExtension != null && mediaType != null) {
-      final mediaUrl = await _uploadPostMedia(
-        bytes: mediaBytes,
-        extension: mediaExtension,
-        mediaType: mediaType,
-      );
-      updates['media_url'] = mediaUrl;
-      updates['media_type'] = mediaType;
-    } else if (removeMedia) {
-      updates['media_url'] = null;
-      updates['media_type'] = null;
-    }
+    assert(keepMedia.length + newMedia.length <= maxPostMedia);
+    final uploaded = await Future.wait([
+      for (var i = 0; i < newMedia.length; i++)
+        _uploadPostMedia(
+          bytes: newMedia[i].$1,
+          extension: newMedia[i].$2,
+          mediaType: newMedia[i].$3,
+          index: i,
+        ),
+    ]);
+    final mediaUrls = [...keepMedia.map((m) => m.url), ...uploaded];
+    final mediaTypes = [
+      ...keepMedia.map((m) => m.type),
+      ...newMedia.map((m) => m.$3),
+    ];
 
     final updated = await _client
         .from('posts')
-        .update(updates)
+        .update({
+          'place_name': placeName.trim(),
+          'caption': caption.trim(),
+          'category': category,
+          'media_urls': mediaUrls.isEmpty ? null : mediaUrls,
+          'media_types': mediaTypes.isEmpty ? null : mediaTypes,
+        })
         .eq('id', postId)
         .select('id');
     if (updated.isEmpty) {
@@ -322,15 +315,38 @@ class CommunityService {
     }
   }
 
+  /// Deletes [postId] outright — only the author can, per the
+  /// `posts_delete_own` RLS policy, so a caller that isn't the author gets
+  /// [StateError] rather than a silent no-op. Its likes/comments cascade
+  /// with it (`on delete cascade` on both tables' `post_id`).
+  Future<void> deletePost(String postId) async {
+    final deleted = await _client
+        .from('posts')
+        .delete()
+        .eq('id', postId)
+        .select('id');
+    if (deleted.isEmpty) {
+      throw StateError(
+        'Post delete for "$postId" matched no row — it may already be '
+        'gone, or an RLS policy is blocking the write.',
+      );
+    }
+  }
+
   /// Uploads a post's photo/video to the `post-media` bucket under
-  /// `<uid>/<timestamp>.<ext>` (the folder-per-user layout the storage RLS
-  /// policies check ownership against) and returns its public URL.
+  /// `<uid>/<timestamp>-<index>.<ext>` (the folder-per-user layout the
+  /// storage RLS policies check ownership against) and returns its public
+  /// URL. [index] (this attachment's position within the same submit's
+  /// batch) keeps two files uploaded in the same millisecond from
+  /// colliding on the same path.
   Future<String> _uploadPostMedia({
     required Uint8List bytes,
     required String extension,
     required String mediaType,
+    required int index,
   }) async {
-    final path = '$_uid/${DateTime.now().millisecondsSinceEpoch}.$extension';
+    final path =
+        '$_uid/${DateTime.now().millisecondsSinceEpoch}-$index.$extension';
     await _client.storage
         .from('post-media')
         .uploadBinary(
@@ -433,7 +449,7 @@ class CommunityService {
               .toList();
           final profiles = await _client
               .from('profiles')
-              .select('id, display_name, avatar_color')
+              .select('id, display_name, avatar_color, avatar_url')
               .inFilter('id', userIds);
           final profileById = {
             for (final p in profiles as List) p['id'] as String: p,
@@ -450,13 +466,22 @@ class CommunityService {
         });
   }
 
-  Future<void> addComment(String postId, String body) async {
+  /// [parentCommentId] makes this a reply, shown nested under that
+  /// comment — always a top-level comment's own id, never another
+  /// reply's, so a reply-to-a-reply still flattens into the same thread
+  /// (see [CommentsSection._replyTargetRootId]).
+  Future<void> addComment(
+    String postId,
+    String body, {
+    String? parentCommentId,
+  }) async {
     final trimmed = body.trim();
     if (trimmed.isEmpty) return;
     await _client.from('comments').insert({
       'post_id': postId,
       'author_id': _uid,
       'body': trimmed,
+      'parent_comment_id': ?parentCommentId,
     });
   }
 
@@ -639,8 +664,7 @@ class CommunityService {
     required Uint8List bytes,
     required String extension,
   }) async {
-    final path =
-        '$_uid/${DateTime.now().microsecondsSinceEpoch}.$extension';
+    final path = '$_uid/${DateTime.now().microsecondsSinceEpoch}.$extension';
     await _client.storage
         .from('review-media')
         .uploadBinary(

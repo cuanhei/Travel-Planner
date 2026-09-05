@@ -9,7 +9,6 @@ import '../../widgets/category_badge_chip.dart';
 import '../../widgets/list_tile_card.dart';
 import '../../widgets/user_avatar.dart';
 import '../saved/saved_places_screen.dart';
-import '../saved/saved_trips_screen.dart';
 import '../welcome_screen.dart';
 import 'achievements_screen.dart';
 import 'edit_profile_screen.dart';
@@ -185,15 +184,6 @@ class _ProfileTabState extends State<ProfileTab> {
             onTap: () => Navigator.of(
               context,
             ).push(MaterialPageRoute(builder: (_) => SavedPlacesScreen())),
-          ),
-          ListTileCard(
-            icon: Icons.map_rounded,
-            title: tr('auth_saved_trips'),
-            subtitle: 'Bookmarked itineraries',
-            iconColor: Color(0xFF11998E),
-            onTap: () => Navigator.of(
-              context,
-            ).push(MaterialPageRoute(builder: (_) => SavedTripsScreen())),
           ),
           ListTileCard(
             icon: Icons.settings_outlined,

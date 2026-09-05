@@ -55,16 +55,15 @@ const _emojiTextStyle = TextStyle(
 );
 
 /// One Community post card — author, place, caption, cover, reactions, and
-/// the comment/share action row. Used by the feed (`CommunityTab`) and by
-/// `PostDetailScreen` (the landing screen for a shared post link).
+/// the comment action row. Used by the feed (`CommunityTab`).
 class PostCard extends StatelessWidget {
   const PostCard({
     super.key,
     required this.post,
     required this.onReact,
     required this.onComment,
-    required this.onShare,
     this.onEdit,
+    this.onDelete,
   });
 
   final CommunityPost post;
@@ -73,13 +72,16 @@ class PostCard extends StatelessWidget {
   /// to clear the current user's reaction.
   final ValueChanged<String?> onReact;
   final VoidCallback onComment;
-  final VoidCallback onShare;
 
   /// Opens the post for editing. Only ever passed by callers that also
   /// checked `post.authorId` against the signed-in user — this widget does
   /// the same check itself below to decide whether to show the edit icon
   /// at all, so a `null` [onEdit] on someone else's post never matters.
   final VoidCallback? onEdit;
+
+  /// Deletes the post — only shown alongside [onEdit], same ownership
+  /// check.
+  final VoidCallback? onDelete;
 
   @override
   Widget build(BuildContext context) {
@@ -116,13 +118,41 @@ class PostCard extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      post.authorName,
-                      style: TextStyle(
-                        color: context.colors.ink,
-                        fontWeight: FontWeight.w700,
-                        fontSize: 13.5,
-                      ),
+                    Row(
+                      children: [
+                        Flexible(
+                          child: Text(
+                            post.authorName,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              color: context.colors.ink,
+                              fontWeight: FontWeight.w700,
+                              fontSize: 13.5,
+                            ),
+                          ),
+                        ),
+                        if (isOwnPost) ...[
+                          const SizedBox(width: 6),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 6,
+                              vertical: 2,
+                            ),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF2F80ED),
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: const Text(
+                              'You',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.w800,
+                                fontSize: 10,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ],
                     ),
                     Text(
                       '${post.placeName} · ${post.category} · '
@@ -137,7 +167,7 @@ class PostCard extends StatelessWidget {
                   ],
                 ),
               ),
-              if (isOwnPost && onEdit != null)
+              if (isOwnPost && onEdit != null) ...[
                 GestureDetector(
                   onTap: onEdit,
                   child: Icon(
@@ -146,6 +176,18 @@ class PostCard extends StatelessWidget {
                     size: 18,
                   ),
                 ),
+                if (onDelete != null) ...[
+                  const SizedBox(width: 14),
+                  GestureDetector(
+                    onTap: onDelete,
+                    child: Icon(
+                      Icons.delete_outline_rounded,
+                      color: context.colors.muted,
+                      size: 18,
+                    ),
+                  ),
+                ],
+              ],
             ],
           ),
           const SizedBox(height: 12),
@@ -157,15 +199,9 @@ class PostCard extends StatelessWidget {
               height: 1.4,
             ),
           ),
-          if (post.mediaUrl != null) ...[
+          if (post.media.isNotEmpty) ...[
             const SizedBox(height: 12),
-            ClipRRect(
-              borderRadius: BorderRadius.circular(16),
-              child: PostMediaView(
-                url: post.mediaUrl!,
-                mediaType: post.mediaType!,
-              ),
-            ),
+            _PostMediaGallery(media: post.media),
           ],
           if (hasReactions) ...[
             const SizedBox(height: 10),
@@ -180,15 +216,6 @@ class PostCard extends StatelessWidget {
                 icon: Icons.mode_comment_outlined,
                 label: '${post.commentsCount}',
                 onTap: onComment,
-              ),
-              const Spacer(),
-              GestureDetector(
-                onTap: onShare,
-                child: Icon(
-                  Icons.share_outlined,
-                  color: context.colors.muted,
-                  size: 19,
-                ),
               ),
             ],
           ),
@@ -236,6 +263,89 @@ class _PostIpLine extends StatelessWidget {
     return Text(
       '${tr('community_ip_prefix')} $value',
       style: TextStyle(color: context.colors.muted, fontSize: 10.5),
+    );
+  }
+}
+
+/// A post's attached photos/videos — [media] itself is capped at
+/// [CommunityService.maxPostMedia] by [AddPostScreen]. A single attachment
+/// renders exactly as before (its own aspect ratio, scaled to the card's
+/// width); two or three become a swipeable, equally-sized-tile carousel
+/// with a dot indicator, since a `PageView` needs one fixed height for
+/// every page regardless of each attachment's own aspect ratio.
+class _PostMediaGallery extends StatefulWidget {
+  const _PostMediaGallery({required this.media});
+
+  final List<PostMedia> media;
+
+  @override
+  State<_PostMediaGallery> createState() => _PostMediaGalleryState();
+}
+
+class _PostMediaGalleryState extends State<_PostMediaGallery> {
+  final _pageController = PageController();
+  int _page = 0;
+
+  @override
+  void dispose() {
+    _pageController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final media = widget.media;
+    if (media.length == 1) {
+      return ClipRRect(
+        borderRadius: BorderRadius.circular(16),
+        child: PostMediaView(url: media.first.url, mediaType: media.first.type),
+      );
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        ClipRRect(
+          borderRadius: BorderRadius.circular(16),
+          child: AspectRatio(
+            aspectRatio: 1,
+            // The square side length, read via LayoutBuilder rather than
+            // handed a magic `double.infinity` — PostMediaView needs a
+            // concrete pixel size to crop each tile to cover.
+            child: LayoutBuilder(
+              builder: (context, constraints) => PageView.builder(
+                controller: _pageController,
+                itemCount: media.length,
+                onPageChanged: (i) => setState(() => _page = i),
+                itemBuilder: (context, i) => PostMediaView(
+                  url: media[i].url,
+                  mediaType: media[i].type,
+                  boxSize: constraints.maxWidth,
+                ),
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(height: 8),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            for (var i = 0; i < media.length; i++)
+              AnimatedContainer(
+                duration: const Duration(milliseconds: 200),
+                margin: const EdgeInsets.symmetric(horizontal: 3),
+                width: i == _page ? 16 : 6,
+                height: 6,
+                decoration: BoxDecoration(
+                  color: i == _page
+                      ? context.colors.ink
+                      : context.colors.muted.withValues(alpha: 0.3),
+                  borderRadius: BorderRadius.circular(3),
+                ),
+              ),
+          ],
+        ),
+      ],
     );
   }
 }

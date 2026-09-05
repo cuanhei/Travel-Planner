@@ -6,6 +6,7 @@ import 'package:latlong2/latlong.dart';
 
 import '../../models/nearby_place.dart';
 import '../../models/place_environment.dart';
+import '../../models/trip.dart';
 import '../../models/trip_schedule_input.dart';
 import '../../models/trip_stop_location.dart';
 import '../../services/google_places_service.dart';
@@ -15,14 +16,25 @@ import '../../services/route_service.dart';
 import '../../services/stop_weather_service.dart';
 import '../../services/trip_service.dart';
 import '../../theme/app_theme.dart';
+import '../../utils/opening_hours_check.dart';
 import '../../utils/weather_display.dart';
 import '../../widgets/detail_header.dart';
 import '../../widgets/gradient_button.dart';
 import '../../widgets/location_search_field.dart';
 
 const _monthNames = [
-  'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-  'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+  'Jan',
+  'Feb',
+  'Mar',
+  'Apr',
+  'May',
+  'Jun',
+  'Jul',
+  'Aug',
+  'Sep',
+  'Oct',
+  'Nov',
+  'Dec',
 ];
 
 const _osmTileUrl = 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
@@ -69,7 +81,9 @@ int _timeOfDayToMinutes(TimeOfDay t) => t.hour * 60 + t.minute;
   final arrivals = <int>[];
   final ends = <int>[];
   for (var i = 0; i < stops.length; i++) {
-    final travelMinutes = i < travel.length ? (travel[i].duration?.inMinutes ?? 0) : 0;
+    final travelMinutes = i < travel.length
+        ? (travel[i].duration?.inMinutes ?? 0)
+        : 0;
     final arrival = clock + travelMinutes;
     final end = arrival + stops[i].visitMinutes;
     arrivals.add(arrival);
@@ -97,7 +111,9 @@ enum _MalaysiaRegion { peninsular, borneo }
 /// tells which side of the sea a point is on without needing reverse
 /// geocoding.
 _MalaysiaRegion _regionOf(TripStopLocation location) =>
-    location.longitude >= 107 ? _MalaysiaRegion.borneo : _MalaysiaRegion.peninsular;
+    location.longitude >= 107
+    ? _MalaysiaRegion.borneo
+    : _MalaysiaRegion.peninsular;
 
 String _regionLabel(_MalaysiaRegion region) => region == _MalaysiaRegion.borneo
     ? 'East Malaysia (Sabah & Sarawak)'
@@ -120,7 +136,12 @@ class _StopEntry {
 /// was nothing to route from yet" (e.g. Starting Location isn't set) from
 /// an actual failed API call, since both otherwise show a null duration.
 class _TravelSegment {
-  _TravelSegment({this.loading = false, this.duration, this.noOrigin = false, this.stale = false});
+  _TravelSegment({
+    this.loading = false,
+    this.duration,
+    this.noOrigin = false,
+    this.stale = false,
+  });
   bool loading;
   Duration? duration;
   bool noOrigin;
@@ -209,6 +230,16 @@ class _CreateTripScreenState extends State<CreateTripScreen> {
   DateTime? _startDate;
   DateTime? _endDate;
 
+  /// Another trip (organizer or member) the signed-in traveler is
+  /// already committed to whose dates clash with the ones just picked —
+  /// null once both dates are set and don't clash with anything. Blocks
+  /// [_isFormComplete] the same way any other missing required field
+  /// does; [check_trip_date_conflict] on the `trips` table is what
+  /// actually enforces this server-side, this is just the friendly
+  /// inline warning before ever hitting Save.
+  Trip? _conflictingTrip;
+  bool _checkingDateConflict = false;
+
   /// The time the traveler leaves the starting location on Day 1 — every
   /// later day's clock also starts here (leaving that night's
   /// accommodation), since there's no separate per-day departure field.
@@ -230,6 +261,52 @@ class _CreateTripScreenState extends State<CreateTripScreen> {
   bool _showValidation = false;
 
   int _selectedDay = 0;
+
+  /// True once the traveler has entered anything worth losing — guards
+  /// the back button/gesture behind a discard-changes confirmation
+  /// instead of silently dropping a half-built trip.
+  bool get _hasUnsavedChanges =>
+      _nameController.text.trim().isNotEmpty ||
+      _descriptionController.text.trim().isNotEmpty ||
+      _startDate != null ||
+      _endDate != null ||
+      _startingLocation != null ||
+      _endingLocation != null ||
+      _tripStartTime != null ||
+      _tripEndTime != null ||
+      _nightAccommodation.any((a) => a != null) ||
+      _dayStops.any((stops) => stops.isNotEmpty);
+
+  /// Confirms discarding via a dialog when there's anything to lose, then
+  /// pops the screen — called from both the header's back button and the
+  /// system back gesture/button ([PopScope] below).
+  Future<void> _handleBack() async {
+    if (!_hasUnsavedChanges) {
+      if (mounted) Navigator.of(context).maybePop();
+      return;
+    }
+    final discard = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Discard this trip?'),
+        content: const Text(
+          "You've entered details for this trip — leaving now will discard everything you've entered.",
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: const Text('Continue Editing'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            child: const Text('Discard'),
+          ),
+        ],
+      ),
+    );
+    if (discard == true && mounted) Navigator.of(context).pop();
+  }
 
   /// Per day: stops in add-order, and the travel segment arriving at each
   /// one (index-aligned 1:1 with the stops — segment 0 is the trip's
@@ -331,12 +408,18 @@ class _CreateTripScreenState extends State<CreateTripScreen> {
   int _dayStartMinutesFor(int dayIndex) {
     final time = dayIndex == 0
         ? _tripStartTime
-        : (dayIndex < _dayStartOverride.length ? _dayStartOverride[dayIndex] : null) ?? _tripStartTime;
+        : (dayIndex < _dayStartOverride.length
+                  ? _dayStartOverride[dayIndex]
+                  : null) ??
+              _tripStartTime;
     return _timeOfDayToMinutes(time ?? const TimeOfDay(hour: 8, minute: 0));
   }
 
   Future<void> _pickDayStartOverride(int dayIndex) async {
-    final current = (dayIndex < _dayStartOverride.length ? _dayStartOverride[dayIndex] : null) ??
+    final current =
+        (dayIndex < _dayStartOverride.length
+            ? _dayStartOverride[dayIndex]
+            : null) ??
         _tripStartTime ??
         const TimeOfDay(hour: 8, minute: 0);
     final picked = await showTimePicker(context: context, initialTime: current);
@@ -349,14 +432,23 @@ class _CreateTripScreenState extends State<CreateTripScreen> {
   /// — driving via [RouteService.getDriveRoute], or transit via
   /// [RouteService.getTransitRoutes] (taking the first/most relevant
   /// candidate). Null if the mode has no route between them.
-  Future<Duration?> _fetchDuration(TripStopLocation origin, TripStopLocation destination) async {
+  Future<Duration?> _fetchDuration(
+    TripStopLocation origin,
+    TripStopLocation destination,
+  ) async {
     final from = LatLng(origin.latitude, origin.longitude);
     final to = LatLng(destination.latitude, destination.longitude);
     if (_transportMode == _TransportMode.transit) {
-      final routes = await _routeService.getTransitRoutes(origin: from, destination: to);
+      final routes = await _routeService.getTransitRoutes(
+        origin: from,
+        destination: to,
+      );
       return routes.isEmpty ? null : routes.first.duration;
     }
-    final route = await _routeService.getDriveRoute(origin: from, destination: to);
+    final route = await _routeService.getDriveRoute(
+      origin: from,
+      destination: to,
+    );
     return route?.duration;
   }
 
@@ -428,7 +520,13 @@ class _CreateTripScreenState extends State<CreateTripScreen> {
   /// the rest of the form took past 9am, punishing slow planning for a
   /// choice that was perfectly valid when made.
   bool _isStartMomentValid(DateTime date, TimeOfDay time) {
-    final combined = DateTime(date.year, date.month, date.day, time.hour, time.minute);
+    final combined = DateTime(
+      date.year,
+      date.month,
+      date.day,
+      time.hour,
+      time.minute,
+    );
     return !combined.isBefore(DateTime.now());
   }
 
@@ -466,9 +564,40 @@ class _CreateTripScreenState extends State<CreateTripScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           behavior: SnackBarBehavior.floating,
-          content: Text('Trip End Time is no longer after the trip start — pick a new one.'),
+          content: Text(
+            'Trip End Time is no longer after the trip start — pick a new one.',
+          ),
         ),
       );
+    }
+  }
+
+  /// Re-checks [_startDate]/[_endDate] against every trip the traveler
+  /// already belongs to (as organizer or member) whenever both are set —
+  /// called after either date picker closes. Clears any stale result
+  /// first so a since-resolved clash (or one for dates that no longer
+  /// apply) never lingers on screen while the new check is in flight.
+  Future<void> _checkDateConflict() async {
+    final start = _startDate;
+    final end = _endDate;
+    setState(() => _conflictingTrip = null);
+    if (start == null || end == null) return;
+    setState(() => _checkingDateConflict = true);
+    try {
+      final conflict = await _tripService.findDateConflict(
+        start: start,
+        end: end,
+      );
+      if (!mounted || start != _startDate || end != _endDate) return;
+      setState(() {
+        _conflictingTrip = conflict;
+        _checkingDateConflict = false;
+      });
+    } catch (e) {
+      // A failed check shouldn't block the traveler from proceeding —
+      // the server-side trigger is still there as the real guard.
+      if (!mounted) return;
+      setState(() => _checkingDateConflict = false);
     }
   }
 
@@ -493,7 +622,9 @@ class _CreateTripScreenState extends State<CreateTripScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             behavior: SnackBarBehavior.floating,
-            content: Text('That start time has already passed today — pick a new one.'),
+            content: Text(
+              'That start time has already passed today — pick a new one.',
+            ),
           ),
         );
       } else {
@@ -504,6 +635,7 @@ class _CreateTripScreenState extends State<CreateTripScreen> {
       _syncDays();
     });
     _refreshTripEndTravel();
+    unawaited(_checkDateConflict());
   }
 
   Future<void> _pickEndDate() async {
@@ -521,6 +653,7 @@ class _CreateTripScreenState extends State<CreateTripScreen> {
       _syncDays();
     });
     _refreshTripEndTravel();
+    unawaited(_checkDateConflict());
   }
 
   /// Keeps reopening the time picker — pre-filled with the traveler's
@@ -533,7 +666,10 @@ class _CreateTripScreenState extends State<CreateTripScreen> {
   Future<void> _pickTripStartTime() async {
     var initial = _tripStartTime ?? const TimeOfDay(hour: 8, minute: 0);
     while (true) {
-      final picked = await showTimePicker(context: context, initialTime: initial);
+      final picked = await showTimePicker(
+        context: context,
+        initialTime: initial,
+      );
       if (picked == null) return;
 
       final date = _startDate;
@@ -542,7 +678,9 @@ class _CreateTripScreenState extends State<CreateTripScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             behavior: SnackBarBehavior.floating,
-            content: Text('That time has already passed today — pick a later time.'),
+            content: Text(
+              'That time has already passed today — pick a later time.',
+            ),
           ),
         );
         initial = picked;
@@ -558,7 +696,9 @@ class _CreateTripScreenState extends State<CreateTripScreen> {
       // Affects Day 1 always, and any later day that hasn't been given
       // its own start-time override.
       for (var d = 0; d < _dayStops.length; d++) {
-        if (d == 0 || d >= _dayStartOverride.length || _dayStartOverride[d] == null) {
+        if (d == 0 ||
+            d >= _dayStartOverride.length ||
+            _dayStartOverride[d] == null) {
           unawaited(_recheckWeatherForDay(d));
         }
       }
@@ -573,7 +713,10 @@ class _CreateTripScreenState extends State<CreateTripScreen> {
   Future<void> _pickTripEndTime() async {
     var initial = _tripEndTime ?? const TimeOfDay(hour: 18, minute: 0);
     while (true) {
-      final picked = await showTimePicker(context: context, initialTime: initial);
+      final picked = await showTimePicker(
+        context: context,
+        initialTime: initial,
+      );
       if (picked == null) return;
 
       final endDate = _endDate;
@@ -582,7 +725,9 @@ class _CreateTripScreenState extends State<CreateTripScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             behavior: SnackBarBehavior.floating,
-            content: Text('Trip End Time must be after the trip\'s start date and time.'),
+            content: Text(
+              'Trip End Time must be after the trip\'s start date and time.',
+            ),
           ),
         );
         initial = picked;
@@ -639,10 +784,14 @@ class _CreateTripScreenState extends State<CreateTripScreen> {
     }
     final origin = _originForNextStop(dayIndex);
     if (origin == null) {
-      setState(() => _accommodationTravel[dayIndex] = _TravelSegment(noOrigin: true));
+      setState(
+        () => _accommodationTravel[dayIndex] = _TravelSegment(noOrigin: true),
+      );
       return;
     }
-    setState(() => _accommodationTravel[dayIndex] = _TravelSegment(loading: true));
+    setState(
+      () => _accommodationTravel[dayIndex] = _TravelSegment(loading: true),
+    );
     Duration? duration;
     try {
       duration = await _fetchDuration(origin, destination);
@@ -650,10 +799,13 @@ class _CreateTripScreenState extends State<CreateTripScreen> {
       duration = null;
     }
     if (!mounted) return;
-    if (dayIndex >= _nightAccommodation.length || _nightAccommodation[dayIndex] != destination) {
+    if (dayIndex >= _nightAccommodation.length ||
+        _nightAccommodation[dayIndex] != destination) {
       return;
     }
-    setState(() => _accommodationTravel[dayIndex] = _TravelSegment(duration: duration));
+    setState(
+      () => _accommodationTravel[dayIndex] = _TravelSegment(duration: duration),
+    );
   }
 
   Future<void> _addStop(int dayIndex) async {
@@ -693,12 +845,15 @@ class _CreateTripScreenState extends State<CreateTripScreen> {
     setState(() {
       _dayStops[dayIndex].add(entry);
       _dayTravel[dayIndex].add(
-        origin == null ? _TravelSegment(noOrigin: true) : _TravelSegment(loading: true),
+        origin == null
+            ? _TravelSegment(noOrigin: true)
+            : _TravelSegment(loading: true),
       );
     });
 
     if (dayIndex == _dayCount - 1) unawaited(_refreshTripEndTravel());
-    if (dayIndex < _nightAccommodation.length) unawaited(_refreshAccommodationTravel(dayIndex));
+    if (dayIndex < _nightAccommodation.length)
+      unawaited(_refreshAccommodationTravel(dayIndex));
 
     if (origin == null) {
       unawaited(_recheckWeatherForDay(dayIndex));
@@ -745,7 +900,10 @@ class _CreateTripScreenState extends State<CreateTripScreen> {
   /// this day (removed) has its stale check dropped rather than left to
   /// show against a window that no longer applies.
   Future<void> _recheckWeatherForDay(int dayIndex) async {
-    if (dayIndex < 0 || dayIndex >= _dayStops.length || dayIndex >= _dayDates.length) return;
+    if (dayIndex < 0 ||
+        dayIndex >= _dayStops.length ||
+        dayIndex >= _dayDates.length)
+      return;
     final date = _dayDates[dayIndex];
     final stops = _dayStops[dayIndex];
     final startMinutes = _dayStartMinutesFor(dayIndex);
@@ -779,7 +937,8 @@ class _CreateTripScreenState extends State<CreateTripScreen> {
       if (!mounted) return;
       // The stop may have been removed/moved to another day while this
       // request was in flight.
-      if (dayIndex >= _dayStops.length || !_dayStops[dayIndex].contains(entry)) continue;
+      if (dayIndex >= _dayStops.length || !_dayStops[dayIndex].contains(entry))
+        continue;
       setState(() => _stopWeather[entry] = result);
     }
   }
@@ -791,7 +950,8 @@ class _CreateTripScreenState extends State<CreateTripScreen> {
       _stopWeather.remove(removed);
     });
     if (dayIndex == _dayCount - 1) unawaited(_refreshTripEndTravel());
-    if (dayIndex < _nightAccommodation.length) unawaited(_refreshAccommodationTravel(dayIndex));
+    if (dayIndex < _nightAccommodation.length)
+      unawaited(_refreshAccommodationTravel(dayIndex));
     unawaited(_recheckWeatherForDay(dayIndex));
   }
 
@@ -807,17 +967,53 @@ class _CreateTripScreenState extends State<CreateTripScreen> {
   /// Manual drag-and-drop reorder within a day. The existing travel
   /// segments described the *old* order's pairwise legs, which no longer
   /// match once stops are shuffled — rather than show a now-wrong
-  /// duration, they're cleared until the next add/optimize refetches them.
+  /// duration, they're cleared and immediately refetched for the new order.
   void _reorderStops(int dayIndex, int oldIndex, int newIndex) {
     setState(() {
       final stops = _dayStops[dayIndex];
       final moved = stops.removeAt(oldIndex);
       stops.insert(newIndex, moved);
-      _dayTravel[dayIndex] = [for (final _ in stops) _TravelSegment(stale: true)];
+      _dayTravel[dayIndex] = [
+        for (final _ in stops) _TravelSegment(stale: true),
+      ];
     });
+    unawaited(_refetchDayTravel(dayIndex));
     if (dayIndex == _dayCount - 1) unawaited(_refreshTripEndTravel());
-    if (dayIndex < _nightAccommodation.length) unawaited(_refreshAccommodationTravel(dayIndex));
+    if (dayIndex < _nightAccommodation.length)
+      unawaited(_refreshAccommodationTravel(dayIndex));
     unawaited(_recheckWeatherForDay(dayIndex));
+  }
+
+  /// Refetches every stop-to-stop travel leg for [dayIndex] in its
+  /// current order — each stop's origin is the stop before it (or the
+  /// day's own origin for the first stop). Used after anything that
+  /// changes stop order (manual reorder, [_optimizeDay]) or invalidates
+  /// every leg at once ([_changeTransportMode]), so a recalculated order
+  /// always shows real travel times rather than leaving them marked
+  /// stale until some later, unrelated action happens to refetch them.
+  Future<void> _refetchDayTravel(int dayIndex) async {
+    final stops = _dayStops[dayIndex];
+    TripStopLocation? previous;
+    for (var i = 0; i < stops.length; i++) {
+      final entry = stops[i];
+      final origin = previous ?? _dayOrigin(dayIndex);
+      if (origin == null) {
+        setState(
+          () => _dayTravel[dayIndex][i] = _TravelSegment(noOrigin: true),
+        );
+      } else {
+        setState(() => _dayTravel[dayIndex][i] = _TravelSegment(loading: true));
+        unawaited(
+          _fetchTravelSegment(
+            dayIndex: dayIndex,
+            entry: entry,
+            origin: origin,
+            destination: entry.location,
+          ),
+        );
+      }
+      previous = entry.location;
+    }
   }
 
   /// Placeholder for the real weather/opening-hours/route optimizer.
@@ -835,7 +1031,9 @@ class _CreateTripScreenState extends State<CreateTripScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           behavior: SnackBarBehavior.floating,
-          content: Text('Add at least two stops to this day to optimize its route.'),
+          content: Text(
+            'Add at least two stops to this day to optimize its route.',
+          ),
         ),
       );
       return;
@@ -854,8 +1052,9 @@ class _CreateTripScreenState extends State<CreateTripScreen> {
       );
       return;
     }
-    final destination =
-        dayIndex == _dayCount - 1 ? _endingLocation : _nightAccommodation[dayIndex];
+    final destination = dayIndex == _dayCount - 1
+        ? _endingLocation
+        : _nightAccommodation[dayIndex];
 
     setState(() => _optimizingDays.add(dayIndex));
     try {
@@ -872,11 +1071,17 @@ class _CreateTripScreenState extends State<CreateTripScreen> {
 
       setState(() {
         final byLocation = {for (final entry in stops) entry.location: entry};
-        _dayStops[dayIndex] = [for (final loc in orderedLocations) byLocation[loc]!];
-        _dayTravel[dayIndex] = [for (final _ in orderedLocations) _TravelSegment(stale: true)];
+        _dayStops[dayIndex] = [
+          for (final loc in orderedLocations) byLocation[loc]!,
+        ];
+        _dayTravel[dayIndex] = [
+          for (final _ in orderedLocations) _TravelSegment(stale: true),
+        ];
       });
+      unawaited(_refetchDayTravel(dayIndex));
       if (dayIndex == _dayCount - 1) unawaited(_refreshTripEndTravel());
-      if (dayIndex < _nightAccommodation.length) unawaited(_refreshAccommodationTravel(dayIndex));
+      if (dayIndex < _nightAccommodation.length)
+        unawaited(_refreshAccommodationTravel(dayIndex));
       unawaited(_recheckWeatherForDay(dayIndex));
     } finally {
       if (mounted) setState(() => _optimizingDays.remove(dayIndex));
@@ -886,7 +1091,10 @@ class _CreateTripScreenState extends State<CreateTripScreen> {
   /// True if [entries] and [locations] contain exactly the same set of
   /// locations (regardless of order) — used to detect that a day's stop
   /// list hasn't changed while an optimize request was in flight.
-  bool _sameStopSet(List<_StopEntry> entries, List<TripStopLocation> locations) {
+  bool _sameStopSet(
+    List<_StopEntry> entries,
+    List<TripStopLocation> locations,
+  ) {
     if (entries.length != locations.length) return false;
     final entryLocations = entries.map((e) => e.location).toSet();
     return locations.every(entryLocations.contains);
@@ -910,12 +1118,18 @@ class _CreateTripScreenState extends State<CreateTripScreen> {
         } else {
           setState(() => _dayTravel[d][index] = _TravelSegment(loading: true));
           unawaited(
-            _fetchTravelSegment(dayIndex: d, entry: entry, origin: origin, destination: entry.location),
+            _fetchTravelSegment(
+              dayIndex: d,
+              entry: entry,
+              origin: origin,
+              destination: entry.location,
+            ),
           );
         }
         previous = entry.location;
       }
-      if (d < _nightAccommodation.length) unawaited(_refreshAccommodationTravel(d));
+      if (d < _nightAccommodation.length)
+        unawaited(_refreshAccommodationTravel(d));
     }
     unawaited(_refreshTripEndTravel());
   }
@@ -930,7 +1144,8 @@ class _CreateTripScreenState extends State<CreateTripScreen> {
     // The next day's accommodation leg origins from here too, but only if
     // that day is still empty (otherwise it origins from its own last
     // stop instead, which this change doesn't affect).
-    if (nightIndex + 1 < _nightAccommodation.length && _dayStops[nightIndex + 1].isEmpty) {
+    if (nightIndex + 1 < _nightAccommodation.length &&
+        _dayStops[nightIndex + 1].isEmpty) {
       unawaited(_refreshAccommodationTravel(nightIndex + 1));
     }
     // Only matters if the last day is still empty — then this
@@ -946,6 +1161,7 @@ class _CreateTripScreenState extends State<CreateTripScreen> {
       (_formKey.currentState?.validate() ?? false) &&
       _startDate != null &&
       _endDate != null &&
+      _conflictingTrip == null &&
       _startingLocation != null &&
       _tripStartTime != null &&
       _endingLocation != null &&
@@ -958,7 +1174,11 @@ class _CreateTripScreenState extends State<CreateTripScreen> {
   /// [_submit], after [_isFormComplete] confirmed the starting location,
   /// every night's accommodation, and the ending location are all set —
   /// so [_dayOrigin] is guaranteed non-null for every day here.
-  ({List<TripDayInput> days, List<TripStopInput> stops, List<TripTravelSegmentInput> segments})
+  ({
+    List<TripDayInput> days,
+    List<TripStopInput> stops,
+    List<TripTravelSegmentInput> segments,
+  })
   _buildScheduleInputs() {
     final days = <TripDayInput>[];
     final stops = <TripStopInput>[];
@@ -967,7 +1187,9 @@ class _CreateTripScreenState extends State<CreateTripScreen> {
 
     for (var d = 0; d < _dayCount; d++) {
       final dayNumber = d + 1;
-      final override = d > 0 && d < _dayStartOverride.length ? _dayStartOverride[d] : null;
+      final override = d > 0 && d < _dayStartOverride.length
+          ? _dayStartOverride[d]
+          : null;
       days.add(
         TripDayInput(
           dayNumber: dayNumber,
@@ -980,7 +1202,11 @@ class _CreateTripScreenState extends State<CreateTripScreen> {
 
       final dayStops = _dayStops[d];
       final dayTravel = _dayTravel[d];
-      final times = _computeDayTimes(_dayStartMinutesFor(d), dayStops, dayTravel);
+      final times = _computeDayTimes(
+        _dayStartMinutesFor(d),
+        dayStops,
+        dayTravel,
+      );
       var previous = _dayOrigin(d)!;
 
       for (var i = 0; i < dayStops.length; i++) {
@@ -995,9 +1221,12 @@ class _CreateTripScreenState extends State<CreateTripScreen> {
             arrivalMinutes: times.arrivals[i],
             endMinutes: times.ends[i],
             weatherFlagged: weather?.isBad ?? false,
-            weatherBadPeriods: weather?.badPeriods.map((p) => p.name).toList() ?? const [],
+            weatherBadPeriods:
+                weather?.badPeriods.map((p) => p.name).toList() ?? const [],
             weatherForecastPhrase: weather?.forecast?.summaryForecast,
-            weatherCheckedAt: (weather?.isResolved ?? false) ? DateTime.now() : null,
+            weatherCheckedAt: (weather?.isResolved ?? false)
+                ? DateTime.now()
+                : null,
           ),
         );
         segments.add(
@@ -1012,7 +1241,9 @@ class _CreateTripScreenState extends State<CreateTripScreen> {
             toLongitude: entry.location.longitude,
             legKind: TripLegKind.stop,
             transportMode: transportMode,
-            durationMinutes: i < dayTravel.length ? dayTravel[i].duration?.inMinutes : null,
+            durationMinutes: i < dayTravel.length
+                ? dayTravel[i].duration?.inMinutes
+                : null,
           ),
         );
         previous = entry.location;
@@ -1025,7 +1256,9 @@ class _CreateTripScreenState extends State<CreateTripScreen> {
       if (destination != null) {
         final trailing = isLastDay
             ? _tripEndTravel
-            : (d < _accommodationTravel.length ? _accommodationTravel[d] : null);
+            : (d < _accommodationTravel.length
+                  ? _accommodationTravel[d]
+                  : null);
         segments.add(
           TripTravelSegmentInput(
             dayNumber: dayNumber,
@@ -1036,7 +1269,9 @@ class _CreateTripScreenState extends State<CreateTripScreen> {
             toName: destination.name,
             toLatitude: destination.latitude,
             toLongitude: destination.longitude,
-            legKind: isLastDay ? TripLegKind.tripEnd : TripLegKind.accommodation,
+            legKind: isLastDay
+                ? TripLegKind.tripEnd
+                : TripLegKind.accommodation,
             transportMode: transportMode,
             durationMinutes: trailing?.duration?.inMinutes,
           ),
@@ -1047,24 +1282,102 @@ class _CreateTripScreenState extends State<CreateTripScreen> {
     return (days: days, stops: stops, segments: segments);
   }
 
+  /// Every stop, across every day, that's either permanently closed for
+  /// business or currently scheduled outside its own opening hours —
+  /// checked right before saving so a traveler gets one last chance to
+  /// move or remove it rather than only noticing the per-stop warning
+  /// after the fact. Permanently-closed is checked first per stop, since
+  /// a shuttered place's opening hours (if Google still reports any) are
+  /// moot.
+  List<({int dayNumber, String name, String reason})> _collectClosedStops() {
+    final closed = <({int dayNumber, String name, String reason})>[];
+    for (var d = 0; d < _dayCount; d++) {
+      final stops = _dayStops[d];
+      final travel = d < _dayTravel.length
+          ? _dayTravel[d]
+          : const <_TravelSegment>[];
+      final times = _computeDayTimes(_dayStartMinutesFor(d), stops, travel);
+      final date = _dayDates[d];
+      for (var i = 0; i < stops.length; i++) {
+        final location = stops[i].location;
+        if (location.businessStatus == 'CLOSED_PERMANENTLY') {
+          closed.add((
+            dayNumber: d + 1,
+            name: location.name,
+            reason: 'permanently closed',
+          ));
+          continue;
+        }
+        final isClosed = isClosedDuringVisit(
+          periods: location.openingHoursPeriods,
+          date: date,
+          arrivalMinutes: times.arrivals[i],
+          endMinutes: times.ends[i],
+        );
+        if (isClosed) {
+          closed.add((
+            dayNumber: d + 1,
+            name: location.name,
+            reason: 'closed at the scheduled time',
+          ));
+        }
+      }
+    }
+    return closed;
+  }
+
   Future<void> _submit() async {
     final complete = _isFormComplete;
     setState(() => _showValidation = true);
     if (!complete) {
+      final conflict = _conflictingTrip;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
+        SnackBar(
           behavior: SnackBarBehavior.floating,
-          content: Text('Please fill in every required field, highlighted in red.'),
+          content: Text(
+            conflict != null
+                ? 'These dates clash with "${conflict.name}" (${conflict.dateRangeLabel}) — pick different dates.'
+                : 'Please fill in every required field, highlighted in red.',
+          ),
         ),
       );
       return;
     }
 
+    final closedStops = _collectClosedStops();
+    if (closedStops.isNotEmpty) {
+      final proceed = await showDialog<bool>(
+        context: context,
+        builder: (dialogContext) => AlertDialog(
+          title: const Text('Some places are closed'),
+          content: Text(
+            [
+              'The following stops are closed — please arrange them to a '
+                  'different day or time, or remove them:',
+              '',
+              for (final stop in closedStops)
+                '• Day ${stop.dayNumber}: ${stop.name} (${stop.reason})',
+            ].join('\n'),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(false),
+              child: const Text('Go Back and Fix'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(true),
+              style: TextButton.styleFrom(foregroundColor: Colors.red),
+              child: const Text('Save Anyway'),
+            ),
+          ],
+        ),
+      );
+      if (proceed != true) return;
+    }
+
     setState(() => _isSubmitting = true);
     try {
-      final accommodations = [
-        for (final a in _nightAccommodation) ?a,
-      ];
+      final accommodations = [for (final a in _nightAccommodation) ?a];
       final tripId = await _tripService.createTrip(
         name: _nameController.text.trim(),
         description: _descriptionController.text.trim().isEmpty
@@ -1111,231 +1424,346 @@ class _CreateTripScreenState extends State<CreateTripScreen> {
   @override
   Widget build(BuildContext context) {
     final dayDates = _dayDates;
-    return Scaffold(
-      backgroundColor: context.colors.surface,
-      body: SafeArea(
-        child: Column(
-          children: [
-            const DetailHeader(
-              title: 'Create Trip',
-              subtitle: 'Plan it day by day',
-            ),
-            Expanded(
-              child: Form(
-                key: _formKey,
-                child: ListView(
-                  padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
-                  children: [
-                    _FieldLabel('Trip Name *'),
-                    const SizedBox(height: 8),
-                    TextFormField(
-                      controller: _nameController,
-                      autovalidateMode: _showValidation ? AutovalidateMode.always : AutovalidateMode.disabled,
-                      style: TextStyle(fontWeight: FontWeight.w600, color: context.colors.ink),
-                      decoration: _inputDecoration(context, hint: 'e.g. Penang Adventure'),
-                      validator: (value) => (value == null || value.trim().isEmpty)
-                          ? 'Give your trip a name'
-                          : null,
-                    ),
-                    const SizedBox(height: 20),
-                    _FieldLabel('Trip Description'),
-                    const SizedBox(height: 8),
-                    TextFormField(
-                      controller: _descriptionController,
-                      maxLines: 3,
-                      style: TextStyle(fontWeight: FontWeight.w500, color: context.colors.ink),
-                      decoration: _inputDecoration(context, hint: 'What is this trip about?'),
-                    ),
-                    const SizedBox(height: 20),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              _FieldLabel('Start Date *'),
-                              const SizedBox(height: 8),
-                              _DateField(
-                                value: _startDate,
-                                placeholder: 'Start date',
-                                onTap: _pickStartDate,
-                                hasError: _showValidation && _startDate == null,
-                              ),
-                              if (_showValidation && _startDate == null) const _ErrorCaption(),
-                            ],
-                          ),
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, result) {
+        if (didPop) return;
+        unawaited(_handleBack());
+      },
+      child: Scaffold(
+        backgroundColor: context.colors.surface,
+        body: SafeArea(
+          child: Column(
+            children: [
+              DetailHeader(
+                title: 'Create Trip',
+                subtitle: 'Plan it day by day',
+                onBack: _handleBack,
+              ),
+              Expanded(
+                child: Form(
+                  key: _formKey,
+                  child: ListView(
+                    padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
+                    children: [
+                      _FieldLabel('Trip Name *'),
+                      const SizedBox(height: 8),
+                      TextFormField(
+                        controller: _nameController,
+                        autovalidateMode: _showValidation
+                            ? AutovalidateMode.always
+                            : AutovalidateMode.disabled,
+                        style: TextStyle(
+                          fontWeight: FontWeight.w600,
+                          color: context.colors.ink,
                         ),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              _FieldLabel('End Date *'),
-                              const SizedBox(height: 8),
-                              _DateField(
-                                value: _endDate,
-                                placeholder: 'End date',
-                                onTap: _pickEndDate,
-                                hasError: _showValidation && _endDate == null,
-                              ),
-                              if (_showValidation && _endDate == null) const _ErrorCaption(),
-                            ],
+                        decoration: _inputDecoration(
+                          context,
+                          hint: 'e.g. Penang Adventure',
+                        ),
+                        validator: (value) =>
+                            (value == null || value.trim().isEmpty)
+                            ? 'Give your trip a name'
+                            : null,
+                      ),
+                      const SizedBox(height: 20),
+                      _FieldLabel('Trip Description'),
+                      const SizedBox(height: 8),
+                      TextFormField(
+                        controller: _descriptionController,
+                        maxLines: 3,
+                        style: TextStyle(
+                          fontWeight: FontWeight.w500,
+                          color: context.colors.ink,
+                        ),
+                        decoration: _inputDecoration(
+                          context,
+                          hint: 'What is this trip about?',
+                        ),
+                      ),
+                      const SizedBox(height: 20),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                _FieldLabel('Start Date *'),
+                                const SizedBox(height: 8),
+                                _DateField(
+                                  value: _startDate,
+                                  placeholder: 'Start date',
+                                  onTap: _pickStartDate,
+                                  hasError:
+                                      (_showValidation && _startDate == null) ||
+                                      _conflictingTrip != null,
+                                ),
+                                if (_showValidation && _startDate == null)
+                                  const _ErrorCaption(),
+                              ],
+                            ),
                           ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                _FieldLabel('End Date *'),
+                                const SizedBox(height: 8),
+                                _DateField(
+                                  value: _endDate,
+                                  placeholder: 'End date',
+                                  onTap: _pickEndDate,
+                                  hasError:
+                                      (_showValidation && _endDate == null) ||
+                                      _conflictingTrip != null,
+                                ),
+                                if (_showValidation && _endDate == null)
+                                  const _ErrorCaption(),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                      if (_checkingDateConflict) ...[
+                        const SizedBox(height: 8),
+                        Row(
+                          children: [
+                            SizedBox(
+                              width: 12,
+                              height: 12,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 1.6,
+                                color: context.colors.muted,
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Text(
+                              'Checking your other trips for date clashes…',
+                              style: TextStyle(
+                                color: context.colors.muted,
+                                fontSize: 12,
+                                fontStyle: FontStyle.italic,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ] else if (_conflictingTrip case final conflict?) ...[
+                        const SizedBox(height: 8),
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Icon(
+                              Icons.event_busy_rounded,
+                              size: 15,
+                              color: Colors.red,
+                            ),
+                            const SizedBox(width: 6),
+                            Expanded(
+                              child: Text(
+                                'These dates clash with "${conflict.name}" '
+                                '(${conflict.dateRangeLabel}) — pick different dates.',
+                                style: const TextStyle(
+                                  color: Colors.red,
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
                       ],
-                    ),
-                    const SizedBox(height: 20),
-                    _FieldLabel('Starting Location *'),
-                    const SizedBox(height: 4),
-                    Text(
-                      'Where Day 1\'s first stop routes from.',
-                      style: TextStyle(color: context.colors.muted, fontSize: 11.5),
-                    ),
-                    const SizedBox(height: 8),
-                    LocationSearchField(
-                      value: _startingLocation,
-                      onChanged: (v) {
-                        if (v != null && !_isRegionAllowed(v)) {
-                          _showRegionBlocked(v);
-                          return;
-                        }
-                        setState(() => _startingLocation = v);
-                        if (_nightAccommodation.isNotEmpty) {
-                          unawaited(_refreshAccommodationTravel(0));
-                        }
-                        unawaited(_refreshTripEndTravel());
-                      },
-                      hintText: 'Where does the trip start?',
-                    ),
-                    if (_showValidation && _startingLocation == null) const _ErrorCaption(),
-                    const SizedBox(height: 10),
-                    _FieldLabel('Trip Start Time *'),
-                    const SizedBox(height: 4),
-                    Text(
-                      'The time you leave your starting location — also used as the time you leave each day\'s accommodation.',
-                      style: TextStyle(color: context.colors.muted, fontSize: 11.5),
-                    ),
-                    const SizedBox(height: 8),
-                    _TimeField(
-                      value: _tripStartTime,
-                      onTap: _pickTripStartTime,
-                      hasError: _showValidation && _tripStartTime == null,
-                    ),
-                    if (_showValidation && _tripStartTime == null) const _ErrorCaption(),
-                    const SizedBox(height: 20),
-                    _FieldLabel('Trip Ends At *'),
-                    const SizedBox(height: 4),
-                    Text(
-                      'Your final stop for the trip — e.g. the airport.',
-                      style: TextStyle(color: context.colors.muted, fontSize: 11.5),
-                    ),
-                    const SizedBox(height: 8),
-                    LocationSearchField(
-                      value: _endingLocation,
-                      onChanged: (v) {
-                        if (v != null && !_isRegionAllowed(v)) {
-                          _showRegionBlocked(v);
-                          return;
-                        }
-                        setState(() => _endingLocation = v);
-                        unawaited(_refreshTripEndTravel());
-                      },
-                      hintText: 'Where does the trip end?',
-                      selectedIcon: Icons.flag_rounded,
-                    ),
-                    if (_showValidation && _endingLocation == null) const _ErrorCaption(),
-                    if (_endingLocation != null) ...[
-                      const SizedBox(height: 10),
-                      _FieldLabel('Trip End Time'),
+                      const SizedBox(height: 20),
+                      _FieldLabel('Starting Location *'),
                       const SizedBox(height: 4),
                       Text(
-                        'Target time to reach it — e.g. a flight departure.',
-                        style: TextStyle(color: context.colors.muted, fontSize: 11.5),
-                      ),
-                      const SizedBox(height: 8),
-                      _TimeField(value: _tripEndTime, onTap: _pickTripEndTime),
-                    ],
-                    if (_dayCount > 0) ...[
-                      const SizedBox(height: 10),
-                      Text(
-                        '$_dayCount day${_dayCount == 1 ? '' : 's'}',
+                        'Where Day 1\'s first stop routes from.',
                         style: TextStyle(
                           color: context.colors.muted,
-                          fontWeight: FontWeight.w600,
-                          fontSize: 13,
+                          fontSize: 11.5,
                         ),
                       ),
-                      const SizedBox(height: 12),
-                      _TransportModeToggle(
-                        mode: _transportMode,
-                        onChanged: (m) => unawaited(_changeTransportMode(m)),
+                      const SizedBox(height: 8),
+                      LocationSearchField(
+                        value: _startingLocation,
+                        onChanged: (v) {
+                          if (v != null && !_isRegionAllowed(v)) {
+                            _showRegionBlocked(v);
+                            return;
+                          }
+                          setState(() => _startingLocation = v);
+                          if (_nightAccommodation.isNotEmpty) {
+                            unawaited(_refreshAccommodationTravel(0));
+                          }
+                          unawaited(_refreshTripEndTravel());
+                        },
+                        hintText: 'Where does the trip start?',
                       ),
-                      const SizedBox(height: 16),
-                      _DayTabBar(
-                        dates: dayDates,
-                        selected: _selectedDay,
-                        onSelect: (i) => setState(() => _selectedDay = i),
-                      ),
-                      const SizedBox(height: 16),
-                      if (_dayStops.length > _selectedDay)
-                        _DayTimelinePanel(
-                          dayNumber: _selectedDay + 1,
-                          date: dayDates[_selectedDay],
-                          dayStartMinutes: _dayStartMinutesFor(_selectedDay),
-                          startTimeIsSet: _selectedDay == 0
-                              ? _tripStartTime != null
-                              : (_dayStartOverride.length > _selectedDay &&
-                                      _dayStartOverride[_selectedDay] != null) ||
-                                  _tripStartTime != null,
-                          canEditStartTime: _selectedDay != 0,
-                          onEditStartTime: _selectedDay == 0 ? null : () => _pickDayStartOverride(_selectedDay),
-                          originLabel: _originLabel(_selectedDay),
-                          stops: _dayStops[_selectedDay],
-                          travel: _dayTravel[_selectedDay],
-                          isLastDay: _selectedDay == _dayCount - 1,
-                          accommodation: _selectedDay < _nightAccommodation.length
-                              ? _nightAccommodation[_selectedDay]
-                              : null,
-                          accommodationTravel: _selectedDay < _accommodationTravel.length
-                              ? _accommodationTravel[_selectedDay]
-                              : null,
-                          previousNightAccommodation: _selectedDay > 0 && _selectedDay - 1 < _nightAccommodation.length
-                              ? _nightAccommodation[_selectedDay - 1]
-                              : null,
-                          showValidation: _showValidation,
-                          weatherForecastAvailable: StopWeatherService.isWithinForecastWindow(
-                            dayDates[_selectedDay],
-                          ),
-                          weatherFor: (entry) => _stopWeather[entry],
-                          tripEndLocation: _selectedDay == _dayCount - 1 ? _endingLocation : null,
-                          tripEndTravel: _selectedDay == _dayCount - 1 ? _tripEndTravel : null,
-                          tripEndTargetMinutes: _selectedDay == _dayCount - 1 && _tripEndTime != null
-                              ? _timeOfDayToMinutes(_tripEndTime!)
-                              : null,
-                          onAddStop: () => _addStop(_selectedDay),
-                          onRemoveStop: (i) => _removeStop(_selectedDay, i),
-                          onChangeDuration: (i, d) => _changeDuration(_selectedDay, i, d),
-                          onReorderStops: (from, to) => _reorderStops(_selectedDay, from, to),
-                          isOptimizing: _optimizingDays.contains(_selectedDay),
-                          onOptimize: () => _optimizeDay(_selectedDay),
-                          onAccommodationChanged: _selectedDay < _nightAccommodation.length
-                              ? (v) => _setNightAccommodation(_selectedDay, v)
-                              : null,
+                      if (_showValidation && _startingLocation == null)
+                        const _ErrorCaption(),
+                      const SizedBox(height: 10),
+                      _FieldLabel('Trip Start Time *'),
+                      const SizedBox(height: 4),
+                      Text(
+                        'The time you leave your starting location — also used as the time you leave each day\'s accommodation.',
+                        style: TextStyle(
+                          color: context.colors.muted,
+                          fontSize: 11.5,
                         ),
+                      ),
+                      const SizedBox(height: 8),
+                      _TimeField(
+                        value: _tripStartTime,
+                        onTap: _pickTripStartTime,
+                        hasError: _showValidation && _tripStartTime == null,
+                      ),
+                      if (_showValidation && _tripStartTime == null)
+                        const _ErrorCaption(),
                       const SizedBox(height: 20),
-                    ] else
-                      const SizedBox(height: 32),
-                    GradientButton(
-                      label: 'Save Trip',
-                      icon: Icons.route_rounded,
-                      loading: _isSubmitting,
-                      onPressed: _isSubmitting ? () {} : _submit,
-                    ),
-                  ],
+                      _FieldLabel('Trip Ends At *'),
+                      const SizedBox(height: 4),
+                      Text(
+                        'Your final stop for the trip — e.g. the airport.',
+                        style: TextStyle(
+                          color: context.colors.muted,
+                          fontSize: 11.5,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      LocationSearchField(
+                        value: _endingLocation,
+                        onChanged: (v) {
+                          if (v != null && !_isRegionAllowed(v)) {
+                            _showRegionBlocked(v);
+                            return;
+                          }
+                          setState(() => _endingLocation = v);
+                          unawaited(_refreshTripEndTravel());
+                        },
+                        hintText: 'Where does the trip end?',
+                        selectedIcon: Icons.flag_rounded,
+                      ),
+                      if (_showValidation && _endingLocation == null)
+                        const _ErrorCaption(),
+                      if (_endingLocation != null) ...[
+                        const SizedBox(height: 10),
+                        _FieldLabel('Trip End Time'),
+                        const SizedBox(height: 4),
+                        Text(
+                          'Target time to reach it — e.g. a flight departure.',
+                          style: TextStyle(
+                            color: context.colors.muted,
+                            fontSize: 11.5,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        _TimeField(
+                          value: _tripEndTime,
+                          onTap: _pickTripEndTime,
+                        ),
+                      ],
+                      if (_dayCount > 0) ...[
+                        const SizedBox(height: 10),
+                        Text(
+                          '$_dayCount day${_dayCount == 1 ? '' : 's'}',
+                          style: TextStyle(
+                            color: context.colors.muted,
+                            fontWeight: FontWeight.w600,
+                            fontSize: 13,
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        _TransportModeToggle(
+                          mode: _transportMode,
+                          onChanged: (m) => unawaited(_changeTransportMode(m)),
+                        ),
+                        const SizedBox(height: 16),
+                        _DayTabBar(
+                          dates: dayDates,
+                          selected: _selectedDay,
+                          onSelect: (i) => setState(() => _selectedDay = i),
+                        ),
+                        const SizedBox(height: 16),
+                        if (_dayStops.length > _selectedDay)
+                          _DayTimelinePanel(
+                            dayNumber: _selectedDay + 1,
+                            date: dayDates[_selectedDay],
+                            dayStartMinutes: _dayStartMinutesFor(_selectedDay),
+                            startTimeIsSet: _selectedDay == 0
+                                ? _tripStartTime != null
+                                : (_dayStartOverride.length > _selectedDay &&
+                                          _dayStartOverride[_selectedDay] !=
+                                              null) ||
+                                      _tripStartTime != null,
+                            canEditStartTime: _selectedDay != 0,
+                            onEditStartTime: _selectedDay == 0
+                                ? null
+                                : () => _pickDayStartOverride(_selectedDay),
+                            originLabel: _originLabel(_selectedDay),
+                            stops: _dayStops[_selectedDay],
+                            travel: _dayTravel[_selectedDay],
+                            isLastDay: _selectedDay == _dayCount - 1,
+                            accommodation:
+                                _selectedDay < _nightAccommodation.length
+                                ? _nightAccommodation[_selectedDay]
+                                : null,
+                            accommodationTravel:
+                                _selectedDay < _accommodationTravel.length
+                                ? _accommodationTravel[_selectedDay]
+                                : null,
+                            previousNightAccommodation:
+                                _selectedDay > 0 &&
+                                    _selectedDay - 1 <
+                                        _nightAccommodation.length
+                                ? _nightAccommodation[_selectedDay - 1]
+                                : null,
+                            showValidation: _showValidation,
+                            weatherForecastAvailable:
+                                StopWeatherService.isWithinForecastWindow(
+                                  dayDates[_selectedDay],
+                                ),
+                            weatherFor: (entry) => _stopWeather[entry],
+                            tripEndLocation: _selectedDay == _dayCount - 1
+                                ? _endingLocation
+                                : null,
+                            tripEndTravel: _selectedDay == _dayCount - 1
+                                ? _tripEndTravel
+                                : null,
+                            tripEndTargetMinutes:
+                                _selectedDay == _dayCount - 1 &&
+                                    _tripEndTime != null
+                                ? _timeOfDayToMinutes(_tripEndTime!)
+                                : null,
+                            onAddStop: () => _addStop(_selectedDay),
+                            onRemoveStop: (i) => _removeStop(_selectedDay, i),
+                            onChangeDuration: (i, d) =>
+                                _changeDuration(_selectedDay, i, d),
+                            onReorderStops: (from, to) =>
+                                _reorderStops(_selectedDay, from, to),
+                            isOptimizing: _optimizingDays.contains(
+                              _selectedDay,
+                            ),
+                            onOptimize: () => _optimizeDay(_selectedDay),
+                            onAccommodationChanged:
+                                _selectedDay < _nightAccommodation.length
+                                ? (v) => _setNightAccommodation(_selectedDay, v)
+                                : null,
+                          ),
+                        const SizedBox(height: 20),
+                      ] else
+                        const SizedBox(height: 32),
+                      GradientButton(
+                        label: 'Save Trip',
+                        icon: Icons.route_rounded,
+                        loading: _isSubmitting,
+                        onPressed: _isSubmitting ? () {} : _submit,
+                      ),
+                    ],
+                  ),
                 ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -1357,7 +1785,10 @@ class _CreateTripScreenState extends State<CreateTripScreen> {
 InputDecoration _inputDecoration(BuildContext context, {required String hint}) {
   return InputDecoration(
     hintText: hint,
-    hintStyle: TextStyle(color: context.colors.muted, fontWeight: FontWeight.w500),
+    hintStyle: TextStyle(
+      color: context.colors.muted,
+      fontWeight: FontWeight.w500,
+    ),
     filled: true,
     fillColor: context.colors.card,
     border: OutlineInputBorder(
@@ -1376,7 +1807,11 @@ class _FieldLabel extends StatelessWidget {
   Widget build(BuildContext context) {
     return Text(
       text,
-      style: TextStyle(color: context.colors.ink, fontWeight: FontWeight.w700, fontSize: 13.5),
+      style: TextStyle(
+        color: context.colors.ink,
+        fontWeight: FontWeight.w700,
+        fontSize: 13.5,
+      ),
     );
   }
 }
@@ -1393,7 +1828,11 @@ class _ErrorCaption extends StatelessWidget {
       padding: EdgeInsets.only(top: 4, left: 4),
       child: Text(
         'Required',
-        style: TextStyle(color: Colors.red, fontSize: 11.5, fontWeight: FontWeight.w600),
+        style: TextStyle(
+          color: Colors.red,
+          fontSize: 11.5,
+          fontWeight: FontWeight.w600,
+        ),
       ),
     );
   }
@@ -1427,14 +1866,20 @@ class _DateField extends StatelessWidget {
         ),
         child: Row(
           children: [
-            Icon(Icons.calendar_today_rounded, color: context.colors.muted, size: 16),
+            Icon(
+              Icons.calendar_today_rounded,
+              color: context.colors.muted,
+              size: 16,
+            ),
             const SizedBox(width: 8),
             Expanded(
               child: Text(
                 date == null ? placeholder : _formatDate(date),
                 overflow: TextOverflow.ellipsis,
                 style: TextStyle(
-                  color: date == null ? context.colors.muted : context.colors.ink,
+                  color: date == null
+                      ? context.colors.muted
+                      : context.colors.ink,
                   fontWeight: FontWeight.w600,
                   fontSize: 12.5,
                 ),
@@ -1448,7 +1893,11 @@ class _DateField extends StatelessWidget {
 }
 
 class _TimeField extends StatelessWidget {
-  const _TimeField({required this.value, required this.onTap, this.hasError = false});
+  const _TimeField({
+    required this.value,
+    required this.onTap,
+    this.hasError = false,
+  });
 
   final TimeOfDay? value;
   final VoidCallback onTap;
@@ -1468,11 +1917,19 @@ class _TimeField extends StatelessWidget {
         ),
         child: Row(
           children: [
-            Icon(Icons.access_time_rounded, color: context.colors.muted, size: 16),
+            Icon(
+              Icons.access_time_rounded,
+              color: context.colors.muted,
+              size: 16,
+            ),
             const SizedBox(width: 8),
             Text(
               _formatTimeOfDay(value),
-              style: TextStyle(color: context.colors.ink, fontWeight: FontWeight.w600, fontSize: 12.5),
+              style: TextStyle(
+                color: context.colors.ink,
+                fontWeight: FontWeight.w600,
+                fontSize: 12.5,
+              ),
             ),
           ],
         ),
@@ -1494,7 +1951,10 @@ class _TransportModeToggle extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.all(4),
-      decoration: BoxDecoration(color: context.colors.card, borderRadius: BorderRadius.circular(14)),
+      decoration: BoxDecoration(
+        color: context.colors.card,
+        borderRadius: BorderRadius.circular(14),
+      ),
       child: Row(
         children: [
           Expanded(
@@ -1546,7 +2006,11 @@ class _TransportModeButton extends StatelessWidget {
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(icon, size: 16, color: selected ? Colors.white : context.colors.muted),
+            Icon(
+              icon,
+              size: 16,
+              color: selected ? Colors.white : context.colors.muted,
+            ),
             const SizedBox(width: 6),
             Text(
               label,
@@ -1564,7 +2028,11 @@ class _TransportModeButton extends StatelessWidget {
 }
 
 class _DayTabBar extends StatelessWidget {
-  const _DayTabBar({required this.dates, required this.selected, required this.onSelect});
+  const _DayTabBar({
+    required this.dates,
+    required this.selected,
+    required this.onSelect,
+  });
 
   final List<DateTime> dates;
   final int selected;
@@ -1605,7 +2073,9 @@ class _DayTabBar extends StatelessWidget {
                   Text(
                     _formatShortDate(dates[i]),
                     style: TextStyle(
-                      color: isSelected ? Colors.white.withValues(alpha: 0.9) : context.colors.muted,
+                      color: isSelected
+                          ? Colors.white.withValues(alpha: 0.9)
+                          : context.colors.muted,
                       fontWeight: FontWeight.w600,
                       fontSize: 11,
                     ),
@@ -1734,13 +2204,20 @@ class _DayTimelinePanel extends StatelessWidget {
 
     return Container(
       padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(color: context.colors.card, borderRadius: BorderRadius.circular(18)),
+      decoration: BoxDecoration(
+        color: context.colors.card,
+        borderRadius: BorderRadius.circular(18),
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
             'Day $dayNumber — ${_formatShortDate(date)}',
-            style: TextStyle(color: context.colors.ink, fontWeight: FontWeight.w700, fontSize: 15),
+            style: TextStyle(
+              color: context.colors.ink,
+              fontWeight: FontWeight.w700,
+              fontSize: 15,
+            ),
           ),
           const SizedBox(height: 14),
           _OriginNode(
@@ -1756,7 +2233,11 @@ class _DayTimelinePanel extends StatelessWidget {
                 canEditStartTime
                     ? 'Pick a start time for this day — times below are placeholders.'
                     : 'Pick a valid Trip Start Time above — times below are placeholders.',
-                style: const TextStyle(color: Colors.red, fontSize: 11.5, fontWeight: FontWeight.w600),
+                style: const TextStyle(
+                  color: Colors.red,
+                  fontSize: 11.5,
+                  fontWeight: FontWeight.w600,
+                ),
               ),
             ),
           ],
@@ -1772,7 +2253,9 @@ class _DayTimelinePanel extends StatelessWidget {
                   key: ValueKey(stops[i]),
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    _TravelConnector(segment: i < travel.length ? travel[i] : null),
+                    _TravelConnector(
+                      segment: i < travel.length ? travel[i] : null,
+                    ),
                     _StopNode(
                       entry: stops[i],
                       index: i,
@@ -1780,6 +2263,12 @@ class _DayTimelinePanel extends StatelessWidget {
                       endLabel: _minutesToClock(ends[i]),
                       weatherForecastAvailable: weatherForecastAvailable,
                       weather: weatherFor(stops[i]),
+                      closed: isClosedDuringVisit(
+                        periods: stops[i].location.openingHoursPeriods,
+                        date: date,
+                        arrivalMinutes: arrivals[i],
+                        endMinutes: ends[i],
+                      ),
                       onRemove: () => onRemoveStop(i),
                       onChangeDuration: (delta) => onChangeDuration(i, delta),
                     ),
@@ -1791,10 +2280,16 @@ class _DayTimelinePanel extends StatelessWidget {
             _TravelConnector(segment: tripEndTravel),
             _TripEndNode(
               location: ending,
-              arrivalLabel: _minutesToClock(clock + (tripEndTravel?.duration?.inMinutes ?? 0)),
-              targetLabel: tripEndTargetMinutes == null ? null : _minutesToClock(tripEndTargetMinutes!),
-              isLate: tripEndTargetMinutes != null &&
-                  clock + (tripEndTravel?.duration?.inMinutes ?? 0) > tripEndTargetMinutes!,
+              arrivalLabel: _minutesToClock(
+                clock + (tripEndTravel?.duration?.inMinutes ?? 0),
+              ),
+              targetLabel: tripEndTargetMinutes == null
+                  ? null
+                  : _minutesToClock(tripEndTargetMinutes!),
+              isLate:
+                  tripEndTargetMinutes != null &&
+                  clock + (tripEndTravel?.duration?.inMinutes ?? 0) >
+                      tripEndTargetMinutes!,
             ),
           ],
           const SizedBox(height: 12),
@@ -1806,7 +2301,9 @@ class _DayTimelinePanel extends StatelessWidget {
               foregroundColor: AppColors.accent,
               side: BorderSide(color: AppColors.accent.withValues(alpha: 0.5)),
               padding: const EdgeInsets.symmetric(vertical: 12),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(14),
+              ),
               minimumSize: const Size(double.infinity, 0),
             ),
           ),
@@ -1818,15 +2315,26 @@ class _DayTimelinePanel extends StatelessWidget {
                   ? SizedBox(
                       width: 16,
                       height: 16,
-                      child: CircularProgressIndicator(strokeWidth: 2, color: context.colors.muted),
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: context.colors.muted,
+                      ),
                     )
                   : const Icon(Icons.auto_awesome_rounded, size: 18),
-              label: Text(isOptimizing ? 'Optimizing Day $dayNumber…' : 'Optimize Day $dayNumber'),
+              label: Text(
+                isOptimizing
+                    ? 'Optimizing Day $dayNumber…'
+                    : 'Optimize Day $dayNumber',
+              ),
               style: OutlinedButton.styleFrom(
                 foregroundColor: context.colors.ink,
-                side: BorderSide(color: context.colors.muted.withValues(alpha: 0.4)),
+                side: BorderSide(
+                  color: context.colors.muted.withValues(alpha: 0.4),
+                ),
                 padding: const EdgeInsets.symmetric(vertical: 12),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(14),
+                ),
                 minimumSize: const Size(double.infinity, 0),
               ),
             ),
@@ -1837,7 +2345,11 @@ class _DayTimelinePanel extends StatelessWidget {
             const SizedBox(height: 14),
             Text(
               'Accommodation for tonight *',
-              style: TextStyle(color: context.colors.ink, fontWeight: FontWeight.w700, fontSize: 13),
+              style: TextStyle(
+                color: context.colors.ink,
+                fontWeight: FontWeight.w700,
+                fontSize: 13,
+              ),
             ),
             const SizedBox(height: 4),
             Text(
@@ -1867,7 +2379,11 @@ class _DayTimelinePanel extends StatelessWidget {
             const SizedBox(height: 14),
             Text(
               'The trip ends today — no accommodation needed.',
-              style: TextStyle(color: context.colors.muted, fontSize: 11.5, fontStyle: FontStyle.italic),
+              style: TextStyle(
+                color: context.colors.muted,
+                fontSize: 11.5,
+                fontStyle: FontStyle.italic,
+              ),
             ),
           ],
         ],
@@ -1895,7 +2411,11 @@ class _OriginNode extends StatelessWidget {
           width: 52,
           child: Text(
             time,
-            style: TextStyle(color: context.colors.ink, fontWeight: FontWeight.w800, fontSize: 13),
+            style: TextStyle(
+              color: context.colors.ink,
+              fontWeight: FontWeight.w800,
+              fontSize: 13,
+            ),
           ),
         ),
         const SizedBox(width: 10),
@@ -1904,7 +2424,11 @@ class _OriginNode extends StatelessWidget {
         Expanded(
           child: Text(
             label,
-            style: TextStyle(color: context.colors.ink, fontWeight: FontWeight.w700, fontSize: 13.5),
+            style: TextStyle(
+              color: context.colors.ink,
+              fontWeight: FontWeight.w700,
+              fontSize: 13.5,
+            ),
           ),
         ),
         if (onEditTime != null)
@@ -1913,7 +2437,11 @@ class _OriginNode extends StatelessWidget {
             onTap: onEditTime,
             child: Padding(
               padding: const EdgeInsets.all(4),
-              child: Icon(Icons.edit_rounded, size: 15, color: context.colors.muted),
+              child: Icon(
+                Icons.edit_rounded,
+                size: 15,
+                color: context.colors.muted,
+              ),
             ),
           ),
       ],
@@ -1947,7 +2475,11 @@ class _TripEndNode extends StatelessWidget {
           width: 52,
           child: Text(
             arrivalLabel,
-            style: TextStyle(color: context.colors.ink, fontWeight: FontWeight.w800, fontSize: 13),
+            style: TextStyle(
+              color: context.colors.ink,
+              fontWeight: FontWeight.w800,
+              fontSize: 13,
+            ),
           ),
         ),
         const SizedBox(width: 10),
@@ -1959,7 +2491,11 @@ class _TripEndNode extends StatelessWidget {
             children: [
               Text(
                 'Trip Ends — ${location.name}',
-                style: TextStyle(color: context.colors.ink, fontWeight: FontWeight.w700, fontSize: 13.5),
+                style: TextStyle(
+                  color: context.colors.ink,
+                  fontWeight: FontWeight.w700,
+                  fontSize: 13.5,
+                ),
               ),
               if (targetLabel != null) ...[
                 const SizedBox(height: 3),
@@ -1969,7 +2505,11 @@ class _TripEndNode extends StatelessWidget {
                   children: [
                     Text(
                       'Target: $targetLabel',
-                      style: TextStyle(color: context.colors.muted, fontSize: 12, fontWeight: FontWeight.w600),
+                      style: TextStyle(
+                        color: context.colors.muted,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
                     if (isLate) _Tag('May be too late', warning: true),
                   ],
@@ -1995,11 +2535,19 @@ class _TravelConnector extends StatelessWidget {
         children: [
           const SizedBox(width: 52),
           const SizedBox(width: 10),
-          Icon(Icons.subdirectory_arrow_right_rounded, size: 16, color: context.colors.muted),
+          Icon(
+            Icons.subdirectory_arrow_right_rounded,
+            size: 16,
+            color: context.colors.muted,
+          ),
           const SizedBox(width: 6),
           Text(
             _travelLabel(segment),
-            style: TextStyle(color: context.colors.muted, fontSize: 11.5, fontWeight: FontWeight.w600),
+            style: TextStyle(
+              color: context.colors.muted,
+              fontSize: 11.5,
+              fontWeight: FontWeight.w600,
+            ),
           ),
         ],
       ),
@@ -2015,6 +2563,7 @@ class _StopNode extends StatelessWidget {
     required this.endLabel,
     required this.weatherForecastAvailable,
     required this.weather,
+    required this.closed,
     required this.onRemove,
     required this.onChangeDuration,
   });
@@ -2037,6 +2586,11 @@ class _StopNode extends StatelessWidget {
   /// checked (always true for an indoor stop).
   final StopWeatherCheck? weather;
 
+  /// True when the place's own opening hours don't cover the whole
+  /// scheduled visit window — always false for a Photon/OSM stop, which
+  /// carries no opening-hours data to check against.
+  final bool closed;
+
   final VoidCallback onRemove;
   final void Function(int deltaMinutes) onChangeDuration;
 
@@ -2055,7 +2609,11 @@ class _StopNode extends StatelessWidget {
             children: [
               Text(
                 arrivalLabel,
-                style: TextStyle(color: context.colors.ink, fontWeight: FontWeight.w800, fontSize: 13),
+                style: TextStyle(
+                  color: context.colors.ink,
+                  fontWeight: FontWeight.w800,
+                  fontSize: 13,
+                ),
               ),
             ],
           ),
@@ -2063,7 +2621,11 @@ class _StopNode extends StatelessWidget {
         const SizedBox(width: 10),
         ReorderableDragStartListener(
           index: index,
-          child: Icon(Icons.drag_indicator_rounded, color: context.colors.muted, size: 18),
+          child: Icon(
+            Icons.drag_indicator_rounded,
+            color: context.colors.muted,
+            size: 18,
+          ),
         ),
         const SizedBox(width: 6),
         Icon(Icons.trip_origin, color: AppColors.accent, size: 14),
@@ -2072,14 +2634,21 @@ class _StopNode extends StatelessWidget {
           child: Container(
             margin: const EdgeInsets.only(bottom: 12),
             padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(color: context.colors.surface, borderRadius: BorderRadius.circular(14)),
+            decoration: BoxDecoration(
+              color: context.colors.surface,
+              borderRadius: BorderRadius.circular(14),
+            ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Icon(location.categoryIcon, color: AppColors.accent, size: 20),
+                    Icon(
+                      location.categoryIcon,
+                      color: AppColors.accent,
+                      size: 20,
+                    ),
                     const SizedBox(width: 8),
                     Expanded(
                       child: Column(
@@ -2087,7 +2656,11 @@ class _StopNode extends StatelessWidget {
                         children: [
                           Text(
                             location.name,
-                            style: TextStyle(color: context.colors.ink, fontWeight: FontWeight.w700, fontSize: 14),
+                            style: TextStyle(
+                              color: context.colors.ink,
+                              fontWeight: FontWeight.w700,
+                              fontSize: 14,
+                            ),
                           ),
                           const SizedBox(height: 2),
                           Wrap(
@@ -2096,9 +2669,11 @@ class _StopNode extends StatelessWidget {
                             children: [
                               _Tag(_environmentLabel(env)),
                               _Tag(location.category),
-                              if (location.businessStatus == 'CLOSED_PERMANENTLY')
+                              if (location.businessStatus ==
+                                  'CLOSED_PERMANENTLY')
                                 _Tag('Permanently closed', warning: true),
-                              if (location.businessStatus == 'CLOSED_TEMPORARILY')
+                              if (location.businessStatus ==
+                                  'CLOSED_TEMPORARILY')
                                 _Tag('Temporarily closed', warning: true),
                             ],
                           ),
@@ -2119,7 +2694,11 @@ class _StopNode extends StatelessWidget {
                   children: [
                     Text(
                       'Visit: ${_durationLabel(entry.visitMinutes)}',
-                      style: TextStyle(color: context.colors.muted, fontWeight: FontWeight.w600, fontSize: 12.5),
+                      style: TextStyle(
+                        color: context.colors.muted,
+                        fontWeight: FontWeight.w600,
+                        fontSize: 12.5,
+                      ),
                     ),
                     const Spacer(),
                     _DurationStepper(
@@ -2131,19 +2710,31 @@ class _StopNode extends StatelessWidget {
                 const SizedBox(height: 4),
                 Text(
                   'Ends $endLabel',
-                  style: TextStyle(color: context.colors.muted, fontWeight: FontWeight.w600, fontSize: 12),
+                  style: TextStyle(
+                    color: context.colors.muted,
+                    fontWeight: FontWeight.w600,
+                    fontSize: 12,
+                  ),
                 ),
                 if (hours != null && hours.isNotEmpty) ...[
                   const SizedBox(height: 6),
                   Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Icon(Icons.schedule_rounded, size: 14, color: context.colors.muted),
+                      Icon(
+                        Icons.schedule_rounded,
+                        size: 14,
+                        color: context.colors.muted,
+                      ),
                       const SizedBox(width: 6),
                       Expanded(
                         child: Text(
                           hours.first,
-                          style: TextStyle(color: context.colors.muted, fontSize: 12, fontWeight: FontWeight.w500),
+                          style: TextStyle(
+                            color: context.colors.muted,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w500,
+                          ),
                         ),
                       ),
                     ],
@@ -2152,12 +2743,70 @@ class _StopNode extends StatelessWidget {
                   const SizedBox(height: 6),
                   Text(
                     'Opening hours unavailable',
-                    style: TextStyle(color: context.colors.muted, fontSize: 12, fontStyle: FontStyle.italic),
+                    style: TextStyle(
+                      color: context.colors.muted,
+                      fontSize: 12,
+                      fontStyle: FontStyle.italic,
+                    ),
                   ),
                 ],
-                if (env == PlaceEnvironment.outdoor || env == PlaceEnvironment.mixed) ...[
+                if (location.businessStatus == 'CLOSED_PERMANENTLY')
+                  Padding(
+                    padding: const EdgeInsets.only(top: 6),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Icon(
+                          Icons.block_rounded,
+                          size: 14,
+                          color: Colors.red,
+                        ),
+                        const SizedBox(width: 6),
+                        Expanded(
+                          child: Text(
+                            'This place is permanently closed — remove it or pick another.',
+                            style: const TextStyle(
+                              color: Colors.red,
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  )
+                else if (closed)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 6),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Icon(
+                          Icons.warning_amber_rounded,
+                          size: 14,
+                          color: Colors.red,
+                        ),
+                        const SizedBox(width: 6),
+                        Expanded(
+                          child: Text(
+                            'Closed at this time — try another day or time.',
+                            style: const TextStyle(
+                              color: Colors.red,
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                if (env == PlaceEnvironment.outdoor ||
+                    env == PlaceEnvironment.mixed) ...[
                   const SizedBox(height: 6),
-                  _StopWeatherRow(available: weatherForecastAvailable, check: weather),
+                  _StopWeatherRow(
+                    available: weatherForecastAvailable,
+                    check: weather,
+                  ),
                 ],
               ],
             ),
@@ -2186,7 +2835,11 @@ class _StopWeatherRow extends StatelessWidget {
           const SizedBox(width: 6),
           Text(
             'Weather forecast not available yet',
-            style: TextStyle(color: context.colors.muted, fontSize: 12, fontStyle: FontStyle.italic),
+            style: TextStyle(
+              color: context.colors.muted,
+              fontSize: 12,
+              fontStyle: FontStyle.italic,
+            ),
           ),
         ],
       );
@@ -2198,12 +2851,19 @@ class _StopWeatherRow extends StatelessWidget {
           SizedBox(
             width: 12,
             height: 12,
-            child: CircularProgressIndicator(strokeWidth: 1.6, color: context.colors.muted),
+            child: CircularProgressIndicator(
+              strokeWidth: 1.6,
+              color: context.colors.muted,
+            ),
           ),
           const SizedBox(width: 8),
           Text(
             'Checking weather…',
-            style: TextStyle(color: context.colors.muted, fontSize: 12, fontStyle: FontStyle.italic),
+            style: TextStyle(
+              color: context.colors.muted,
+              fontSize: 12,
+              fontStyle: FontStyle.italic,
+            ),
           ),
         ],
       );
@@ -2220,12 +2880,20 @@ class _StopWeatherRow extends StatelessWidget {
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Icon(weatherIconFor(forecast.phraseFor(result.badPeriods.first)), size: 14, color: Colors.red),
+              Icon(
+                weatherIconFor(forecast.phraseFor(result.badPeriods.first)),
+                size: 14,
+                color: Colors.red,
+              ),
               const SizedBox(width: 6),
               Expanded(
                 child: Text(
                   'Weather: ${translateWeather(forecast.phraseFor(result.badPeriods.first))}',
-                  style: const TextStyle(color: Colors.red, fontSize: 12, fontWeight: FontWeight.w600),
+                  style: const TextStyle(
+                    color: Colors.red,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
               ),
             ],
@@ -2235,7 +2903,11 @@ class _StopWeatherRow extends StatelessWidget {
             padding: const EdgeInsets.only(left: 20),
             child: Text(
               'Rain expected in the $periods — move this stop to a different day or time.',
-              style: const TextStyle(color: Colors.red, fontSize: 11.5, fontWeight: FontWeight.w600),
+              style: const TextStyle(
+                color: Colors.red,
+                fontSize: 11.5,
+                fontWeight: FontWeight.w600,
+              ),
             ),
           ),
         ],
@@ -2249,7 +2921,11 @@ class _StopWeatherRow extends StatelessWidget {
         Expanded(
           child: Text(
             'Weather: ${translateWeather(phrase)} — suitable',
-            style: TextStyle(color: context.colors.muted, fontSize: 12, fontWeight: FontWeight.w500),
+            style: TextStyle(
+              color: context.colors.muted,
+              fontSize: 12,
+              fontWeight: FontWeight.w500,
+            ),
           ),
         ),
       ],
@@ -2289,7 +2965,10 @@ class _StepperButton extends StatelessWidget {
       child: Container(
         width: 26,
         height: 26,
-        decoration: BoxDecoration(color: context.colors.card, borderRadius: BorderRadius.circular(8)),
+        decoration: BoxDecoration(
+          color: context.colors.card,
+          borderRadius: BorderRadius.circular(8),
+        ),
         child: Icon(icon, size: 15, color: context.colors.ink),
       ),
     );
@@ -2306,8 +2985,18 @@ class _Tag extends StatelessWidget {
     final color = warning ? Colors.red : context.colors.muted;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-      decoration: BoxDecoration(color: color.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(8)),
-      child: Text(label, style: TextStyle(color: color, fontSize: 11, fontWeight: FontWeight.w600)),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(
+          color: color,
+          fontSize: 11,
+          fontWeight: FontWeight.w600,
+        ),
+      ),
     );
   }
 }
@@ -2340,7 +3029,11 @@ class _SameAsPreviousChip extends StatelessWidget {
                 'Same as previous night — ${location.name}',
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: const TextStyle(color: AppColors.accent, fontWeight: FontWeight.w700, fontSize: 12),
+                style: const TextStyle(
+                  color: AppColors.accent,
+                  fontWeight: FontWeight.w700,
+                  fontSize: 12,
+                ),
               ),
             ),
           ],
@@ -2387,7 +3080,8 @@ class _StopSearchSheetState extends State<_StopSearchSheet> {
 
   String _idFor(NearbyPlace place) => place.id;
 
-  bool _isDuplicate(NearbyPlace place) => widget.existingPlaceIds.contains(_idFor(place));
+  bool _isDuplicate(NearbyPlace place) =>
+      widget.existingPlaceIds.contains(_idFor(place));
 
   void _onQueryChanged(String value) {
     _debounce?.cancel();
@@ -2410,10 +3104,16 @@ class _StopSearchSheetState extends State<_StopSearchSheet> {
       // ever sent) — request the API's max per query so a broad term
       // ("food", "clinic", "temple", ...) surfaces a wide spread rather
       // than just the handful of top-ranked, often tourism-heavy hits.
-      final results = await _placesService.textSearch(query, maxResultCount: 20);
+      final results = await _placesService.textSearch(
+        query,
+        maxResultCount: 20,
+      );
       if (!mounted) return;
       setState(() {
-        _results = [for (final r in results) if (!_isAddressOnly(r)) r];
+        _results = [
+          for (final r in results)
+            if (!_isAddressOnly(r)) r,
+        ];
         _loading = false;
         _error = null;
       });
@@ -2426,7 +3126,8 @@ class _StopSearchSheetState extends State<_StopSearchSheet> {
     }
   }
 
-  bool _isAddressOnly(NearbyPlace place) => TripStopLocation.fromNearbyPlace(place).isAddressOnly;
+  bool _isAddressOnly(NearbyPlace place) =>
+      TripStopLocation.fromNearbyPlace(place).isAddressOnly;
 
   void _selectResult(NearbyPlace place) {
     setState(() => _selected = place);
@@ -2471,14 +3172,21 @@ class _StopSearchSheetState extends State<_StopSearchSheet> {
               const SizedBox(height: 16),
               Text(
                 'Add Stop',
-                style: TextStyle(color: context.colors.ink, fontWeight: FontWeight.w800, fontSize: 18),
+                style: TextStyle(
+                  color: context.colors.ink,
+                  fontWeight: FontWeight.w800,
+                  fontSize: 18,
+                ),
               ),
               const SizedBox(height: 12),
               ClipRRect(
                 borderRadius: BorderRadius.circular(16),
                 child: SizedBox(
                   height: 160,
-                  child: _SearchMap(mapController: _mapController, selected: selected),
+                  child: _SearchMap(
+                    mapController: _mapController,
+                    selected: selected,
+                  ),
                 ),
               ),
               const SizedBox(height: 12),
@@ -2486,11 +3194,17 @@ class _StopSearchSheetState extends State<_StopSearchSheet> {
                 controller: _controller,
                 autofocus: true,
                 onChanged: _onQueryChanged,
-                style: TextStyle(color: context.colors.ink, fontWeight: FontWeight.w600),
+                style: TextStyle(
+                  color: context.colors.ink,
+                  fontWeight: FontWeight.w600,
+                ),
                 decoration: InputDecoration(
                   hintText: 'Search a place',
                   hintStyle: TextStyle(color: context.colors.muted),
-                  prefixIcon: Icon(Icons.search_rounded, color: context.colors.muted),
+                  prefixIcon: Icon(
+                    Icons.search_rounded,
+                    color: context.colors.muted,
+                  ),
                   suffixIcon: _loading
                       ? const Padding(
                           padding: EdgeInsets.all(14),
@@ -2503,14 +3217,20 @@ class _StopSearchSheetState extends State<_StopSearchSheet> {
                       : null,
                   filled: true,
                   fillColor: context.colors.card,
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide.none),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(16),
+                    borderSide: BorderSide.none,
+                  ),
                 ),
               ),
               const SizedBox(height: 12),
               if (_error != null)
                 Padding(
                   padding: const EdgeInsets.symmetric(vertical: 12),
-                  child: Text(_error!, style: const TextStyle(color: Colors.red)),
+                  child: Text(
+                    _error!,
+                    style: const TextStyle(color: Colors.red),
+                  ),
                 )
               else
                 Expanded(
@@ -2520,29 +3240,44 @@ class _StopSearchSheetState extends State<_StopSearchSheet> {
                     separatorBuilder: (_, _) => const SizedBox(height: 8),
                     itemBuilder: (context, index) {
                       final place = _results[index];
-                      final isSelected = selected != null && _idFor(selected) == _idFor(place);
+                      final isSelected =
+                          selected != null && _idFor(selected) == _idFor(place);
                       final isDuplicate = _isDuplicate(place);
                       return ListTile(
-                        tileColor: isSelected ? AppColors.accent.withValues(alpha: 0.12) : context.colors.card,
+                        tileColor: isSelected
+                            ? AppColors.accent.withValues(alpha: 0.12)
+                            : context.colors.card,
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(14),
                           side: isSelected
-                              ? const BorderSide(color: AppColors.accent, width: 1.5)
+                              ? const BorderSide(
+                                  color: AppColors.accent,
+                                  width: 1.5,
+                                )
                               : BorderSide.none,
                         ),
                         leading: Icon(place.icon, color: AppColors.accent),
                         title: Text(
                           place.name,
-                          style: TextStyle(color: context.colors.ink, fontWeight: FontWeight.w700),
+                          style: TextStyle(
+                            color: context.colors.ink,
+                            fontWeight: FontWeight.w700,
+                          ),
                         ),
                         subtitle: Text(
-                          isDuplicate ? 'Already added to this day' : place.address,
+                          isDuplicate
+                              ? 'Already added to this day'
+                              : place.address,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: TextStyle(
-                            color: isDuplicate ? Colors.red : context.colors.muted,
+                            color: isDuplicate
+                                ? Colors.red
+                                : context.colors.muted,
                             fontSize: 12,
-                            fontWeight: isDuplicate ? FontWeight.w600 : FontWeight.normal,
+                            fontWeight: isDuplicate
+                                ? FontWeight.w600
+                                : FontWeight.normal,
                           ),
                         ),
                         onTap: () => _selectResult(place),
@@ -2556,7 +3291,11 @@ class _StopSearchSheetState extends State<_StopSearchSheet> {
                   padding: const EdgeInsets.only(bottom: 8),
                   child: Text(
                     'This place is already on this day\'s timeline.',
-                    style: TextStyle(color: Colors.red, fontSize: 12, fontWeight: FontWeight.w600),
+                    style: TextStyle(
+                      color: Colors.red,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
                 ),
               Opacity(
@@ -2597,7 +3336,10 @@ class _SearchMap extends StatelessWidget {
         ),
       ),
       children: [
-        TileLayer(urlTemplate: _osmTileUrl, userAgentPackageName: _osmUserAgent),
+        TileLayer(
+          urlTemplate: _osmTileUrl,
+          userAgentPackageName: _osmUserAgent,
+        ),
         if (place != null)
           MarkerLayer(
             markers: [
@@ -2606,7 +3348,10 @@ class _SearchMap extends StatelessWidget {
                 width: 34,
                 height: 34,
                 alignment: Alignment.center,
-                child: const _IconPin(icon: Icons.location_on_rounded, color: Color(0xFFE53935)),
+                child: const _IconPin(
+                  icon: Icons.location_on_rounded,
+                  color: Color(0xFFE53935),
+                ),
               ),
             ],
           ),

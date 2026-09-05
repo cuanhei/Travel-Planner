@@ -5,8 +5,6 @@ import 'package:latlong2/latlong.dart';
 import '../../models/drive_route.dart';
 import '../../models/transit_route.dart';
 import '../../models/trip_stop_location.dart';
-import '../../services/locale_service.dart';
-import '../../services/photon_service.dart';
 import '../../services/route_service.dart';
 import '../../services/trip_service.dart';
 import '../../theme/app_theme.dart';
@@ -15,25 +13,7 @@ import '../../utils/transit_vehicle_display.dart';
 import '../../widgets/detail_header.dart';
 import '../../widgets/location_search_field.dart';
 import '../../widgets/route_map_view.dart';
-import '../explore/explore_tab.dart' show Place;
 import 'transit_route_details_screen.dart';
-
-/// The traveler's next planned itinerary stop — mirrors the "Next Stop"
-/// leg shown on the home dashboard and trip schedule (Komtar → Gurney
-/// Drive & Plaza → Queensbay Mall), so the transport tab can proactively
-/// offer directions to it.
-final _nextStop = Place(
-  name: 'Gurney Drive & Plaza',
-  area: 'Gurney Drive, Penang',
-  category: 'Shopping',
-  rating: 0,
-  reviews: 0,
-  gradient: AppColors.dusk,
-  icon: Icons.shopping_bag_rounded,
-  description: 'Your next planned stop on this trip.',
-  avgBudget: 'RM 20 – 50',
-  distanceKm: 3.8,
-);
 
 /// Real transit planner: Depart From/Destination search, a live map,
 /// and public-transport (primary) + driving (comparison) route results
@@ -70,14 +50,12 @@ class _TransportRoutesScreenState extends State<TransportRoutesScreen> {
   final _tripService = TripService();
   List<TripStopLocation> _favoriteStops = const [];
   bool _loadingFavorites = false;
-  final _photonService = PhotonService();
 
-  /// Set while a "Next Up"/favourite-stop tap is being resolved to a
-  /// real, geocoded [TripStopLocation] via Photon — those cards only
-  /// carry a dummy [Place] (name/area, no coordinates), so tapping one
-  /// re-searches its name for a real destination rather than setting it
-  /// directly.
-  bool _resolvingQuickDestination = false;
+  /// The traveler's next planned itinerary stop for this trip — the
+  /// earliest scheduled stop, across every day, whose arrival time
+  /// hasn't passed yet. Null until loaded, or if this trip has no
+  /// upcoming stop left (schedule empty, or every stop already passed).
+  TripStopLocation? _nextStop;
 
   TripStopLocation? _departure;
   TripStopLocation? _selectedDestination;
@@ -98,6 +76,45 @@ class _TransportRoutesScreenState extends State<TransportRoutesScreen> {
     _initDeparture();
     if (widget.showTripExtras && widget.tripId != null) {
       _loadFavoriteStops();
+      _loadNextStop();
+    }
+  }
+
+  /// Finds the earliest stop, across every day of this trip's saved
+  /// schedule, whose arrival time is still ahead of now — that's "Next
+  /// Up". Each stop's arrival is anchored to its own day's date (not
+  /// just a time-of-day), so this naturally rolls over correctly at
+  /// midnight and across day boundaries without any special-casing.
+  Future<void> _loadNextStop() async {
+    final tripId = widget.tripId;
+    if (tripId == null) return;
+    try {
+      final schedule = await _tripService.getTripSchedule(tripId);
+      final now = DateTime.now();
+      TripStopLocation? best;
+      DateTime? bestArrival;
+      for (final day in schedule.days) {
+        final dayMidnight = DateTime(
+          day.date.year,
+          day.date.month,
+          day.date.day,
+        );
+        for (final stop in day.stops) {
+          final arrival = dayMidnight.add(
+            Duration(minutes: stop.arrivalMinutes),
+          );
+          if (arrival.isBefore(now)) continue;
+          if (bestArrival == null || arrival.isBefore(bestArrival)) {
+            bestArrival = arrival;
+            best = stop.location;
+          }
+        }
+      }
+      if (!mounted) return;
+      setState(() => _nextStop = best);
+    } catch (_) {
+      // No "Next Up" card is a fine fallback — the rest of the screen
+      // (search, map, results) doesn't depend on this.
     }
   }
 
@@ -151,7 +168,9 @@ class _TransportRoutesScreenState extends State<TransportRoutesScreen> {
         return;
       }
       final position = await Geolocator.getCurrentPosition(
-        locationSettings: const LocationSettings(accuracy: LocationAccuracy.high),
+        locationSettings: const LocationSettings(
+          accuracy: LocationAccuracy.high,
+        ),
       );
       if (!mounted) return;
       setState(() {
@@ -272,12 +291,13 @@ class _TransportRoutesScreenState extends State<TransportRoutesScreen> {
       final saved = await _tripService.addFavoriteStop(tripId, picked);
       if (!mounted) return;
       setState(() => _favoriteStops = [..._favoriteStops, saved]);
-    } catch (_) {
+    } catch (e) {
+      debugPrint('addFavoriteStop failed: $e');
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
+        SnackBar(
           behavior: SnackBarBehavior.floating,
-          content: Text('Could not save that stop. Try again.'),
+          content: Text('Could not save that stop: $e'),
         ),
       );
     }
@@ -292,8 +312,9 @@ class _TransportRoutesScreenState extends State<TransportRoutesScreen> {
     } catch (_) {
       if (!mounted) return;
       setState(
-        () => _favoriteStops = [..._favoriteStops]
-          ..insert(index.clamp(0, _favoriteStops.length), stop),
+        () =>
+            _favoriteStops = [..._favoriteStops]
+              ..insert(index.clamp(0, _favoriteStops.length), stop),
       );
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -315,14 +336,12 @@ class _TransportRoutesScreenState extends State<TransportRoutesScreen> {
           onPressed: () async {
             if (tripId == null) return;
             try {
-              final restored = await _tripService.addFavoriteStop(
-                tripId,
-                stop,
-              );
+              final restored = await _tripService.addFavoriteStop(tripId, stop);
               if (!mounted) return;
               setState(
-                () => _favoriteStops = [..._favoriteStops]
-                  ..insert(index.clamp(0, _favoriteStops.length), restored),
+                () =>
+                    _favoriteStops = [..._favoriteStops]
+                      ..insert(index.clamp(0, _favoriteStops.length), restored),
               );
             } catch (_) {
               // Best-effort undo — nothing more to do if it fails.
@@ -339,41 +358,6 @@ class _TransportRoutesScreenState extends State<TransportRoutesScreen> {
   void _selectFavoriteStop(TripStopLocation stop) {
     setState(() => _selectedDestination = stop);
     _maybeFetchRoutes();
-  }
-
-  /// "Next Up"/a favourite stop only carries a name (no coordinates) —
-  /// resolves it to a real place via Photon and sets it as the
-  /// destination, same as if the traveler had searched for it manually.
-  Future<void> _selectDestination(Place place) async {
-    setState(() => _resolvingQuickDestination = true);
-    try {
-      final results = await _photonService.search(place.name);
-      if (!mounted) return;
-      if (results.isEmpty) {
-        setState(() => _resolvingQuickDestination = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            behavior: SnackBarBehavior.floating,
-            content: Text('Could not find "${place.name}" — try searching manually.'),
-          ),
-        );
-        return;
-      }
-      setState(() {
-        _selectedDestination = results.first;
-        _resolvingQuickDestination = false;
-      });
-      _maybeFetchRoutes();
-    } catch (_) {
-      if (!mounted) return;
-      setState(() => _resolvingQuickDestination = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          behavior: SnackBarBehavior.floating,
-          content: Text('Could not find "${place.name}" — try searching manually.'),
-        ),
-      );
-    }
   }
 
   @override
@@ -403,10 +387,11 @@ class _TransportRoutesScreenState extends State<TransportRoutesScreen> {
                 padding: const EdgeInsets.fromLTRB(20, 4, 20, 24),
                 children: [
                   if (widget.showTripExtras) ...[
-                    if (_selectedDestination?.name != _nextStop.name) ...[
+                    if (_nextStop case final nextStop?
+                        when _selectedDestination != nextStop) ...[
                       _NextStopCard(
-                        stopName: _nextStop.name,
-                        onTap: () => _selectDestination(_nextStop),
+                        stopName: nextStop.name,
+                        onTap: () => _selectFavoriteStop(nextStop),
                       ),
                       const SizedBox(height: 20),
                     ],
@@ -513,10 +498,7 @@ class _TransportRoutesScreenState extends State<TransportRoutesScreen> {
                       setState(() => _selectedDestination = d);
                       _maybeFetchRoutes();
                     },
-                    hintText: _resolvingQuickDestination
-                        ? 'Finding that place…'
-                        : 'Where do you want to go?',
-                    externalLoading: _resolvingQuickDestination,
+                    hintText: 'Where do you want to go?',
                     selectedIcon: Icons.directions_transit_filled_rounded,
                   ),
                   const SizedBox(height: 18),
@@ -840,6 +822,7 @@ class _FavoriteStopPicker extends StatelessWidget {
     );
   }
 }
+
 class _EmptyDestinationState extends StatelessWidget {
   const _EmptyDestinationState();
 
@@ -851,9 +834,7 @@ class _EmptyDestinationState extends StatelessWidget {
       decoration: BoxDecoration(
         color: context.colors.card,
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(
-          color: context.colors.muted.withValues(alpha: 0.15),
-        ),
+        border: Border.all(color: context.colors.muted.withValues(alpha: 0.15)),
       ),
       child: Column(
         children: [
@@ -939,7 +920,9 @@ class _RouteEndpointsCard extends StatelessWidget {
             icon: Icons.trip_origin_rounded,
             iconColor: const Color(0xFF5C6BC0),
             label: 'DEPART FROM',
-            name: departure?.name ?? (locatingDeparture ? 'Locating…' : 'Not set'),
+            name:
+                departure?.name ??
+                (locatingDeparture ? 'Locating…' : 'Not set'),
             address: departure?.address ?? '',
           ),
           Padding(
@@ -1063,8 +1046,8 @@ class _RouteResultsSection extends StatelessWidget {
     if (loading) return const _RoutesLoadingCard();
     if (transitRoutes.isEmpty) {
       return _RoutesErrorCard(
-        message: error ??
-            'No public transport routes found between these points.',
+        message:
+            error ?? 'No public transport routes found between these points.',
       );
     }
 
@@ -1145,9 +1128,7 @@ class _RoutesErrorCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: context.colors.card,
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(
-          color: context.colors.muted.withValues(alpha: 0.15),
-        ),
+        border: Border.all(color: context.colors.muted.withValues(alpha: 0.15)),
       ),
       child: Row(
         children: [

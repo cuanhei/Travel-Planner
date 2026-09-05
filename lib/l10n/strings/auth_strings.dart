@@ -350,6 +350,10 @@ const Map<String, Map<String, String>> authStrings = {
     'auth_history_trip_malacca': 'Malacca Day Trip',
     'auth_history_place_malacca': 'Malacca, Malaysia',
     'auth_history_states_visited_suffix': 'states visited',
+    'auth_history_places_visited_suffix': 'places visited',
+    'auth_history_empty_title': 'No past trips yet',
+    'auth_history_empty_subtitle':
+        "Trips you've completed will show up here.",
     'auth_profile_title': 'Profile',
     'auth_profile_not_found': "This profile couldn't be found.",
     'auth_traveler_default': 'Traveler',

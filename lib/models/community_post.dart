@@ -1,3 +1,7 @@
+/// One photo/video attached to a post — [url] its Storage URL, [type]
+/// either 'image' or 'video'.
+typedef PostMedia = ({String url, String type});
+
 /// A single Community feed post, joined from `posts` + `profiles` (author)
 /// and `post_likes` (the current user's own reaction, if any).
 class CommunityPost {
@@ -11,8 +15,7 @@ class CommunityPost {
     required this.caption,
     required this.category,
     required this.coverGradient,
-    this.mediaUrl,
-    this.mediaType,
+    this.media = const [],
     required this.likesCount,
     required this.reactionCounts,
     required this.commentsCount,
@@ -50,8 +53,9 @@ class CommunityPost {
   final String caption;
   final String category;
   final String coverGradient;
-  final String? mediaUrl;
-  final String? mediaType;
+
+  /// Up to 3 photos/videos, in the order they were attached.
+  final List<PostMedia> media;
 
   /// Total reactions across all types (`sum(reactionCounts.values)`).
   final int likesCount;
@@ -102,8 +106,7 @@ class CommunityPost {
       caption: caption,
       category: category,
       coverGradient: coverGradient,
-      mediaUrl: mediaUrl,
-      mediaType: mediaType,
+      media: media,
       likesCount: likesCount ?? this.likesCount,
       reactionCounts: reactionCounts ?? this.reactionCounts,
       commentsCount: commentsCount ?? this.commentsCount,
@@ -120,8 +123,24 @@ class CommunityPost {
     required String? myReaction,
   }) {
     final profile = map['profiles'] as Map<String, dynamic>;
-    final rawCounts =
-        map['reaction_counts'] as Map<String, dynamic>? ?? const {};
+    final rawCounts = map['reaction_counts'] as Map<String, dynamic>? ?? const {};
+    final mediaUrls = (map['media_urls'] as List<dynamic>?)?.cast<String>();
+    final mediaTypes = (map['media_types'] as List<dynamic>?)?.cast<String>();
+    // Falls back to the legacy single media_url/media_type columns for a
+    // row that predates the media_urls/media_types arrays and was never
+    // backfilled (see migration 0027_post_multi_media.sql).
+    final legacyUrl = map['media_url'] as String?;
+    final media = mediaUrls != null
+        ? [
+            for (var i = 0; i < mediaUrls.length; i++)
+              (
+                url: mediaUrls[i],
+                type: i < (mediaTypes?.length ?? 0) ? mediaTypes![i] : 'image',
+              ),
+          ]
+        : legacyUrl != null
+        ? [(url: legacyUrl, type: map['media_type'] as String? ?? 'image')]
+        : const <PostMedia>[];
     return CommunityPost(
       id: map['id'] as String,
       authorId: map['author_id'] as String,
@@ -132,8 +151,7 @@ class CommunityPost {
       caption: map['caption'] as String,
       category: map['category'] as String,
       coverGradient: map['cover_gradient'] as String,
-      mediaUrl: map['media_url'] as String?,
-      mediaType: map['media_type'] as String?,
+      media: media,
       likesCount: map['likes_count'] as int,
       reactionCounts: rawCounts.map((k, v) => MapEntry(k, v as int)),
       commentsCount: map['comments_count'] as int,

@@ -65,6 +65,26 @@ const Map<String, Map<String, String>> utilitiesStrings = {
     'utilities_item_passport_ic': 'Passport / IC',
     'utilities_item_hotel_booking': 'Hotel booking confirmation',
     'utilities_item_travel_insurance': 'Travel insurance',
+    'utilities_item_beach_towel': 'Beach towel',
+    'utilities_item_flip_flops': 'Flip flops',
+    'utilities_item_warm_jacket': 'Warm jacket',
+    'utilities_item_umbrella': 'Umbrella',
+    'utilities_item_waterproof_bag': 'Waterproof bag',
+    'utilities_item_laundry_bag': 'Laundry bag',
+    'utilities_suggestion_note_wet_season':
+        'Your dates fall in the wet season',
+    'utilities_suggestion_note_highland':
+        'Temperatures drop at higher elevation',
+    'utilities_suggestion_note_long_trip': 'For a longer trip',
+    'utilities_auto_generate': 'Auto-generate',
+    'utilities_auto_generate_subtitle':
+        'Suggest items based on your trip\'s destination and dates',
+    'utilities_items_added_suffix': 'items added to your list',
+    'utilities_no_new_suggestions':
+        'Your list already has everything suggested',
+    'utilities_field_quantity': 'Quantity',
+    'utilities_field_note': 'Note (optional)',
+    'utilities_hint_note': 'e.g. Pack extra in case it rains',
   },
   'ms': {
     'utilities_currency_converter_title': 'Penukar Mata Wang',

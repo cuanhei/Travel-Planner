@@ -98,7 +98,11 @@ class TripService {
     await retryOnJwtClockSkew(
       () => _client.from('budget_categories').insert([
         for (final entry in _defaultCategoryPlan.entries)
-          {'trip_id': tripId, 'label': entry.key, 'planned_amount': entry.value},
+          {
+            'trip_id': tripId,
+            'label': entry.key,
+            'planned_amount': entry.value,
+          },
       ]),
     );
 
@@ -128,9 +132,11 @@ class TripService {
     String? startTime,
     String? endTime,
     required double totalBudget,
+
     /// "driving" or "transit" — the transport mode toggle above Create
     /// Trip's day tabs, applied to every travel leg in the trip.
     String transportMode = 'driving',
+
     /// One accommodation per night of the trip — index 0 is the first
     /// night (after day 1), index 1 the second, and so on. A trip
     /// spanning N days has N-1 nights, so this is empty for a single-day
@@ -316,28 +322,33 @@ class TripService {
           .eq('id', tripId)
           .single(),
     );
+    // `.order()` in this client defaults to descending (the opposite of
+    // SQL's own default) — `ascending: true` is required here, otherwise
+    // days/stops/legs all come back reversed (day N first, its stops in
+    // reverse-add order), which also silently corrupts which leg gets
+    // read as "the trailing leg to accommodation" (always `legs.last`).
     final dayRows = await retryOnJwtClockSkew(
       () => _client
           .from('trip_days')
           .select()
           .eq('trip_id', tripId)
-          .order('day_number'),
+          .order('day_number', ascending: true),
     );
     final stopRows = await retryOnJwtClockSkew(
       () => _client
           .from('trip_stops')
           .select()
           .eq('trip_id', tripId)
-          .order('day_number')
-          .order('sequence'),
+          .order('day_number', ascending: true)
+          .order('sequence', ascending: true),
     );
     final segmentRows = await retryOnJwtClockSkew(
       () => _client
           .from('trip_travel_segments')
           .select()
           .eq('trip_id', tripId)
-          .order('day_number')
-          .order('sequence'),
+          .order('day_number', ascending: true)
+          .order('sequence', ascending: true),
     );
 
     final days = <TripScheduleDay>[];
@@ -366,6 +377,80 @@ class TripService {
       tripEndTime: tripRow['end_time'] as String?,
       days: days,
     );
+  }
+
+  /// Organizer-only: replaces a single day's stops and travel legs (Edit
+  /// Schedule only ever touches one day at a time — past days are locked
+  /// client-side and never reach this) and, if given, its start-time
+  /// override. Deletes that day's existing `trip_stops`/
+  /// `trip_travel_segments` rows first since — unlike [saveTripSchedule]'s
+  /// first-ever insert — this call replaces an already-saved day.
+  Future<void> updateDaySchedule({
+    required String tripId,
+    required int dayNumber,
+    required String? startTimeOverride,
+    required List<TripStopInput> stops,
+    required List<TripTravelSegmentInput> segments,
+  }) async {
+    await retryOnJwtClockSkew(
+      () => _client
+          .from('trip_days')
+          .update({'start_time_override': startTimeOverride})
+          .eq('trip_id', tripId)
+          .eq('day_number', dayNumber),
+    );
+    await retryOnJwtClockSkew(
+      () => _client
+          .from('trip_travel_segments')
+          .delete()
+          .eq('trip_id', tripId)
+          .eq('day_number', dayNumber),
+    );
+    await retryOnJwtClockSkew(
+      () => _client
+          .from('trip_stops')
+          .delete()
+          .eq('trip_id', tripId)
+          .eq('day_number', dayNumber),
+    );
+
+    final stopIds = <int, String>{};
+    if (stops.isNotEmpty) {
+      final rows = await retryOnJwtClockSkew(
+        () => _client
+            .from('trip_stops')
+            .insert([for (final stop in stops) _stopRow(tripId, stop)])
+            .select('id, sequence'),
+      );
+      for (final row in rows) {
+        stopIds[row['sequence'] as int] = row['id'] as String;
+      }
+    }
+
+    if (segments.isNotEmpty) {
+      await retryOnJwtClockSkew(
+        () => _client.from('trip_travel_segments').insert([
+          for (final segment in segments)
+            {
+              'trip_id': tripId,
+              'day_number': segment.dayNumber,
+              'sequence': segment.sequence,
+              'from_name': segment.fromName,
+              'from_latitude': segment.fromLatitude,
+              'from_longitude': segment.fromLongitude,
+              'to_name': segment.toName,
+              'to_latitude': segment.toLatitude,
+              'to_longitude': segment.toLongitude,
+              'to_stop_id': segment.legKind == TripLegKind.stop
+                  ? stopIds[segment.sequence]
+                  : null,
+              'leg_kind': segment.legKind.column,
+              'transport_mode': segment.transportMode,
+              'duration_minutes': segment.durationMinutes,
+            },
+        ]),
+      );
+    }
   }
 
   /// Updates a trip's core details from the Edit Trip form — everything
@@ -471,6 +556,39 @@ class TripService {
         });
   }
 
+  /// The first trip the signed-in user already belongs to — as organizer
+  /// *or* plain member, same `trip_members` join as [myTrips] — whose
+  /// dates clash with `[start, end]` (inclusive: a trip ending the day
+  /// another starts still counts, matching `check_trip_date_conflict`'s
+  /// server-side trigger). Null if none does. [excludeTripId] skips a
+  /// trip against itself, for checking a date change on an already-
+  /// existing trip rather than a brand-new one.
+  ///
+  /// This is Create Trip's client-side check — a friendlier, inline
+  /// warning before ever hitting Save — but the database trigger is what
+  /// actually enforces it; this call can't be the only guard against a
+  /// race (two trips created back-to-back) or a bypassed client.
+  Future<Trip?> findDateConflict({
+    required DateTime start,
+    required DateTime end,
+    String? excludeTripId,
+  }) async {
+    final startStr = start.toIso8601String().split('T').first;
+    final endStr = end.toIso8601String().split('T').first;
+    final rows = await retryOnJwtClockSkew(
+      () => _client
+          .from('trips')
+          .select('*, trip_members!inner(user_id)')
+          .eq('trip_members.user_id', _uid)
+          .lte('start_date', endStr)
+          .gte('end_date', startStr),
+    );
+    final trips = _parseTrips(
+      rows,
+    ).where((t) => t.id != excludeTripId).toList();
+    return trips.isEmpty ? null : trips.first;
+  }
+
   /// Parses each row via [Trip.fromMap], skipping (and logging) any row
   /// that fails — one malformed/legacy row (e.g. missing a required
   /// column from before a migration backfilled it) shouldn't take down
@@ -524,7 +642,8 @@ class TripService {
   /// Trip Details' "Travelers" stat.
   Future<int> memberCount(String tripId) async {
     final rows = await retryOnJwtClockSkew(
-      () => _client.from('trip_members').select('user_id').eq('trip_id', tripId),
+      () =>
+          _client.from('trip_members').select('user_id').eq('trip_id', tripId),
     );
     return rows.length;
   }
@@ -553,7 +672,7 @@ class TripService {
           .from('trip_favorite_stops')
           .select()
           .eq('trip_id', tripId)
-          .order('created_at'),
+          .order('created_at', ascending: true),
     );
     return [for (final row in rows) TripStopLocation.fromMap(row)];
   }
@@ -583,10 +702,8 @@ class TripService {
 
   Future<void> removeFavoriteStop(String favoriteStopId) async {
     await retryOnJwtClockSkew(
-      () => _client
-          .from('trip_favorite_stops')
-          .delete()
-          .eq('id', favoriteStopId),
+      () =>
+          _client.from('trip_favorite_stops').delete().eq('id', favoriteStopId),
     );
   }
 

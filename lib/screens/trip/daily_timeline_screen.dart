@@ -1,16 +1,31 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
+import 'package:latlong2/latlong.dart';
 
 import '../../models/place_environment.dart';
 import '../../models/trip_schedule.dart';
 import '../../models/trip_schedule_input.dart';
+import '../../services/stop_weather_service.dart';
 import '../../services/trip_service.dart';
 import '../../theme/app_theme.dart';
+import '../../utils/opening_hours_check.dart';
 import '../../utils/weather_display.dart';
 import '../../widgets/detail_header.dart';
 
 const _monthNames = [
-  'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-  'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+  'Jan',
+  'Feb',
+  'Mar',
+  'Apr',
+  'May',
+  'Jun',
+  'Jul',
+  'Aug',
+  'Sep',
+  'Oct',
+  'Nov',
+  'Dec',
 ];
 
 String _formatShortDate(DateTime d) => '${d.day} ${_monthNames[d.month - 1]}';
@@ -79,11 +94,19 @@ class DailyTimelineScreen extends StatefulWidget {
 
 class _DailyTimelineScreenState extends State<DailyTimelineScreen> {
   final _tripService = TripService();
+  final _stopWeatherService = StopWeatherService();
 
   TripSchedule? _schedule;
   bool _loading = true;
   String? _error;
   int _selectedDay = 0;
+
+  /// Freshly-checked weather per stop, keyed by identity — supersedes the
+  /// snapshot saved on [TripScheduleStop] at Create Trip time (which goes
+  /// stale the moment MET Malaysia's forecast updates, or the trip's
+  /// dates approach and fall inside the forecast window for the first
+  /// time). Null while a stop's check is still in flight.
+  final Map<TripScheduleStop, StopWeatherCheck?> _liveWeather = {};
 
   @override
   void initState() {
@@ -104,12 +127,38 @@ class _DailyTimelineScreenState extends State<DailyTimelineScreen> {
         _loading = false;
         if (_selectedDay >= schedule.days.length) _selectedDay = 0;
       });
+      unawaited(_checkWeather(schedule));
     } catch (e) {
       if (!mounted) return;
       setState(() {
         _error = '$e';
         _loading = false;
       });
+    }
+  }
+
+  /// Live-checks every outdoor/mixed stop, across every day, against the
+  /// current forecast — one at a time, updating as each resolves, rather
+  /// than trusting the saved-at-creation snapshot forever.
+  Future<void> _checkWeather(TripSchedule schedule) async {
+    for (final day in schedule.days) {
+      if (!StopWeatherService.isWithinForecastWindow(day.date)) continue;
+      for (final stop in day.stops) {
+        final env = stop.location.environment;
+        if (env != PlaceEnvironment.outdoor && env != PlaceEnvironment.mixed) {
+          continue;
+        }
+        if (!mounted) return;
+        setState(() => _liveWeather[stop] = null);
+        final result = await _stopWeatherService.check(
+          position: LatLng(stop.location.latitude, stop.location.longitude),
+          date: day.date,
+          arrivalMinutes: stop.arrivalMinutes,
+          endMinutes: stop.endMinutes,
+        );
+        if (!mounted) return;
+        setState(() => _liveWeather[stop] = result);
+      }
     }
   }
 
@@ -153,6 +202,7 @@ class _DailyTimelineScreenState extends State<DailyTimelineScreen> {
         _DayScheduleCard(
           day: schedule.days[_selectedDay],
           fallbackStartTime: schedule.tripStartTime,
+          liveWeather: _liveWeather,
         ),
       ],
     );
@@ -170,11 +220,19 @@ class _EmptyState extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.event_busy_rounded, color: context.colors.muted, size: 36),
+            Icon(
+              Icons.event_busy_rounded,
+              color: context.colors.muted,
+              size: 36,
+            ),
             const SizedBox(height: 12),
             Text(
               'No saved schedule yet',
-              style: TextStyle(color: context.colors.ink, fontWeight: FontWeight.w700, fontSize: 15),
+              style: TextStyle(
+                color: context.colors.ink,
+                fontWeight: FontWeight.w700,
+                fontSize: 15,
+              ),
             ),
             const SizedBox(height: 6),
             Text(
@@ -203,14 +261,26 @@ class _ErrorState extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.error_outline_rounded, color: context.colors.muted, size: 32),
+            Icon(
+              Icons.error_outline_rounded,
+              color: context.colors.muted,
+              size: 32,
+            ),
             const SizedBox(height: 10),
             Text(
               'Could not load the schedule',
-              style: TextStyle(color: context.colors.ink, fontWeight: FontWeight.w700, fontSize: 14),
+              style: TextStyle(
+                color: context.colors.ink,
+                fontWeight: FontWeight.w700,
+                fontSize: 14,
+              ),
             ),
             const SizedBox(height: 4),
-            Text(message, textAlign: TextAlign.center, style: TextStyle(color: context.colors.muted, fontSize: 12)),
+            Text(
+              message,
+              textAlign: TextAlign.center,
+              style: TextStyle(color: context.colors.muted, fontSize: 12),
+            ),
             const SizedBox(height: 14),
             TextButton(onPressed: onRetry, child: const Text('Try again')),
           ],
@@ -221,7 +291,11 @@ class _ErrorState extends StatelessWidget {
 }
 
 class _DayTabBar extends StatelessWidget {
-  const _DayTabBar({required this.days, required this.selected, required this.onSelect});
+  const _DayTabBar({
+    required this.days,
+    required this.selected,
+    required this.onSelect,
+  });
 
   final List<TripScheduleDay> days;
   final int selected;
@@ -262,7 +336,9 @@ class _DayTabBar extends StatelessWidget {
                   Text(
                     _formatShortDate(days[i].date),
                     style: TextStyle(
-                      color: isSelected ? Colors.white.withValues(alpha: 0.9) : context.colors.muted,
+                      color: isSelected
+                          ? Colors.white.withValues(alpha: 0.9)
+                          : context.colors.muted,
                       fontWeight: FontWeight.w600,
                       fontSize: 11,
                     ),
@@ -278,7 +354,11 @@ class _DayTabBar extends StatelessWidget {
 }
 
 class _DayScheduleCard extends StatelessWidget {
-  const _DayScheduleCard({required this.day, required this.fallbackStartTime});
+  const _DayScheduleCard({
+    required this.day,
+    required this.fallbackStartTime,
+    required this.liveWeather,
+  });
 
   final TripScheduleDay day;
 
@@ -286,31 +366,47 @@ class _DayScheduleCard extends StatelessWidget {
   /// override of its own.
   final String? fallbackStartTime;
 
+  final Map<TripScheduleStop, StopWeatherCheck?> liveWeather;
+
   @override
   Widget build(BuildContext context) {
-    final startMinutes = _minutesFromTimeString(day.startTimeOverride) ??
+    final startMinutes =
+        _minutesFromTimeString(day.startTimeOverride) ??
         _minutesFromTimeString(fallbackStartTime) ??
         8 * 60;
     final legs = day.legs;
     final stops = day.stops;
-    final originLabel = legs.isNotEmpty ? legs.first.fromName : 'Starting point';
+    final originLabel = legs.isNotEmpty
+        ? legs.first.fromName
+        : 'Starting point';
     final trailingLeg = legs.length > stops.length ? legs.last : null;
 
     return Container(
       padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(color: context.colors.card, borderRadius: BorderRadius.circular(18)),
+      decoration: BoxDecoration(
+        color: context.colors.card,
+        borderRadius: BorderRadius.circular(18),
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
             'Day ${day.dayNumber} — ${_formatShortDate(day.date)}',
-            style: TextStyle(color: context.colors.ink, fontWeight: FontWeight.w700, fontSize: 15),
+            style: TextStyle(
+              color: context.colors.ink,
+              fontWeight: FontWeight.w700,
+              fontSize: 15,
+            ),
           ),
           const SizedBox(height: 14),
           _OriginNode(time: _minutesToClock(startMinutes), label: originLabel),
           for (var i = 0; i < stops.length; i++) ...[
             if (i < legs.length) _TravelConnector(leg: legs[i]),
-            _StopNode(stop: stops[i]),
+            _StopNode(
+              stop: stops[i],
+              date: day.date,
+              liveWeather: liveWeather[stops[i]],
+            ),
           ],
           if (trailingLeg != null) ...[
             _TravelConnector(leg: trailingLeg),
@@ -320,7 +416,11 @@ class _DayScheduleCard extends StatelessWidget {
             const SizedBox(height: 8),
             Text(
               'No stops planned for this day.',
-              style: TextStyle(color: context.colors.muted, fontSize: 12.5, fontStyle: FontStyle.italic),
+              style: TextStyle(
+                color: context.colors.muted,
+                fontSize: 12.5,
+                fontStyle: FontStyle.italic,
+              ),
             ),
           ],
         ],
@@ -343,16 +443,28 @@ class _OriginNode extends StatelessWidget {
           width: 52,
           child: Text(
             time,
-            style: TextStyle(color: context.colors.ink, fontWeight: FontWeight.w800, fontSize: 13),
+            style: TextStyle(
+              color: context.colors.ink,
+              fontWeight: FontWeight.w800,
+              fontSize: 13,
+            ),
           ),
         ),
         const SizedBox(width: 10),
-        const Icon(Icons.flag_circle_rounded, color: AppColors.accent, size: 20),
+        const Icon(
+          Icons.flag_circle_rounded,
+          color: AppColors.accent,
+          size: 20,
+        ),
         const SizedBox(width: 8),
         Expanded(
           child: Text(
             label,
-            style: TextStyle(color: context.colors.ink, fontWeight: FontWeight.w700, fontSize: 13.5),
+            style: TextStyle(
+              color: context.colors.ink,
+              fontWeight: FontWeight.w700,
+              fontSize: 13.5,
+            ),
           ),
         ),
       ],
@@ -372,15 +484,25 @@ class _TravelConnector extends StatelessWidget {
         children: [
           const SizedBox(width: 52),
           const SizedBox(width: 10),
-          Icon(Icons.subdirectory_arrow_right_rounded, size: 16, color: context.colors.muted),
+          Icon(
+            Icons.subdirectory_arrow_right_rounded,
+            size: 16,
+            color: context.colors.muted,
+          ),
           const SizedBox(width: 6),
           Text(
             _travelLabel(leg),
-            style: TextStyle(color: context.colors.muted, fontSize: 11.5, fontWeight: FontWeight.w600),
+            style: TextStyle(
+              color: context.colors.muted,
+              fontSize: 11.5,
+              fontWeight: FontWeight.w600,
+            ),
           ),
           const SizedBox(width: 6),
           Icon(
-            leg.transportMode == 'transit' ? Icons.directions_bus_filled_rounded : Icons.directions_car_rounded,
+            leg.transportMode == 'transit'
+                ? Icons.directions_bus_filled_rounded
+                : Icons.directions_car_rounded,
             size: 13,
             color: context.colors.muted,
           ),
@@ -391,14 +513,28 @@ class _TravelConnector extends StatelessWidget {
 }
 
 class _StopNode extends StatelessWidget {
-  const _StopNode({required this.stop});
+  const _StopNode({required this.stop, required this.date, this.liveWeather});
   final TripScheduleStop stop;
+  final DateTime date;
+
+  /// Null while a live check is in flight (or hasn't started) — falls
+  /// back to [stop]'s saved-at-creation snapshot in that case.
+  final StopWeatherCheck? liveWeather;
 
   @override
   Widget build(BuildContext context) {
     final location = stop.location;
     final env = location.environment;
     final hours = location.openingHours;
+    final permanentlyClosed = location.businessStatus == 'CLOSED_PERMANENTLY';
+    final closedNow =
+        !permanentlyClosed &&
+        isClosedDuringVisit(
+          periods: location.openingHoursPeriods,
+          date: date,
+          arrivalMinutes: stop.arrivalMinutes,
+          endMinutes: stop.endMinutes,
+        );
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -406,7 +542,11 @@ class _StopNode extends StatelessWidget {
           width: 52,
           child: Text(
             _minutesToClock(stop.arrivalMinutes),
-            style: TextStyle(color: context.colors.ink, fontWeight: FontWeight.w800, fontSize: 13),
+            style: TextStyle(
+              color: context.colors.ink,
+              fontWeight: FontWeight.w800,
+              fontSize: 13,
+            ),
           ),
         ),
         const SizedBox(width: 10),
@@ -416,14 +556,21 @@ class _StopNode extends StatelessWidget {
           child: Container(
             margin: const EdgeInsets.only(bottom: 12),
             padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(color: context.colors.surface, borderRadius: BorderRadius.circular(14)),
+            decoration: BoxDecoration(
+              color: context.colors.surface,
+              borderRadius: BorderRadius.circular(14),
+            ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Icon(location.categoryIcon, color: AppColors.accent, size: 20),
+                    Icon(
+                      location.categoryIcon,
+                      color: AppColors.accent,
+                      size: 20,
+                    ),
                     const SizedBox(width: 8),
                     Expanded(
                       child: Column(
@@ -431,7 +578,11 @@ class _StopNode extends StatelessWidget {
                         children: [
                           Text(
                             location.name,
-                            style: TextStyle(color: context.colors.ink, fontWeight: FontWeight.w700, fontSize: 14),
+                            style: TextStyle(
+                              color: context.colors.ink,
+                              fontWeight: FontWeight.w700,
+                              fontSize: 14,
+                            ),
                           ),
                           const SizedBox(height: 2),
                           Wrap(
@@ -440,9 +591,11 @@ class _StopNode extends StatelessWidget {
                             children: [
                               _Tag(_environmentLabel(env)),
                               _Tag(location.category),
-                              if (location.businessStatus == 'CLOSED_PERMANENTLY')
+                              if (location.businessStatus ==
+                                  'CLOSED_PERMANENTLY')
                                 _Tag('Permanently closed', warning: true),
-                              if (location.businessStatus == 'CLOSED_TEMPORARILY')
+                              if (location.businessStatus ==
+                                  'CLOSED_TEMPORARILY')
                                 _Tag('Temporarily closed', warning: true),
                             ],
                           ),
@@ -454,27 +607,90 @@ class _StopNode extends StatelessWidget {
                 const SizedBox(height: 8),
                 Text(
                   'Visit: ${_durationLabel(stop.visitMinutes)} · Ends ${_minutesToClock(stop.endMinutes)}',
-                  style: TextStyle(color: context.colors.muted, fontWeight: FontWeight.w600, fontSize: 12.5),
+                  style: TextStyle(
+                    color: context.colors.muted,
+                    fontWeight: FontWeight.w600,
+                    fontSize: 12.5,
+                  ),
                 ),
                 if (hours != null && hours.isNotEmpty) ...[
                   const SizedBox(height: 6),
                   Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Icon(Icons.schedule_rounded, size: 14, color: context.colors.muted),
+                      Icon(
+                        Icons.schedule_rounded,
+                        size: 14,
+                        color: context.colors.muted,
+                      ),
                       const SizedBox(width: 6),
                       Expanded(
                         child: Text(
                           hours.first,
-                          style: TextStyle(color: context.colors.muted, fontSize: 12, fontWeight: FontWeight.w500),
+                          style: TextStyle(
+                            color: context.colors.muted,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w500,
+                          ),
                         ),
                       ),
                     ],
                   ),
                 ],
-                if (env == PlaceEnvironment.outdoor || env == PlaceEnvironment.mixed) ...[
+                if (permanentlyClosed)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 6),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Icon(
+                          Icons.block_rounded,
+                          size: 14,
+                          color: Colors.red,
+                        ),
+                        const SizedBox(width: 6),
+                        Expanded(
+                          child: Text(
+                            'This place is permanently closed — you may want to rearrange this stop.',
+                            style: const TextStyle(
+                              color: Colors.red,
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  )
+                else if (closedNow)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 6),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Icon(
+                          Icons.warning_amber_rounded,
+                          size: 14,
+                          color: Colors.red,
+                        ),
+                        const SizedBox(width: 6),
+                        Expanded(
+                          child: Text(
+                            'Closed at this scheduled time — try another day or time.',
+                            style: const TextStyle(
+                              color: Colors.red,
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                if (env == PlaceEnvironment.outdoor ||
+                    env == PlaceEnvironment.mixed) ...[
                   const SizedBox(height: 6),
-                  _WeatherRow(stop: stop),
+                  _WeatherRow(stop: stop, live: liveWeather),
                 ],
               ],
             ),
@@ -486,26 +702,82 @@ class _StopNode extends StatelessWidget {
 }
 
 class _WeatherRow extends StatelessWidget {
-  const _WeatherRow({required this.stop});
+  const _WeatherRow({required this.stop, required this.live});
   final TripScheduleStop stop;
+
+  /// The freshly re-checked result — null while a check is still in
+  /// flight (or before one's started), in which case the saved-at-Create-
+  /// Trip snapshot on [stop] is shown as a fallback instead.
+  final StopWeatherCheck? live;
 
   @override
   Widget build(BuildContext context) {
+    if (live != null && live!.isResolved) {
+      return _row(
+        context,
+        phrase: live!.forecast!.summaryForecast,
+        flagged: live!.isBad,
+        badPeriods: live!.badPeriods.map((p) => p.name).toList(),
+        checkedNowLabel: true,
+      );
+    }
+
     final phrase = stop.weatherForecastPhrase;
     if (phrase == null) {
       return Row(
         children: [
-          Icon(Icons.cloud_off_rounded, size: 14, color: context.colors.muted),
-          const SizedBox(width: 6),
-          Text(
-            'Weather not checked at save time',
-            style: TextStyle(color: context.colors.muted, fontSize: 12, fontStyle: FontStyle.italic),
-          ),
+          if (live == null) ...[
+            const SizedBox(
+              width: 12,
+              height: 12,
+              child: CircularProgressIndicator(strokeWidth: 1.6),
+            ),
+            const SizedBox(width: 8),
+            Text(
+              'Checking current weather…',
+              style: TextStyle(
+                color: context.colors.muted,
+                fontSize: 12,
+                fontStyle: FontStyle.italic,
+              ),
+            ),
+          ] else ...[
+            Icon(
+              Icons.cloud_off_rounded,
+              size: 14,
+              color: context.colors.muted,
+            ),
+            const SizedBox(width: 6),
+            Text(
+              'No forecast available for this stop',
+              style: TextStyle(
+                color: context.colors.muted,
+                fontSize: 12,
+                fontStyle: FontStyle.italic,
+              ),
+            ),
+          ],
         ],
       );
     }
-    if (stop.weatherFlagged) {
-      final periods = stop.weatherBadPeriods.map(_capitalize).join(' & ');
+    return _row(
+      context,
+      phrase: phrase,
+      flagged: stop.weatherFlagged,
+      badPeriods: stop.weatherBadPeriods,
+      checkedNowLabel: false,
+    );
+  }
+
+  Widget _row(
+    BuildContext context, {
+    required String phrase,
+    required bool flagged,
+    required List<String> badPeriods,
+    required bool checkedNowLabel,
+  }) {
+    if (flagged) {
+      final periods = badPeriods.map(_capitalize).join(' & ');
       return Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -517,7 +789,11 @@ class _WeatherRow extends StatelessWidget {
               Expanded(
                 child: Text(
                   'Weather: ${translateWeather(phrase)}',
-                  style: const TextStyle(color: Colors.red, fontSize: 12, fontWeight: FontWeight.w600),
+                  style: const TextStyle(
+                    color: Colors.red,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
               ),
             ],
@@ -527,8 +803,14 @@ class _WeatherRow extends StatelessWidget {
             Padding(
               padding: const EdgeInsets.only(left: 20),
               child: Text(
-                'Rain was forecast in the $periods when this trip was saved.',
-                style: const TextStyle(color: Colors.red, fontSize: 11.5, fontWeight: FontWeight.w600),
+                checkedNowLabel
+                    ? 'Rain is currently forecast in the $periods.'
+                    : 'Rain was forecast in the $periods when this trip was saved.',
+                style: const TextStyle(
+                  color: Colors.red,
+                  fontSize: 11.5,
+                  fontWeight: FontWeight.w600,
+                ),
               ),
             ),
           ],
@@ -543,7 +825,11 @@ class _WeatherRow extends StatelessWidget {
         Expanded(
           child: Text(
             'Weather: ${translateWeather(phrase)} — suitable',
-            style: TextStyle(color: context.colors.muted, fontSize: 12, fontWeight: FontWeight.w500),
+            style: TextStyle(
+              color: context.colors.muted,
+              fontSize: 12,
+              fontWeight: FontWeight.w500,
+            ),
           ),
         ),
       ],
@@ -551,7 +837,8 @@ class _WeatherRow extends StatelessWidget {
   }
 }
 
-String _capitalize(String s) => s.isEmpty ? s : '${s[0].toUpperCase()}${s.substring(1)}';
+String _capitalize(String s) =>
+    s.isEmpty ? s : '${s[0].toUpperCase()}${s.substring(1)}';
 
 class _TrailingNode extends StatelessWidget {
   const _TrailingNode({required this.leg});
@@ -567,14 +854,22 @@ class _TrailingNode extends StatelessWidget {
         const SizedBox(width: 10),
         Icon(
           isAccommodation ? Icons.hotel_rounded : Icons.flag_rounded,
-          color: isAccommodation ? const Color(0xFF1E88E5) : const Color(0xFFE53935),
+          color: isAccommodation
+              ? const Color(0xFF1E88E5)
+              : const Color(0xFFE53935),
           size: 20,
         ),
         const SizedBox(width: 8),
         Expanded(
           child: Text(
-            isAccommodation ? 'Stay — ${leg.toName}' : 'Trip Ends — ${leg.toName}',
-            style: TextStyle(color: context.colors.ink, fontWeight: FontWeight.w700, fontSize: 13.5),
+            isAccommodation
+                ? 'Stay — ${leg.toName}'
+                : 'Trip Ends — ${leg.toName}',
+            style: TextStyle(
+              color: context.colors.ink,
+              fontWeight: FontWeight.w700,
+              fontSize: 13.5,
+            ),
           ),
         ),
       ],
@@ -592,8 +887,18 @@ class _Tag extends StatelessWidget {
     final color = warning ? Colors.red : context.colors.muted;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-      decoration: BoxDecoration(color: color.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(8)),
-      child: Text(label, style: TextStyle(color: color, fontSize: 11, fontWeight: FontWeight.w600)),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(
+          color: color,
+          fontSize: 11,
+          fontWeight: FontWeight.w600,
+        ),
+      ),
     );
   }
 }

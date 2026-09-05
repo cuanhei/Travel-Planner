@@ -17,7 +17,6 @@ import '../utils/weather_display.dart';
 import '../widgets/destination_search_bar.dart';
 import '../widgets/section_header.dart';
 import '../widgets/user_avatar.dart';
-import 'activity_log_screen.dart';
 import 'community/community_tab.dart';
 import 'explore/explore_place_details_screen.dart';
 import 'explore/explore_tab.dart';
@@ -190,21 +189,6 @@ class _DashboardBody extends StatelessWidget {
         ),
         SliverToBoxAdapter(child: SizedBox(height: 14)),
         SliverToBoxAdapter(child: _DestinationsCarousel(key: destinationsKey)),
-        SliverPadding(
-          padding: EdgeInsets.fromLTRB(24, 28, 24, 0),
-          sliver: SliverToBoxAdapter(
-            child: SectionHeader(
-              title: tr('home_section_recent_activity'),
-              onAction: () => Navigator.of(context).push(
-                MaterialPageRoute(builder: (_) => const ActivityLogScreen()),
-              ),
-            ),
-          ),
-        ),
-        SliverPadding(
-          padding: EdgeInsets.fromLTRB(24, 14, 24, 0),
-          sliver: SliverToBoxAdapter(child: _RecentActivityList()),
-        ),
         SliverToBoxAdapter(child: SizedBox(height: 32)),
       ],
     );
@@ -1414,116 +1398,6 @@ class _DestinationPlaceholder extends StatelessWidget {
       ),
       alignment: Alignment.center,
       child: Icon(icon, color: Colors.white.withValues(alpha: 0.9), size: 34),
-    );
-  }
-}
-
-class _Activity {
-  _Activity({
-    required this.icon,
-    required this.title,
-    required this.time,
-    required this.color,
-  });
-
-  final IconData icon;
-  final String title;
-  final String time;
-  final Color color;
-}
-
-// A function, not a top-level `final` — see the comment on `_destinations`
-// above for why.
-List<_Activity> _activities() => [
-  _Activity(
-    icon: Icons.add_location_alt_rounded,
-    title: tr('home_activity_added_queensbay'),
-    time: tr('home_time_2h_ago'),
-    color: AppColors.accent,
-  ),
-  _Activity(
-    icon: Icons.check_circle_rounded,
-    title: tr('home_activity_checked_in_komtar'),
-    time: tr('home_time_1d_ago'),
-    color: Color(0xFF11998E),
-  ),
-  _Activity(
-    icon: Icons.star_rounded,
-    title: tr('home_activity_rated_gurney'),
-    time: tr('home_time_2d_ago'),
-    color: Color(0xFFFFB347),
-  ),
-];
-
-class _RecentActivityList extends StatelessWidget {
-  const _RecentActivityList();
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      children: _activities().map((a) => _ActivityTile(activity: a)).toList(),
-    );
-  }
-}
-
-class _ActivityTile extends StatelessWidget {
-  const _ActivityTile({required this.activity});
-
-  final _Activity activity;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      margin: EdgeInsets.only(bottom: 12),
-      padding: EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: context.colors.card,
-        borderRadius: BorderRadius.circular(18),
-        boxShadow: [
-          BoxShadow(
-            color: context.colors.ink.withValues(alpha: 0.05),
-            blurRadius: 12,
-            offset: Offset(0, 5),
-          ),
-        ],
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 40,
-            height: 40,
-            decoration: BoxDecoration(
-              color: activity.color.withValues(alpha: 0.12),
-              shape: BoxShape.circle,
-            ),
-            alignment: Alignment.center,
-            child: Icon(activity.icon, color: activity.color, size: 19),
-          ),
-          SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  activity.title,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    color: context.colors.ink,
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                SizedBox(height: 3),
-                Text(
-                  activity.time,
-                  style: TextStyle(color: context.colors.muted, fontSize: 11.5),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
     );
   }
 }

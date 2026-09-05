@@ -51,10 +51,26 @@ class _JoinTripScreenState extends State<JoinTripScreen> {
     super.dispose();
   }
 
-  bool get _canJoin => _code.length == _codeLength && !_isSubmitting;
-
   Future<void> _join() async {
-    if (!_canJoin) return;
+    if (_isSubmitting) return;
+    if (_code.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          behavior: SnackBarBehavior.floating,
+          content: Text('Please enter an invite code.'),
+        ),
+      );
+      return;
+    }
+    if (_code.length != _codeLength) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          behavior: SnackBarBehavior.floating,
+          content: Text('Invite code must be $_codeLength characters.'),
+        ),
+      );
+      return;
+    }
     setState(() => _isSubmitting = true);
 
     // Preview the code's trip first so a stale-dated or clashing trip
@@ -332,7 +348,7 @@ class _JoinTripScreenState extends State<JoinTripScreen> {
                   GradientButton(
                     label: 'Join Trip',
                     icon: Icons.group_add_rounded,
-                    onPressed: _canJoin ? () => _join() : () {},
+                    onPressed: _isSubmitting ? () {} : () => _join(),
                   ),
                   const SizedBox(height: 32),
                   StreamBuilder<List<MyJoinRequest>>(

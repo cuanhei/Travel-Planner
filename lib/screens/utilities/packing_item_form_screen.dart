@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../models/packing_item.dart';
 import '../../services/locale_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/detail_header.dart';
@@ -47,12 +48,17 @@ class _PackingItemFormScreenState extends State<PackingItemFormScreen> {
   late final _categoryController = TextEditingController(
     text: widget.initial?.category ?? '',
   );
+  late final _noteController = TextEditingController(
+    text: widget.initial?.note ?? '',
+  );
   late bool _packed = widget.initial?.packed ?? false;
+  late int _quantity = widget.initial?.quantity ?? 1;
 
   @override
   void dispose() {
     _labelController.dispose();
     _categoryController.dispose();
+    _noteController.dispose();
     super.dispose();
   }
 
@@ -61,17 +67,41 @@ class _PackingItemFormScreenState extends State<PackingItemFormScreen> {
     ...widget.existingCategories,
   }.toList();
 
-  bool get _canSave =>
-      _labelController.text.trim().isNotEmpty &&
-      _categoryController.text.trim().isNotEmpty;
+  void _showError(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(behavior: SnackBarBehavior.floating, content: Text(message)),
+    );
+  }
 
   void _save() {
-    if (!_canSave) return;
+    if (_labelController.text.trim().isEmpty) {
+      _showError('Please enter an item name.');
+      return;
+    }
+    if (_categoryController.text.trim().isEmpty) {
+      _showError('Please enter a category.');
+      return;
+    }
+    if (_quantity < 1) {
+      _showError('Quantity cannot be less than 1.');
+      return;
+    }
+    // id/createdBy/createdAt are placeholders here — the screen that
+    // pushed this form only reads label/category/quantity/note/packed
+    // off the result and does the actual insert/update itself, since
+    // those fields are assigned server-side.
     final item = PackingItem(
-      id: widget.initial?.id ?? DateTime.now().microsecondsSinceEpoch,
+      id: widget.initial?.id ?? '',
+      tripId: widget.initial?.tripId ?? '',
       label: _labelController.text.trim(),
       category: _categoryController.text.trim(),
+      quantity: _quantity,
+      note: _noteController.text.trim().isEmpty
+          ? null
+          : _noteController.text.trim(),
       packed: _packed,
+      createdBy: widget.initial?.createdBy ?? '',
+      createdAt: widget.initial?.createdAt ?? DateTime.now(),
     );
     Navigator.of(context).pop(PackingItemFormResult.save(item));
   }
@@ -181,6 +211,53 @@ class _PackingItemFormScreenState extends State<PackingItemFormScreen> {
                       );
                     }).toList(),
                   ),
+                  const SizedBox(height: 20),
+                  _FieldLabel(tr('utilities_field_quantity')),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8),
+                    decoration: BoxDecoration(
+                      color: context.colors.card,
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    child: Row(
+                      children: [
+                        IconButton(
+                          onPressed: _quantity > 1
+                              ? () => setState(() => _quantity--)
+                              : null,
+                          icon: Icon(
+                            Icons.remove_circle_outline_rounded,
+                            color: context.colors.muted,
+                          ),
+                        ),
+                        Expanded(
+                          child: Text(
+                            '$_quantity',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              color: context.colors.ink,
+                              fontWeight: FontWeight.w700,
+                              fontSize: 15,
+                            ),
+                          ),
+                        ),
+                        IconButton(
+                          onPressed: () => setState(() => _quantity++),
+                          icon: Icon(
+                            Icons.add_circle_outline_rounded,
+                            color: context.colors.muted,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                  _FieldLabel(tr('utilities_field_note')),
+                  _InputBox(
+                    controller: _noteController,
+                    icon: Icons.sticky_note_2_outlined,
+                    hint: tr('utilities_hint_note'),
+                  ),
                   const SizedBox(height: 24),
                   Container(
                     padding: const EdgeInsets.all(14),
@@ -221,7 +298,7 @@ class _PackingItemFormScreenState extends State<PackingItemFormScreen> {
                         ? tr('utilities_save_changes')
                         : tr('utilities_add_item'),
                     icon: Icons.check_rounded,
-                    onPressed: _canSave ? _save : () {},
+                    onPressed: _save,
                   ),
                   if (widget.isEditing) ...[
                     const SizedBox(height: 14),
