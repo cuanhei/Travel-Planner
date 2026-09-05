@@ -10,6 +10,7 @@ import '../transport/transport_routes_screen.dart';
 import '../utilities/utilities_home_screen.dart';
 import '../weather/weather_forecast_screen.dart';
 import 'daily_timeline_screen.dart';
+import 'edit_schedule_screen.dart';
 import 'edit_trip_screen.dart';
 import 'trip_map_screen.dart';
 
@@ -237,7 +238,7 @@ class _TripDetailsScreenState extends State<TripDetailsScreen> {
                         SizedBox(height: 28),
                         SectionHeader(title: 'Trip Tools'),
                         SizedBox(height: 14),
-                        _ToolsGrid(trip: _trip),
+                        _ToolsGrid(trip: _trip, onScheduleUpdated: _loadStats),
                         SizedBox(height: 28),
                         SectionHeader(title: 'Activity'),
                         SizedBox(height: 14),
@@ -341,9 +342,14 @@ class _StatsRow extends StatelessWidget {
 }
 
 class _ToolsGrid extends StatelessWidget {
-  const _ToolsGrid({required this.trip});
+  const _ToolsGrid({required this.trip, required this.onScheduleUpdated});
 
   final Trip trip;
+
+  /// Called after Edit Schedule is popped having actually saved a
+  /// change, so Trip Details' stats (stop count, etc.) reflect it
+  /// immediately rather than only after the screen is revisited.
+  final VoidCallback onScheduleUpdated;
 
   String get tripId => trip.id;
 
@@ -357,6 +363,17 @@ class _ToolsGrid extends StatelessWidget {
         onTap: () => Navigator.of(context).push(
           MaterialPageRoute(builder: (_) => DailyTimelineScreen(tripId: tripId)),
         ),
+      ),
+      (
+        label: 'Edit\nSchedule',
+        icon: Icons.edit_calendar_rounded,
+        color: Color(0xFFE0704E),
+        onTap: () async {
+          final updated = await Navigator.of(context).push<bool>(
+            MaterialPageRoute(builder: (_) => EditScheduleScreen(tripId: tripId)),
+          );
+          if (updated == true) onScheduleUpdated();
+        },
       ),
       (
         label: 'Map\nView',

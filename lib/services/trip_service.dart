@@ -316,28 +316,33 @@ class TripService {
           .eq('id', tripId)
           .single(),
     );
+    // `.order()` in this client defaults to descending (the opposite of
+    // SQL's own default) — `ascending: true` is required here, otherwise
+    // days/stops/legs all come back reversed (day N first, its stops in
+    // reverse-add order), which also silently corrupts which leg gets
+    // read as "the trailing leg to accommodation" (always `legs.last`).
     final dayRows = await retryOnJwtClockSkew(
       () => _client
           .from('trip_days')
           .select()
           .eq('trip_id', tripId)
-          .order('day_number'),
+          .order('day_number', ascending: true),
     );
     final stopRows = await retryOnJwtClockSkew(
       () => _client
           .from('trip_stops')
           .select()
           .eq('trip_id', tripId)
-          .order('day_number')
-          .order('sequence'),
+          .order('day_number', ascending: true)
+          .order('sequence', ascending: true),
     );
     final segmentRows = await retryOnJwtClockSkew(
       () => _client
           .from('trip_travel_segments')
           .select()
           .eq('trip_id', tripId)
-          .order('day_number')
-          .order('sequence'),
+          .order('day_number', ascending: true)
+          .order('sequence', ascending: true),
     );
 
     final days = <TripScheduleDay>[];
@@ -366,6 +371,80 @@ class TripService {
       tripEndTime: tripRow['end_time'] as String?,
       days: days,
     );
+  }
+
+  /// Organizer-only: replaces a single day's stops and travel legs (Edit
+  /// Schedule only ever touches one day at a time — past days are locked
+  /// client-side and never reach this) and, if given, its start-time
+  /// override. Deletes that day's existing `trip_stops`/
+  /// `trip_travel_segments` rows first since — unlike [saveTripSchedule]'s
+  /// first-ever insert — this call replaces an already-saved day.
+  Future<void> updateDaySchedule({
+    required String tripId,
+    required int dayNumber,
+    required String? startTimeOverride,
+    required List<TripStopInput> stops,
+    required List<TripTravelSegmentInput> segments,
+  }) async {
+    await retryOnJwtClockSkew(
+      () => _client
+          .from('trip_days')
+          .update({'start_time_override': startTimeOverride})
+          .eq('trip_id', tripId)
+          .eq('day_number', dayNumber),
+    );
+    await retryOnJwtClockSkew(
+      () => _client
+          .from('trip_travel_segments')
+          .delete()
+          .eq('trip_id', tripId)
+          .eq('day_number', dayNumber),
+    );
+    await retryOnJwtClockSkew(
+      () => _client
+          .from('trip_stops')
+          .delete()
+          .eq('trip_id', tripId)
+          .eq('day_number', dayNumber),
+    );
+
+    final stopIds = <int, String>{};
+    if (stops.isNotEmpty) {
+      final rows = await retryOnJwtClockSkew(
+        () => _client
+            .from('trip_stops')
+            .insert([for (final stop in stops) _stopRow(tripId, stop)])
+            .select('id, sequence'),
+      );
+      for (final row in rows) {
+        stopIds[row['sequence'] as int] = row['id'] as String;
+      }
+    }
+
+    if (segments.isNotEmpty) {
+      await retryOnJwtClockSkew(
+        () => _client.from('trip_travel_segments').insert([
+          for (final segment in segments)
+            {
+              'trip_id': tripId,
+              'day_number': segment.dayNumber,
+              'sequence': segment.sequence,
+              'from_name': segment.fromName,
+              'from_latitude': segment.fromLatitude,
+              'from_longitude': segment.fromLongitude,
+              'to_name': segment.toName,
+              'to_latitude': segment.toLatitude,
+              'to_longitude': segment.toLongitude,
+              'to_stop_id': segment.legKind == TripLegKind.stop
+                  ? stopIds[segment.sequence]
+                  : null,
+              'leg_kind': segment.legKind.column,
+              'transport_mode': segment.transportMode,
+              'duration_minutes': segment.durationMinutes,
+            },
+        ]),
+      );
+    }
   }
 
   /// Updates a trip's core details from the Edit Trip form — everything
@@ -525,7 +604,7 @@ class TripService {
           .from('trip_favorite_stops')
           .select()
           .eq('trip_id', tripId)
-          .order('created_at'),
+          .order('created_at', ascending: true),
     );
     return [for (final row in rows) TripStopLocation.fromMap(row)];
   }

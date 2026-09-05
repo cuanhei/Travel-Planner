@@ -272,12 +272,13 @@ class _TransportRoutesScreenState extends State<TransportRoutesScreen> {
       final saved = await _tripService.addFavoriteStop(tripId, picked);
       if (!mounted) return;
       setState(() => _favoriteStops = [..._favoriteStops, saved]);
-    } catch (_) {
+    } catch (e) {
+      debugPrint('addFavoriteStop failed: $e');
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
+        SnackBar(
           behavior: SnackBarBehavior.floating,
-          content: Text('Could not save that stop. Try again.'),
+          content: Text('Could not save that stop: $e'),
         ),
       );
     }

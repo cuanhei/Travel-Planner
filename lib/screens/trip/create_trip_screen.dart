@@ -807,7 +807,7 @@ class _CreateTripScreenState extends State<CreateTripScreen> {
   /// Manual drag-and-drop reorder within a day. The existing travel
   /// segments described the *old* order's pairwise legs, which no longer
   /// match once stops are shuffled — rather than show a now-wrong
-  /// duration, they're cleared until the next add/optimize refetches them.
+  /// duration, they're cleared and immediately refetched for the new order.
   void _reorderStops(int dayIndex, int oldIndex, int newIndex) {
     setState(() {
       final stops = _dayStops[dayIndex];
@@ -815,9 +815,35 @@ class _CreateTripScreenState extends State<CreateTripScreen> {
       stops.insert(newIndex, moved);
       _dayTravel[dayIndex] = [for (final _ in stops) _TravelSegment(stale: true)];
     });
+    unawaited(_refetchDayTravel(dayIndex));
     if (dayIndex == _dayCount - 1) unawaited(_refreshTripEndTravel());
     if (dayIndex < _nightAccommodation.length) unawaited(_refreshAccommodationTravel(dayIndex));
     unawaited(_recheckWeatherForDay(dayIndex));
+  }
+
+  /// Refetches every stop-to-stop travel leg for [dayIndex] in its
+  /// current order — each stop's origin is the stop before it (or the
+  /// day's own origin for the first stop). Used after anything that
+  /// changes stop order (manual reorder, [_optimizeDay]) or invalidates
+  /// every leg at once ([_changeTransportMode]), so a recalculated order
+  /// always shows real travel times rather than leaving them marked
+  /// stale until some later, unrelated action happens to refetch them.
+  Future<void> _refetchDayTravel(int dayIndex) async {
+    final stops = _dayStops[dayIndex];
+    TripStopLocation? previous;
+    for (var i = 0; i < stops.length; i++) {
+      final entry = stops[i];
+      final origin = previous ?? _dayOrigin(dayIndex);
+      if (origin == null) {
+        setState(() => _dayTravel[dayIndex][i] = _TravelSegment(noOrigin: true));
+      } else {
+        setState(() => _dayTravel[dayIndex][i] = _TravelSegment(loading: true));
+        unawaited(
+          _fetchTravelSegment(dayIndex: dayIndex, entry: entry, origin: origin, destination: entry.location),
+        );
+      }
+      previous = entry.location;
+    }
   }
 
   /// Placeholder for the real weather/opening-hours/route optimizer.
@@ -875,6 +901,7 @@ class _CreateTripScreenState extends State<CreateTripScreen> {
         _dayStops[dayIndex] = [for (final loc in orderedLocations) byLocation[loc]!];
         _dayTravel[dayIndex] = [for (final _ in orderedLocations) _TravelSegment(stale: true)];
       });
+      unawaited(_refetchDayTravel(dayIndex));
       if (dayIndex == _dayCount - 1) unawaited(_refreshTripEndTravel());
       if (dayIndex < _nightAccommodation.length) unawaited(_refreshAccommodationTravel(dayIndex));
       unawaited(_recheckWeatherForDay(dayIndex));
