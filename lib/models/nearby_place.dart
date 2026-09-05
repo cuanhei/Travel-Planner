@@ -227,6 +227,17 @@ class OpeningHoursPeriod {
       closeMinute: (close?['minute'] as num?)?.toInt(),
     );
   }
+
+  /// Round-trips through the same shape [fromJson] reads — used to
+  /// persist a stop's opening hours as `trip_stops.opening_hours_periods`
+  /// (jsonb) rather than re-fetching Place Details on every read.
+  Map<String, dynamic> toJson() {
+    return {
+      'open': {'day': openDay, 'hour': openHour, 'minute': openMinute},
+      if (closeDay != null || closeHour != null || closeMinute != null)
+        'close': {'day': closeDay, 'hour': closeHour, 'minute': closeMinute},
+    };
+  }
 }
 
 String? _priceRangeLabel(Map<String, dynamic>? range) {

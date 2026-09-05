@@ -1,199 +1,120 @@
 import 'package:flutter/material.dart';
 
+import '../../models/place_environment.dart';
+import '../../models/trip_schedule.dart';
+import '../../models/trip_schedule_input.dart';
+import '../../services/trip_service.dart';
 import '../../theme/app_theme.dart';
+import '../../utils/weather_display.dart';
 import '../../widgets/detail_header.dart';
-import '../transport/transport_routes_screen.dart';
 
-/// How the traveler gets from one timeline stop to the next.
-enum _TransportMode { undecided, publicTransport, eHailing, walk }
+const _monthNames = [
+  'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+  'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+];
 
-extension on _TransportMode {
-  String get label => switch (this) {
-    _TransportMode.undecided => 'Choose transport',
-    _TransportMode.publicTransport => 'Public transport',
-    _TransportMode.eHailing => 'E-hailing',
-    _TransportMode.walk => 'Walking',
-  };
+String _formatShortDate(DateTime d) => '${d.day} ${_monthNames[d.month - 1]}';
 
-  IconData get icon => switch (this) {
-    _TransportMode.undecided => Icons.alt_route_rounded,
-    _TransportMode.publicTransport => Icons.directions_bus_filled_rounded,
-    _TransportMode.eHailing => Icons.local_taxi_rounded,
-    _TransportMode.walk => Icons.directions_walk_rounded,
-  };
-
-  Color get color => switch (this) {
-    _TransportMode.undecided => const Color(0xFF6E7A93),
-    _TransportMode.publicTransport => const Color(0xFF5C6BC0),
-    _TransportMode.eHailing => AppColors.accent,
-    _TransportMode.walk => const Color(0xFF11998E),
-  };
+/// Parses Postgres' canonical "HH:MM:SS" `time` text into minutes since
+/// midnight — null (falls back to the caller's own default) if [value]
+/// is null or unparseable.
+int? _minutesFromTimeString(String? value) {
+  if (value == null) return null;
+  final parts = value.split(':');
+  if (parts.length < 2) return null;
+  final hour = int.tryParse(parts[0]);
+  final minute = int.tryParse(parts[1]);
+  if (hour == null || minute == null) return null;
+  return hour * 60 + minute;
 }
 
-/// A node in a day's timeline — either a stop ([_Activity]) or the
-/// commute between two stops ([_Transport]).
-abstract class _TimelineEntry {}
-
-class _Activity extends _TimelineEntry {
-  _Activity(
-    this.time,
-    this.title,
-    this.subtitle,
-    this.icon, {
-    this.completed = false,
-  });
-
-  final String time;
-  final String title;
-  final String subtitle;
-  final IconData icon;
-  bool completed;
+String _minutesToClock(int minutesSinceMidnight) {
+  final wrapped = minutesSinceMidnight % (24 * 60);
+  final normalized = wrapped < 0 ? wrapped + 24 * 60 : wrapped;
+  final h = (normalized ~/ 60).toString().padLeft(2, '0');
+  final m = (normalized % 60).toString().padLeft(2, '0');
+  return '$h:$m';
 }
 
-class _Transport extends _TimelineEntry {
-  _Transport(this.estimatedMinutes, {this.mode = _TransportMode.undecided});
-
-  final int estimatedMinutes;
-  _TransportMode mode;
+String _durationLabel(int minutes) {
+  final h = minutes ~/ 60;
+  final m = minutes % 60;
+  if (h == 0) return '${m}min';
+  if (m == 0) return '${h}hr';
+  return '${h}hr ${m}min';
 }
 
-/// UI-only vertical timeline of each day's activities for the trip,
-/// with the commute between stops shown as its own tappable step where
-/// the traveler picks public transport, e-hailing, or walking.
+String _travelLabel(TripScheduleLeg leg) {
+  final minutes = leg.durationMinutes;
+  if (minutes == null) return 'Travel time unavailable';
+  return minutes < 1 ? 'Travel < 1 min' : 'Travel $minutes min';
+}
+
+String _environmentLabel(PlaceEnvironment env) {
+  switch (env) {
+    case PlaceEnvironment.indoor:
+      return 'Indoor';
+    case PlaceEnvironment.outdoor:
+      return 'Outdoor';
+    case PlaceEnvironment.mixed:
+      return 'Indoor / Outdoor';
+    case PlaceEnvironment.unknown:
+      return 'Unknown';
+  }
+}
+
+/// Read-only view of a trip's saved schedule — every day tab, each with
+/// its vertical timeline of origin → stops → accommodation/trip-end,
+/// travel legs, and weather flags, exactly as saved by Create Trip's
+/// `saveTripSchedule`. No editing, reordering, or optimizing here — this
+/// is a plain "what did we plan" view, not a second Create Trip flow.
 class DailyTimelineScreen extends StatefulWidget {
-  const DailyTimelineScreen({super.key});
+  const DailyTimelineScreen({super.key, required this.tripId});
+
+  final String tripId;
 
   @override
   State<DailyTimelineScreen> createState() => _DailyTimelineScreenState();
 }
 
 class _DailyTimelineScreenState extends State<DailyTimelineScreen> {
-  int _day = 0;
+  final _tripService = TripService();
 
-  static final _days = [
-    (
-      label: 'Day 1',
-      date: 'Aug 14',
-      items: <_TimelineEntry>[
-        _Activity(
-          '8:00 AM',
-          'Breakfast at hotel',
-          'Start the day fueled up',
-          Icons.free_breakfast_rounded,
-          completed: true,
-        ),
-        _Transport(15, mode: _TransportMode.walk),
-        _Activity(
-          '10:00 AM',
-          'Komtar, George Town',
-          'Shopping & observation deck',
-          Icons.location_city_rounded,
-          completed: true,
-        ),
-        _Transport(4, mode: _TransportMode.walk),
-        _Activity(
-          '1:00 PM',
-          'Lunch at Komtar food court',
-          'Local Penang hawker food',
-          Icons.restaurant_rounded,
-          completed: true,
-        ),
-        _Transport(10, mode: _TransportMode.walk),
-        _Activity(
-          '4:00 PM',
-          'Stroll George Town street art',
-          'Free time exploring murals',
-          Icons.palette_rounded,
-          completed: true,
-        ),
-      ],
-    ),
-    (
-      label: 'Day 2',
-      date: 'Aug 15',
-      items: <_TimelineEntry>[
-        _Activity(
-          '9:30 AM',
-          'Breakfast nearby',
-          'Local kopitiam',
-          Icons.coffee_rounded,
-          completed: true,
-        ),
-        _Transport(18),
-        _Activity(
-          '1:00 PM',
-          'Gurney Drive & Plaza',
-          'Shopping and seaside walk',
-          Icons.shopping_bag_rounded,
-        ),
-        _Transport(6, mode: _TransportMode.walk),
-        _Activity(
-          '6:30 PM',
-          'Dinner at Gurney food stalls',
-          'Famous hawker street food',
-          Icons.restaurant_rounded,
-        ),
-      ],
-    ),
-    (
-      label: 'Day 3',
-      date: 'Aug 16',
-      items: <_TimelineEntry>[
-        _Activity(
-          '11:00 AM',
-          'Check out & luggage drop',
-          'Prep for last stop',
-          Icons.luggage_rounded,
-        ),
-        _Transport(25),
-        _Activity(
-          '4:00 PM',
-          'Queensbay Mall',
-          'Final shopping & souvenirs',
-          Icons.storefront_rounded,
-        ),
-        _Transport(30),
-        _Activity(
-          '8:00 PM',
-          'Head to airport',
-          'End of trip',
-          Icons.flight_takeoff_rounded,
-        ),
-      ],
-    ),
-  ];
+  TripSchedule? _schedule;
+  bool _loading = true;
+  String? _error;
+  int _selectedDay = 0;
 
-  Future<void> _pickTransportMode(_Transport transport) async {
-    final selected = await showModalBottomSheet<_TransportMode>(
-      context: context,
-      backgroundColor: Colors.transparent,
-      builder: (_) => _TransportModeSheet(current: transport.mode),
-    );
-    if (selected == null) return;
-    setState(() => transport.mode = selected);
-    if (selected == _TransportMode.publicTransport && mounted) {
-      Navigator.of(
-        context,
-      ).push(MaterialPageRoute(builder: (_) => const TransportRoutesScreen()));
-    }
+  @override
+  void initState() {
+    super.initState();
+    _load();
   }
 
-  void _completeActivity(_Activity activity) {
-    setState(() => activity.completed = true);
-  }
-
-  /// The first not-yet-completed stop in [items] — only this one gets a
-  /// "Complete" button, so the traveler works through the day in order.
-  _Activity? _firstUndone(List<_TimelineEntry> items) {
-    for (final item in items) {
-      if (item is _Activity && !item.completed) return item;
+  Future<void> _load() async {
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+    try {
+      final schedule = await _tripService.getTripSchedule(widget.tripId);
+      if (!mounted) return;
+      setState(() {
+        _schedule = schedule;
+        _loading = false;
+        if (_selectedDay >= schedule.days.length) _selectedDay = 0;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _error = '$e';
+        _loading = false;
+      });
     }
-    return null;
   }
 
   @override
   Widget build(BuildContext context) {
-    final day = _days[_day];
     return Scaffold(
       backgroundColor: context.colors.surface,
       body: SafeArea(
@@ -201,380 +122,65 @@ class _DailyTimelineScreenState extends State<DailyTimelineScreen> {
           children: [
             const DetailHeader(
               title: 'Daily Timeline',
-              subtitle: 'Your day-by-day schedule',
+              subtitle: 'Your saved day-by-day schedule',
             ),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 24),
-              child: Row(
-                children: List.generate(_days.length, (i) {
-                  final active = i == _day;
-                  return Expanded(
-                    child: GestureDetector(
-                      onTap: () => setState(() => _day = i),
-                      child: Container(
-                        margin: EdgeInsets.only(
-                          right: i < _days.length - 1 ? 10 : 0,
-                        ),
-                        padding: const EdgeInsets.symmetric(vertical: 10),
-                        decoration: BoxDecoration(
-                          color: active
-                              ? context.colors.ink
-                              : context.colors.card,
-                          borderRadius: BorderRadius.circular(14),
-                        ),
-                        child: Column(
-                          children: [
-                            Text(
-                              _days[i].label,
-                              style: TextStyle(
-                                color: active
-                                    ? Colors.white
-                                    : context.colors.ink,
-                                fontWeight: FontWeight.w700,
-                                fontSize: 13,
-                              ),
-                            ),
-                            const SizedBox(height: 2),
-                            Text(
-                              _days[i].date,
-                              style: TextStyle(
-                                color: active
-                                    ? Colors.white70
-                                    : context.colors.muted,
-                                fontSize: 11,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  );
-                }),
-              ),
-            ),
-            const SizedBox(height: 8),
-            Expanded(
-              child: ListView.builder(
-                padding: const EdgeInsets.fromLTRB(24, 16, 24, 24),
-                itemCount: day.items.length,
-                itemBuilder: (context, index) {
-                  final item = day.items[index];
-                  final isLast = index == day.items.length - 1;
-                  if (item is _Activity) {
-                    return _ActivityRow(
-                      activity: item,
-                      isLast: isLast,
-                      showCompleteButton: identical(item, _firstUndone(day.items)),
-                      onComplete: () => _completeActivity(item),
-                    );
-                  }
-                  final transport = item as _Transport;
-                  return _TransportRow(
-                    transport: transport,
-                    isLast: isLast,
-                    onTap: () => _pickTransportMode(transport),
-                  );
-                },
-              ),
-            ),
+            Expanded(child: _buildBody(context)),
           ],
         ),
       ),
     );
   }
-}
 
-class _TimelineRow extends StatelessWidget {
-  const _TimelineRow({
-    required this.leading,
-    required this.content,
-    required this.isLast,
-  });
+  Widget _buildBody(BuildContext context) {
+    if (_loading) return const Center(child: CircularProgressIndicator());
+    if (_error != null) {
+      return _ErrorState(message: _error!, onRetry: _load);
+    }
+    final schedule = _schedule!;
+    if (schedule.days.isEmpty) {
+      return const _EmptyState();
+    }
 
-  final Widget leading;
-  final Widget content;
-  final bool isLast;
-
-  @override
-  Widget build(BuildContext context) {
-    return IntrinsicHeight(
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Column(
-            children: [
-              leading,
-              if (!isLast)
-                Expanded(
-                  child: Container(
-                    width: 2,
-                    margin: const EdgeInsets.symmetric(vertical: 4),
-                    color: context.colors.muted.withValues(alpha: 0.2),
-                  ),
-                ),
-            ],
-          ),
-          const SizedBox(width: 14),
-          Expanded(
-            child: Padding(
-              padding: EdgeInsets.only(bottom: isLast ? 0 : 18),
-              child: content,
-            ),
-          ),
-        ],
-      ),
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
+      children: [
+        _DayTabBar(
+          days: schedule.days,
+          selected: _selectedDay,
+          onSelect: (i) => setState(() => _selectedDay = i),
+        ),
+        const SizedBox(height: 16),
+        _DayScheduleCard(
+          day: schedule.days[_selectedDay],
+          fallbackStartTime: schedule.tripStartTime,
+        ),
+      ],
     );
   }
 }
 
-class _ActivityRow extends StatelessWidget {
-  const _ActivityRow({
-    required this.activity,
-    required this.isLast,
-    required this.showCompleteButton,
-    required this.onComplete,
-  });
-
-  final _Activity activity;
-  final bool isLast;
-  final bool showCompleteButton;
-  final VoidCallback onComplete;
+class _EmptyState extends StatelessWidget {
+  const _EmptyState();
 
   @override
   Widget build(BuildContext context) {
-    const done = Color(0xFF11998E);
-    return _TimelineRow(
-      isLast: isLast,
-      leading: Container(
-        width: 38,
-        height: 38,
-        decoration: BoxDecoration(
-          color: activity.completed
-              ? done.withValues(alpha: 0.15)
-              : AppColors.accent.withValues(alpha: 0.12),
-          shape: BoxShape.circle,
-        ),
-        alignment: Alignment.center,
-        child: Icon(
-          activity.completed ? Icons.check_rounded : activity.icon,
-          color: activity.completed ? done : AppColors.accent,
-          size: 18,
-        ),
-      ),
-      content: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Text(
-                activity.time,
-                style: TextStyle(
-                  color: activity.completed ? context.colors.muted : AppColors.accent,
-                  fontWeight: FontWeight.w700,
-                  fontSize: 11.5,
-                ),
-              ),
-              if (activity.completed) ...[
-                const SizedBox(width: 6),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 6,
-                    vertical: 1.5,
-                  ),
-                  decoration: BoxDecoration(
-                    color: done.withValues(alpha: 0.12),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: const Text(
-                    'Done',
-                    style: TextStyle(
-                      color: done,
-                      fontSize: 9.5,
-                      fontWeight: FontWeight.w800,
-                    ),
-                  ),
-                ),
-              ],
-            ],
-          ),
-          const SizedBox(height: 4),
-          Text(
-            activity.title,
-            style: TextStyle(
-              color: activity.completed
-                  ? context.colors.muted
-                  : context.colors.ink,
-              fontWeight: FontWeight.w700,
-              fontSize: 14.5,
-            ),
-          ),
-          const SizedBox(height: 3),
-          Text(
-            activity.subtitle,
-            style: TextStyle(color: context.colors.muted, fontSize: 12.5),
-          ),
-          if (showCompleteButton) ...[
-            const SizedBox(height: 10),
-            Material(
-              color: context.colors.ink,
-              borderRadius: BorderRadius.circular(12),
-              child: InkWell(
-                borderRadius: BorderRadius.circular(12),
-                onTap: onComplete,
-                child: const Padding(
-                  padding: EdgeInsets.symmetric(horizontal: 14, vertical: 9),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(Icons.check_rounded, color: Colors.white, size: 15),
-                      SizedBox(width: 6),
-                      Text(
-                        'Complete',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.w700,
-                          fontSize: 12.5,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-}
-
-class _TransportRow extends StatelessWidget {
-  const _TransportRow({
-    required this.transport,
-    required this.isLast,
-    required this.onTap,
-  });
-
-  final _Transport transport;
-  final bool isLast;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final mode = transport.mode;
-    return _TimelineRow(
-      isLast: isLast,
-      leading: Container(
-        width: 30,
-        height: 30,
-        decoration: BoxDecoration(
-          color: mode.color.withValues(alpha: 0.12),
-          shape: BoxShape.circle,
-          border: Border.all(color: mode.color.withValues(alpha: 0.4)),
-        ),
-        alignment: Alignment.center,
-        child: Icon(mode.icon, color: mode.color, size: 15),
-      ),
-      content: Material(
-        color: context.colors.card,
-        borderRadius: BorderRadius.circular(12),
-        child: InkWell(
-          borderRadius: BorderRadius.circular(12),
-          onTap: onTap,
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-            child: Row(
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        '~${transport.estimatedMinutes} min transport',
-                        style: TextStyle(
-                          color: context.colors.ink,
-                          fontWeight: FontWeight.w700,
-                          fontSize: 12.5,
-                        ),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        mode.label,
-                        style: TextStyle(
-                          color: context.colors.muted,
-                          fontSize: 11,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                Icon(
-                  Icons.chevron_right_rounded,
-                  color: context.colors.muted,
-                  size: 18,
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _TransportModeSheet extends StatelessWidget {
-  const _TransportModeSheet({required this.current});
-
-  final _TransportMode current;
-
-  @override
-  Widget build(BuildContext context) {
-    return SafeArea(
-      child: Container(
-        margin: const EdgeInsets.all(12),
-        padding: const EdgeInsets.all(20),
-        decoration: BoxDecoration(
-          color: context.colors.card,
-          borderRadius: BorderRadius.circular(24),
-        ),
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(32),
         child: Column(
           mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            Icon(Icons.event_busy_rounded, color: context.colors.muted, size: 36),
+            const SizedBox(height: 12),
             Text(
-              'How do you want to get there?',
-              style: TextStyle(
-                color: context.colors.ink,
-                fontWeight: FontWeight.w800,
-                fontSize: 16,
-              ),
+              'No saved schedule yet',
+              style: TextStyle(color: context.colors.ink, fontWeight: FontWeight.w700, fontSize: 15),
             ),
-            const SizedBox(height: 4),
+            const SizedBox(height: 6),
             Text(
-              'Choose how to travel to the next stop',
+              'This trip has no day-by-day timeline saved.',
+              textAlign: TextAlign.center,
               style: TextStyle(color: context.colors.muted, fontSize: 12.5),
-            ),
-            const SizedBox(height: 18),
-            _ModeOption(
-              mode: _TransportMode.publicTransport,
-              description: 'See live bus options and directions',
-              selected: current == _TransportMode.publicTransport,
-              onTap: () =>
-                  Navigator.of(context).pop(_TransportMode.publicTransport),
-            ),
-            const SizedBox(height: 10),
-            _ModeOption(
-              mode: _TransportMode.eHailing,
-              description: 'Book a Grab or taxi ride',
-              selected: current == _TransportMode.eHailing,
-              onTap: () => Navigator.of(context).pop(_TransportMode.eHailing),
-            ),
-            const SizedBox(height: 10),
-            _ModeOption(
-              mode: _TransportMode.walk,
-              description: 'Free, and a good stretch of the legs',
-              selected: current == _TransportMode.walk,
-              onTap: () => Navigator.of(context).pop(_TransportMode.walk),
             ),
           ],
         ),
@@ -583,81 +189,411 @@ class _TransportModeSheet extends StatelessWidget {
   }
 }
 
-class _ModeOption extends StatelessWidget {
-  const _ModeOption({
-    required this.mode,
-    required this.description,
-    required this.selected,
-    required this.onTap,
-  });
+class _ErrorState extends StatelessWidget {
+  const _ErrorState({required this.message, required this.onRetry});
 
-  final _TransportMode mode;
-  final String description;
-  final bool selected;
-  final VoidCallback onTap;
+  final String message;
+  final VoidCallback onRetry;
 
   @override
   Widget build(BuildContext context) {
-    return Material(
-      color: context.colors.surface,
-      borderRadius: BorderRadius.circular(16),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(16),
-        onTap: onTap,
-        child: Container(
-          padding: const EdgeInsets.all(14),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(
-              color: selected ? mode.color : Colors.transparent,
-              width: 1.5,
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(32),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.error_outline_rounded, color: context.colors.muted, size: 32),
+            const SizedBox(height: 10),
+            Text(
+              'Could not load the schedule',
+              style: TextStyle(color: context.colors.ink, fontWeight: FontWeight.w700, fontSize: 14),
             ),
-          ),
-          child: Row(
-            children: [
-              Container(
-                width: 42,
-                height: 42,
-                decoration: BoxDecoration(
-                  color: mode.color.withValues(alpha: 0.14),
-                  shape: BoxShape.circle,
-                ),
-                alignment: Alignment.center,
-                child: Icon(mode.icon, color: mode.color, size: 20),
+            const SizedBox(height: 4),
+            Text(message, textAlign: TextAlign.center, style: TextStyle(color: context.colors.muted, fontSize: 12)),
+            const SizedBox(height: 14),
+            TextButton(onPressed: onRetry, child: const Text('Try again')),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _DayTabBar extends StatelessWidget {
+  const _DayTabBar({required this.days, required this.selected, required this.onSelect});
+
+  final List<TripScheduleDay> days;
+  final int selected;
+  final ValueChanged<int> onSelect;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: 60,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        itemCount: days.length,
+        separatorBuilder: (_, _) => const SizedBox(width: 8),
+        itemBuilder: (context, i) {
+          final isSelected = i == selected;
+          return InkWell(
+            borderRadius: BorderRadius.circular(14),
+            onTap: () => onSelect(i),
+            child: Container(
+              width: 84,
+              padding: const EdgeInsets.symmetric(vertical: 8),
+              decoration: BoxDecoration(
+                color: isSelected ? AppColors.accent : context.colors.card,
+                borderRadius: BorderRadius.circular(14),
               ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text(
+                    'Day ${days[i].dayNumber}',
+                    style: TextStyle(
+                      color: isSelected ? Colors.white : context.colors.ink,
+                      fontWeight: FontWeight.w800,
+                      fontSize: 13,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    _formatShortDate(days[i].date),
+                    style: TextStyle(
+                      color: isSelected ? Colors.white.withValues(alpha: 0.9) : context.colors.muted,
+                      fontWeight: FontWeight.w600,
+                      fontSize: 11,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _DayScheduleCard extends StatelessWidget {
+  const _DayScheduleCard({required this.day, required this.fallbackStartTime});
+
+  final TripScheduleDay day;
+
+  /// The trip's own start time ("HH:MM:SS"), used when this day has no
+  /// override of its own.
+  final String? fallbackStartTime;
+
+  @override
+  Widget build(BuildContext context) {
+    final startMinutes = _minutesFromTimeString(day.startTimeOverride) ??
+        _minutesFromTimeString(fallbackStartTime) ??
+        8 * 60;
+    final legs = day.legs;
+    final stops = day.stops;
+    final originLabel = legs.isNotEmpty ? legs.first.fromName : 'Starting point';
+    final trailingLeg = legs.length > stops.length ? legs.last : null;
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(color: context.colors.card, borderRadius: BorderRadius.circular(18)),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Day ${day.dayNumber} — ${_formatShortDate(day.date)}',
+            style: TextStyle(color: context.colors.ink, fontWeight: FontWeight.w700, fontSize: 15),
+          ),
+          const SizedBox(height: 14),
+          _OriginNode(time: _minutesToClock(startMinutes), label: originLabel),
+          for (var i = 0; i < stops.length; i++) ...[
+            if (i < legs.length) _TravelConnector(leg: legs[i]),
+            _StopNode(stop: stops[i]),
+          ],
+          if (trailingLeg != null) ...[
+            _TravelConnector(leg: trailingLeg),
+            _TrailingNode(leg: trailingLeg),
+          ],
+          if (stops.isEmpty && trailingLeg == null) ...[
+            const SizedBox(height: 8),
+            Text(
+              'No stops planned for this day.',
+              style: TextStyle(color: context.colors.muted, fontSize: 12.5, fontStyle: FontStyle.italic),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _OriginNode extends StatelessWidget {
+  const _OriginNode({required this.time, required this.label});
+  final String time;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SizedBox(
+          width: 52,
+          child: Text(
+            time,
+            style: TextStyle(color: context.colors.ink, fontWeight: FontWeight.w800, fontSize: 13),
+          ),
+        ),
+        const SizedBox(width: 10),
+        const Icon(Icons.flag_circle_rounded, color: AppColors.accent, size: 20),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Text(
+            label,
+            style: TextStyle(color: context.colors.ink, fontWeight: FontWeight.w700, fontSize: 13.5),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _TravelConnector extends StatelessWidget {
+  const _TravelConnector({required this.leg});
+  final TripScheduleLeg leg;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 6),
+      child: Row(
+        children: [
+          const SizedBox(width: 52),
+          const SizedBox(width: 10),
+          Icon(Icons.subdirectory_arrow_right_rounded, size: 16, color: context.colors.muted),
+          const SizedBox(width: 6),
+          Text(
+            _travelLabel(leg),
+            style: TextStyle(color: context.colors.muted, fontSize: 11.5, fontWeight: FontWeight.w600),
+          ),
+          const SizedBox(width: 6),
+          Icon(
+            leg.transportMode == 'transit' ? Icons.directions_bus_filled_rounded : Icons.directions_car_rounded,
+            size: 13,
+            color: context.colors.muted,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _StopNode extends StatelessWidget {
+  const _StopNode({required this.stop});
+  final TripScheduleStop stop;
+
+  @override
+  Widget build(BuildContext context) {
+    final location = stop.location;
+    final env = location.environment;
+    final hours = location.openingHours;
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SizedBox(
+          width: 52,
+          child: Text(
+            _minutesToClock(stop.arrivalMinutes),
+            style: TextStyle(color: context.colors.ink, fontWeight: FontWeight.w800, fontSize: 13),
+          ),
+        ),
+        const SizedBox(width: 10),
+        const Icon(Icons.trip_origin, color: AppColors.accent, size: 14),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Container(
+            margin: const EdgeInsets.only(bottom: 12),
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(color: context.colors.surface, borderRadius: BorderRadius.circular(14)),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      mode.label,
-                      style: TextStyle(
-                        color: context.colors.ink,
-                        fontWeight: FontWeight.w700,
-                        fontSize: 13.5,
-                      ),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      description,
-                      style: TextStyle(
-                        color: context.colors.muted,
-                        fontSize: 11.5,
+                    Icon(location.categoryIcon, color: AppColors.accent, size: 20),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            location.name,
+                            style: TextStyle(color: context.colors.ink, fontWeight: FontWeight.w700, fontSize: 14),
+                          ),
+                          const SizedBox(height: 2),
+                          Wrap(
+                            spacing: 8,
+                            runSpacing: 4,
+                            children: [
+                              _Tag(_environmentLabel(env)),
+                              _Tag(location.category),
+                              if (location.businessStatus == 'CLOSED_PERMANENTLY')
+                                _Tag('Permanently closed', warning: true),
+                              if (location.businessStatus == 'CLOSED_TEMPORARILY')
+                                _Tag('Temporarily closed', warning: true),
+                            ],
+                          ),
+                        ],
                       ),
                     ),
                   ],
                 ),
-              ),
-              Icon(
-                Icons.chevron_right_rounded,
-                color: context.colors.muted,
-                size: 18,
+                const SizedBox(height: 8),
+                Text(
+                  'Visit: ${_durationLabel(stop.visitMinutes)} · Ends ${_minutesToClock(stop.endMinutes)}',
+                  style: TextStyle(color: context.colors.muted, fontWeight: FontWeight.w600, fontSize: 12.5),
+                ),
+                if (hours != null && hours.isNotEmpty) ...[
+                  const SizedBox(height: 6),
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Icon(Icons.schedule_rounded, size: 14, color: context.colors.muted),
+                      const SizedBox(width: 6),
+                      Expanded(
+                        child: Text(
+                          hours.first,
+                          style: TextStyle(color: context.colors.muted, fontSize: 12, fontWeight: FontWeight.w500),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+                if (env == PlaceEnvironment.outdoor || env == PlaceEnvironment.mixed) ...[
+                  const SizedBox(height: 6),
+                  _WeatherRow(stop: stop),
+                ],
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _WeatherRow extends StatelessWidget {
+  const _WeatherRow({required this.stop});
+  final TripScheduleStop stop;
+
+  @override
+  Widget build(BuildContext context) {
+    final phrase = stop.weatherForecastPhrase;
+    if (phrase == null) {
+      return Row(
+        children: [
+          Icon(Icons.cloud_off_rounded, size: 14, color: context.colors.muted),
+          const SizedBox(width: 6),
+          Text(
+            'Weather not checked at save time',
+            style: TextStyle(color: context.colors.muted, fontSize: 12, fontStyle: FontStyle.italic),
+          ),
+        ],
+      );
+    }
+    if (stop.weatherFlagged) {
+      final periods = stop.weatherBadPeriods.map(_capitalize).join(' & ');
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Icon(weatherIconFor(phrase), size: 14, color: Colors.red),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Text(
+                  'Weather: ${translateWeather(phrase)}',
+                  style: const TextStyle(color: Colors.red, fontSize: 12, fontWeight: FontWeight.w600),
+                ),
               ),
             ],
           ),
+          if (periods.isNotEmpty) ...[
+            const SizedBox(height: 2),
+            Padding(
+              padding: const EdgeInsets.only(left: 20),
+              child: Text(
+                'Rain was forecast in the $periods when this trip was saved.',
+                style: const TextStyle(color: Colors.red, fontSize: 11.5, fontWeight: FontWeight.w600),
+              ),
+            ),
+          ],
+        ],
+      );
+    }
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Icon(weatherIconFor(phrase), size: 14, color: context.colors.muted),
+        const SizedBox(width: 6),
+        Expanded(
+          child: Text(
+            'Weather: ${translateWeather(phrase)} — suitable',
+            style: TextStyle(color: context.colors.muted, fontSize: 12, fontWeight: FontWeight.w500),
+          ),
         ),
-      ),
+      ],
+    );
+  }
+}
+
+String _capitalize(String s) => s.isEmpty ? s : '${s[0].toUpperCase()}${s.substring(1)}';
+
+class _TrailingNode extends StatelessWidget {
+  const _TrailingNode({required this.leg});
+  final TripScheduleLeg leg;
+
+  @override
+  Widget build(BuildContext context) {
+    final isAccommodation = leg.legKind == TripLegKind.accommodation;
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const SizedBox(width: 52),
+        const SizedBox(width: 10),
+        Icon(
+          isAccommodation ? Icons.hotel_rounded : Icons.flag_rounded,
+          color: isAccommodation ? const Color(0xFF1E88E5) : const Color(0xFFE53935),
+          size: 20,
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Text(
+            isAccommodation ? 'Stay — ${leg.toName}' : 'Trip Ends — ${leg.toName}',
+            style: TextStyle(color: context.colors.ink, fontWeight: FontWeight.w700, fontSize: 13.5),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _Tag extends StatelessWidget {
+  const _Tag(this.label, {this.warning = false});
+  final String label;
+  final bool warning;
+
+  @override
+  Widget build(BuildContext context) {
+    final color = warning ? Colors.red : context.colors.muted;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(color: color.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(8)),
+      child: Text(label, style: TextStyle(color: color, fontSize: 11, fontWeight: FontWeight.w600)),
     );
   }
 }

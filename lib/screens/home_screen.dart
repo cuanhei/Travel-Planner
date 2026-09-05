@@ -349,10 +349,28 @@ class _UpcomingTripCard extends StatefulWidget {
 class _UpcomingTripCardState extends State<_UpcomingTripCard> {
   late Future<Trip?> _tripFuture = _loadFeaturedTrip();
 
+  @override
+  void initState() {
+    super.initState();
+    // Belt-and-suspenders alongside the manual reload() calls (via
+    // HomeScreen's GlobalKey) wired to Create Trip's specific entry
+    // points below — this also catches a trip created/changed through
+    // any other path (e.g. My Trips' own create button, joining a trip)
+    // without needing every such path to remember to call reload() too.
+    TripService.tripsChanged.addListener(reload);
+  }
+
+  @override
+  void dispose() {
+    TripService.tripsChanged.removeListener(reload);
+    super.dispose();
+  }
+
   /// Re-fetches the featured trip — called (via [HomeScreen]'s
   /// `GlobalKey`) whenever a trip may have changed elsewhere: switching
   /// back to the Home tab, or returning from Create Trip.
   void reload() {
+    if (!mounted) return;
     setState(() => _tripFuture = _loadFeaturedTrip());
   }
 

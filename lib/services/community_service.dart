@@ -1,7 +1,9 @@
+import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../models/community_feed_event.dart';
 import '../models/community_post.dart';
 import '../models/place_review.dart';
 import '../models/post_comment.dart';
@@ -19,7 +21,9 @@ import 'supabase_config.dart';
 /// `supabase/migrations/0010_add_post_media.sql` for the post media
 /// columns + storage bucket [addPost] uploads to, and
 /// `supabase/migrations/0011_add_post_reactions.sql` for the
-/// `reaction_type`/`reaction_counts` columns [setReaction] reads/writes.
+/// `reaction_type`/`reaction_counts` columns [setReaction] reads/writes,
+/// and `supabase/migrations/0014_add_review_photos.sql` for the
+/// `photo_urls` column + storage bucket [addReview] uploads to.
 class CommunityService {
   CommunityService({SupabaseClient? client})
     : _client = client ?? SupabaseConfig.client;
@@ -28,12 +32,12 @@ class CommunityService {
 
   String get _uid => _client.auth.currentUser!.id;
 
-  /// The signed-in user's own profile (display name + avatar color), for
-  /// "Posting as …" headers.
+  /// The signed-in user's own profile (display name, avatar color, and
+  /// avatar photo/design), for "Posting as …" headers.
   Future<Map<String, dynamic>?> getMyProfile() async {
     return _client
         .from('profiles')
-        .select('display_name, avatar_color')
+        .select('display_name, avatar_color, avatar_url')
         .eq('id', _uid)
         .maybeSingle();
   }
@@ -41,9 +45,9 @@ class CommunityService {
   // ---- Feed ---------------------------------------------------------
 
   /// Joins raw `posts` rows with their author's profile and the current
-  /// user's own reaction on each one (if any). Shared by [watchFeed]
-  /// (every post) and [watchPost] (a single post, for a shared-link deep
-  /// link landing on `PostDetailScreen`).
+  /// user's own reaction on each one (if any). Shared by [fetchFeedPage]
+  /// (one page of posts) and [watchPost] (a single post, for a shared-link
+  /// deep link landing on `PostDetailScreen`).
   Future<List<CommunityPost>> _hydratePosts(
     List<Map<String, dynamic>> rows,
   ) async {
@@ -54,7 +58,9 @@ class CommunityService {
 
     final profiles = await _client
         .from('profiles')
-        .select('id, display_name, avatar_color, location_sharing_enabled')
+        .select(
+          'id, display_name, avatar_color, avatar_url, location_sharing_enabled',
+        )
         .inFilter('id', userIds);
     final profileById = {
       for (final p in profiles as List) p['id'] as String: p,
@@ -97,12 +103,106 @@ class CommunityService {
         .toList();
   }
 
-  Stream<List<CommunityPost>> watchFeed() {
-    return _client
-        .from('posts')
-        .stream(primaryKey: ['id'])
+  /// One page of the feed, newest first, optionally narrowed to
+  /// [category] — for `CommunityTab`'s pull-to-refresh/infinite-scroll
+  /// list. Replaced the old unbounded `watchFeed()` Realtime stream (which
+  /// pulled every row in `posts` up front); pagination and a live
+  /// subscription of an unbounded, filterable set don't mix, so the feed
+  /// now re-fetches on pull-to-refresh instead of updating live.
+  Future<List<CommunityPost>> fetchFeedPage({
+    String? category,
+    required int offset,
+    int limit = 10,
+  }) async {
+    final query = _client.from('posts').select();
+    final filtered = category == null ? query : query.eq('category', category);
+    final rows = await filtered
         .order('created_at', ascending: false)
-        .asyncMap(_hydratePosts);
+        .range(offset, offset + limit - 1);
+    return _hydratePosts(List<Map<String, dynamic>>.from(rows));
+  }
+
+  /// Lightweight companion to [fetchFeedPage]: rather than streaming every
+  /// row of `posts` (what the old `watchFeed()` did, incompatible with
+  /// pagination), this only ever emits small deltas — a signal that a new
+  /// post exists upstream, or a counts patch for a post already loaded —
+  /// for [CommunityTab] to apply to its in-memory page without re-fetching.
+  Stream<CommunityFeedEvent> watchFeedActivity() {
+    late final StreamController<CommunityFeedEvent> controller;
+    late final RealtimeChannel channel;
+
+    void emit(CommunityFeedEvent event) {
+      if (!controller.isClosed) controller.add(event);
+    }
+
+    controller = StreamController<CommunityFeedEvent>.broadcast(
+      onListen: () {
+        channel = _client
+            .channel('community-feed-activity')
+            .onPostgresChanges(
+              event: PostgresChangeEvent.insert,
+              schema: 'public',
+              table: 'posts',
+              callback: (payload) {
+                // Own posts are already picked up by the refresh CommunityTab
+                // triggers right after AddPostScreen returns — only a post
+                // from someone else counts as "new" here.
+                if (payload.newRecord['author_id'] == _uid) return;
+                emit(const NewPostAvailable());
+              },
+            )
+            .onPostgresChanges(
+              event: PostgresChangeEvent.update,
+              schema: 'public',
+              table: 'posts',
+              callback: (payload) {
+                final row = payload.newRecord;
+                final rawCounts =
+                    row['reaction_counts'] as Map<String, dynamic>? ??
+                    const {};
+                emit(
+                  PostReactionsChanged(
+                    postId: row['id'] as String,
+                    reactionCounts: rawCounts.map(
+                      (k, v) => MapEntry(k, v as int),
+                    ),
+                    likesCount: row['likes_count'] as int,
+                  ),
+                );
+              },
+            )
+            .onPostgresChanges(
+              event: PostgresChangeEvent.insert,
+              schema: 'public',
+              table: 'comments',
+              callback: (payload) {
+                emit(
+                  PostCommentCountChanged(
+                    postId: payload.newRecord['post_id'] as String,
+                    delta: 1,
+                  ),
+                );
+              },
+            )
+            .onPostgresChanges(
+              event: PostgresChangeEvent.delete,
+              schema: 'public',
+              table: 'comments',
+              callback: (payload) {
+                // `comments` has replica identity full (see
+                // 0009_community_module.sql), so the full old row —
+                // including post_id — survives into a DELETE payload.
+                final postId = payload.oldRecord['post_id'] as String?;
+                if (postId == null) return;
+                emit(PostCommentCountChanged(postId: postId, delta: -1));
+              },
+            )
+            .subscribe();
+      },
+      onCancel: () => _client.removeChannel(channel),
+    );
+
+    return controller.stream;
   }
 
   /// Live view of a single post, for `PostDetailScreen` (the landing
@@ -171,6 +271,55 @@ class CommunityService {
         .from('posts')
         .update({'ip_address': areaName})
         .eq('id', row['id'] as String);
+  }
+
+  /// Edits [postId] in place — only the author can, per the
+  /// `posts_update_own` RLS policy, so a caller that isn't the author gets
+  /// [StateError] rather than a silent no-op.
+  ///
+  /// Media is left untouched unless [mediaBytes] (a fresh pick, uploaded and
+  /// swapped in) or [removeMedia] (clears it entirely) says otherwise —
+  /// distinct from [addPost], which never needs to represent "leave what's
+  /// already there alone".
+  Future<void> updatePost({
+    required String postId,
+    required String placeName,
+    required String caption,
+    required String category,
+    Uint8List? mediaBytes,
+    String? mediaExtension,
+    String? mediaType,
+    bool removeMedia = false,
+  }) async {
+    final updates = <String, dynamic>{
+      'place_name': placeName.trim(),
+      'caption': caption.trim(),
+      'category': category,
+    };
+    if (mediaBytes != null && mediaExtension != null && mediaType != null) {
+      final mediaUrl = await _uploadPostMedia(
+        bytes: mediaBytes,
+        extension: mediaExtension,
+        mediaType: mediaType,
+      );
+      updates['media_url'] = mediaUrl;
+      updates['media_type'] = mediaType;
+    } else if (removeMedia) {
+      updates['media_url'] = null;
+      updates['media_type'] = null;
+    }
+
+    final updated = await _client
+        .from('posts')
+        .update(updates)
+        .eq('id', postId)
+        .select('id');
+    if (updated.isEmpty) {
+      throw StateError(
+        'Post update for "$postId" matched no row — it may not exist, or '
+        'an RLS policy is blocking the write.',
+      );
+    }
   }
 
   /// Uploads a post's photo/video to the `post-media` bucket under
@@ -390,7 +539,7 @@ class CommunityService {
               .toList();
           final profiles = await _client
               .from('profiles')
-              .select('id, display_name, avatar_color')
+              .select('id, display_name, avatar_color, avatar_url')
               .inFilter('id', userIds);
           final profileById = {
             for (final p in profiles as List) p['id'] as String: p,
@@ -425,17 +574,83 @@ class CommunityService {
   /// design — this always inserts a fresh row rather than overwriting a
   /// previous one; the caller (`AddReviewScreen`) only allows reaching this
   /// once [myReviewCount] is below [TripService.visitCount].
+  ///
+  /// [photos] (bytes + extension pairs from `AddReviewScreen`'s picker) are
+  /// uploaded to `review-media` first — same folder-per-user layout as
+  /// [_uploadPostMedia] — and their URLs stored on the row.
   Future<void> addReview({
     required String placeName,
     required int rating,
     required String body,
+    List<(Uint8List bytes, String extension)> photos = const [],
   }) async {
+    final photoUrls = await Future.wait(
+      photos.map((p) => _uploadReviewPhoto(bytes: p.$1, extension: p.$2)),
+    );
     await _client.from('reviews').insert({
       'place_name': placeName,
       'author_id': _uid,
       'rating': rating,
       'body': body.trim(),
+      if (photoUrls.isNotEmpty) 'photo_urls': photoUrls,
     });
+  }
+
+  /// Edits [reviewId] in place — only the author can, per the
+  /// `reviews_update_own` RLS policy. [keepPhotoUrls] are photos already on
+  /// the review the user chose not to remove; [newPhotos] are fresh picks
+  /// to upload, appended after them — together they replace `photo_urls`
+  /// outright, since there's no way to patch an array column in place.
+  Future<void> updateReview({
+    required String reviewId,
+    required int rating,
+    required String body,
+    List<String> keepPhotoUrls = const [],
+    List<(Uint8List bytes, String extension)> newPhotos = const [],
+  }) async {
+    final newUrls = await Future.wait(
+      newPhotos.map((p) => _uploadReviewPhoto(bytes: p.$1, extension: p.$2)),
+    );
+    final photoUrls = [...keepPhotoUrls, ...newUrls];
+
+    final updated = await _client
+        .from('reviews')
+        .update({
+          'rating': rating,
+          'body': body.trim(),
+          'photo_urls': photoUrls.isEmpty ? null : photoUrls,
+        })
+        .eq('id', reviewId)
+        .select('id');
+    if (updated.isEmpty) {
+      throw StateError(
+        'Review update for "$reviewId" matched no row — it may not exist, '
+        'or an RLS policy is blocking the write.',
+      );
+    }
+  }
+
+  /// Uploads one review photo to the `review-media` bucket under
+  /// `<uid>/<timestamp>-<n>.<ext>` and returns its public URL. The random
+  /// suffix (rather than just a timestamp, as [_uploadPostMedia] uses) is
+  /// needed because a review can attach several photos picked in the same
+  /// batch, which can otherwise collide on the same millisecond.
+  Future<String> _uploadReviewPhoto({
+    required Uint8List bytes,
+    required String extension,
+  }) async {
+    final path =
+        '$_uid/${DateTime.now().microsecondsSinceEpoch}.$extension';
+    await _client.storage
+        .from('review-media')
+        .uploadBinary(
+          path,
+          bytes,
+          fileOptions: FileOptions(
+            contentType: _contentTypeFor(extension, 'image'),
+          ),
+        );
+    return _client.storage.from('review-media').getPublicUrl(path);
   }
 
   Future<void> deleteReview(String reviewId) async {

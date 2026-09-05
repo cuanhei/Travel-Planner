@@ -96,6 +96,12 @@ create table public.trips (
   end_date date,
   start_time time,
   end_time time,
+  -- Driving vs transit — applies to every travel leg in the trip, chosen
+  -- once via the toggle above Create Trip's day tabs. `start_time`/
+  -- `end_time` above double as the Trip Start Time (leaving the starting
+  -- location) and the optional Trip End Time target (e.g. a flight).
+  transport_mode text not null default 'driving'
+    check (transport_mode in ('driving', 'transit')),
   created_by uuid not null references auth.users (id),
   total_budget numeric(12, 2) not null default 0,
   created_at timestamptz not null default now()
@@ -247,7 +253,12 @@ create trigger trip_members_log_left
 -- Trip Planner module: stops and interests captured by Create Trip
 -- ============================================================
 
--- One row per stop picked via the real map/search (Stop Selection).
+-- One row per stop picked via the real map/search (Stop Selection) —
+-- shared by Create Trip's itinerary stops, Emergency Contacts
+-- (TripService.watchTripStops), and Budget's expense tracker
+-- (BudgetService.watchStopNames). Only itinerary stops (added via a
+-- day's "Add Stop") populate day_number/sequence onward below; both stay
+-- null for any other use of this table.
 create table public.trip_stops (
   id uuid primary key default gen_random_uuid(),
   trip_id uuid not null references public.trips (id) on delete cascade,
@@ -257,7 +268,50 @@ create table public.trip_stops (
   longitude double precision not null,
   osm_id text,
   category text not null default 'Other',
-  created_at timestamptz not null default now()
+
+  -- Google Places identity/classification — fetched once via Place
+  -- Details when the stop is added, not re-derived later.
+  place_id text,
+  primary_type text,
+  types text[] not null default '{}',
+  business_status text,
+  -- Raw weekday-description lines (e.g. "Monday: 9:00 AM – 6:00 PM"),
+  -- kept as text[] rather than re-parsed from opening_hours_periods for
+  -- display — see TripStopLocation.openingHours.
+  opening_hours text[],
+  -- Machine-readable open/close windows behind opening_hours, as Places'
+  -- own `periods` JSON — see TripStopLocation.openingHoursPeriods /
+  -- OpeningHoursPeriod.fromJson for the shape stored here.
+  opening_hours_periods jsonb,
+  environment text check (environment in ('indoor', 'outdoor', 'mixed', 'unknown')),
+  visit_minutes integer,
+
+  -- Which trip day this stop is scheduled on (1-indexed) and its
+  -- 0-indexed position within that day, in add/optimize order — the
+  -- order the timeline renders stops in.
+  day_number integer check (day_number > 0),
+  sequence integer check (sequence >= 0),
+
+  -- Computed timeline: minutes since that day's midnight — may exceed
+  -- 1440 for a plan that runs past it, matching the app's own clock
+  -- arithmetic (see _minutesToClock/_computeDayTimes).
+  arrival_minutes integer,
+  end_minutes integer,
+
+  -- Weather flag as of when the trip was saved — a snapshot, not a live
+  -- forecast (MET Malaysia's window is only ever a few days out, so this
+  -- is only ever meaningful shortly before the trip). Null
+  -- weather_checked_at means it was never checked (indoor stop, or the
+  -- day was outside the forecast window at save time).
+  weather_flagged boolean not null default false,
+  -- The DayPeriod(s) (subset of 'morning','afternoon','night') forecast
+  -- as rain/thunderstorm during this stop's visit window, if any.
+  weather_bad_periods text[] not null default '{}',
+  weather_forecast_phrase text,
+  weather_checked_at timestamptz,
+
+  created_at timestamptz not null default now(),
+  unique (trip_id, day_number, sequence)
 );
 
 -- Per-trip "quick" stops a traveler saves for fast directions — e.g. a
@@ -277,31 +331,66 @@ create table public.trip_favorite_stops (
   created_at timestamptz not null default now()
 );
 
--- The day-by-day, timed schedule computed from the optimized route. Kept
--- separate from `trip_stops` because the same physical stop (e.g. one
--- hotel used as the base for every day) can appear in more than one
--- day's schedule — this is the join between "which stop", "which day, in
--- what order", and "at what time".
-create table public.trip_schedule_stops (
+-- One row per day tab in Create Trip — its date and its own start-time
+-- override (Day 1 has none; it always uses trips.start_time).
+create table public.trip_days (
   id uuid primary key default gen_random_uuid(),
   trip_id uuid not null references public.trips (id) on delete cascade,
-  stop_id uuid not null references public.trip_stops (id) on delete cascade,
-  day_number integer not null,
-  sequence integer not null,
-  is_hotel boolean not null default false,
-  scheduled_arrival time,
-  scheduled_departure time,
-  travel_mode text,
-  travel_minutes integer,
-  created_at timestamptz not null default now()
+  day_number integer not null check (day_number > 0),
+  date date not null,
+  -- Null means "use trips.start_time" — only ever set for day_number > 1,
+  -- via each day panel's own start-time edit icon.
+  start_time_override time,
+  created_at timestamptz not null default now(),
+  unique (trip_id, day_number)
 );
 
--- Where the traveler(s) stay each night of the trip, captured on Create
--- Trip right after picking travel dates. One row per night — an N-day
--- trip has nights 1..N-1 (night_number is 1-indexed), so a single-day
--- trip has none. Deliberately separate from trip_schedule_stops (which
--- needs a real trip_stops row + a full day-by-day schedule, neither of
--- which exists yet at trip-creation time).
+-- One row per travel leg actually shown in a day's timeline — the
+-- starting location or previous night's accommodation to the first
+-- stop, stop to stop, the last stop to that night's accommodation, and
+-- the last day's final leg to the trip's ending location. Denormalized
+-- endpoints (name + coordinates) rather than only foreign keys, since an
+-- endpoint can be the trip's starting location, a night's accommodation,
+-- or the trip's ending location — none of which are `trip_stops` rows —
+-- as well as an actual stop.
+create table public.trip_travel_segments (
+  id uuid primary key default gen_random_uuid(),
+  trip_id uuid not null references public.trips (id) on delete cascade,
+  day_number integer not null check (day_number > 0),
+  -- 0-indexed position within the day: segment 0 arrives at that day's
+  -- first stop (or, for an empty day, straight at its accommodation);
+  -- segment N (N = that day's stop count) is the trailing leg to the
+  -- day's accommodation or, on the last day, to the trip's ending
+  -- location.
+  sequence integer not null check (sequence >= 0),
+
+  from_name text not null,
+  from_latitude double precision not null,
+  from_longitude double precision not null,
+
+  to_name text not null,
+  to_latitude double precision not null,
+  to_longitude double precision not null,
+  -- Set only when the destination is an actual scheduled stop — null for
+  -- a leg ending at accommodation or the trip's ending location.
+  to_stop_id uuid references public.trip_stops (id) on delete cascade,
+  leg_kind text not null check (leg_kind in ('stop', 'accommodation', 'trip_end')),
+
+  transport_mode text not null check (transport_mode in ('driving', 'transit')),
+  -- Null means the leg's travel time couldn't be computed (no Routes API
+  -- result) rather than an actual zero-duration leg.
+  duration_minutes integer,
+
+  created_at timestamptz not null default now(),
+  unique (trip_id, day_number, sequence)
+);
+
+-- Where the traveler(s) stay each night of the trip. One row per night —
+-- an N-day trip has nights 1..N-1 (night_number is 1-indexed), so a
+-- single-day trip has none. Each day panel edits its own night's row
+-- directly (dayIndex == night_number - 1); night_number - 1's row is also
+-- that night's origin for trip_travel_segments' leg-kind 'accommodation'
+-- destination on the day before, and day_number+1's own starting point.
 create table public.trip_accommodations (
   id uuid primary key default gen_random_uuid(),
   trip_id uuid not null references public.trips (id) on delete cascade,
@@ -903,13 +992,16 @@ create table public.comments (
 -- .myReviewCount gates how many a user may add, and addReview always
 -- inserts a fresh row rather than upserting (see
 -- 0013_allow_multiple_reviews_per_visit.sql for the migration that
--- dropped the old one-per-place uniqueness).
+-- dropped the old one-per-place uniqueness). photo_urls is nullable — a
+-- review can still be text-only — and holds public URLs into the
+-- `review-media` storage bucket (see 0014_add_review_photos.sql).
 create table public.reviews (
   id uuid primary key default gen_random_uuid(),
   place_name text not null,
   author_id uuid not null references auth.users (id) on delete cascade,
   rating smallint not null check (rating between 1 and 5),
   body text not null check (char_length(trim(body)) > 0),
+  photo_urls text[],
   created_at timestamptz not null default now()
 );
 
@@ -1012,7 +1104,8 @@ alter table public.trip_balances enable row level security;
 alter table public.trip_settlements enable row level security;
 alter table public.trip_stops enable row level security;
 alter table public.trip_favorite_stops enable row level security;
-alter table public.trip_schedule_stops enable row level security;
+alter table public.trip_days enable row level security;
+alter table public.trip_travel_segments enable row level security;
 alter table public.trip_accommodations enable row level security;
 alter table public.posts enable row level security;
 alter table public.post_likes enable row level security;
@@ -1308,9 +1401,15 @@ create policy "trip_favorite_stops_write_members" on public.trip_favorite_stops
   for all to authenticated using (public.is_trip_member(trip_id))
   with check (public.is_trip_member(trip_id));
 
-create policy "trip_schedule_stops_select_members" on public.trip_schedule_stops
+create policy "trip_days_select_members" on public.trip_days
   for select to authenticated using (public.is_trip_member(trip_id));
-create policy "trip_schedule_stops_write_members" on public.trip_schedule_stops
+create policy "trip_days_write_members" on public.trip_days
+  for all to authenticated using (public.is_trip_member(trip_id))
+  with check (public.is_trip_member(trip_id));
+
+create policy "trip_travel_segments_select_members" on public.trip_travel_segments
+  for select to authenticated using (public.is_trip_member(trip_id));
+create policy "trip_travel_segments_write_members" on public.trip_travel_segments
   for all to authenticated using (public.is_trip_member(trip_id))
   with check (public.is_trip_member(trip_id));
 
@@ -1388,6 +1487,26 @@ create policy "post_media_delete_own_folder" on storage.objects
     and (storage.foldername(name))[1] = auth.uid()::text
   );
 
+-- Storage: `review-media` holds the photos a review can optionally attach
+-- (AddReviewScreen). Same public-bucket-plus-folder-ownership shape as
+-- `post-media` above.
+insert into storage.buckets (id, name, public)
+values ('review-media', 'review-media', true)
+on conflict (id) do nothing;
+
+create policy "review_media_select_public" on storage.objects
+  for select to public using (bucket_id = 'review-media');
+create policy "review_media_insert_own_folder" on storage.objects
+  for insert to authenticated with check (
+    bucket_id = 'review-media'
+    and (storage.foldername(name))[1] = auth.uid()::text
+  );
+create policy "review_media_delete_own_folder" on storage.objects
+  for delete to authenticated using (
+    bucket_id = 'review-media'
+    and (storage.foldername(name))[1] = auth.uid()::text
+  );
+
 -- ============================================================
 -- Realtime: every table the Flutter services read via `.stream()`
 -- must be in this publication, or those streams silently never emit.
@@ -1410,6 +1529,9 @@ alter publication supabase_realtime add table
   public.budget_categories,
   public.trip_settlements,
   public.trip_activity_log,
+  public.trip_stops,
+  public.trip_days,
+  public.trip_travel_segments,
   public.posts,
   public.comments,
   public.reviews;
@@ -1429,6 +1551,8 @@ alter table public.polls replica identity full;
 alter table public.trip_members replica identity full;
 alter table public.budget_categories replica identity full;
 alter table public.trip_settlements replica identity full;
+alter table public.trip_days replica identity full;
+alter table public.trip_travel_segments replica identity full;
 alter table public.group_message_reads replica identity full;
 alter table public.direct_messages replica identity full;
 alter table public.direct_message_reads replica identity full;

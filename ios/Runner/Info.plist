@@ -29,7 +29,7 @@
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>Used to center the map and suggest nearby places when picking a trip stop.</string>
 	<key>NSCameraUsageDescription</key>
-	<string>Used to take a photo or video to attach to an expense or a chat message.</string>
+	<string>Used to take a photo or video to attach to an expense, a chat message, or a review.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>Used to choose a photo or video to attach to an expense or a chat message.</string>
 	<key>NSMicrophoneUsageDescription</key>

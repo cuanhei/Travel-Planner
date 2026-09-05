@@ -1,51 +1,88 @@
 import 'package:flutter/material.dart';
 
+import '../../models/trip.dart';
+import '../../services/trip_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/detail_header.dart';
 import '../../widgets/gradient_button.dart';
-import '../explore/explore_tab.dart' show categories;
 
-/// UI-only trip editor for the trip's core details — same section
-/// layout as Create Trip, but pre-filled and focused on editing rather
-/// than planning a new itinerary. Day-by-day stops and timing are
-/// handled separately by Edit Schedule, so they're not duplicated here.
+/// Trip editor for a trip's name and description only — starting/ending
+/// location, dates, and day-by-day stops/timing are all set once at
+/// Create Trip and aren't editable here; budget/group-size tracking live
+/// in their own dedicated modules.
 class EditTripScreen extends StatefulWidget {
-  const EditTripScreen({super.key});
+  const EditTripScreen({super.key, required this.trip});
+
+  final Trip trip;
 
   @override
   State<EditTripScreen> createState() => _EditTripScreenState();
 }
 
 class _EditTripScreenState extends State<EditTripScreen> {
-  final _nameController = TextEditingController(text: 'Penang Adventure');
-  final _descriptionController = TextEditingController(
-    text: 'A 3-day getaway exploring George Town, Gurney Drive, and Queensbay.',
+  final _tripService = TripService();
+  late final _nameController = TextEditingController(text: widget.trip.name);
+  late final _descriptionController = TextEditingController(
+    text: widget.trip.description ?? '',
   );
-  final _destinationController = TextEditingController(
-    text: 'Penang, Malaysia',
-  );
-  final _budgetController = TextEditingController(text: 'RM 1,500');
-  int _travelers = 2;
-  final Set<String> _selectedInterests = {'Shopping', 'Food'};
+  bool _saving = false;
 
   @override
   void dispose() {
     _nameController.dispose();
     _descriptionController.dispose();
-    _destinationController.dispose();
-    _budgetController.dispose();
     super.dispose();
   }
 
-  void _save() {
-    Navigator.of(context).pop();
+  void _showMessage(String message, {bool isError = false}) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         behavior: SnackBarBehavior.floating,
-        backgroundColor: context.colors.ink,
-        content: const Text('Trip updated'),
+        backgroundColor: isError ? Colors.redAccent : context.colors.ink,
+        content: Text(message),
       ),
     );
+  }
+
+  Future<void> _save() async {
+    final name = _nameController.text.trim();
+    if (name.isEmpty) {
+      _showMessage('Give your trip a name.', isError: true);
+      return;
+    }
+
+    setState(() => _saving = true);
+    try {
+      final trip = widget.trip;
+      // updateTrip sets every field it's given, rather than merging — so
+      // everything set once at Create Trip and not editable here
+      // (location/dates) is passed straight through unchanged.
+      await _tripService.updateTrip(
+        tripId: trip.id,
+        name: name,
+        description: _descriptionController.text.trim(),
+        destination: trip.destination,
+        startLocationName: trip.startLocationName,
+        startAddress: trip.startAddress,
+        startLatitude: trip.startLatitude,
+        startLongitude: trip.startLongitude,
+        endLocationName: trip.endLocationName,
+        endAddress: trip.endAddress,
+        endLatitude: trip.endLatitude,
+        endLongitude: trip.endLongitude,
+        startDate: trip.startDate,
+        endDate: trip.endDate,
+      );
+    } catch (e) {
+      debugPrint('Update trip failed: $e');
+      if (!mounted) return;
+      setState(() => _saving = false);
+      _showMessage('Could not save changes: $e', isError: true);
+      return;
+    }
+    if (!mounted) return;
+    Navigator.of(context).pop(true);
+    _showMessage('Trip updated');
   }
 
   Future<void> _confirmDelete() async {
@@ -79,16 +116,19 @@ class _EditTripScreenState extends State<EditTripScreen> {
         ],
       ),
     );
-    if (confirmed == true && mounted) {
-      Navigator.of(context).popUntil((route) => route.isFirst);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          behavior: SnackBarBehavior.floating,
-          backgroundColor: Colors.redAccent,
-          content: const Text('Trip deleted'),
-        ),
-      );
+    if (confirmed != true || !mounted) return;
+
+    try {
+      await _tripService.deleteTrip(widget.trip.id);
+    } catch (e) {
+      debugPrint('Delete trip failed: $e');
+      if (!mounted) return;
+      _showMessage('Could not delete trip: $e', isError: true);
+      return;
     }
+    if (!mounted) return;
+    Navigator.of(context).popUntil((route) => route.isFirst);
+    _showMessage('Trip deleted');
   }
 
   @override
@@ -100,7 +140,7 @@ class _EditTripScreenState extends State<EditTripScreen> {
           children: [
             const DetailHeader(
               title: 'Edit Trip',
-              subtitle: "Update this trip's details",
+              subtitle: 'Update the name and description',
             ),
             Expanded(
               child: ListView(
@@ -124,118 +164,17 @@ class _EditTripScreenState extends State<EditTripScreen> {
                       ),
                     ],
                   ),
-                  const SizedBox(height: 16),
-                  _SectionCard(
-                    icon: Icons.flight_takeoff_rounded,
-                    title: 'Logistics',
-                    children: [
-                      _FieldLabel('Destination'),
-                      _InputBox(
-                        controller: _destinationController,
-                        icon: Icons.location_on_rounded,
-                      ),
-                      const SizedBox(height: 18),
-                      _FieldLabel('Travel Dates'),
-                      _DatePickerRow(onTap: () {}),
-                      const SizedBox(height: 18),
-                      _FieldLabel('Travelers'),
-                      _TravelersStepper(
-                        count: _travelers,
-                        onChanged: (v) => setState(() => _travelers = v),
-                      ),
-                      const SizedBox(height: 18),
-                      _FieldLabel('Budget'),
-                      _InputBox(
-                        controller: _budgetController,
-                        icon: Icons.account_balance_wallet_rounded,
-                        keyboardType: TextInputType.text,
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
-                  _SectionCard(
-                    icon: Icons.interests_rounded,
-                    title: 'Interests',
-                    children: [
-                      Text(
-                        'Used to tailor recommendations for this trip.',
-                        style: TextStyle(
-                          color: context.colors.muted,
-                          fontSize: 12,
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-                      Wrap(
-                        spacing: 10,
-                        runSpacing: 10,
-                        children: categories.map((c) {
-                          final selected = _selectedInterests.contains(
-                            c.label,
-                          );
-                          return GestureDetector(
-                            onTap: () => setState(() {
-                              selected
-                                  ? _selectedInterests.remove(c.label)
-                                  : _selectedInterests.add(c.label);
-                            }),
-                            child: AnimatedContainer(
-                              duration: const Duration(milliseconds: 200),
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 16,
-                                vertical: 10,
-                              ),
-                              decoration: BoxDecoration(
-                                color: selected
-                                    ? context.colors.ink
-                                    : context.colors.surface,
-                                borderRadius: BorderRadius.circular(20),
-                                border: Border.all(
-                                  color: selected
-                                      ? context.colors.ink
-                                      : context.colors.muted.withValues(
-                                          alpha: 0.25,
-                                        ),
-                                ),
-                              ),
-                              child: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Icon(
-                                    c.icon,
-                                    size: 14,
-                                    color: selected
-                                        ? Colors.white
-                                        : context.colors.muted,
-                                  ),
-                                  const SizedBox(width: 6),
-                                  Text(
-                                    c.label,
-                                    style: TextStyle(
-                                      color: selected
-                                          ? Colors.white
-                                          : context.colors.ink,
-                                      fontWeight: FontWeight.w600,
-                                      fontSize: 13,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          );
-                        }).toList(),
-                      ),
-                    ],
-                  ),
                   const SizedBox(height: 32),
                   GradientButton(
                     label: 'Save Changes',
                     icon: Icons.check_rounded,
-                    onPressed: _save,
+                    loading: _saving,
+                    onPressed: _saving ? () {} : _save,
                   ),
                   const SizedBox(height: 14),
                   Center(
                     child: TextButton.icon(
-                      onPressed: _confirmDelete,
+                      onPressed: _saving ? null : _confirmDelete,
                       icon: const Icon(
                         Icons.delete_outline_rounded,
                         color: Colors.redAccent,
@@ -336,20 +275,17 @@ class _InputBox extends StatelessWidget {
   const _InputBox({
     required this.controller,
     required this.icon,
-    this.keyboardType,
     this.maxLines = 1,
   });
 
   final TextEditingController controller;
   final IconData icon;
-  final TextInputType? keyboardType;
   final int maxLines;
 
   @override
   Widget build(BuildContext context) {
     return TextField(
       controller: controller,
-      keyboardType: keyboardType,
       maxLines: maxLines,
       style: TextStyle(fontWeight: FontWeight.w600, color: context.colors.ink),
       decoration: InputDecoration(
@@ -369,118 +305,6 @@ class _InputBox extends StatelessWidget {
         contentPadding: const EdgeInsets.symmetric(
           vertical: 16,
           horizontal: 16,
-        ),
-      ),
-    );
-  }
-}
-
-class _DatePickerRow extends StatelessWidget {
-  const _DatePickerRow({required this.onTap});
-
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return InkWell(
-      borderRadius: BorderRadius.circular(16),
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-        decoration: BoxDecoration(
-          color: context.colors.surface,
-          borderRadius: BorderRadius.circular(16),
-        ),
-        child: Row(
-          children: [
-            Icon(
-              Icons.calendar_today_rounded,
-              color: context.colors.muted,
-              size: 18,
-            ),
-            const SizedBox(width: 12),
-            Text(
-              'Aug 14 — Aug 16, 2026',
-              style: TextStyle(
-                color: context.colors.ink,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-            const Spacer(),
-            Icon(Icons.expand_more_rounded, color: context.colors.muted),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _TravelersStepper extends StatelessWidget {
-  const _TravelersStepper({required this.count, required this.onChanged});
-
-  final int count;
-  final ValueChanged<int> onChanged;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      decoration: BoxDecoration(
-        color: context.colors.surface,
-        borderRadius: BorderRadius.circular(16),
-      ),
-      child: Row(
-        children: [
-          Icon(Icons.people_alt_rounded, color: context.colors.muted, size: 18),
-          const SizedBox(width: 12),
-          Text(
-            '$count ${count == 1 ? 'traveler' : 'travelers'}',
-            style: TextStyle(
-              color: context.colors.ink,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-          const Spacer(),
-          _StepperButton(
-            icon: Icons.remove_rounded,
-            onTap: count > 1 ? () => onChanged(count - 1) : null,
-          ),
-          const SizedBox(width: 8),
-          _StepperButton(
-            icon: Icons.add_rounded,
-            onTap: () => onChanged(count + 1),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _StepperButton extends StatelessWidget {
-  const _StepperButton({required this.icon, required this.onTap});
-
-  final IconData icon;
-  final VoidCallback? onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return Material(
-      color: context.colors.card,
-      shape: const CircleBorder(),
-      child: InkWell(
-        customBorder: const CircleBorder(),
-        onTap: onTap,
-        child: Container(
-          width: 34,
-          height: 34,
-          alignment: Alignment.center,
-          child: Icon(
-            icon,
-            size: 18,
-            color: onTap == null
-                ? context.colors.muted.withValues(alpha: 0.4)
-                : context.colors.ink,
-          ),
         ),
       ),
     );

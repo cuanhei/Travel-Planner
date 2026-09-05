@@ -60,10 +60,16 @@ class _TripsTabState extends State<TripsTab> {
   void initState() {
     super.initState();
     _load();
+    // Catches a trip created from anywhere other than this tab's own
+    // "Create Trip" button (Home dashboard, Add to Trip, ...) — this
+    // tab stays mounted in the bottom nav's IndexedStack the whole time,
+    // so there's no push/pop of its own to hook a reload onto for those.
+    TripService.tripsChanged.addListener(_load);
   }
 
   @override
   void dispose() {
+    TripService.tripsChanged.removeListener(_load);
     _searchController.dispose();
     super.dispose();
   }

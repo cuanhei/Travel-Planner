@@ -2,7 +2,8 @@ import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../models/trip.dart';
-import '../models/trip_accommodation.dart';
+import '../models/trip_schedule.dart';
+import '../models/trip_schedule_input.dart';
 import '../models/trip_stop_location.dart';
 import 'supabase_config.dart';
 
@@ -28,6 +29,17 @@ class TripService {
 
   final SupabaseClient _client;
 
+  /// Bumped whenever a trip is created — [TripsTab] (and anywhere else
+  /// that lists trips) listens to this instead of only reloading right
+  /// after its own "Create Trip" push, so a trip created from a
+  /// different entry point (Home dashboard, Add to Trip, ...) still
+  /// shows up without the traveler needing to manually pull-to-refresh.
+  /// Static because the trips list lives in a bottom-nav tab kept alive
+  /// in an `IndexedStack` — it isn't re-pushed/popped when a trip is
+  /// created elsewhere, so there's no navigation event for it to react
+  /// to otherwise.
+  static final ValueNotifier<int> tripsChanged = ValueNotifier<int>(0);
+
   static String? _cachedTripId;
   static Future<String>? _inFlight;
 
@@ -49,7 +61,7 @@ class TripService {
           .from('trip_members')
           .select('trip_id')
           .eq('user_id', _uid)
-          .order('joined_at')
+          .order('joined_at', ascending: true)
           .limit(1)
           .maybeSingle(),
     );
@@ -91,6 +103,7 @@ class TripService {
     );
 
     _cachedTripId = tripId;
+    tripsChanged.value++;
     return tripId;
   }
 
@@ -115,6 +128,9 @@ class TripService {
     String? startTime,
     String? endTime,
     required double totalBudget,
+    /// "driving" or "transit" — the transport mode toggle above Create
+    /// Trip's day tabs, applied to every travel leg in the trip.
+    String transportMode = 'driving',
     /// One accommodation per night of the trip — index 0 is the first
     /// night (after day 1), index 1 the second, and so on. A trip
     /// spanning N days has N-1 nights, so this is empty for a single-day
@@ -150,6 +166,7 @@ class TripService {
             'end_date': endDate?.toIso8601String().split('T').first,
             'start_time': startTime,
             'end_time': endTime,
+            'transport_mode': transportMode,
             'created_by': _uid,
             'total_budget': totalBudget,
           })
@@ -174,20 +191,239 @@ class TripService {
       );
     }
 
+    tripsChanged.value++;
     return tripId;
   }
 
-  /// Every night's accommodation for a trip, ordered by [night_number] —
-  /// backs Trip Details' itinerary view.
-  Future<List<TripAccommodation>> tripAccommodations(String tripId) async {
-    final rows = await retryOnJwtClockSkew(
+  /// Persists Create Trip's full day-by-day timeline — one row per day
+  /// tab (`trip_days`), one row per scheduled stop with its computed
+  /// arrival/end time and weather flag (`trip_stops`), and one row per
+  /// travel leg actually shown (`trip_travel_segments`). Called once,
+  /// right after [createTrip] returns [tripId] — there's no partial-save/
+  /// resume flow yet, so this always writes a trip's entire schedule in
+  /// one call.
+  ///
+  /// Insert order matters: stops must exist before segments, since a
+  /// `legKind: TripLegKind.stop` segment's `to_stop_id` is resolved from
+  /// the just-inserted stops' ids (matched by `day_number` + `sequence` —
+  /// a stop leg's own `sequence` is always the same as the stop it
+  /// arrives at, so no separate correlation key is needed).
+  Future<void> saveTripSchedule({
+    required String tripId,
+    required List<TripDayInput> days,
+    required List<TripStopInput> stops,
+    required List<TripTravelSegmentInput> segments,
+  }) async {
+    if (days.isNotEmpty) {
+      await retryOnJwtClockSkew(
+        () => _client.from('trip_days').insert([
+          for (final day in days)
+            {
+              'trip_id': tripId,
+              'day_number': day.dayNumber,
+              'date': day.date.toIso8601String().split('T').first,
+              'start_time_override': day.startTimeOverride,
+            },
+        ]),
+      );
+    }
+
+    // day_number/sequence -> the inserted trip_stops row's id, so a
+    // 'stop' leg below can resolve its to_stop_id.
+    final stopIds = <(int, int), String>{};
+    if (stops.isNotEmpty) {
+      final rows = await retryOnJwtClockSkew(
+        () => _client
+            .from('trip_stops')
+            .insert([for (final stop in stops) _stopRow(tripId, stop)])
+            .select('id, day_number, sequence'),
+      );
+      for (final row in rows) {
+        stopIds[(row['day_number'] as int, row['sequence'] as int)] =
+            row['id'] as String;
+      }
+    }
+
+    if (segments.isNotEmpty) {
+      await retryOnJwtClockSkew(
+        () => _client.from('trip_travel_segments').insert([
+          for (final segment in segments)
+            {
+              'trip_id': tripId,
+              'day_number': segment.dayNumber,
+              'sequence': segment.sequence,
+              'from_name': segment.fromName,
+              'from_latitude': segment.fromLatitude,
+              'from_longitude': segment.fromLongitude,
+              'to_name': segment.toName,
+              'to_latitude': segment.toLatitude,
+              'to_longitude': segment.toLongitude,
+              'to_stop_id': segment.legKind == TripLegKind.stop
+                  ? stopIds[(segment.dayNumber, segment.sequence)]
+                  : null,
+              'leg_kind': segment.legKind.column,
+              'transport_mode': segment.transportMode,
+              'duration_minutes': segment.durationMinutes,
+            },
+        ]),
+      );
+    }
+  }
+
+  Map<String, dynamic> _stopRow(String tripId, TripStopInput stop) {
+    final location = stop.location;
+    return {
+      'trip_id': tripId,
+      'name': location.name,
+      'address': location.address,
+      'latitude': location.latitude,
+      'longitude': location.longitude,
+      'osm_id': location.osmId,
+      'category': location.category,
+      'place_id': location.placeId,
+      'primary_type': location.primaryType,
+      'types': location.types,
+      'business_status': location.businessStatus,
+      'opening_hours': location.openingHours,
+      'opening_hours_periods': location.openingHoursPeriods
+          ?.map((p) => p.toJson())
+          .toList(),
+      'environment': location.environment.name,
+      'visit_minutes': stop.visitMinutes,
+      'day_number': stop.dayNumber,
+      'sequence': stop.sequence,
+      'arrival_minutes': stop.arrivalMinutes,
+      'end_minutes': stop.endMinutes,
+      'weather_flagged': stop.weatherFlagged,
+      'weather_bad_periods': stop.weatherBadPeriods,
+      'weather_forecast_phrase': stop.weatherForecastPhrase,
+      'weather_checked_at': stop.weatherCheckedAt?.toIso8601String(),
+    };
+  }
+
+  /// Loads back everything [saveTripSchedule] wrote — every day tab,
+  /// every scheduled stop (already-computed arrival/end time and weather
+  /// flag included, not recomputed here), and every travel leg — for
+  /// [DailyTimelineScreen]'s read-only view. A trip with no saved
+  /// schedule yet (created before this existed, or [saveTripSchedule]
+  /// was never called) comes back with an empty `days` list rather than
+  /// throwing.
+  Future<TripSchedule> getTripSchedule(String tripId) async {
+    final tripRow = await retryOnJwtClockSkew(
       () => _client
-          .from('trip_accommodations')
+          .from('trips')
+          .select('transport_mode, start_time, end_time')
+          .eq('id', tripId)
+          .single(),
+    );
+    final dayRows = await retryOnJwtClockSkew(
+      () => _client
+          .from('trip_days')
           .select()
           .eq('trip_id', tripId)
-          .order('night_number'),
+          .order('day_number'),
     );
-    return [for (final row in rows) TripAccommodation.fromMap(row)];
+    final stopRows = await retryOnJwtClockSkew(
+      () => _client
+          .from('trip_stops')
+          .select()
+          .eq('trip_id', tripId)
+          .order('day_number')
+          .order('sequence'),
+    );
+    final segmentRows = await retryOnJwtClockSkew(
+      () => _client
+          .from('trip_travel_segments')
+          .select()
+          .eq('trip_id', tripId)
+          .order('day_number')
+          .order('sequence'),
+    );
+
+    final days = <TripScheduleDay>[];
+    for (final dayRow in dayRows) {
+      final dayNumber = dayRow['day_number'] as int;
+      days.add(
+        TripScheduleDay(
+          dayNumber: dayNumber,
+          date: DateTime.parse(dayRow['date'] as String),
+          startTimeOverride: dayRow['start_time_override'] as String?,
+          stops: [
+            for (final row in stopRows)
+              if (row['day_number'] == dayNumber) TripScheduleStop.fromMap(row),
+          ],
+          legs: [
+            for (final row in segmentRows)
+              if (row['day_number'] == dayNumber) TripScheduleLeg.fromMap(row),
+          ],
+        ),
+      );
+    }
+
+    return TripSchedule(
+      transportMode: (tripRow['transport_mode'] as String?) ?? 'driving',
+      tripStartTime: tripRow['start_time'] as String?,
+      tripEndTime: tripRow['end_time'] as String?,
+      days: days,
+    );
+  }
+
+  /// Updates a trip's core details from the Edit Trip form — everything
+  /// [createTrip] accepts except accommodations/times, which Edit Trip
+  /// doesn't touch. Only the organizer can call this successfully; the
+  /// `trips_update_organizer` RLS policy enforces that server-side too.
+  Future<void> updateTrip({
+    required String tripId,
+    required String name,
+    String? description,
+    String? destination,
+    String? startLocationName,
+    String? startAddress,
+    double? startLatitude,
+    double? startLongitude,
+    String? endLocationName,
+    String? endAddress,
+    double? endLatitude,
+    double? endLongitude,
+    DateTime? startDate,
+    DateTime? endDate,
+  }) async {
+    final trimmedName = name.trim();
+    if (trimmedName.isEmpty) {
+      throw ArgumentError.value(name, 'name', 'Trip name cannot be empty.');
+    }
+    await retryOnJwtClockSkew(
+      () => _client
+          .from('trips')
+          .update({
+            'name': trimmedName,
+            'description': description,
+            'destination': destination ?? '',
+            'start_location_name': startLocationName,
+            'start_address': startAddress,
+            'start_latitude': startLatitude,
+            'start_longitude': startLongitude,
+            'end_location_name': endLocationName,
+            'end_address': endAddress,
+            'end_latitude': endLatitude,
+            'end_longitude': endLongitude,
+            'start_date': startDate?.toIso8601String().split('T').first,
+            'end_date': endDate?.toIso8601String().split('T').first,
+          })
+          .eq('id', tripId),
+    );
+    tripsChanged.value++;
+  }
+
+  /// Deletes a trip and (via `on delete cascade`) everything hanging off
+  /// it — members, stops, accommodations, schedule, budget, chat, etc.
+  /// Only the organizer can call this successfully; the
+  /// `trips_delete_organizer` RLS policy enforces that server-side too.
+  Future<void> deleteTrip(String tripId) async {
+    await retryOnJwtClockSkew(
+      () => _client.from('trips').delete().eq('id', tripId),
+    );
+    tripsChanged.value++;
   }
 
   /// All trips the signed-in user is a member of (as organizer or plain
@@ -282,6 +518,15 @@ class TripService {
       return aDate.compareTo(bDate);
     });
     return trips;
+  }
+
+  /// How many travelers (organizer + members) belong to a trip — backs
+  /// Trip Details' "Travelers" stat.
+  Future<int> memberCount(String tripId) async {
+    final rows = await retryOnJwtClockSkew(
+      () => _client.from('trip_members').select('user_id').eq('trip_id', tripId),
+    );
+    return rows.length;
   }
 
   /// Every stop saved to a trip, for [TripMapScreen] — was hardcoded

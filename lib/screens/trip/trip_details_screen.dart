@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../models/trip.dart';
 import '../../services/budget_service.dart';
+import '../../services/trip_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/section_header.dart';
 import '../budget/budget_planner_screen.dart';
@@ -10,7 +11,6 @@ import '../transport/transport_routes_screen.dart';
 import '../utilities/utilities_home_screen.dart';
 import '../weather/weather_forecast_screen.dart';
 import 'daily_timeline_screen.dart';
-import 'edit_schedule_screen.dart';
 import 'edit_trip_screen.dart';
 import 'trip_map_screen.dart';
 
@@ -37,8 +37,8 @@ class _Stop {
 
 /// Trip hub: overview, itinerary stops, and a tools grid linking out to
 /// scheduling, map, weather, transport, budget, and group screens. The
-/// itinerary stops/activity feed below are still UI-only mock data; the
-/// Budget and Group tools are wired live to [trip].
+/// stats row (Stops/Days/Budget/Travelers) and tools grid are wired live
+/// to [trip]; the "Activity" feed below is still UI-only mock data.
 class TripDetailsScreen extends StatefulWidget {
   const TripDetailsScreen({super.key, required this.trip});
 
@@ -49,6 +49,31 @@ class TripDetailsScreen extends StatefulWidget {
 }
 
 class _TripDetailsScreenState extends State<TripDetailsScreen> {
+  final _tripService = TripService();
+  late Trip _trip = widget.trip;
+  int? _stopsCount;
+  int? _travelerCount;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadStats();
+  }
+
+  Future<void> _loadStats() async {
+    try {
+      final stops = await _tripService.getTripStops(_trip.id);
+      final travelers = await _tripService.memberCount(_trip.id);
+      if (!mounted) return;
+      setState(() {
+        _stopsCount = stops.length;
+        _travelerCount = travelers;
+      });
+    } catch (e) {
+      debugPrint('Loading trip stats failed: $e');
+    }
+  }
+
   final _stops = [
     _Stop(
       name: 'Komtar, George Town',
@@ -86,6 +111,20 @@ class _TripDetailsScreenState extends State<TripDetailsScreen> {
 
   void _completeStop(_Stop stop) => setState(() => stop.completed = true);
 
+  Future<void> _openEditTrip() async {
+    final updated = await Navigator.of(context).push<bool>(
+      MaterialPageRoute(builder: (_) => EditTripScreen(trip: _trip)),
+    );
+    if (updated != true || !mounted) return;
+    try {
+      final reloaded = await _tripService.getTrip(_trip.id);
+      if (mounted) setState(() => _trip = reloaded);
+    } catch (e) {
+      debugPrint('Reloading trip after edit failed: $e');
+    }
+    _loadStats();
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -120,11 +159,7 @@ class _TripDetailsScreenState extends State<TripDetailsScreen> {
                       ),
                       Spacer(),
                       IconButton(
-                        onPressed: () => Navigator.of(context).push(
-                          MaterialPageRoute(
-                            builder: (_) => EditTripScreen(),
-                          ),
-                        ),
+                        onPressed: _openEditTrip,
                         icon: Icon(
                           Icons.edit_rounded,
                           color: Colors.white,
@@ -140,13 +175,25 @@ class _TripDetailsScreenState extends State<TripDetailsScreen> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        widget.trip.name,
+                        _trip.name,
                         style: TextStyle(
                           color: Colors.white,
                           fontSize: 24,
                           fontWeight: FontWeight.w800,
                         ),
                       ),
+                      if ((_trip.description ?? '').trim().isNotEmpty) ...[
+                        SizedBox(height: 4),
+                        Text(
+                          _trip.description!.trim(),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            color: Colors.white.withValues(alpha: 0.85),
+                            fontSize: 13,
+                          ),
+                        ),
+                      ],
                       SizedBox(height: 6),
                       Row(
                         children: [
@@ -157,9 +204,9 @@ class _TripDetailsScreenState extends State<TripDetailsScreen> {
                           ),
                           SizedBox(width: 4),
                           Text(
-                            widget.trip.destination.isEmpty
-                                ? widget.trip.dateRangeLabel
-                                : '${widget.trip.destination} · ${widget.trip.dateRangeLabel}',
+                            _trip.destination.isEmpty
+                                ? _trip.dateRangeLabel
+                                : '${_trip.destination} · ${_trip.dateRangeLabel}',
                             style: TextStyle(
                               color: Colors.white.withValues(alpha: 0.85),
                               fontSize: 13,
@@ -183,20 +230,17 @@ class _TripDetailsScreenState extends State<TripDetailsScreen> {
                     ),
                     child: ListView(
                       children: [
-                        _StatsRow(trip: widget.trip),
+                        _StatsRow(
+                          trip: _trip,
+                          stopsCount: _stopsCount,
+                          travelerCount: _travelerCount,
+                        ),
                         SizedBox(height: 28),
                         SectionHeader(title: 'Trip Tools'),
                         SizedBox(height: 14),
-                        _ToolsGrid(tripId: widget.trip.id),
+                        _ToolsGrid(trip: _trip),
                         SizedBox(height: 28),
-                        SectionHeader(
-                          title: 'Activity',
-                          onAction: () => Navigator.of(context).push(
-                            MaterialPageRoute(
-                              builder: (_) => DailyTimelineScreen(),
-                            ),
-                          ),
-                        ),
+                        SectionHeader(title: 'Activity'),
                         SizedBox(height: 14),
                         _ActivityTile(
                           stop: _upcomingStop,
@@ -217,17 +261,29 @@ class _TripDetailsScreenState extends State<TripDetailsScreen> {
 }
 
 class _StatsRow extends StatelessWidget {
-  const _StatsRow({required this.trip});
+  const _StatsRow({
+    required this.trip,
+    required this.stopsCount,
+    required this.travelerCount,
+  });
 
   final Trip trip;
+
+  /// Null while still loading from `trip_stops`/`trip_members`.
+  final int? stopsCount;
+  final int? travelerCount;
 
   @override
   Widget build(BuildContext context) {
     final stats = [
-      (label: 'Stops', value: '3', icon: Icons.flag_rounded),
+      (
+        label: 'Stops',
+        value: stopsCount == null ? '…' : '$stopsCount',
+        icon: Icons.flag_rounded,
+      ),
       (
         label: 'Days',
-        value: '${trip.days == 0 ? 3 : trip.days}',
+        value: trip.days == 0 ? '—' : '${trip.days}',
         icon: Icons.calendar_today_rounded,
       ),
       (
@@ -235,7 +291,11 @@ class _StatsRow extends StatelessWidget {
         value: 'RM${trip.totalBudget.toStringAsFixed(0)}',
         icon: Icons.account_balance_wallet_rounded,
       ),
-      (label: 'Travelers', value: '2', icon: Icons.people_alt_rounded),
+      (
+        label: 'Travelers',
+        value: travelerCount == null ? '…' : '$travelerCount',
+        icon: Icons.people_alt_rounded,
+      ),
     ];
 
     Widget tile(IconData icon, String value, String label) {
@@ -301,28 +361,22 @@ class _StatsRow extends StatelessWidget {
 }
 
 class _ToolsGrid extends StatelessWidget {
-  const _ToolsGrid({required this.tripId});
+  const _ToolsGrid({required this.trip});
 
-  final String tripId;
+  final Trip trip;
+
+  String get tripId => trip.id;
 
   @override
   Widget build(BuildContext context) {
     final tools = [
       (
         label: 'Daily\nTimeline',
-        icon: Icons.timeline_rounded,
-        color: Color(0xFF5C6BC0),
-        onTap: () => Navigator.of(
-          context,
-        ).push(MaterialPageRoute(builder: (_) => DailyTimelineScreen())),
-      ),
-      (
-        label: 'Edit\nSchedule',
-        icon: Icons.edit_calendar_rounded,
-        color: Color(0xFF11998E),
-        onTap: () => Navigator.of(
-          context,
-        ).push(MaterialPageRoute(builder: (_) => EditScheduleScreen())),
+        icon: Icons.view_timeline_rounded,
+        color: Color(0xFF2E9CCA),
+        onTap: () => Navigator.of(context).push(
+          MaterialPageRoute(builder: (_) => DailyTimelineScreen(tripId: tripId)),
+        ),
       ),
       (
         label: 'Map\nView',

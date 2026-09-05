@@ -6,6 +6,7 @@ class CommunityPost {
     required this.authorId,
     required this.authorName,
     required this.authorColor,
+    this.authorAvatarUrl,
     required this.placeName,
     required this.caption,
     required this.category,
@@ -19,12 +20,14 @@ class CommunityPost {
     required this.createdAt,
     this.ipAddress,
     required this.authorLocationSharingEnabled,
+    required this.updatedAt,
   });
 
   final String id;
   final String authorId;
   final String authorName;
   final int authorColor;
+  final String? authorAvatarUrl;
 
   /// The `posts.ip_address` column — named for what it held originally,
   /// but resolved to a short area name (e.g. "George Town") from the
@@ -62,6 +65,55 @@ class CommunityPost {
   /// or `null` if they haven't reacted.
   final String? myReaction;
   final DateTime createdAt;
+  final DateTime updatedAt;
+
+  /// Whether the post's own author has changed it since posting — driven by
+  /// `posts.updated_at`, which only moves on a content edit (place/caption/
+  /// category/media), never on a reaction or comment. A tolerance guards
+  /// against `created_at`/`updated_at` differing by a few stray
+  /// microseconds from being computed as two separate `now()` calls on
+  /// insert, which would otherwise show a brand-new post as "Edited".
+  bool get isEdited =>
+      updatedAt.difference(createdAt) > const Duration(seconds: 2);
+
+  /// Used for optimistic/live local updates (a reaction tap, or a
+  /// `CommunityFeedEvent` patching in a change from elsewhere) instead of
+  /// re-fetching the post from the paginated feed.
+  ///
+  /// [myReaction] needs to distinguish "leave it alone" from "set it to
+  /// null" (clearing your own reaction is a real, common case) — a plain
+  /// nullable parameter can't tell those apart, so omitting it keeps the
+  /// current value and [clearMyReaction] is how a caller explicitly nulls
+  /// it out.
+  CommunityPost copyWith({
+    int? likesCount,
+    Map<String, int>? reactionCounts,
+    int? commentsCount,
+    String? myReaction,
+    bool clearMyReaction = false,
+  }) {
+    return CommunityPost(
+      id: id,
+      authorId: authorId,
+      authorName: authorName,
+      authorColor: authorColor,
+      authorAvatarUrl: authorAvatarUrl,
+      placeName: placeName,
+      caption: caption,
+      category: category,
+      coverGradient: coverGradient,
+      mediaUrl: mediaUrl,
+      mediaType: mediaType,
+      likesCount: likesCount ?? this.likesCount,
+      reactionCounts: reactionCounts ?? this.reactionCounts,
+      commentsCount: commentsCount ?? this.commentsCount,
+      myReaction: clearMyReaction ? null : (myReaction ?? this.myReaction),
+      createdAt: createdAt,
+      ipAddress: ipAddress,
+      authorLocationSharingEnabled: authorLocationSharingEnabled,
+      updatedAt: updatedAt,
+    );
+  }
 
   factory CommunityPost.fromMap(
     Map<String, dynamic> map, {
@@ -75,6 +127,7 @@ class CommunityPost {
       authorId: map['author_id'] as String,
       authorName: profile['display_name'] as String,
       authorColor: profile['avatar_color'] as int,
+      authorAvatarUrl: profile['avatar_url'] as String?,
       placeName: map['place_name'] as String,
       caption: map['caption'] as String,
       category: map['category'] as String,
@@ -89,6 +142,9 @@ class CommunityPost {
       ipAddress: map['ip_address'] as String?,
       authorLocationSharingEnabled:
           (profile['location_sharing_enabled'] as bool?) ?? true,
+      updatedAt: DateTime.parse(
+        map['updated_at'] as String? ?? map['created_at'] as String,
+      ),
     );
   }
 }

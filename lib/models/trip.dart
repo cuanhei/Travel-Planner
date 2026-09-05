@@ -22,12 +22,20 @@ class Trip {
     required this.totalBudget,
     required this.createdBy,
     required this.createdAt,
+    this.description,
     this.startLocationName,
+    this.startAddress,
+    this.startLatitude,
+    this.startLongitude,
     this.endLocationName,
+    this.endAddress,
+    this.endLatitude,
+    this.endLongitude,
   });
 
   final String id;
   final String name;
+  final String? description;
   final String destination;
   final DateTime? startDate;
   final DateTime? endDate;
@@ -35,12 +43,19 @@ class Trip {
   final String createdBy;
   final DateTime createdAt;
   final String? startLocationName;
+  final String? startAddress;
+  final double? startLatitude;
+  final double? startLongitude;
   final String? endLocationName;
+  final String? endAddress;
+  final double? endLatitude;
+  final double? endLongitude;
 
   factory Trip.fromMap(Map<String, dynamic> map) {
     return Trip(
       id: map['id'] as String,
       name: map['name'] as String,
+      description: map['description'] as String?,
       destination: (map['destination'] as String?) ?? '',
       startDate: map['start_date'] != null
           ? DateTime.parse(map['start_date'] as String)
@@ -52,7 +67,13 @@ class Trip {
       createdBy: map['created_by'] as String,
       createdAt: DateTime.parse(map['created_at'] as String),
       startLocationName: map['start_location_name'] as String?,
+      startAddress: map['start_address'] as String?,
+      startLatitude: (map['start_latitude'] as num?)?.toDouble(),
+      startLongitude: (map['start_longitude'] as num?)?.toDouble(),
       endLocationName: map['end_location_name'] as String?,
+      endAddress: map['end_address'] as String?,
+      endLatitude: (map['end_latitude'] as num?)?.toDouble(),
+      endLongitude: (map['end_longitude'] as num?)?.toDouble(),
     );
   }
 

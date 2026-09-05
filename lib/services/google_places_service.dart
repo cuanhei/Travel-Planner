@@ -118,7 +118,16 @@ class GooglePlacesService {
   /// is no [NearbyPlace.distanceKm] to compute here (stays null).
   /// Biased to Malaysia via `regionCode`, matching every other search
   /// backend in this app (Photon's Malaysia bbox).
-  Future<List<NearbyPlace>> textSearch(String query) async {
+  ///
+  /// No `includedType` is ever sent — every Places category (restaurants,
+  /// shops, hospitals, transit stations, hotels, attractions, ...) is
+  /// eligible, not just tourism-flavored ones. [maxResultCount] defaults to
+  /// [_textSearchResultCount] but can be raised by callers (e.g. Create
+  /// Trip's stop picker) that want a wider spread of results per query.
+  Future<List<NearbyPlace>> textSearch(
+    String query, {
+    int maxResultCount = _textSearchResultCount,
+  }) async {
     final apiKey = _apiKey;
     if (apiKey.isEmpty) {
       throw GooglePlacesRequestException(
@@ -135,7 +144,7 @@ class GooglePlacesService {
       body: jsonEncode({
         'textQuery': query,
         'regionCode': 'MY',
-        'maxResultCount': _textSearchResultCount,
+        'maxResultCount': maxResultCount,
       }),
     );
     if (response.statusCode != 200) {
