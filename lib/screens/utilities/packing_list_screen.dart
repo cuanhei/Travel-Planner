@@ -1,25 +1,13 @@
 import 'package:flutter/material.dart';
 
+import '../../models/packing_item.dart';
+import '../../models/trip.dart';
 import '../../services/locale_service.dart';
+import '../../services/packing_list_service.dart';
+import '../../services/trip_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/detail_header.dart';
 import 'packing_item_form_screen.dart';
-
-/// A single packing checklist entry. Mutable `packed` flag so tapping
-/// the checkbox can toggle it in place — UI-only, no persistence.
-class PackingItem {
-  PackingItem({
-    required this.id,
-    required this.label,
-    required this.category,
-    this.packed = false,
-  });
-
-  final int id;
-  final String label;
-  final String category;
-  bool packed;
-}
 
 /// Common category suggestions offered when adding an item, alongside
 /// whatever custom categories the traveler has already typed in.
@@ -45,166 +33,342 @@ String translatedPackingCategory(String label) {
   return key == null ? label : tr(key);
 }
 
-/// Packing checklist grouped by category — add, edit, or remove items,
-/// and check them off as they're packed.
+/// Packing checklist for one trip, shared live with every member of it
+/// (backed by `packing_items`) — add, edit, or remove items, check them
+/// off as they're packed, or auto-generate a starter list from the
+/// trip's destination and dates.
 class PackingListScreen extends StatefulWidget {
-  const PackingListScreen({super.key});
+  const PackingListScreen({super.key, required this.tripId});
+
+  final String tripId;
 
   @override
   State<PackingListScreen> createState() => _PackingListScreenState();
 }
 
 class _PackingListScreenState extends State<PackingListScreen> {
-  final _items = [
-    PackingItem(id: 1, label: tr('utilities_item_light_shirts_shorts'), category: 'Clothing', packed: true),
-    PackingItem(id: 2, label: tr('utilities_item_swimwear'), category: 'Clothing', packed: true),
-    PackingItem(id: 3, label: tr('utilities_item_walking_shoes'), category: 'Clothing'),
-    PackingItem(id: 4, label: tr('utilities_item_rain_jacket'), category: 'Clothing'),
-    PackingItem(id: 5, label: tr('utilities_item_sunscreen'), category: 'Toiletries', packed: true),
-    PackingItem(id: 6, label: tr('utilities_item_toothbrush'), category: 'Toiletries'),
-    PackingItem(id: 7, label: tr('utilities_item_insect_repellent'), category: 'Toiletries'),
-    PackingItem(id: 8, label: tr('utilities_item_phone_charger'), category: 'Electronics', packed: true),
-    PackingItem(id: 9, label: tr('utilities_item_power_bank'), category: 'Electronics'),
-    PackingItem(id: 10, label: tr('utilities_item_universal_adapter'), category: 'Electronics'),
-    PackingItem(id: 11, label: tr('utilities_item_camera'), category: 'Electronics'),
-    PackingItem(id: 12, label: tr('utilities_item_passport_ic'), category: 'Documents', packed: true),
-    PackingItem(id: 13, label: tr('utilities_item_hotel_booking'), category: 'Documents'),
-    PackingItem(id: 14, label: tr('utilities_item_travel_insurance'), category: 'Documents'),
-  ];
+  final _service = PackingListService();
+  final _tripService = TripService();
 
-  List<String> get _existingCategories =>
-      {for (final i in _items) i.category}.toList();
+  late Stream<List<PackingItem>> _itemsStream;
 
-  Future<void> _addItem() async {
+  Trip? _trip;
+  bool _generating = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _itemsStream = _service.watchItems(widget.tripId);
+    _loadTrip();
+  }
+
+  void _retry() {
+    setState(() => _itemsStream = _service.watchItems(widget.tripId));
+  }
+
+  Future<void> _loadTrip() async {
+    try {
+      final trip = await _tripService.getTrip(widget.tripId);
+      if (mounted) setState(() => _trip = trip);
+    } catch (_) {
+      // Auto-generate just stays hidden if the trip can't be loaded —
+      // manual add/edit doesn't depend on it.
+    }
+  }
+
+  void _showMessage(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(behavior: SnackBarBehavior.floating, content: Text(message)));
+  }
+
+  Future<void> _autoGenerate(List<PackingItem> currentItems) async {
+    final trip = _trip;
+    if (trip == null || _generating) return;
+    setState(() => _generating = true);
+    try {
+      final added = await _service.generateSuggestedItems(trip, currentItems);
+      _showMessage(
+        added == 0
+            ? tr('utilities_no_new_suggestions')
+            : '$added ${tr('utilities_items_added_suffix')}',
+      );
+    } catch (e) {
+      _showMessage('Could not generate suggestions: $e');
+    } finally {
+      if (mounted) setState(() => _generating = false);
+    }
+  }
+
+  Future<void> _addItem(List<String> existingCategories) async {
     final result = await Navigator.of(context).push<PackingItemFormResult>(
       MaterialPageRoute(
         builder: (_) =>
-            PackingItemFormScreen(existingCategories: _existingCategories),
+            PackingItemFormScreen(existingCategories: existingCategories),
       ),
     );
     if (result == null || result.deleted) return;
-    setState(() => _items.add(result.item!));
+    final draft = result.item!;
+    try {
+      await _service.addItem(
+        tripId: widget.tripId,
+        label: draft.label,
+        category: draft.category,
+        quantity: draft.quantity,
+        note: draft.note,
+        packed: draft.packed,
+      );
+    } catch (e) {
+      _showMessage('Could not add item: $e');
+    }
   }
 
-  Future<void> _editItem(PackingItem item) async {
+  Future<void> _editItem(
+    PackingItem item,
+    List<String> existingCategories,
+  ) async {
     final result = await Navigator.of(context).push<PackingItemFormResult>(
       MaterialPageRoute(
         builder: (_) => PackingItemFormScreen(
           initial: item,
-          existingCategories: _existingCategories,
+          existingCategories: existingCategories,
         ),
       ),
     );
     if (result == null) return;
-    setState(() {
+    try {
       if (result.deleted) {
-        _items.removeWhere((i) => i.id == item.id);
+        await _service.deleteItem(item.id);
       } else {
-        final index = _items.indexWhere((i) => i.id == item.id);
-        _items[index] = result.item!;
+        final updated = result.item!;
+        await _service.updateItem(
+          item.id,
+          label: updated.label,
+          category: updated.category,
+          quantity: updated.quantity,
+          note: updated.note,
+          packed: updated.packed,
+        );
       }
-    });
+    } catch (e) {
+      _showMessage('Could not update item: $e');
+    }
+  }
+
+  Future<void> _togglePacked(PackingItem item, bool packed) async {
+    try {
+      await _service.setPacked(item.id, packed);
+    } catch (e) {
+      _showMessage('Could not update item: $e');
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    final packedCount = _items.where((i) => i.packed).length;
-    final grouped = <String, List<PackingItem>>{};
-    for (final item in _items) {
-      grouped.putIfAbsent(item.category, () => []).add(item);
-    }
-
     return Scaffold(
       backgroundColor: context.colors.surface,
       body: SafeArea(
-        child: Column(
+        child: StreamBuilder<List<PackingItem>>(
+          stream: _itemsStream,
+          builder: (context, snapshot) {
+            if (snapshot.hasError) {
+              return Column(
+                children: [
+                  DetailHeader(title: tr('utilities_packing_list_title')),
+                  Expanded(
+                    child: _ErrorState(error: snapshot.error!, onRetry: _retry),
+                  ),
+                ],
+              );
+            }
+            final items = snapshot.data ?? const <PackingItem>[];
+            final loading = !snapshot.hasData;
+            final packedCount = items.where((i) => i.packed).length;
+            final existingCategories = {
+              for (final i in items) i.category,
+            }.toList();
+            final grouped = <String, List<PackingItem>>{};
+            for (final item in items) {
+              grouped.putIfAbsent(item.category, () => []).add(item);
+            }
+
+            return Column(
+              children: [
+                DetailHeader(
+                  title: tr('utilities_packing_list_title'),
+                  subtitle:
+                      '$packedCount ${tr('utilities_of')} ${items.length} ${tr('utilities_packed')}',
+                  trailing: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      if (_trip != null)
+                        IconButton(
+                          onPressed: _generating
+                              ? null
+                              : () => _autoGenerate(items),
+                          tooltip: tr('utilities_auto_generate'),
+                          icon: _generating
+                              ? SizedBox(
+                                  width: 18,
+                                  height: 18,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    color: context.colors.ink,
+                                  ),
+                                )
+                              : Icon(
+                                  Icons.auto_awesome_rounded,
+                                  color: context.colors.ink,
+                                ),
+                        ),
+                      IconButton(
+                        onPressed: () => _addItem(existingCategories),
+                        icon: Icon(Icons.add_rounded, color: context.colors.ink),
+                      ),
+                    ],
+                  ),
+                ),
+                Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 24),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(6),
+                    child: LinearProgressIndicator(
+                      value: items.isEmpty ? 0 : packedCount / items.length,
+                      minHeight: 8,
+                      backgroundColor: context.colors.card,
+                      valueColor: AlwaysStoppedAnimation(Color(0xFF11998E)),
+                    ),
+                  ),
+                ),
+                Expanded(
+                  child: loading
+                      ? const Center(child: CircularProgressIndicator())
+                      : items.isEmpty
+                      ? _EmptyState(
+                          onAdd: () => _addItem(existingCategories),
+                          onAutoGenerate: _trip == null
+                              ? null
+                              : () => _autoGenerate(items),
+                        )
+                      : ListView(
+                          padding: EdgeInsets.fromLTRB(24, 16, 24, 24),
+                          children: grouped.entries.map((entry) {
+                            return Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  translatedPackingCategory(entry.key),
+                                  style: TextStyle(
+                                    color: context.colors.ink,
+                                    fontWeight: FontWeight.w800,
+                                    fontSize: 14.5,
+                                  ),
+                                ),
+                                SizedBox(height: 10),
+                                ...entry.value.map(
+                                  (item) => _PackingItemTile(
+                                    item: item,
+                                    onTogglePacked: (v) =>
+                                        _togglePacked(item, v),
+                                    onEdit: () =>
+                                        _editItem(item, existingCategories),
+                                  ),
+                                ),
+                                SizedBox(height: 12),
+                              ],
+                            );
+                          }).toList(),
+                        ),
+                ),
+              ],
+            );
+          },
+        ),
+      ),
+    );
+  }
+}
+
+class _PackingItemTile extends StatelessWidget {
+  const _PackingItemTile({
+    required this.item,
+    required this.onTogglePacked,
+    required this.onEdit,
+  });
+
+  final PackingItem item;
+  final ValueChanged<bool> onTogglePacked;
+  final VoidCallback onEdit;
+
+  @override
+  Widget build(BuildContext context) {
+    final note = item.note;
+    return Container(
+      margin: EdgeInsets.only(bottom: 8),
+      decoration: BoxDecoration(
+        color: context.colors.card,
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: CheckboxListTile(
+        value: item.packed,
+        onChanged: (v) => onTogglePacked(v ?? false),
+        controlAffinity: ListTileControlAffinity.leading,
+        activeColor: Color(0xFF11998E),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+        title: Row(
           children: [
-            DetailHeader(
-              title: tr('utilities_packing_list_title'),
-              subtitle: '$packedCount ${tr('utilities_of')} ${_items.length} ${tr('utilities_packed')}',
-              trailing: IconButton(
-                onPressed: _addItem,
-                icon: Icon(Icons.add_rounded, color: context.colors.ink),
-              ),
-            ),
-            Padding(
-              padding: EdgeInsets.symmetric(horizontal: 24),
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(6),
-                child: LinearProgressIndicator(
-                  value: _items.isEmpty ? 0 : packedCount / _items.length,
-                  minHeight: 8,
-                  backgroundColor: context.colors.card,
-                  valueColor: AlwaysStoppedAnimation(Color(0xFF11998E)),
+            Flexible(
+              child: Text(
+                item.label,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  color: item.packed ? context.colors.muted : context.colors.ink,
+                  decoration: item.packed ? TextDecoration.lineThrough : null,
+                  fontWeight: FontWeight.w600,
+                  fontSize: 13,
                 ),
               ),
             ),
-            Expanded(
-              child: _items.isEmpty
-                  ? _EmptyState(onAdd: _addItem)
-                  : ListView(
-                      padding: EdgeInsets.fromLTRB(24, 16, 24, 24),
-                      children: grouped.entries.map((entry) {
-                        return Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              translatedPackingCategory(entry.key),
-                              style: TextStyle(
-                                color: context.colors.ink,
-                                fontWeight: FontWeight.w800,
-                                fontSize: 14.5,
-                              ),
-                            ),
-                            SizedBox(height: 10),
-                            ...entry.value.map(
-                              (item) => Container(
-                                margin: EdgeInsets.only(bottom: 8),
-                                decoration: BoxDecoration(
-                                  color: context.colors.card,
-                                  borderRadius: BorderRadius.circular(14),
-                                ),
-                                child: CheckboxListTile(
-                                  value: item.packed,
-                                  onChanged: (v) =>
-                                      setState(() => item.packed = v ?? false),
-                                  controlAffinity:
-                                      ListTileControlAffinity.leading,
-                                  activeColor: Color(0xFF11998E),
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(14),
-                                  ),
-                                  title: Text(
-                                    item.label,
-                                    style: TextStyle(
-                                      color: item.packed
-                                          ? context.colors.muted
-                                          : context.colors.ink,
-                                      decoration: item.packed
-                                          ? TextDecoration.lineThrough
-                                          : null,
-                                      fontWeight: FontWeight.w600,
-                                      fontSize: 13,
-                                    ),
-                                  ),
-                                  secondary: GestureDetector(
-                                    onTap: () => _editItem(item),
-                                    child: Icon(
-                                      Icons.edit_rounded,
-                                      size: 16,
-                                      color: context.colors.muted,
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            ),
-                            SizedBox(height: 12),
-                          ],
-                        );
-                      }).toList(),
-                    ),
-            ),
+            if (item.quantity > 1) ...[
+              const SizedBox(width: 6),
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 6,
+                  vertical: 2,
+                ),
+                decoration: BoxDecoration(
+                  color: context.colors.surface,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Text(
+                  '×${item.quantity}',
+                  style: TextStyle(
+                    color: context.colors.muted,
+                    fontSize: 10.5,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+            ],
           ],
+        ),
+        subtitle: (note != null && note.isNotEmpty)
+            ? Padding(
+                padding: const EdgeInsets.only(top: 2),
+                child: Text(
+                  note,
+                  style: TextStyle(color: context.colors.muted, fontSize: 11),
+                ),
+              )
+            : null,
+        secondary: GestureDetector(
+          onTap: onEdit,
+          child: Icon(
+            Icons.edit_rounded,
+            size: 16,
+            color: context.colors.muted,
+          ),
         ),
       ),
     );
@@ -212,9 +376,10 @@ class _PackingListScreenState extends State<PackingListScreen> {
 }
 
 class _EmptyState extends StatelessWidget {
-  const _EmptyState({required this.onAdd});
+  const _EmptyState({required this.onAdd, this.onAutoGenerate});
 
   final VoidCallback onAdd;
+  final VoidCallback? onAutoGenerate;
 
   @override
   Widget build(BuildContext context) {
@@ -257,6 +422,106 @@ class _EmptyState extends StatelessWidget {
                       Text(
                         tr('utilities_add_item'),
                         style: const TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.w700,
+                          fontSize: 13,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+            if (onAutoGenerate != null) ...[
+              const SizedBox(height: 12),
+              TextButton.icon(
+                onPressed: onAutoGenerate,
+                icon: Icon(
+                  Icons.auto_awesome_rounded,
+                  size: 16,
+                  color: context.colors.ink,
+                ),
+                label: Text(
+                  tr('utilities_auto_generate'),
+                  style: TextStyle(
+                    color: context.colors.ink,
+                    fontWeight: FontWeight.w700,
+                    fontSize: 13,
+                  ),
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Shown in place of the (otherwise indefinite) loading spinner when
+/// [PackingListService.watchItems] errors out — e.g. the `packing_items`
+/// table/migration not applied yet on this Supabase project — so a
+/// broken backend surfaces as a visible, retryable error instead of a
+/// screen that spins forever.
+class _ErrorState extends StatelessWidget {
+  const _ErrorState({required this.error, required this.onRetry});
+
+  final Object error;
+  final VoidCallback onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(32),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              Icons.error_outline_rounded,
+              color: context.colors.muted,
+              size: 44,
+            ),
+            const SizedBox(height: 16),
+            Text(
+              'Could not load your packing list',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: context.colors.ink,
+                fontWeight: FontWeight.w800,
+                fontSize: 16,
+              ),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              '$error',
+              textAlign: TextAlign.center,
+              style: TextStyle(color: context.colors.muted, fontSize: 12.5),
+            ),
+            const SizedBox(height: 20),
+            Material(
+              color: context.colors.ink,
+              borderRadius: BorderRadius.circular(14),
+              child: InkWell(
+                borderRadius: BorderRadius.circular(14),
+                onTap: onRetry,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 18,
+                    vertical: 12,
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(
+                        Icons.refresh_rounded,
+                        color: Colors.white,
+                        size: 18,
+                      ),
+                      const SizedBox(width: 6),
+                      const Text(
+                        'Retry',
+                        style: TextStyle(
                           color: Colors.white,
                           fontWeight: FontWeight.w700,
                           fontSize: 13,
