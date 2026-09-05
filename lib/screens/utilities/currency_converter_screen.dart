@@ -1,10 +1,19 @@
 import 'package:flutter/material.dart';
 
+import '../../services/currency_service.dart';
 import '../../services/locale_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/detail_header.dart';
 
-/// UI-only currency converter with dummy fixed exchange rates.
+/// Every currency selectable in this converter — fetched from Frankfurter
+/// in one call, all relative to the first entry (see [CurrencyService]).
+const _currencies = ['USD', 'MYR', 'SGD', 'EUR', 'GBP', 'JPY', 'CNY'];
+
+/// Currency converter backed by live ECB reference rates (via
+/// [CurrencyService]) rather than fixed numbers baked into the app —
+/// rates are fetched once per screen visit (or on manual refresh), not
+/// re-fetched on every keystroke/currency swap, since converting
+/// between any pair in [_currencies] only needs that one snapshot.
 class CurrencyConverterScreen extends StatefulWidget {
   const CurrencyConverterScreen({super.key});
 
@@ -14,23 +23,24 @@ class CurrencyConverterScreen extends StatefulWidget {
 }
 
 class _CurrencyConverterScreenState extends State<CurrencyConverterScreen> {
+  final _service = CurrencyService();
   final _controller = TextEditingController(text: '100');
   String _from = 'MYR';
   String _to = 'USD';
 
-  static final _rates = {
-    'MYR': 1.0,
-    'USD': 0.21,
-    'SGD': 0.29,
-    'EUR': 0.20,
-    'GBP': 0.17,
-    'JPY': 33.4,
-    'CNY': 1.55,
-  };
+  late Future<CurrencyRates> _ratesFuture;
+
+  @override
+  void initState() {
+    super.initState();
+    _ratesFuture = _service.fetchRates(_currencies);
+  }
+
+  void _retry() {
+    setState(() => _ratesFuture = _service.fetchRates(_currencies));
+  }
 
   double get _amount => double.tryParse(_controller.text.trim()) ?? 0;
-
-  double get _result => _amount / _rates[_from]! * _rates[_to]!;
 
   void _swap() {
     setState(() {
@@ -56,84 +66,115 @@ class _CurrencyConverterScreenState extends State<CurrencyConverterScreen> {
             DetailHeader(
               title: tr('utilities_currency_converter_title'),
               subtitle: tr('utilities_currency_converter_subtitle'),
+              trailing: IconButton(
+                onPressed: _retry,
+                tooltip: 'Refresh rates',
+                icon: Icon(Icons.refresh_rounded, color: context.colors.ink),
+              ),
             ),
             Expanded(
-              child: ListView(
-                padding: EdgeInsets.fromLTRB(24, 8, 24, 24),
-                children: [
-                  Container(
-                    padding: EdgeInsets.all(18),
-                    decoration: BoxDecoration(
-                      color: context.colors.card,
-                      borderRadius: BorderRadius.circular(20),
-                      boxShadow: [
-                        BoxShadow(
-                          color: context.colors.ink.withValues(alpha: 0.05),
-                          blurRadius: 12,
-                          offset: Offset(0, 5),
+              child: FutureBuilder<CurrencyRates>(
+                future: _ratesFuture,
+                builder: (context, snapshot) {
+                  if (snapshot.hasError) {
+                    return _ErrorState(error: snapshot.error!, onRetry: _retry);
+                  }
+                  if (!snapshot.hasData) {
+                    return const Center(child: CircularProgressIndicator());
+                  }
+                  final rates = snapshot.data!.rates;
+                  final result = _amount / rates[_from]! * rates[_to]!;
+                  return ListView(
+                    padding: EdgeInsets.fromLTRB(24, 8, 24, 24),
+                    children: [
+                      Container(
+                        padding: EdgeInsets.all(18),
+                        decoration: BoxDecoration(
+                          color: context.colors.card,
+                          borderRadius: BorderRadius.circular(20),
+                          boxShadow: [
+                            BoxShadow(
+                              color: context.colors.ink.withValues(alpha: 0.05),
+                              blurRadius: 12,
+                              offset: Offset(0, 5),
+                            ),
+                          ],
                         ),
-                      ],
-                    ),
-                    child: Column(
-                      children: [
-                        _CurrencyRow(
-                          currency: _from,
-                          controller: _controller,
-                          editable: true,
-                          onChanged: (v) => setState(() {}),
-                          onCurrencyTap: () => _pickCurrency(
-                            context,
-                            (c) => setState(() => _from = c),
-                          ),
-                        ),
-                        Padding(
-                          padding: EdgeInsets.symmetric(vertical: 10),
-                          child: Material(
-                            color: context.colors.ink,
-                            shape: CircleBorder(),
-                            child: InkWell(
-                              customBorder: CircleBorder(),
-                              onTap: _swap,
-                              child: Padding(
-                                padding: EdgeInsets.all(10),
-                                child: Icon(
-                                  Icons.swap_vert_rounded,
-                                  color: Colors.white,
-                                  size: 20,
+                        child: Column(
+                          children: [
+                            _CurrencyRow(
+                              currency: _from,
+                              controller: _controller,
+                              editable: true,
+                              onChanged: (v) => setState(() {}),
+                              onCurrencyTap: () => _pickCurrency(
+                                context,
+                                (c) => setState(() => _from = c),
+                              ),
+                            ),
+                            Padding(
+                              padding: EdgeInsets.symmetric(vertical: 10),
+                              child: Material(
+                                color: context.colors.ink,
+                                shape: CircleBorder(),
+                                child: InkWell(
+                                  customBorder: CircleBorder(),
+                                  onTap: _swap,
+                                  child: Padding(
+                                    padding: EdgeInsets.all(10),
+                                    child: Icon(
+                                      Icons.swap_vert_rounded,
+                                      color: Colors.white,
+                                      size: 20,
+                                    ),
+                                  ),
                                 ),
                               ),
                             ),
-                          ),
+                            _CurrencyRow(
+                              currency: _to,
+                              value: result.toStringAsFixed(2),
+                              editable: false,
+                              onCurrencyTap: () => _pickCurrency(
+                                context,
+                                (c) => setState(() => _to = c),
+                              ),
+                            ),
+                          ],
                         ),
-                        _CurrencyRow(
-                          currency: _to,
-                          value: _result.toStringAsFixed(2),
-                          editable: false,
-                          onCurrencyTap: () => _pickCurrency(
-                            context,
-                            (c) => setState(() => _to = c),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  SizedBox(height: 20),
-                  Container(
-                    padding: EdgeInsets.all(14),
-                    decoration: BoxDecoration(
-                      color: context.colors.card,
-                      borderRadius: BorderRadius.circular(16),
-                    ),
-                    child: Text(
-                      '1 $_from = ${(_rates[_to]! / _rates[_from]!).toStringAsFixed(4)} $_to',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        color: context.colors.muted,
-                        fontSize: 12.5,
                       ),
-                    ),
-                  ),
-                ],
+                      SizedBox(height: 20),
+                      Container(
+                        padding: EdgeInsets.all(14),
+                        decoration: BoxDecoration(
+                          color: context.colors.card,
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                        child: Column(
+                          children: [
+                            Text(
+                              '1 $_from = ${(rates[_to]! / rates[_from]!).toStringAsFixed(4)} $_to',
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                color: context.colors.muted,
+                                fontSize: 12.5,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              'Rates as of ${_formatDate(snapshot.data!.date)}',
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                color: context.colors.muted,
+                                fontSize: 10.5,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  );
+                },
               ),
             ),
           ],
@@ -141,6 +182,9 @@ class _CurrencyConverterScreenState extends State<CurrencyConverterScreen> {
       ),
     );
   }
+
+  String _formatDate(DateTime date) =>
+      '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
 
   void _pickCurrency(BuildContext context, ValueChanged<String> onPicked) {
     showModalBottomSheet(
@@ -153,7 +197,7 @@ class _CurrencyConverterScreenState extends State<CurrencyConverterScreen> {
         return SafeArea(
           child: Column(
             mainAxisSize: MainAxisSize.min,
-            children: _rates.keys.map((c) {
+            children: _currencies.map((c) {
               return ListTile(
                 title: Text(
                   c,
@@ -171,6 +215,78 @@ class _CurrencyConverterScreenState extends State<CurrencyConverterScreen> {
           ),
         );
       },
+    );
+  }
+}
+
+class _ErrorState extends StatelessWidget {
+  const _ErrorState({required this.error, required this.onRetry});
+
+  final Object error;
+  final VoidCallback onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(32),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              Icons.error_outline_rounded,
+              color: context.colors.muted,
+              size: 44,
+            ),
+            const SizedBox(height: 16),
+            Text(
+              'Could not load exchange rates',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: context.colors.ink,
+                fontWeight: FontWeight.w800,
+                fontSize: 16,
+              ),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              '$error',
+              textAlign: TextAlign.center,
+              style: TextStyle(color: context.colors.muted, fontSize: 12.5),
+            ),
+            const SizedBox(height: 20),
+            Material(
+              color: context.colors.ink,
+              borderRadius: BorderRadius.circular(14),
+              child: InkWell(
+                borderRadius: BorderRadius.circular(14),
+                onTap: onRetry,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 18,
+                    vertical: 12,
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(Icons.refresh_rounded, color: Colors.white, size: 18),
+                      const SizedBox(width: 6),
+                      const Text(
+                        'Retry',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.w700,
+                          fontSize: 13,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
