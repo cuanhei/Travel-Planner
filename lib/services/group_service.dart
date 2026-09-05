@@ -3,8 +3,10 @@ import 'dart:math';
 
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../models/group_activity_event.dart';
 import '../models/group_member.dart';
 import '../models/join_request.dart';
+import '../models/trip_invite_preview.dart';
 import 'supabase_config.dart';
 
 const _inviteCodeChars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
@@ -72,6 +74,38 @@ class GroupService {
               .where((r) => profileById.containsKey(r['user_id']))
               .map(
                 (r) => GroupMember.fromMap({
+                  ...r,
+                  'profiles': profileById[r['user_id']],
+                }),
+              )
+              .toList();
+        });
+  }
+
+  /// This trip's activity feed (currently just joined/left events),
+  /// newest first — backs both Group Chat's inline "so-and-so joined/
+  /// left" system messages and its "History" menu entry. Populated
+  /// purely by DB triggers on `trip_members` (see migration 0028), so
+  /// it can't drift from what actually happened to the roster.
+  Stream<List<GroupActivityEvent>> watchActivityLog(String tripId) {
+    return _client
+        .from('trip_activity_log')
+        .stream(primaryKey: ['id'])
+        .eq('trip_id', tripId)
+        .order('created_at', ascending: false)
+        .asyncMap((rows) async {
+          final userIds = rows.map((r) => r['user_id'] as String).toSet().toList();
+          if (userIds.isEmpty) return <GroupActivityEvent>[];
+          final profiles = await _client
+              .from('profiles')
+              .select('id, display_name, avatar_color')
+              .inFilter('id', userIds);
+          final profileById = {
+            for (final p in profiles as List) p['id'] as String: p,
+          };
+          return rows
+              .map(
+                (r) => GroupActivityEvent.fromMap({
                   ...r,
                   'profiles': profileById[r['user_id']],
                 }),
@@ -163,6 +197,23 @@ class GroupService {
       params: {'p_code': code},
     );
     return result as String?;
+  }
+
+  /// Previews the trip an invite [code] points to — name, destination,
+  /// dates — without filing a join request. Used by the Join Trip
+  /// screen to validate (already-ended trip, overlap with a trip the
+  /// caller is already in) before calling [requestToJoin]. Null for an
+  /// invalid or expired code (the same case [requestToJoin] would raise
+  /// on — this just doesn't raise, so a preview and an accidental typo
+  /// don't crash the screen).
+  Future<TripInvitePreview?> getTripPreviewByCode(String code) async {
+    final rows = await _client.rpc(
+      'get_trip_preview_by_code',
+      params: {'p_code': code},
+    );
+    final list = rows as List;
+    if (list.isEmpty) return null;
+    return TripInvitePreview.fromMap(list.first as Map<String, dynamic>);
   }
 
   Stream<List<JoinRequest>> watchJoinRequests(String tripId) {

@@ -200,6 +200,51 @@ as $$
   );
 $$;
 
+-- Group activity feed — currently just membership changes (joined /
+-- left), shown as WhatsApp-style inline system messages in Group Chat
+-- and listed in full from its "History" menu entry. Populated purely
+-- by triggers below, never written to directly by the app, so it can't
+-- drift from what actually happened to the roster.
+create table public.trip_activity_log (
+  id uuid primary key default gen_random_uuid(),
+  trip_id uuid not null references public.trips (id) on delete cascade,
+  event_type text not null check (event_type in ('joined', 'left')),
+  user_id uuid not null references auth.users (id) on delete cascade,
+  created_at timestamptz not null default now()
+);
+
+create function public.log_trip_member_joined()
+returns trigger
+language plpgsql
+security definer set search_path = public
+as $$
+begin
+  insert into public.trip_activity_log (trip_id, event_type, user_id)
+  values (new.trip_id, 'joined', new.user_id);
+  return new;
+end;
+$$;
+
+create trigger trip_members_log_joined
+  after insert on public.trip_members
+  for each row execute function public.log_trip_member_joined();
+
+create function public.log_trip_member_left()
+returns trigger
+language plpgsql
+security definer set search_path = public
+as $$
+begin
+  insert into public.trip_activity_log (trip_id, event_type, user_id)
+  values (old.trip_id, 'left', old.user_id);
+  return old;
+end;
+$$;
+
+create trigger trip_members_log_left
+  after delete on public.trip_members
+  for each row execute function public.log_trip_member_left();
+
 -- ============================================================
 -- Trip Planner module: stops and interests captured by Create Trip
 -- ============================================================
@@ -381,7 +426,11 @@ create table public.trip_join_requests (
 
 -- Requester calls this with the code they were given; validates it and
 -- files a join request without needing direct SELECT on trip_invites
--- (which would otherwise leak every trip's active codes).
+-- (which would otherwise leak every trip's active codes). Also enforces
+-- the same two date guards check_trip_date_conflict() enforces for trip
+-- *creation*, but for *joining* instead: the invited trip must not have
+-- already ended, and its dates must not clash with a trip the requester
+-- is already in (organizer or member) that hasn't ended yet.
 create function public.request_to_join(p_code text)
 returns uuid
 language plpgsql
@@ -390,6 +439,9 @@ as $$
 declare
   v_trip_id uuid;
   v_request_id uuid;
+  v_start date;
+  v_end date;
+  v_conflict record;
 begin
   select trip_id into v_trip_id
   from public.trip_invites
@@ -401,6 +453,31 @@ begin
 
   if public.is_trip_member(v_trip_id) then
     raise exception 'Already a member of this trip';
+  end if;
+
+  select start_date, end_date into v_start, v_end
+  from public.trips
+  where id = v_trip_id;
+
+  if v_end is not null and v_end < current_date then
+    raise exception 'This trip has already ended';
+  end if;
+
+  if v_start is not null and v_end is not null then
+    select t.name into v_conflict
+    from public.trips t
+    join public.trip_members tm on tm.trip_id = t.id
+    where tm.user_id = auth.uid()
+      and t.start_date is not null
+      and t.end_date is not null
+      and t.end_date >= current_date
+      and t.start_date <= v_end
+      and t.end_date >= v_start
+    limit 1;
+
+    if found then
+      raise exception 'Trip dates clash with an existing trip: %', v_conflict.name;
+    end if;
   end if;
 
   insert into public.trip_join_requests (trip_id, user_id)
@@ -437,6 +514,30 @@ begin
 
   return v_trip_id;
 end;
+$$;
+
+-- Lets the Join Trip screen preview which trip an invite code points to
+-- (name, destination, dates) *before* actually filing a join request —
+-- needed to warn about a joined trip that's already over, or one whose
+-- dates overlap a trip the requester is already in. Read-only sibling
+-- of request_to_join(): same code/expiry lookup, but never inserts a
+-- join request and never raises for an unknown/expired code — it just
+-- returns no rows.
+create function public.get_trip_preview_by_code(p_code text)
+returns table (
+  trip_id uuid,
+  name text,
+  destination text,
+  start_date date,
+  end_date date
+)
+language sql
+security definer set search_path = public
+as $$
+  select t.id, t.name, t.destination, t.start_date, t.end_date
+  from public.trip_invites i
+  join public.trips t on t.id = i.trip_id
+  where i.code = upper(p_code) and i.expires_at > now();
 $$;
 
 -- Organizer-only: approve or reject a pending request. [p_reason] is the
@@ -508,8 +609,19 @@ create table public.group_messages (
   attachment_url text,
   attachment_duration_ms integer,
   created_at timestamptz not null default now(),
+  -- Reply/quote — the quoted message's own snippet (body/sender) is
+  -- resolved client-side from its id, same as sender profiles are.
+  reply_to_id uuid references public.group_messages (id) on delete set null,
+  edited_at timestamptz,
+  -- Soft delete ("delete for everyone"): body/attachment are cleared
+  -- and deleted_at set, rather than removing the row outright, so the
+  -- chat can still show a "This message was deleted" placeholder in
+  -- its place instead of the message just vanishing.
+  deleted_at timestamptz,
+  mentioned_user_ids uuid[] not null default '{}',
+  pinned_at timestamptz,
   constraint group_messages_content_check check (
-    attachment_url is not null or char_length(trim(body)) > 0
+    attachment_url is not null or char_length(trim(body)) > 0 or deleted_at is not null
   )
 );
 
@@ -542,8 +654,12 @@ create table public.direct_messages (
   attachment_url text,
   attachment_duration_ms integer,
   created_at timestamptz not null default now(),
+  reply_to_id uuid references public.direct_messages (id) on delete set null,
+  edited_at timestamptz,
+  deleted_at timestamptz,
+  pinned_at timestamptz,
   constraint direct_messages_content_check check (
-    attachment_url is not null or char_length(trim(body)) > 0
+    attachment_url is not null or char_length(trim(body)) > 0 or deleted_at is not null
   ),
   constraint direct_messages_not_self check (sender_id <> recipient_id)
 );
@@ -560,6 +676,87 @@ create table public.direct_message_reads (
   last_read_at timestamptz not null default now(),
   primary key (trip_id, user_id, other_user_id)
 );
+
+-- Pinning is the one message action any trip member can take on a
+-- message that isn't theirs, so it can't go through the "own row"
+-- update policies (messages_update_own / direct_messages_update_own)
+-- below — routed through these instead. Passing a null p_message_id
+-- just unpins whatever's currently pinned; passing one pins it and
+-- unpins whatever was pinned before (only one pin per conversation at
+-- a time).
+create function public.set_pinned_group_message(p_trip_id uuid, p_message_id uuid)
+returns void
+language plpgsql
+security definer set search_path = public
+as $$
+begin
+  if not public.is_trip_member(p_trip_id) then
+    raise exception 'Not a member of this trip';
+  end if;
+  if p_message_id is not null and not exists (
+    select 1 from public.group_messages
+    where id = p_message_id and trip_id = p_trip_id and deleted_at is null
+  ) then
+    raise exception 'Message not found in this trip';
+  end if;
+
+  update public.group_messages
+  set pinned_at = null
+  where trip_id = p_trip_id and pinned_at is not null;
+
+  if p_message_id is not null then
+    update public.group_messages
+    set pinned_at = now()
+    where id = p_message_id;
+  end if;
+end;
+$$;
+
+-- Same idea for a DM: p_message_id null unpins; otherwise pins it
+-- (unpinning whatever was pinned in that same conversation before) —
+-- the conversation is identified by the message's own sender/recipient
+-- once resolved, so the caller only ever needs to be one of the two
+-- participants of whichever message is involved.
+create function public.set_pinned_direct_message(
+  p_trip_id uuid,
+  p_other_user_id uuid,
+  p_message_id uuid
+)
+returns void
+language plpgsql
+security definer set search_path = public
+as $$
+declare
+  v_sender uuid;
+  v_recipient uuid;
+begin
+  if p_message_id is not null then
+    select sender_id, recipient_id into v_sender, v_recipient
+    from public.direct_messages
+    where id = p_message_id and deleted_at is null;
+
+    if v_sender is null then
+      raise exception 'Message not found';
+    end if;
+    if auth.uid() not in (v_sender, v_recipient) then
+      raise exception 'Not a participant of this conversation';
+    end if;
+  end if;
+
+  update public.direct_messages
+  set pinned_at = null
+  where trip_id = p_trip_id
+    and pinned_at is not null
+    and ((sender_id = auth.uid() and recipient_id = p_other_user_id)
+      or (sender_id = p_other_user_id and recipient_id = auth.uid()));
+
+  if p_message_id is not null then
+    update public.direct_messages
+    set pinned_at = now()
+    where id = p_message_id;
+  end if;
+end;
+$$;
 
 -- Message reactions (WhatsApp-style emoji react). One reaction per
 -- user per message — reacting again with a different emoji replaces
@@ -598,6 +795,18 @@ create table public.chat_background_preferences (
   conversation_id text not null,
   background_key text not null,
   updated_at timestamptz not null default now(),
+  primary key (user_id, conversation_id)
+);
+
+-- Tracks, per user and per conversation, the cutoff up to which the
+-- "so-and-so reacted to your message" in-chat toast has already been
+-- shown — so it fires exactly once per reaction instead of replaying
+-- every existing reaction each time the chat is reopened. Same opaque
+-- conversation_id scheme as chat_background_preferences.
+create table public.chat_reaction_seen_state (
+  user_id uuid not null references auth.users (id) on delete cascade,
+  conversation_id text not null,
+  last_seen_at timestamptz not null,
   primary key (user_id, conversation_id)
 );
 
@@ -651,7 +860,12 @@ create table public.expenses (
   -- when there are none.
   photo_urls text[] not null default '{}',
   spent_at date not null default current_date,
-  created_at timestamptz not null default now()
+  created_at timestamptz not null default now(),
+  -- Off means "counts as my own spending only" — excluded from
+  -- BudgetService.getBalances()'s paid/fair-share calculation, but
+  -- still included in the Budget Planner's overall totals/category
+  -- breakdown (it's still money spent on the trip).
+  is_shared boolean not null default true
 );
 
 -- Organizer-only: permanently delete a spending category and every
@@ -866,6 +1080,7 @@ create trigger on_post_comment_change
 alter table public.profiles enable row level security;
 alter table public.trips enable row level security;
 alter table public.trip_members enable row level security;
+alter table public.trip_activity_log enable row level security;
 alter table public.trip_invites enable row level security;
 alter table public.trip_join_requests enable row level security;
 alter table public.group_messages enable row level security;
@@ -875,6 +1090,7 @@ alter table public.direct_message_reads enable row level security;
 alter table public.group_message_reactions enable row level security;
 alter table public.direct_message_reactions enable row level security;
 alter table public.chat_background_preferences enable row level security;
+alter table public.chat_reaction_seen_state enable row level security;
 alter table public.polls enable row level security;
 alter table public.poll_options enable row level security;
 alter table public.poll_votes enable row level security;
@@ -931,6 +1147,12 @@ create policy "trip_members_delete_self_or_organizer" on public.trip_members
   for delete to authenticated
   using (user_id = auth.uid() or public.is_trip_organizer(trip_id));
 
+-- trip_activity_log: any trip member can read it; writes only ever
+-- come from the log_trip_member_joined()/log_trip_member_left()
+-- triggers (security definer, bypassing RLS), so no insert policy.
+create policy "trip_activity_log_select_members" on public.trip_activity_log
+  for select to authenticated using (public.is_trip_member(trip_id));
+
 -- trip_invites: only the organizer can create/view codes. Requesters
 -- never query this table directly — they go through request_to_join().
 create policy "trip_invites_all_organizer" on public.trip_invites
@@ -954,6 +1176,10 @@ create policy "messages_insert_members" on public.group_messages
   with check (public.is_trip_member(trip_id) and user_id = auth.uid());
 create policy "messages_delete_own" on public.group_messages
   for delete to authenticated using (user_id = auth.uid());
+create policy "messages_update_own" on public.group_messages
+  for update to authenticated
+  using (user_id = auth.uid())
+  with check (user_id = auth.uid());
 
 -- group_message_reads: any trip member can see who's read what; each
 -- member can only ever record their own read receipt.
@@ -982,6 +1208,10 @@ create policy "direct_messages_insert_participant" on public.direct_messages
         and user_id = direct_messages.recipient_id
     )
   );
+create policy "direct_messages_update_own" on public.direct_messages
+  for update to authenticated
+  using (sender_id = auth.uid())
+  with check (sender_id = auth.uid());
 
 -- direct_message_reads: each member only ever writes their own
 -- last-read marker, but both participants in a conversation can read
@@ -1035,6 +1265,13 @@ create policy "direct_message_reactions_delete_own" on public.direct_message_rea
 -- chat_background_preferences: purely personal, never visible to or
 -- writable by anyone else.
 create policy "chat_background_preferences_own" on public.chat_background_preferences
+  for all to authenticated
+  using (user_id = auth.uid())
+  with check (user_id = auth.uid());
+
+-- chat_reaction_seen_state: purely personal, never visible to or
+-- writable by anyone else.
+create policy "chat_reaction_seen_state_own" on public.chat_reaction_seen_state
   for all to authenticated
   using (user_id = auth.uid())
   with check (user_id = auth.uid());
@@ -1099,19 +1336,31 @@ create policy "categories_update_members" on public.budget_categories
 create policy "categories_delete_organizer" on public.budget_categories
   for delete to authenticated using (public.is_trip_organizer(trip_id));
 
--- expenses: any member can read; the logger or the organizer can
--- edit/delete.
+-- expenses: shared rows are readable by any member; personal
+-- (is_shared = false) rows are visible only to the member who logged
+-- them, organizer included — the logger can always edit/delete their
+-- own, the organizer only for shared rows.
 create policy "expenses_select_members" on public.expenses
-  for select to authenticated using (public.is_trip_member(trip_id));
+  for select to authenticated
+  using (
+    public.is_trip_member(trip_id)
+    and (is_shared or user_id = auth.uid())
+  );
 create policy "expenses_insert_members" on public.expenses
   for insert to authenticated
   with check (public.is_trip_member(trip_id) and user_id = auth.uid());
 create policy "expenses_update_owner_or_organizer" on public.expenses
   for update to authenticated
-  using (user_id = auth.uid() or public.is_trip_organizer(trip_id));
+  using (
+    user_id = auth.uid()
+    or (is_shared and public.is_trip_organizer(trip_id))
+  );
 create policy "expenses_delete_owner_or_organizer" on public.expenses
   for delete to authenticated
-  using (user_id = auth.uid() or public.is_trip_organizer(trip_id));
+  using (
+    user_id = auth.uid()
+    or (is_shared and public.is_trip_organizer(trip_id))
+  );
 
 -- trip_balances: any member can read; only the organizer edits who
 -- owes what (they're the one collecting).

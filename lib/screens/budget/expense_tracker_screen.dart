@@ -7,6 +7,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../models/expense.dart';
+import '../../models/group_member.dart';
 import '../../services/budget_service.dart';
 import '../../services/group_service.dart';
 import '../../theme/app_theme.dart';
@@ -267,6 +268,55 @@ class _ExpenseTrackerScreenState extends State<ExpenseTrackerScreen> {
     widget.tripId,
   );
 
+  /// One-shot rather than live — only needed to label the "logged by"
+  /// filter chips with names, not to react to roster changes mid-session.
+  late final Future<List<GroupMember>> _membersFuture = _groupService
+      .watchMembers(widget.tripId)
+      .first;
+
+  final _searchController = TextEditingController();
+  String _searchQuery = '';
+  String? _filterCategory;
+  String? _filterUserId;
+  DateTimeRange? _filterDateRange;
+
+  /// null = both, true = group-only, false = personal-only — a quick
+  /// toggle separate from [_showFilterSheet]'s advanced filters, since
+  /// Group vs Personal is the primary split of this list rather than
+  /// an incidental narrowing.
+  bool? _filterShared;
+
+  bool get _hasActiveFilters =>
+      _filterCategory != null ||
+      _filterUserId != null ||
+      _filterDateRange != null;
+
+  bool _matchesFilters(Expense e) {
+    if (_filterShared != null && e.isShared != _filterShared) return false;
+    if (_filterCategory != null && e.category != _filterCategory) {
+      return false;
+    }
+    if (_filterUserId != null && e.userId != _filterUserId) return false;
+    if (_filterDateRange != null) {
+      final day = DateTime(e.spentAt.year, e.spentAt.month, e.spentAt.day);
+      if (day.isBefore(_filterDateRange!.start) ||
+          day.isAfter(_filterDateRange!.end)) {
+        return false;
+      }
+    }
+    final query = _searchQuery.trim().toLowerCase();
+    if (query.isEmpty) return true;
+    return e.title.toLowerCase().contains(query) ||
+        e.category.toLowerCase().contains(query) ||
+        (e.stopPlace ?? '').toLowerCase().contains(query);
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
   Future<void> _saveExpense({
     Expense? existing,
     required String title,
@@ -274,6 +324,7 @@ class _ExpenseTrackerScreenState extends State<ExpenseTrackerScreen> {
     required double amount,
     required String? stopPlace,
     required List<String> photoUrls,
+    required bool isShared,
   }) async {
     if (existing != null) {
       await _budgetService.updateExpense(
@@ -283,6 +334,7 @@ class _ExpenseTrackerScreenState extends State<ExpenseTrackerScreen> {
         amount: amount,
         stopPlace: stopPlace,
         photoUrls: photoUrls,
+        isShared: isShared,
       );
     } else {
       await _budgetService.addExpense(
@@ -293,6 +345,7 @@ class _ExpenseTrackerScreenState extends State<ExpenseTrackerScreen> {
         spentAt: DateTime.now(),
         stopPlace: stopPlace,
         photoUrls: photoUrls,
+        isShared: isShared,
       );
     }
   }
@@ -400,7 +453,9 @@ class _ExpenseTrackerScreenState extends State<ExpenseTrackerScreen> {
                               ),
                             ),
                             Text(
-                              expense.category,
+                              expense.isShared
+                                  ? expense.category
+                                  : '${expense.category} · Personal',
                               style: TextStyle(
                                 color: sheetContext.colors.muted,
                                 fontSize: 12.5,
@@ -493,6 +548,7 @@ class _ExpenseTrackerScreenState extends State<ExpenseTrackerScreen> {
     final keptExistingUrls = <String>[...?existing?.photoUrls];
     final pendingPhotos = <_PendingPhoto>[];
     var isUploadingPhoto = false;
+    var isShared = existing?.isShared ?? true;
 
     showModalBottomSheet(
       context: context,
@@ -595,6 +651,7 @@ class _ExpenseTrackerScreenState extends State<ExpenseTrackerScreen> {
                 amount: amount,
                 stopPlace: stopPlace.isEmpty ? null : stopPlace,
                 photoUrls: photoUrls,
+                isShared: isShared,
               );
             }
 
@@ -882,6 +939,38 @@ class _ExpenseTrackerScreenState extends State<ExpenseTrackerScreen> {
                       },
                     ),
                     const SizedBox(height: 18),
+                    Material(
+                      color: sheetContext.colors.surface,
+                      borderRadius: BorderRadius.circular(14),
+                      child: SwitchListTile(
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 14,
+                        ),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                        value: isShared,
+                        onChanged: (v) => setSheetState(() => isShared = v),
+                        title: Text(
+                          'Split with group',
+                          style: TextStyle(
+                            color: sheetContext.colors.ink,
+                            fontWeight: FontWeight.w700,
+                            fontSize: 13,
+                          ),
+                        ),
+                        subtitle: Text(
+                          isShared
+                              ? "Counts toward everyone's fair share in Expense Split"
+                              : 'Personal spending — excluded from Expense Split',
+                          style: TextStyle(
+                            color: sheetContext.colors.muted,
+                            fontSize: 11.5,
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 18),
                     Text(
                       'Photos (optional)',
                       style: TextStyle(
@@ -965,6 +1054,189 @@ class _ExpenseTrackerScreenState extends State<ExpenseTrackerScreen> {
     );
   }
 
+  Future<void> _showFilterSheet({
+    required List<String> categoryLabels,
+    required List<GroupMember> members,
+  }) async {
+    var category = _filterCategory;
+    var userId = _filterUserId;
+    var dateRange = _filterDateRange;
+
+    await showModalBottomSheet(
+      context: context,
+      backgroundColor: context.colors.card,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (sheetContext) {
+        return StatefulBuilder(
+          builder: (sheetContext, setSheetState) {
+            return SafeArea(
+              child: Padding(
+                padding: EdgeInsets.fromLTRB(
+                  20,
+                  20,
+                  20,
+                  24 + MediaQuery.of(sheetContext).viewInsets.bottom,
+                ),
+                child: SingleChildScrollView(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Filter Expenses',
+                        style: TextStyle(
+                          color: sheetContext.colors.ink,
+                          fontWeight: FontWeight.w800,
+                          fontSize: 16,
+                        ),
+                      ),
+                      const SizedBox(height: 18),
+                      Text(
+                        'Category',
+                        style: TextStyle(
+                          color: sheetContext.colors.muted,
+                          fontWeight: FontWeight.w700,
+                          fontSize: 11.5,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: [
+                          ChoiceChip(
+                            label: const Text('All'),
+                            selected: category == null,
+                            onSelected: (_) =>
+                                setSheetState(() => category = null),
+                          ),
+                          for (final label in categoryLabels)
+                            ChoiceChip(
+                              label: Text(label),
+                              selected: category == label,
+                              onSelected: (_) =>
+                                  setSheetState(() => category = label),
+                            ),
+                        ],
+                      ),
+                      const SizedBox(height: 18),
+                      Text(
+                        'Logged by',
+                        style: TextStyle(
+                          color: sheetContext.colors.muted,
+                          fontWeight: FontWeight.w700,
+                          fontSize: 11.5,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: [
+                          ChoiceChip(
+                            label: const Text('Everyone'),
+                            selected: userId == null,
+                            onSelected: (_) =>
+                                setSheetState(() => userId = null),
+                          ),
+                          for (final member in members)
+                            ChoiceChip(
+                              label: Text(member.label),
+                              selected: userId == member.userId,
+                              onSelected: (_) =>
+                                  setSheetState(() => userId = member.userId),
+                            ),
+                        ],
+                      ),
+                      const SizedBox(height: 18),
+                      Text(
+                        'Date range',
+                        style: TextStyle(
+                          color: sheetContext.colors.muted,
+                          fontWeight: FontWeight.w700,
+                          fontSize: 11.5,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: OutlinedButton(
+                              onPressed: () async {
+                                final picked = await showDateRangePicker(
+                                  context: sheetContext,
+                                  firstDate: DateTime(2000),
+                                  lastDate: DateTime(2100),
+                                  initialDateRange: dateRange,
+                                );
+                                if (picked != null) {
+                                  setSheetState(() => dateRange = picked);
+                                }
+                              },
+                              child: Text(
+                                dateRange == null
+                                    ? 'Any date'
+                                    : '${_formatShortDate(dateRange!.start)} – ${_formatShortDate(dateRange!.end)}',
+                              ),
+                            ),
+                          ),
+                          if (dateRange != null)
+                            IconButton(
+                              onPressed: () =>
+                                  setSheetState(() => dateRange = null),
+                              icon: Icon(
+                                Icons.close_rounded,
+                                color: sheetContext.colors.muted,
+                              ),
+                            ),
+                        ],
+                      ),
+                      const SizedBox(height: 22),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: TextButton(
+                              onPressed: () => setSheetState(() {
+                                category = null;
+                                userId = null;
+                                dateRange = null;
+                              }),
+                              child: const Text('Clear all'),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: FilledButton(
+                              onPressed: () {
+                                setState(() {
+                                  _filterCategory = category;
+                                  _filterUserId = userId;
+                                  _filterDateRange = dateRange;
+                                });
+                                Navigator.of(sheetContext).pop();
+                              },
+                              style: FilledButton.styleFrom(
+                                backgroundColor: context.colors.ink,
+                              ),
+                              child: const Text('Apply'),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final myUid = Supabase.instance.client.auth.currentUser?.id;
@@ -988,9 +1260,29 @@ class _ExpenseTrackerScreenState extends State<ExpenseTrackerScreen> {
                       0,
                       (sum, e) => sum + e.amount,
                     );
+                    final personalTotal = expenses
+                        .where((e) => !e.isShared)
+                        .fold<double>(0, (sum, e) => sum + e.amount);
+                    // Everyone's shared spending only — RLS already
+                    // scopes `expenses` to the whole group's shared rows
+                    // plus this viewer's own personal ones, so
+                    // `total - personalTotal` is exactly the group's
+                    // total with no other member's personal spending
+                    // mixed in.
+                    final groupTotal = total - personalTotal;
+
+                    // Insights below (avg per stop, top category) are
+                    // about the trip's shared spending pattern, not this
+                    // viewer's own private expenses — same is_shared
+                    // filter as Budget Planner/Pie Chart/Category
+                    // breakdown, so personal spending never surfaces
+                    // outside its own Personal total/badge.
+                    final sharedExpenses = expenses
+                        .where((e) => e.isShared)
+                        .toList();
 
                     final byStop = <String, List<Expense>>{};
-                    for (final e in expenses) {
+                    for (final e in sharedExpenses) {
                       if (e.stopPlace == null) continue;
                       byStop.putIfAbsent(e.stopPlace!, () => []).add(e);
                     }
@@ -1007,7 +1299,7 @@ class _ExpenseTrackerScreenState extends State<ExpenseTrackerScreen> {
                               byStop.length;
 
                     final byCategory = <String, double>{};
-                    for (final e in expenses) {
+                    for (final e in sharedExpenses) {
                       byCategory.update(
                         e.category,
                         (v) => v + e.amount,
@@ -1044,12 +1336,20 @@ class _ExpenseTrackerScreenState extends State<ExpenseTrackerScreen> {
                     final categoryVisualSuggestions = categorySuggestions
                         .map(categoryVisuals)
                         .toList();
+                    final allCategoryLabels = <String>{
+                      for (final c in budgetCategories) c.label,
+                      ...categorySuggestions,
+                    }.toList();
+                    final filteredExpenses = expenses
+                        .where(_matchesFilters)
+                        .toList();
 
                     return Column(
                       children: [
                         DetailHeader(
                           title: 'Expense Tracker',
-                          subtitle: 'RM ${total.toStringAsFixed(2)} logged',
+                          subtitle:
+                              '${expenses.length} expense${expenses.length == 1 ? '' : 's'} logged',
                           trailing: IconButton(
                             onPressed: () => _showExpenseSheet(
                               stopSuggestions: stopSuggestions,
@@ -1060,6 +1360,110 @@ class _ExpenseTrackerScreenState extends State<ExpenseTrackerScreen> {
                               color: context.colors.ink,
                               size: 26,
                             ),
+                          ),
+                        ),
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(24, 10, 24, 0),
+                          child: Row(
+                            children: [
+                              Expanded(
+                                child: _SharedTotalCard(
+                                  icon: Icons.groups_rounded,
+                                  label: 'Group',
+                                  value: 'RM ${formatAmount(groupTotal)}',
+                                  isSelected: _filterShared == true,
+                                  onTap: () => setState(
+                                    () => _filterShared = _filterShared == true
+                                        ? null
+                                        : true,
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: _SharedTotalCard(
+                                  icon: Icons.lock_rounded,
+                                  label: 'Personal (only you)',
+                                  value: 'RM ${formatAmount(personalTotal)}',
+                                  isSelected: _filterShared == false,
+                                  onTap: () => setState(
+                                    () =>
+                                        _filterShared = _filterShared == false
+                                        ? null
+                                        : false,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(24, 10, 24, 0),
+                          child: Row(
+                            children: [
+                              Expanded(
+                                child: TextField(
+                                  controller: _searchController,
+                                  onChanged: (v) =>
+                                      setState(() => _searchQuery = v),
+                                  style: TextStyle(
+                                    color: context.colors.ink,
+                                    fontSize: 13,
+                                  ),
+                                  decoration: InputDecoration(
+                                    hintText: 'Search expenses…',
+                                    hintStyle: TextStyle(
+                                      color: context.colors.muted,
+                                    ),
+                                    prefixIcon: Icon(
+                                      Icons.search_rounded,
+                                      color: context.colors.muted,
+                                      size: 20,
+                                    ),
+                                    filled: true,
+                                    fillColor: context.colors.card,
+                                    contentPadding: const EdgeInsets.symmetric(
+                                      vertical: 12,
+                                    ),
+                                    border: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(14),
+                                      borderSide: BorderSide.none,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              FutureBuilder<List<GroupMember>>(
+                                future: _membersFuture,
+                                builder: (context, memberSnap) {
+                                  final members =
+                                      memberSnap.data ?? const <GroupMember>[];
+                                  return Material(
+                                    color: _hasActiveFilters
+                                        ? AppColors.accent
+                                        : context.colors.card,
+                                    borderRadius: BorderRadius.circular(14),
+                                    child: InkWell(
+                                      borderRadius: BorderRadius.circular(14),
+                                      onTap: () => _showFilterSheet(
+                                        categoryLabels: allCategoryLabels,
+                                        members: members,
+                                      ),
+                                      child: Padding(
+                                        padding: const EdgeInsets.all(12),
+                                        child: Icon(
+                                          Icons.tune_rounded,
+                                          size: 20,
+                                          color: _hasActiveFilters
+                                              ? Colors.white
+                                              : context.colors.muted,
+                                        ),
+                                      ),
+                                    ),
+                                  );
+                                },
+                              ),
+                            ],
                           ),
                         ),
                         Expanded(
@@ -1161,24 +1565,34 @@ class _ExpenseTrackerScreenState extends State<ExpenseTrackerScreen> {
                                 ),
                               ),
                               const SizedBox(height: 20),
-                              if (expenses.isEmpty)
+                              if (filteredExpenses.isEmpty)
                                 Padding(
                                   padding: const EdgeInsets.symmetric(
                                     vertical: 24,
                                   ),
                                   child: Center(
                                     child: Text(
-                                      'No expenses logged yet.',
+                                      expenses.isEmpty
+                                          ? 'No expenses logged yet.'
+                                          : 'No expenses match your search/filters.',
+                                      textAlign: TextAlign.center,
                                       style: TextStyle(
                                         color: context.colors.muted,
                                       ),
                                     ),
                                   ),
                                 ),
-                              ...expenses.map((e) {
+                              ...filteredExpenses.map((e) {
                                 final visuals = categoryVisuals(e.category);
+                                // The organizer's edit access doesn't
+                                // reach another member's personal
+                                // expenses — matches expenses_update/
+                                // delete_owner_or_organizer's RLS, which
+                                // would otherwise silently reject the
+                                // edit anyway.
                                 final canEdit =
-                                    e.userId == myUid || isOrganizer;
+                                    e.userId == myUid ||
+                                    (isOrganizer && e.isShared);
                                 return Material(
                                   color: context.colors.card,
                                   borderRadius: BorderRadius.circular(16),
@@ -1247,6 +1661,39 @@ class _ExpenseTrackerScreenState extends State<ExpenseTrackerScreen> {
                                                         ),
                                                       ),
                                                     ),
+                                                    if (!e.isShared) ...[
+                                                      const SizedBox(width: 5),
+                                                      Container(
+                                                        padding:
+                                                            const EdgeInsets.symmetric(
+                                                              horizontal: 6,
+                                                              vertical: 1,
+                                                            ),
+                                                        decoration: BoxDecoration(
+                                                          color: context
+                                                              .colors
+                                                              .muted
+                                                              .withValues(
+                                                                alpha: 0.15,
+                                                              ),
+                                                          borderRadius:
+                                                              BorderRadius.circular(
+                                                                6,
+                                                              ),
+                                                        ),
+                                                        child: Text(
+                                                          'Personal',
+                                                          style: TextStyle(
+                                                            color: context
+                                                                .colors
+                                                                .muted,
+                                                            fontSize: 9.5,
+                                                            fontWeight:
+                                                                FontWeight.w700,
+                                                          ),
+                                                        ),
+                                                      ),
+                                                    ],
                                                     if (e
                                                         .photoUrls
                                                         .isNotEmpty) ...[
@@ -1619,6 +2066,90 @@ class _InsightStat extends StatelessWidget {
   }
 }
 
+/// One half of the Expense Tracker's Group/Personal totals row.
+/// Doubles as a quick filter toggle: tapping narrows the list below to
+/// just that side (tapping the already-selected side clears it back to
+/// showing both) — [isSelected] highlights whichever is active.
+class _SharedTotalCard extends StatelessWidget {
+  const _SharedTotalCard({
+    required this.icon,
+    required this.label,
+    required this.value,
+    required this.isSelected,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String label;
+  final String value;
+  final bool isSelected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: isSelected
+          ? AppColors.accent.withValues(alpha: 0.14)
+          : context.colors.card,
+      borderRadius: BorderRadius.circular(16),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(16),
+        onTap: onTap,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+              color: isSelected ? AppColors.accent : Colors.transparent,
+              width: 1.2,
+            ),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Icon(
+                    icon,
+                    size: 14,
+                    color: isSelected ? AppColors.accent : context.colors.muted,
+                  ),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: Text(
+                      label,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: isSelected
+                            ? AppColors.accent
+                            : context.colors.muted,
+                        fontWeight: FontWeight.w700,
+                        fontSize: 11,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 6),
+              Text(
+                value,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  color: context.colors.ink,
+                  fontWeight: FontWeight.w800,
+                  fontSize: 15,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 /// One photo in the Add/Edit Expense sheet's picker strip — either an
 /// already-saved URL or freshly picked (and cropped) local bytes, with
 /// a small remove button. Square thumbnail: fine to center-crop here
@@ -1742,15 +2273,22 @@ class _PhotoStrip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (urls.length == 1) {
+      // BoxFit.contain, not cover: the crop step is freeform (any
+      // aspect ratio the traveler drags to), so this must show exactly
+      // what they cropped rather than silently re-cropping it again to
+      // fit a fixed box — that's the same "still be exactly what I
+      // cropped" promise the full-screen viewer already keeps.
       return GestureDetector(
         onTap: () => _openViewer(context, 0),
         child: ClipRRect(
           borderRadius: BorderRadius.circular(14),
-          child: Image.network(
-            urls.first,
-            width: double.infinity,
-            height: 180,
-            fit: BoxFit.cover,
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxHeight: 320),
+            child: Image.network(
+              urls.first,
+              width: double.infinity,
+              fit: BoxFit.contain,
+            ),
           ),
         ),
       );
