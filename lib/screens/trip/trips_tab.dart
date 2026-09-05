@@ -4,6 +4,7 @@ import '../../models/trip.dart';
 import '../../services/trip_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/section_header.dart';
+import '../budget/budget_planner_screen.dart' show formatAmount;
 import 'create_trip_screen.dart';
 import 'trip_details_screen.dart';
 
@@ -470,7 +471,7 @@ class _TripCard extends StatelessWidget {
                       const SizedBox(width: 8),
                       _StatBadge(
                         icon: Icons.account_balance_wallet_rounded,
-                        label: 'RM ${trip.totalBudget.toStringAsFixed(0)}',
+                        label: 'RM ${formatAmount(trip.totalBudget)}',
                       ),
                     ],
                   ),

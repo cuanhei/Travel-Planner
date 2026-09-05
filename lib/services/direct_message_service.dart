@@ -1,8 +1,10 @@
+import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../models/chat_attachment.dart';
+import '../models/chat_reply_preview.dart';
 import '../models/direct_message.dart';
 import '../models/reaction_event.dart';
 import 'chat_media_service.dart';
@@ -36,8 +38,8 @@ class DirectMessageService {
         .stream(primaryKey: ['id'])
         .eq('trip_id', tripId)
         .order('created_at', ascending: true)
-        .map(
-          (rows) => rows
+        .map((rows) {
+          final conversationRows = rows
               .where(
                 (r) =>
                     (r['sender_id'] == myUid &&
@@ -45,9 +47,34 @@ class DirectMessageService {
                     (r['sender_id'] == otherUserId &&
                         r['recipient_id'] == myUid),
               )
-              .map(DirectMessage.fromMap)
-              .toList(),
-        );
+              .toList();
+          final rowById = {
+            for (final r in conversationRows) r['id'] as String: r,
+          };
+          return conversationRows.map((r) {
+            var message = DirectMessage.fromMap(r);
+            final replyToId = message.replyToId;
+            if (replyToId != null) {
+              final target = rowById[replyToId];
+              if (target != null) {
+                message = message.withReplyPreview(
+                  ChatReplyPreview(
+                    messageId: replyToId,
+                    senderId: target['sender_id'] as String,
+                    // Left blank — DirectMessageService doesn't fetch
+                    // profile data; the screen derives "You" vs the
+                    // other participant's name from senderId itself.
+                    senderName: '',
+                    body: target['body'] as String?,
+                    hasAttachment: target['attachment_url'] != null,
+                    isDeleted: target['deleted_at'] != null,
+                  ),
+                );
+              }
+            }
+            return message;
+          }).toList();
+        });
   }
 
   Future<void> sendMessage({
@@ -55,6 +82,7 @@ class DirectMessageService {
     required String recipientId,
     String? body,
     ChatAttachment? attachment,
+    String? replyToId,
   }) async {
     final trimmed = body?.trim();
     if ((trimmed == null || trimmed.isEmpty) && attachment == null) return;
@@ -64,6 +92,7 @@ class DirectMessageService {
       'recipient_id': recipientId,
       if (trimmed != null && trimmed.isNotEmpty) 'body': trimmed,
       if (attachment != null) ...attachment.toInsertMap(),
+      if (replyToId != null) 'reply_to_id': replyToId,
     });
   }
 
@@ -78,6 +107,55 @@ class DirectMessageService {
       bytes: bytes,
       fileExt: fileExt,
       contentType: contentType,
+    );
+  }
+
+  /// Sender-only: changes [messageId]'s text, marking it as edited.
+  Future<void> editMessage({
+    required String messageId,
+    required String body,
+  }) async {
+    final trimmed = body.trim();
+    await _client
+        .from('direct_messages')
+        .update({
+          'body': trimmed.isEmpty ? null : trimmed,
+          'edited_at': DateTime.now().toUtc().toIso8601String(),
+        })
+        .eq('id', messageId);
+  }
+
+  /// Sender-only: "delete for everyone" — clears the body/attachment
+  /// and marks it deleted, rather than removing the row, so the chat
+  /// can still show a placeholder in its place.
+  Future<void> deleteMessage(String messageId) async {
+    await _client
+        .from('direct_messages')
+        .update({
+          'body': null,
+          'attachment_type': null,
+          'attachment_url': null,
+          'attachment_duration_ms': null,
+          'deleted_at': DateTime.now().toUtc().toIso8601String(),
+        })
+        .eq('id', messageId);
+  }
+
+  /// Pins [messageId] as this conversation's one pinned message
+  /// (unpinning whatever was pinned before), or unpins entirely when
+  /// null. Either participant can do this, not just the sender.
+  Future<void> setPinnedMessage({
+    required String tripId,
+    required String otherUserId,
+    String? messageId,
+  }) async {
+    await _client.rpc(
+      'set_pinned_direct_message',
+      params: {
+        'p_trip_id': tripId,
+        'p_other_user_id': otherUserId,
+        'p_message_id': messageId,
+      },
     );
   }
 
@@ -206,5 +284,69 @@ class DirectMessageService {
         .delete()
         .eq('message_id', messageId)
         .eq('user_id', _uid);
+  }
+
+  // ---- Typing indicator ----------------------------------------------
+  //
+  // Purely ephemeral — Realtime Broadcast, nothing written to the
+  // database. One channel per (trip, other participant) pair, shared by
+  // [sendTyping] and [watchTyping] on a given [DirectMessageService]
+  // instance.
+
+  RealtimeChannel? _typingChannel;
+  String? _typingChannelKey;
+  bool _typingSubscribed = false;
+
+  RealtimeChannel _typingChannelFor(String tripId, String otherUserId) {
+    // Sorted so both participants derive the same channel name
+    // regardless of who's "me" and who's "otherUserId".
+    final pair = [_uid, otherUserId]..sort();
+    final key = 'typing:dm:$tripId:${pair.join('-')}';
+    if (_typingChannel == null || _typingChannelKey != key) {
+      _typingChannel?.unsubscribe();
+      _typingChannel = _client.channel(key);
+      _typingChannelKey = key;
+      _typingSubscribed = false;
+    }
+    return _typingChannel!;
+  }
+
+  void _ensureTypingSubscribed(String tripId, String otherUserId) {
+    final channel = _typingChannelFor(tripId, otherUserId);
+    if (!_typingSubscribed) {
+      _typingSubscribed = true;
+      channel.subscribe();
+    }
+  }
+
+  /// Broadcasts that the signed-in member is typing to [otherUserId] in
+  /// [tripId]. Call this occasionally while the composer has text (the
+  /// caller debounces), not on every keystroke.
+  void sendTyping({required String tripId, required String otherUserId}) {
+    _ensureTypingSubscribed(tripId, otherUserId);
+    _typingChannelFor(
+      tripId,
+      otherUserId,
+    ).sendBroadcastMessage(event: 'typing', payload: {'user_id': _uid});
+  }
+
+  /// A live event each time [otherUserId] broadcasts that they're
+  /// typing — the UI times the indicator back out a few seconds after
+  /// the last event rather than wait for an explicit "stopped" signal.
+  Stream<void> watchTyping({
+    required String tripId,
+    required String otherUserId,
+  }) {
+    final controller = StreamController<void>.broadcast();
+    final channel = _typingChannelFor(tripId, otherUserId);
+    channel.onBroadcast(
+      event: 'typing',
+      callback: (payload) {
+        final userId = payload['user_id'] as String?;
+        if (userId == otherUserId) controller.add(null);
+      },
+    );
+    _ensureTypingSubscribed(tripId, otherUserId);
+    return controller.stream;
   }
 }

@@ -117,6 +117,8 @@ class _ExpenseSplitScreenState extends State<ExpenseSplitScreen> {
   );
   late final Future<List<TripBalance>> _balancesFuture = _budgetService
       .getBalances(widget.tripId);
+  late final Future<double> _personalTotalFuture = _budgetService
+      .getPersonalExpensesTotal(widget.tripId);
 
   final _myUid = Supabase.instance.client.auth.currentUser?.id;
 
@@ -270,7 +272,31 @@ class _ExpenseSplitScreenState extends State<ExpenseSplitScreen> {
                               ],
                             ),
                           ),
-                          const SizedBox(height: 24),
+                          const SizedBox(height: 10),
+                          FutureBuilder<double>(
+                            future: _personalTotalFuture,
+                            builder: (context, personalSnap) {
+                              final personalTotal = personalSnap.data ?? 0;
+                              if (personalTotal <= 0) {
+                                return const SizedBox.shrink();
+                              }
+                              return Padding(
+                                padding: const EdgeInsets.only(bottom: 10),
+                                child: Text(
+                                  'RM ${personalTotal.toStringAsFixed(2)} in '
+                                  "personal expenses isn't included above — "
+                                  'mark an expense "Split with group" in '
+                                  'Expense Tracker to include it.',
+                                  style: TextStyle(
+                                    color: context.colors.muted,
+                                    fontSize: 11,
+                                    height: 1.4,
+                                  ),
+                                ),
+                              );
+                            },
+                          ),
+                          const SizedBox(height: 14),
                           Text(
                             'Who Paid',
                             style: TextStyle(

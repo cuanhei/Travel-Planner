@@ -810,16 +810,41 @@ class _EditBudgetSheet extends StatefulWidget {
   State<_EditBudgetSheet> createState() => _EditBudgetSheetState();
 }
 
+const _minTotalBudget = 0.01;
+const _maxTotalBudget = 9999999999.0;
+
 class _EditBudgetSheetState extends State<_EditBudgetSheet> {
   late final _controller = TextEditingController(
     text: formatAmount(widget.initialAmount),
   );
+  String? _error;
 
   double get _value => double.tryParse(_controller.text) ?? 0;
 
   void _adjust(double delta) {
-    final next = (_value + delta).clamp(0, 999999).toDouble();
-    setState(() => _controller.text = formatAmount(next));
+    final next = (_value + delta).clamp(0, _maxTotalBudget).toDouble();
+    setState(() {
+      _controller.text = formatAmount(next);
+      _error = null;
+    });
+  }
+
+  void _save() {
+    final value = _value;
+    if (value < _minTotalBudget) {
+      setState(
+        () => _error =
+            'Budget minimum must be RM ${formatAmount(_minTotalBudget)}',
+      );
+      return;
+    }
+    if (value > _maxTotalBudget) {
+      setState(
+        () => _error = 'Budget maximum is RM ${formatAmount(_maxTotalBudget)}',
+      );
+      return;
+    }
+    Navigator.of(context).pop(value);
   }
 
   @override
@@ -864,7 +889,7 @@ class _EditBudgetSheetState extends State<_EditBudgetSheet> {
                 controller: _controller,
                 autofocus: true,
                 keyboardType: const TextInputType.numberWithOptions(),
-                onChanged: (_) => setState(() {}),
+                onChanged: (_) => setState(() => _error = null),
                 style: TextStyle(
                   color: context.colors.ink,
                   fontWeight: FontWeight.w800,
@@ -896,6 +921,17 @@ class _EditBudgetSheetState extends State<_EditBudgetSheet> {
                   ),
                 ),
               ),
+              if (_error != null) ...[
+                const SizedBox(height: 8),
+                Text(
+                  _error!,
+                  style: const TextStyle(
+                    color: Colors.redAccent,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
               const SizedBox(height: 14),
               Wrap(
                 spacing: 10,
@@ -911,9 +947,7 @@ class _EditBudgetSheetState extends State<_EditBudgetSheet> {
               GradientButton(
                 label: 'Save Budget',
                 icon: Icons.check_rounded,
-                onPressed: _value > 0
-                    ? () => Navigator.of(context).pop(_value)
-                    : () {},
+                onPressed: _save,
               ),
             ],
           ),

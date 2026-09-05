@@ -543,15 +543,22 @@ class _PhotoStrip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (urls.length == 1) {
+      // BoxFit.contain, not cover: the crop step is freeform (any
+      // aspect ratio the traveler drags to), so this must show exactly
+      // what they cropped rather than silently re-cropping it again to
+      // fit a fixed box — that's the same "still be exactly what I
+      // cropped" promise the full-screen viewer already keeps.
       return GestureDetector(
         onTap: () => _openViewer(context, 0),
         child: ClipRRect(
           borderRadius: BorderRadius.circular(14),
-          child: Image.network(
-            urls.first,
-            width: double.infinity,
-            height: 180,
-            fit: BoxFit.cover,
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxHeight: 320),
+            child: Image.network(
+              urls.first,
+              width: double.infinity,
+              fit: BoxFit.contain,
+            ),
           ),
         ),
       );

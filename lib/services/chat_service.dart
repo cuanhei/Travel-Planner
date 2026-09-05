@@ -1,8 +1,10 @@
+import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../models/chat_attachment.dart';
+import '../models/chat_reply_preview.dart';
 import '../models/group_message.dart';
 import '../models/reaction_event.dart';
 import 'chat_media_service.dart';
@@ -60,6 +62,13 @@ class ChatService {
           } catch (_) {
             // Fall through with no nicknames resolved.
           }
+          final rowById = {for (final r in rows) r['id'] as String: r};
+          String nameFor(String userId) {
+            final profile = profileById[userId];
+            final nickname = nicknameByUserId[userId];
+            return nickname ?? (profile?['display_name'] as String? ?? '?');
+          }
+
           return rows.where((r) => profileById.containsKey(r['user_id'])).map((
             r,
           ) {
@@ -75,7 +84,27 @@ class ChatService {
               if (nicknameByUserId[userId] != null)
                 'display_name': nicknameByUserId[userId],
             };
-            return GroupMessage.fromMap({...r, 'profiles': mergedProfile});
+            var message = GroupMessage.fromMap({
+              ...r,
+              'profiles': mergedProfile,
+            });
+            final replyToId = message.replyToId;
+            if (replyToId != null) {
+              final target = rowById[replyToId];
+              if (target != null) {
+                message = message.withReplyPreview(
+                  ChatReplyPreview(
+                    messageId: replyToId,
+                    senderId: target['user_id'] as String,
+                    senderName: nameFor(target['user_id'] as String),
+                    body: target['body'] as String?,
+                    hasAttachment: target['attachment_url'] != null,
+                    isDeleted: target['deleted_at'] != null,
+                  ),
+                );
+              }
+            }
+            return message;
           }).toList();
         });
   }
@@ -84,6 +113,8 @@ class ChatService {
     required String tripId,
     String? body,
     ChatAttachment? attachment,
+    String? replyToId,
+    List<String>? mentionedUserIds,
   }) async {
     final trimmed = body?.trim();
     if ((trimmed == null || trimmed.isEmpty) && attachment == null) return;
@@ -92,6 +123,9 @@ class ChatService {
       'user_id': _uid,
       if (trimmed != null && trimmed.isNotEmpty) 'body': trimmed,
       if (attachment != null) ...attachment.toInsertMap(),
+      if (replyToId != null) 'reply_to_id': replyToId,
+      if (mentionedUserIds != null && mentionedUserIds.isNotEmpty)
+        'mentioned_user_ids': mentionedUserIds,
     });
   }
 
@@ -112,8 +146,48 @@ class ChatService {
     );
   }
 
+  /// Sender-only: changes [messageId]'s text, marking it as edited.
+  Future<void> editMessage({
+    required String messageId,
+    required String body,
+  }) async {
+    final trimmed = body.trim();
+    await _client
+        .from('group_messages')
+        .update({
+          'body': trimmed.isEmpty ? null : trimmed,
+          'edited_at': DateTime.now().toUtc().toIso8601String(),
+        })
+        .eq('id', messageId);
+  }
+
+  /// Sender-only: "delete for everyone" — clears the body/attachment
+  /// and marks it deleted, rather than removing the row, so the chat
+  /// can still show a placeholder in its place for every member.
   Future<void> deleteMessage(String messageId) async {
-    await _client.from('group_messages').delete().eq('id', messageId);
+    await _client
+        .from('group_messages')
+        .update({
+          'body': null,
+          'attachment_type': null,
+          'attachment_url': null,
+          'attachment_duration_ms': null,
+          'deleted_at': DateTime.now().toUtc().toIso8601String(),
+        })
+        .eq('id', messageId);
+  }
+
+  /// Pins [messageId] as the trip's one pinned message (unpinning
+  /// whatever was pinned before), or unpins entirely when null. Any
+  /// trip member can do this, not just the message's own sender.
+  Future<void> setPinnedMessage({
+    required String tripId,
+    String? messageId,
+  }) async {
+    await _client.rpc(
+      'set_pinned_group_message',
+      params: {'p_trip_id': tripId, 'p_message_id': messageId},
+    );
   }
 
   /// Live read receipts for every message in [tripId], grouped by
@@ -212,5 +286,63 @@ class ChatService {
         .delete()
         .eq('message_id', messageId)
         .eq('user_id', _uid);
+  }
+
+  // ---- Typing indicator ----------------------------------------------
+  //
+  // Purely ephemeral — Realtime Broadcast, nothing written to the
+  // database. One channel per trip, shared by [sendTyping] and
+  // [watchTyping] on a given [ChatService] instance (a chat screen
+  // keeps its own instance for its whole lifetime, same as every other
+  // stream here).
+
+  RealtimeChannel? _typingChannel;
+  String? _typingChannelTripId;
+  bool _typingSubscribed = false;
+
+  RealtimeChannel _typingChannelFor(String tripId) {
+    if (_typingChannel == null || _typingChannelTripId != tripId) {
+      _typingChannel?.unsubscribe();
+      _typingChannel = _client.channel('typing:group:$tripId');
+      _typingChannelTripId = tripId;
+      _typingSubscribed = false;
+    }
+    return _typingChannel!;
+  }
+
+  void _ensureTypingSubscribed(String tripId) {
+    final channel = _typingChannelFor(tripId);
+    if (!_typingSubscribed) {
+      _typingSubscribed = true;
+      channel.subscribe();
+    }
+  }
+
+  /// Broadcasts that the signed-in member is typing in [tripId]'s chat.
+  /// Call this occasionally while the composer has text (the caller
+  /// debounces), not on every keystroke.
+  void sendTyping(String tripId) {
+    _ensureTypingSubscribed(tripId);
+    _typingChannelFor(
+      tripId,
+    ).sendBroadcastMessage(event: 'typing', payload: {'user_id': _uid});
+  }
+
+  /// User ids of other members currently typing — a live event stream
+  /// (each id arrives every time they broadcast, not just once), so the
+  /// UI is expected to time an id back out a few seconds after its last
+  /// event rather than wait for an explicit "stopped typing" signal.
+  Stream<String> watchTyping(String tripId) {
+    final controller = StreamController<String>.broadcast();
+    final channel = _typingChannelFor(tripId);
+    channel.onBroadcast(
+      event: 'typing',
+      callback: (payload) {
+        final userId = payload['user_id'] as String?;
+        if (userId != null && userId != _uid) controller.add(userId);
+      },
+    );
+    _ensureTypingSubscribed(tripId);
+    return controller.stream;
   }
 }

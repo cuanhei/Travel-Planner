@@ -93,8 +93,20 @@ class _JoinTripScreenState extends State<JoinTripScreen> {
       }
       if (!mounted) return;
       setState(() => _isSubmitting = false);
+      // The date-guard errors ("already ended" / "clashes with an
+      // existing trip: ...") are longer than a typical error, so they
+      // get the same extra reading time as "already a member" above.
+      final isDateGuardError =
+          e.message.toLowerCase().contains('already ended') ||
+          e.message.toLowerCase().contains('clash');
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(behavior: SnackBarBehavior.floating, content: Text(e.message)),
+        SnackBar(
+          behavior: SnackBarBehavior.floating,
+          duration: isDateGuardError
+              ? const Duration(seconds: 6)
+              : const Duration(seconds: 4),
+          content: Text(e.message),
+        ),
       );
       return;
     } catch (e) {

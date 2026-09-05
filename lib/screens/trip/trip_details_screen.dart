@@ -247,8 +247,7 @@ class _StatsRow extends StatelessWidget {
             stream: BudgetService().watchTotalBudget(trip.id),
             builder: (context, snapshot) => _StatTile(
               icon: Icons.account_balance_wallet_rounded,
-              value:
-                  'RM${(snapshot.data ?? trip.totalBudget).toStringAsFixed(0)}',
+              value: 'RM${formatAmount(snapshot.data ?? trip.totalBudget)}',
               label: 'Budget',
             ),
           ),

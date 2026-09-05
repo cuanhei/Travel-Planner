@@ -11,6 +11,7 @@ class Expense {
     required this.createdAt,
     this.stopPlace,
     this.photoUrls = const [],
+    this.isShared = true,
   });
 
   final String id;
@@ -23,6 +24,11 @@ class Expense {
   final DateTime createdAt;
   final String? stopPlace;
   final List<String> photoUrls;
+
+  /// Off means this expense is personal spending only — excluded from
+  /// [BudgetService.getBalances]'s equal-split calculation, but still
+  /// counted in the Budget Planner's overall totals/category breakdown.
+  final bool isShared;
 
   factory Expense.fromMap(Map<String, dynamic> map) {
     return Expense(
@@ -37,6 +43,7 @@ class Expense {
       stopPlace: map['stop_place'] as String?,
       photoUrls:
           (map['photo_urls'] as List<dynamic>?)?.cast<String>() ?? const [],
+      isShared: map['is_shared'] as bool? ?? true,
     );
   }
 
@@ -49,5 +56,6 @@ class Expense {
     'spent_at': spentAt.toIso8601String().split('T').first,
     if (stopPlace != null) 'stop_place': stopPlace,
     'photo_urls': photoUrls,
+    'is_shared': isShared,
   };
 }
