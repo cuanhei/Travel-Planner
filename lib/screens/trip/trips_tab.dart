@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import '../../models/trip.dart';
 import '../../services/trip_service.dart';
 import '../../theme/app_theme.dart';
-import '../../widgets/section_header.dart';
 import '../budget/budget_planner_screen.dart' show formatAmount;
 import 'create_trip_screen.dart';
 import 'trip_details_screen.dart';
@@ -20,10 +19,27 @@ const _tripGradients = [
 List<Color> _gradientFor(int index) =>
     _tripGradients[index % _tripGradients.length];
 
-/// "Trips" bottom-nav tab: the signed-in user's own trips (via Supabase
-/// RLS — a trip only appears here if they're a member of it), bucketed
-/// into Current / Upcoming / Past. Includes a search box that filters
-/// trips by name, and the entry point for creating a new trip.
+const _statusFilters = [
+  (status: TripStatus.current, label: 'Current', icon: Icons.explore_rounded),
+  (
+    status: TripStatus.upcoming,
+    label: 'Upcoming',
+    icon: Icons.schedule_rounded,
+  ),
+  (status: TripStatus.past, label: 'Past', icon: Icons.history_rounded),
+];
+
+/// Badge text shown on a trip card — distinct from the filter chip
+/// labels above ("Current" reads as "Ongoing" once it's on a card).
+String _badgeLabelFor(TripStatus status) => switch (status) {
+  TripStatus.current => 'Ongoing',
+  TripStatus.upcoming => 'Upcoming',
+  TripStatus.past => 'Completed',
+};
+
+/// "Trips" bottom-nav tab: the signed-in user's own trips, bucketed into
+/// Current / Upcoming / Past. Includes a search box that filters trips by
+/// name, and the entry point for creating a new trip.
 class TripsTab extends StatefulWidget {
   const TripsTab({super.key});
 
@@ -34,14 +50,17 @@ class TripsTab extends StatefulWidget {
 class _TripsTabState extends State<TripsTab> {
   final _searchController = TextEditingController();
   final _tripService = TripService();
-  late Stream<List<Trip>> _tripsStream = _tripService.watchMyTrips();
+  List<Trip> _trips = [];
+  bool _loading = true;
+  String? _error;
   String _query = '';
+  TripStatus _selectedStatus = TripStatus.current;
 
-  // This tab typically stays alive for the app's whole session (kept in
-  // an IndexedStack by the bottom nav), so a stream that errors once —
-  // e.g. a transient Supabase auth hiccup — would otherwise show that
-  // error forever with no way to recover short of restarting the app.
-  void _retry() => setState(() => _tripsStream = _tripService.watchMyTrips());
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
 
   @override
   void dispose() {
@@ -49,74 +68,60 @@ class _TripsTabState extends State<TripsTab> {
     super.dispose();
   }
 
+  Future<void> _load() async {
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+    try {
+      final trips = await _tripService.myTrips();
+      if (!mounted) return;
+      setState(() {
+        _trips = trips;
+        _loading = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _error = '$e';
+        _loading = false;
+      });
+    }
+  }
+
+  Future<void> _openCreateTrip() async {
+    await Navigator.of(
+      context,
+    ).push(MaterialPageRoute(builder: (_) => const CreateTripScreen()));
+    if (mounted) _load();
+  }
+
   @override
   Widget build(BuildContext context) {
     return SafeArea(
-      child: StreamBuilder<List<Trip>>(
-        stream: _tripsStream,
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
-          }
-          if (snapshot.hasError) {
-            return Center(
-              child: Padding(
-                padding: const EdgeInsets.all(24),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      'Couldn\'t load your trips',
-                      style: TextStyle(
-                        color: context.colors.ink,
-                        fontWeight: FontWeight.w700,
-                        fontSize: 14,
-                      ),
-                    ),
-                    const SizedBox(height: 6),
-                    Text(
-                      '${snapshot.error}',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        color: context.colors.muted,
-                        fontSize: 12,
-                      ),
-                    ),
-                    const SizedBox(height: 14),
-                    TextButton.icon(
-                      onPressed: _retry,
-                      icon: const Icon(Icons.refresh_rounded, size: 18),
-                      label: const Text('Retry'),
-                      style: TextButton.styleFrom(
-                        foregroundColor: context.colors.ink,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            );
+      child: Builder(
+        builder: (context) {
+          if (_loading) return const _TripsLoading();
+          if (_error != null) {
+            return _TripsError(message: _error!, onRetry: _load);
           }
 
-          final trips = snapshot.data ?? const <Trip>[];
+          final trips = _trips;
           final q = _query.trim().toLowerCase();
           final searching = q.isNotEmpty;
           final filtered = searching
               ? trips.where((t) => t.name.toLowerCase().contains(q)).toList()
               : trips;
 
-          final current = <Trip>[];
-          final upcoming = <Trip>[];
-          final past = <Trip>[];
+          final byStatus = <TripStatus, List<Trip>>{
+            TripStatus.current: [],
+            TripStatus.upcoming: [],
+            TripStatus.past: [],
+          };
           for (final t in filtered) {
-            switch (t.status) {
-              case TripStatus.current:
-                current.add(t);
-              case TripStatus.upcoming:
-                upcoming.add(t);
-              case TripStatus.past:
-                past.add(t);
-            }
+            byStatus[t.status]!.add(t);
           }
+          final displayed = byStatus[_selectedStatus]!;
 
           final noMatches = searching && filtered.isEmpty;
 
@@ -153,11 +158,7 @@ class _TripsTabState extends State<TripsTab> {
                     shape: const CircleBorder(),
                     child: InkWell(
                       customBorder: const CircleBorder(),
-                      onTap: () => Navigator.of(context).push(
-                        MaterialPageRoute(
-                          builder: (_) => const CreateTripScreen(),
-                        ),
-                      ),
+                      onTap: _openCreateTrip,
                       child: const Padding(
                         padding: EdgeInsets.all(12),
                         child: Icon(
@@ -175,30 +176,22 @@ class _TripsTabState extends State<TripsTab> {
                 controller: _searchController,
                 onChanged: (v) => setState(() => _query = v),
               ),
-              const SizedBox(height: 26),
+              const SizedBox(height: 16),
+              if (!(noMatches || trips.isEmpty)) ...[
+                _StatusFilterChips(
+                  selected: _selectedStatus,
+                  onSelected: (s) => setState(() => _selectedStatus = s),
+                ),
+                const SizedBox(height: 20),
+              ],
               if (noMatches)
                 _NoSearchResults(query: _query.trim())
               else if (trips.isEmpty)
                 const _EmptyTrips()
-              else ...[
-                if (current.isNotEmpty) ...[
-                  SectionHeader(title: 'Current'),
-                  const SizedBox(height: 14),
-                  ..._tripCards(context, current, 'Ongoing'),
-                  const SizedBox(height: 28),
-                ],
-                if (upcoming.isNotEmpty) ...[
-                  SectionHeader(title: 'Upcoming'),
-                  const SizedBox(height: 14),
-                  ..._tripCards(context, upcoming, 'Upcoming'),
-                  const SizedBox(height: 28),
-                ],
-                if (past.isNotEmpty) ...[
-                  SectionHeader(title: 'Past Trips'),
-                  const SizedBox(height: 14),
-                  ..._tripCards(context, past, 'Completed'),
-                ],
-              ],
+              else if (displayed.isEmpty)
+                _NoTripsInStatus(status: _selectedStatus)
+              else
+                ..._tripCards(context, displayed, _badgeLabelFor(_selectedStatus)),
             ],
           );
         },
@@ -291,6 +284,127 @@ class _TripSearchField extends StatelessWidget {
   }
 }
 
+/// Current / Upcoming / Past category filter — single-select, mirrors
+/// [_CategoryChip]'s pill style from the Explore tab's category filter.
+class _StatusFilterChips extends StatelessWidget {
+  const _StatusFilterChips({required this.selected, required this.onSelected});
+
+  final TripStatus selected;
+  final ValueChanged<TripStatus> onSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        for (final filter in _statusFilters) ...[
+          Expanded(
+            child: _StatusChip(
+              label: filter.label,
+              icon: filter.icon,
+              selected: filter.status == selected,
+              onTap: () => onSelected(filter.status),
+            ),
+          ),
+          if (filter != _statusFilters.last) const SizedBox(width: 10),
+        ],
+      ],
+    );
+  }
+}
+
+class _StatusChip extends StatelessWidget {
+  const _StatusChip({
+    required this.label,
+    required this.icon,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final String label;
+  final IconData icon;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        height: 38,
+        decoration: BoxDecoration(
+          color: selected ? context.colors.ink : context.colors.card,
+          borderRadius: BorderRadius.circular(19),
+        ),
+        alignment: Alignment.center,
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              icon,
+              size: 15,
+              color: selected ? Colors.white : context.colors.muted,
+            ),
+            const SizedBox(width: 6),
+            Text(
+              label,
+              style: TextStyle(
+                color: selected ? Colors.white : context.colors.ink,
+                fontWeight: FontWeight.w700,
+                fontSize: 12.5,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _NoTripsInStatus extends StatelessWidget {
+  const _NoTripsInStatus({required this.status});
+
+  final TripStatus status;
+
+  @override
+  Widget build(BuildContext context) {
+    final label = _statusFilters
+        .firstWhere((f) => f.status == status)
+        .label
+        .toLowerCase();
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        color: context.colors.card,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: context.colors.muted.withValues(alpha: 0.15)),
+      ),
+      child: Column(
+        children: [
+          Icon(Icons.event_busy_rounded, color: context.colors.muted, size: 30),
+          const SizedBox(height: 10),
+          Text(
+            'No $label trips',
+            style: TextStyle(
+              color: context.colors.ink,
+              fontWeight: FontWeight.w700,
+              fontSize: 13.5,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'Trips will show up here once they match this category.',
+            textAlign: TextAlign.center,
+            style: TextStyle(color: context.colors.muted, fontSize: 12),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _NoSearchResults extends StatelessWidget {
   const _NoSearchResults({required this.query});
 
@@ -325,6 +439,58 @@ class _NoSearchResults extends StatelessWidget {
             style: TextStyle(color: context.colors.muted, fontSize: 12),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _TripsLoading extends StatelessWidget {
+  const _TripsLoading();
+
+  @override
+  Widget build(BuildContext context) {
+    return const Center(child: CircularProgressIndicator());
+  }
+}
+
+class _TripsError extends StatelessWidget {
+  const _TripsError({required this.message, required this.onRetry});
+
+  final String message;
+  final VoidCallback onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              Icons.error_outline_rounded,
+              color: context.colors.muted,
+              size: 30,
+            ),
+            const SizedBox(height: 10),
+            Text(
+              'Could not load your trips',
+              style: TextStyle(
+                color: context.colors.ink,
+                fontWeight: FontWeight.w700,
+                fontSize: 13.5,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              message,
+              textAlign: TextAlign.center,
+              style: TextStyle(color: context.colors.muted, fontSize: 12),
+            ),
+            const SizedBox(height: 14),
+            TextButton(onPressed: onRetry, child: const Text('Try again')),
+          ],
+        ),
       ),
     );
   }
@@ -431,9 +597,7 @@ class _TripCard extends StatelessWidget {
                           const SizedBox(width: 4),
                           Expanded(
                             child: Text(
-                              trip.destination.isEmpty
-                                  ? 'No destination set'
-                                  : trip.destination,
+                              trip.routeLabel ?? 'No destination set',
                               overflow: TextOverflow.ellipsis,
                               style: TextStyle(
                                 color: Colors.white.withValues(alpha: 0.85),

@@ -331,7 +331,13 @@ class _BudgetPlannerContent extends StatelessWidget {
         return StreamBuilder<List<Expense>>(
           stream: budgetService.watchExpenses(tripId),
           builder: (context, expenseSnap) {
-            final expenses = expenseSnap.data ?? const <Expense>[];
+            // Personal (is_shared = false) expenses are private spending
+            // that never counted against the trip's shared budget — only
+            // surfaced in the Expense Tracker's own Personal total, never
+            // rolled into the trip-wide spent/category figures here.
+            final expenses = (expenseSnap.data ?? const <Expense>[])
+                .where((e) => e.isShared)
+                .toList();
             final totalSpent = expenses.fold<double>(0, (s, e) => s + e.amount);
             final spentByCategory = <String, double>{};
             for (final e in expenses) {

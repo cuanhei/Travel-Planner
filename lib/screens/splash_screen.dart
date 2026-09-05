@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
 
+import '../main.dart' show navigatorKey;
 import '../services/auth_service.dart';
+import '../services/deep_link.dart';
 import '../services/supabase_config.dart';
 import '../theme/app_theme.dart';
+import 'community/post_detail_screen.dart';
 import 'home_screen.dart';
 import 'welcome_screen.dart';
 
@@ -22,6 +25,14 @@ class _SplashScreenState extends State<SplashScreen> {
     Future.delayed(Duration(milliseconds: 1800), () {
       if (!mounted) return;
       final signedIn = SupabaseConfig.isConfigured && AuthService.instance.isSignedIn;
+      // A link like /post/<id> (opened from Community's share action) is
+      // parsed from the URL the app cold-started with — only meaningful if
+      // there's already a session, since every table requires auth.
+      final sharedPostId = signedIn ? parseSharedPostId() : null;
+      // Note: pushReplacement's returned Future only completes when the
+      // *new* route is later popped (HomeScreen is the root, so that Future
+      // would never fire) — so the follow-up push below runs right after
+      // issuing the replacement, not chained off it.
       Navigator.of(context).pushReplacement(
         PageRouteBuilder(
           transitionDuration: Duration(milliseconds: 500),
@@ -30,6 +41,13 @@ class _SplashScreenState extends State<SplashScreen> {
               FadeTransition(opacity: animation, child: child),
         ),
       );
+      if (sharedPostId != null) {
+        navigatorKey.currentState?.push(
+          MaterialPageRoute(
+            builder: (_) => PostDetailScreen(postId: sharedPostId),
+          ),
+        );
+      }
     });
   }
 

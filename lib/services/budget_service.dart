@@ -401,16 +401,20 @@ class BudgetService {
 
   // ---- Balances / splits ------------------------------------------------
 
-  /// Sum of every expense marked personal (not shared) in [tripId] — the
-  /// part of Budget Planner's overall total that [getBalances] leaves
-  /// out of the equal split. Expense Split shows this as a note so its
-  /// numbers don't look like they're missing money.
+  /// Sum of this viewer's own personal (not shared) expenses in
+  /// [tripId] — the part of Budget Planner's overall total that
+  /// [getBalances] leaves out of the equal split. Expense Split shows
+  /// this as a note so its numbers don't look like they're missing
+  /// money. Explicitly scoped to `_uid` (not just relying on RLS) since
+  /// personal expenses are private — this must never sum other
+  /// members' personal spending into a number shown to this viewer.
   Future<double> getPersonalExpensesTotal(String tripId) async {
     final rows = await _client
         .from('expenses')
         .select('amount')
         .eq('trip_id', tripId)
-        .eq('is_shared', false);
+        .eq('is_shared', false)
+        .eq('user_id', _uid);
     return (rows as List).fold<double>(
       0,
       (sum, r) => sum + (r['amount'] as num).toDouble(),

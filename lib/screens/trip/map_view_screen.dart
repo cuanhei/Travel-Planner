@@ -2,11 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:latlong2/latlong.dart';
 
-import '../../models/transport_location.dart';
+import '../../models/trip_stop_location.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/detail_header.dart';
+import '../../widgets/location_search_field.dart';
 import '../../widgets/route_map_view.dart';
-import '../../widgets/transport_location_search_field.dart';
 
 /// Home dashboard's general map: a real OpenStreetMap centered on the
 /// traveler's current GPS location with a Photon-backed search bar —
@@ -24,7 +24,7 @@ class _MapViewScreenState extends State<MapViewScreen> {
   LatLng? _currentPosition;
   bool _locatingCurrentPosition = false;
   String? _locationError;
-  TransportLocation? _searchedLocation;
+  TripStopLocation? _searchedLocation;
 
   @override
   void initState() {
@@ -98,7 +98,7 @@ class _MapViewScreenState extends State<MapViewScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    TransportLocationSearchField(
+                    LocationSearchField(
                       value: _searchedLocation,
                       onChanged: (loc) =>
                           setState(() => _searchedLocation = loc),

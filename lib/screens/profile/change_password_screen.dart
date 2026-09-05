@@ -1,11 +1,19 @@
 import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart' show AuthException;
 
+import '../../services/auth_error_messages.dart';
+import '../../services/auth_service.dart';
+import '../../services/locale_service.dart';
 import '../../theme/app_theme.dart';
+import '../../utils/validators.dart';
 import '../../widgets/detail_header.dart';
 import '../../widgets/gradient_button.dart';
+import '../../widgets/password_strength.dart';
 
-/// UI-only password change form — current password plus a new one
-/// entered twice, with basic client-side checks.
+/// Change Password (Settings → Account). Verifies the current password by
+/// attempting a fresh sign-in with it before allowing the update — Supabase
+/// doesn't require the current password for `updateUser`, so this is done
+/// client-side via `AuthService.reauthenticate`.
 class ChangePasswordScreen extends StatefulWidget {
   const ChangePasswordScreen({super.key});
 
@@ -20,7 +28,8 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
   bool _obscureCurrent = true;
   bool _obscureNew = true;
   bool _obscureConfirm = true;
-  String? _error;
+  bool _loading = false;
+  PasswordStrength _strength = PasswordStrength.weak;
 
   @override
   void dispose() {
@@ -30,24 +39,63 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
     super.dispose();
   }
 
-  bool get _canSave =>
-      _currentController.text.isNotEmpty &&
-      _newController.text.length >= 6 &&
-      _confirmController.text.isNotEmpty;
+  void _onNewPasswordChanged(String value) {
+    setState(() => _strength = calculatePasswordStrength(value));
+  }
 
-  void _save() {
-    if (_newController.text != _confirmController.text) {
-      setState(() => _error = 'New passwords don\'t match');
+  Future<void> _submit() async {
+    final currentPassword = _currentController.text;
+    if (currentPassword.isEmpty) {
+      _showMessage(tr('auth_enter_current_password'));
       return;
     }
-    setState(() => _error = null);
-    Navigator.of(context).pop();
+    final newPasswordError = Validators.newPassword(_newController.text);
+    if (newPasswordError != null) {
+      _showMessage(newPasswordError);
+      return;
+    }
+    final confirmError = Validators.confirmPassword(
+      _confirmController.text,
+      _newController.text,
+    );
+    if (confirmError != null) {
+      _showMessage(confirmError);
+      return;
+    }
+    if (_newController.text == currentPassword) {
+      _showMessage(tr('auth_new_password_must_differ'));
+      return;
+    }
+
+    setState(() => _loading = true);
+    try {
+      await AuthService.instance.reauthenticate(currentPassword);
+      await AuthService.instance.updatePassword(_newController.text);
+      if (!mounted) return;
+      Navigator.of(context).pop();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          behavior: SnackBarBehavior.floating,
+          backgroundColor: context.colors.ink,
+          content: Text(tr('auth_password_changed')),
+        ),
+      );
+    } on AuthException catch (e) {
+      if (isInvalidCredentials(e)) {
+        _showMessage(tr('auth_current_password_incorrect'));
+      } else {
+        _showMessage(friendlyAuthError(e));
+      }
+    } catch (_) {
+      _showMessage(tr('common_error_generic'));
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  void _showMessage(String message) {
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        behavior: SnackBarBehavior.floating,
-        backgroundColor: context.colors.ink,
-        content: const Text('Password changed'),
-      ),
+      SnackBar(behavior: SnackBarBehavior.floating, content: Text(message)),
     );
   }
 
@@ -58,60 +106,47 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
       body: SafeArea(
         child: Column(
           children: [
-            const DetailHeader(
-              title: 'Change Password',
-              subtitle: 'Choose a new password for your account',
+            DetailHeader(
+              title: tr('auth_change_password_title'),
+              subtitle: tr('auth_change_password_subtitle'),
             ),
             Expanded(
               child: ListView(
                 padding: const EdgeInsets.fromLTRB(24, 8, 24, 24),
                 children: [
-                  _FieldLabel('Current Password'),
+                  _FieldLabel(tr('auth_current_password')),
                   _PasswordBox(
                     controller: _currentController,
                     obscure: _obscureCurrent,
                     onToggle: () =>
                         setState(() => _obscureCurrent = !_obscureCurrent),
-                    onChanged: (_) => setState(() {}),
                   ),
                   const SizedBox(height: 18),
-                  _FieldLabel('New Password'),
+                  _FieldLabel(tr('auth_new_password')),
                   _PasswordBox(
                     controller: _newController,
                     obscure: _obscureNew,
                     onToggle: () => setState(() => _obscureNew = !_obscureNew),
-                    onChanged: (_) => setState(() {}),
+                    onChanged: _onNewPasswordChanged,
                   ),
-                  const SizedBox(height: 4),
-                  Text(
-                    'At least 6 characters',
-                    style: TextStyle(color: context.colors.muted, fontSize: 11.5),
-                  ),
+                  const SizedBox(height: 10),
+                  PasswordStrengthMeter(strength: _strength),
+                  const SizedBox(height: 12),
+                  PasswordRequirementsList(password: _newController.text),
                   const SizedBox(height: 18),
-                  _FieldLabel('Confirm New Password'),
+                  _FieldLabel(tr('auth_confirm_new_password')),
                   _PasswordBox(
                     controller: _confirmController,
                     obscure: _obscureConfirm,
                     onToggle: () =>
                         setState(() => _obscureConfirm = !_obscureConfirm),
-                    onChanged: (_) => setState(() {}),
                   ),
-                  if (_error != null) ...[
-                    const SizedBox(height: 10),
-                    Text(
-                      _error!,
-                      style: const TextStyle(
-                        color: Colors.redAccent,
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ],
                   const SizedBox(height: 32),
                   GradientButton(
-                    label: 'Update Password',
+                    label: tr('auth_update_password'),
                     icon: Icons.check_rounded,
-                    onPressed: _canSave ? _save : () {},
+                    onPressed: _submit,
+                    loading: _loading,
                   ),
                 ],
               ),
@@ -149,13 +184,13 @@ class _PasswordBox extends StatelessWidget {
     required this.controller,
     required this.obscure,
     required this.onToggle,
-    required this.onChanged,
+    this.onChanged,
   });
 
   final TextEditingController controller;
   final bool obscure;
   final VoidCallback onToggle;
-  final ValueChanged<String> onChanged;
+  final ValueChanged<String>? onChanged;
 
   @override
   Widget build(BuildContext context) {

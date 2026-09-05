@@ -1,53 +1,54 @@
 import 'package:flutter/material.dart';
 
+import '../services/locale_service.dart';
 import '../theme/app_theme.dart';
 import '../widgets/detail_header.dart';
+
+List<({IconData icon, Color color, String title, String subtitle, String time})> _todayNotifications() => [
+  (
+    icon: Icons.wb_cloudy_rounded,
+    color: const Color(0xFF2E9CCA),
+    title: tr('auth_notif_rain_title'),
+    subtitle: tr('auth_notif_rain_subtitle'),
+    time: '1${tr('auth_hours_ago_suffix')}',
+  ),
+  (
+    icon: Icons.favorite_rounded,
+    color: const Color(0xFFFF7A59),
+    title: tr('auth_notif_liked_review_title'),
+    subtitle: tr('auth_notif_liked_review_subtitle'),
+    time: '3${tr('auth_hours_ago_suffix')}',
+  ),
+];
+
+List<({IconData icon, Color color, String title, String subtitle, String time})> _earlierNotifications() => [
+  (
+    icon: Icons.event_available_rounded,
+    color: const Color(0xFF11998E),
+    title: tr('auth_notif_trip_reminder_title'),
+    subtitle: tr('auth_notif_trip_reminder_subtitle'),
+    time: tr('auth_yesterday_word'),
+  ),
+  (
+    icon: Icons.mode_comment_rounded,
+    color: const Color(0xFF5C6BC0),
+    title: tr('auth_notif_new_comment_title'),
+    subtitle: tr('auth_notif_new_comment_subtitle'),
+    time: '2 ${tr('auth_days_ago_words_suffix')}',
+  ),
+  (
+    icon: Icons.local_offer_rounded,
+    color: const Color(0xFFFFB347),
+    title: tr('auth_notif_budget_alert_title'),
+    subtitle: tr('auth_notif_budget_alert_subtitle'),
+    time: '3 ${tr('auth_days_ago_words_suffix')}',
+  ),
+];
 
 /// Alerts and reminders feed: trip updates, weather alerts, and social
 /// notifications grouped by recency.
 class NotificationsScreen extends StatelessWidget {
   const NotificationsScreen({super.key});
-
-  static final _today = [
-    (
-      icon: Icons.wb_cloudy_rounded,
-      color: Color(0xFF2E9CCA),
-      title: 'Rain expected in Penang tomorrow',
-      subtitle: 'Pack an umbrella for your Gurney Drive stop',
-      time: '1h ago',
-    ),
-    (
-      icon: Icons.favorite_rounded,
-      color: Color(0xFFFF7A59),
-      title: 'Mei Ling liked your review',
-      subtitle: 'Your review of Chew Jetty',
-      time: '3h ago',
-    ),
-  ];
-
-  static final _earlier = [
-    (
-      icon: Icons.event_available_rounded,
-      color: Color(0xFF11998E),
-      title: 'Trip reminder: Penang Adventure',
-      subtitle: 'Your trip starts in 3 days',
-      time: 'Yesterday',
-    ),
-    (
-      icon: Icons.mode_comment_rounded,
-      color: Color(0xFF5C6BC0),
-      title: 'New comment on your post',
-      subtitle: 'Arif Hakim commented on Gurney Drive Hawker Centre',
-      time: '2 days ago',
-    ),
-    (
-      icon: Icons.local_offer_rounded,
-      color: Color(0xFFFFB347),
-      title: 'Budget alert',
-      subtitle: 'You\'ve used 70% of your Penang trip budget',
-      time: '3 days ago',
-    ),
-  ];
 
   @override
   Widget build(BuildContext context) {
@@ -56,13 +57,13 @@ class NotificationsScreen extends StatelessWidget {
       body: SafeArea(
         child: Column(
           children: [
-            DetailHeader(title: 'Notifications'),
+            DetailHeader(title: tr('auth_notifications')),
             Expanded(
               child: ListView(
                 padding: EdgeInsets.fromLTRB(24, 8, 24, 24),
                 children: [
-                  _GroupLabel('Today'),
-                  ..._today.map(
+                  _GroupLabel(tr('weather_day_today')),
+                  ..._todayNotifications().map(
                     (n) => _NotificationTile(
                       icon: n.icon,
                       color: n.color,
@@ -72,8 +73,8 @@ class NotificationsScreen extends StatelessWidget {
                     ),
                   ),
                   SizedBox(height: 12),
-                  _GroupLabel('Earlier'),
-                  ..._earlier.map(
+                  _GroupLabel(tr('auth_earlier_word')),
+                  ..._earlierNotifications().map(
                     (n) => _NotificationTile(
                       icon: n.icon,
                       color: n.color,

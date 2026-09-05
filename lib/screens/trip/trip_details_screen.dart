@@ -121,7 +121,9 @@ class _TripDetailsScreenState extends State<TripDetailsScreen> {
                       Spacer(),
                       IconButton(
                         onPressed: () => Navigator.of(context).push(
-                          MaterialPageRoute(builder: (_) => EditTripScreen()),
+                          MaterialPageRoute(
+                            builder: (_) => EditTripScreen(),
+                          ),
                         ),
                         icon: Icon(
                           Icons.edit_rounded,
@@ -221,95 +223,79 @@ class _StatsRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final stats = [
+      (label: 'Stops', value: '3', icon: Icons.flag_rounded),
+      (
+        label: 'Days',
+        value: '${trip.days == 0 ? 3 : trip.days}',
+        icon: Icons.calendar_today_rounded,
+      ),
+      (
+        label: 'Budget',
+        value: 'RM${trip.totalBudget.toStringAsFixed(0)}',
+        icon: Icons.account_balance_wallet_rounded,
+      ),
+      (label: 'Travelers', value: '2', icon: Icons.people_alt_rounded),
+    ];
+
+    Widget tile(IconData icon, String value, String label) {
+      return Container(
+        margin: EdgeInsets.only(right: 10),
+        padding: EdgeInsets.symmetric(vertical: 14),
+        decoration: BoxDecoration(
+          color: context.colors.card,
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: [
+            BoxShadow(
+              color: context.colors.ink.withValues(alpha: 0.05),
+              blurRadius: 10,
+              offset: Offset(0, 4),
+            ),
+          ],
+        ),
+        child: Column(
+          children: [
+            Icon(icon, color: AppColors.accent, size: 18),
+            SizedBox(height: 6),
+            Text(
+              value,
+              style: TextStyle(
+                color: context.colors.ink,
+                fontWeight: FontWeight.w800,
+                fontSize: 14,
+              ),
+            ),
+            SizedBox(height: 2),
+            Text(
+              label,
+              style: TextStyle(color: context.colors.muted, fontSize: 10.5),
+            ),
+          ],
+        ),
+      );
+    }
+
     return Row(
-      children: [
-        Expanded(
-          child: _StatTile(
-            icon: Icons.flag_rounded,
-            value: '3',
-            label: 'Stops',
-          ),
-        ),
-        Expanded(
-          child: _StatTile(
-            icon: Icons.calendar_today_rounded,
-            value: '${trip.days == 0 ? 3 : trip.days}',
-            label: 'Days',
-          ),
-        ),
-        Expanded(
-          // Live rather than the `trip` snapshot's own value: `trip` is
-          // whatever was passed in when this screen was opened, so
-          // editing the budget from inside Budget Planner and coming
-          // back here wouldn't otherwise be reflected until this whole
-          // screen was reopened with a freshly-fetched Trip.
-          child: StreamBuilder<double>(
-            stream: BudgetService().watchTotalBudget(trip.id),
-            builder: (context, snapshot) => _StatTile(
-              icon: Icons.account_balance_wallet_rounded,
-              value: 'RM${formatAmount(snapshot.data ?? trip.totalBudget)}',
-              label: 'Budget',
+      children: stats.map((s) {
+        if (s.label == 'Budget') {
+          return Expanded(
+            // Live rather than the `trip` snapshot's own value: `trip` is
+            // whatever was passed in when this screen was opened, so
+            // editing the budget from inside Budget Planner and coming
+            // back here wouldn't otherwise be reflected until this whole
+            // screen was reopened with a freshly-fetched Trip.
+            child: StreamBuilder<double>(
+              stream: BudgetService().watchTotalBudget(trip.id),
+              builder: (context, snapshot) => tile(
+                s.icon,
+                'RM${formatAmount(snapshot.data ?? trip.totalBudget)}',
+                s.label,
+              ),
             ),
-          ),
-        ),
-        Expanded(
-          child: _StatTile(
-            icon: Icons.people_alt_rounded,
-            value: '2',
-            label: 'Travelers',
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _StatTile extends StatelessWidget {
-  const _StatTile({
-    required this.icon,
-    required this.value,
-    required this.label,
-  });
-
-  final IconData icon;
-  final String value;
-  final String label;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      margin: EdgeInsets.only(right: 10),
-      padding: EdgeInsets.symmetric(vertical: 14),
-      decoration: BoxDecoration(
-        color: context.colors.card,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: context.colors.ink.withValues(alpha: 0.05),
-            blurRadius: 10,
-            offset: Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Column(
-        children: [
-          Icon(icon, color: AppColors.accent, size: 18),
-          SizedBox(height: 6),
-          Text(
-            value,
-            style: TextStyle(
-              color: context.colors.ink,
-              fontWeight: FontWeight.w800,
-              fontSize: 14,
-            ),
-          ),
-          SizedBox(height: 2),
-          Text(
-            label,
-            style: TextStyle(color: context.colors.muted, fontSize: 10.5),
-          ),
-        ],
-      ),
+          );
+        }
+        return Expanded(child: tile(s.icon, s.value, s.label));
+      }).toList(),
     );
   }
 }
@@ -358,9 +344,11 @@ class _ToolsGrid extends StatelessWidget {
         label: 'Transport',
         icon: Icons.directions_bus_filled_rounded,
         color: Color(0xFF8E63CE),
-        onTap: () => Navigator.of(
-          context,
-        ).push(MaterialPageRoute(builder: (_) => TransportRoutesScreen())),
+        onTap: () => Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (_) => TransportRoutesScreen(tripId: tripId),
+          ),
+        ),
       ),
       (
         label: 'Budget',
@@ -495,11 +483,13 @@ class _ActivityTile extends StatelessWidget {
                 Row(
                   children: [
                     Container(
-                      padding: EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                      padding: EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 3,
+                      ),
                       decoration: BoxDecoration(
-                        color: (completed ? done : AppColors.accent).withValues(
-                          alpha: 0.12,
-                        ),
+                        color: (completed ? done : AppColors.accent)
+                            .withValues(alpha: 0.12),
                         borderRadius: BorderRadius.circular(8),
                       ),
                       child: Text(

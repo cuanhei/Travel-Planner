@@ -1,48 +1,63 @@
 import 'package:flutter/material.dart';
 
+import '../../models/post_comment.dart';
+import '../../services/community_service.dart';
 import '../../theme/app_theme.dart';
+import '../../utils/time_ago.dart';
 import '../../widgets/detail_header.dart';
 
-/// UI-only comment thread on a community post.
-class CommentsScreen extends StatefulWidget {
-  const CommentsScreen({super.key, required this.place});
+/// Live comment thread on a community post, backed by `comments`.
+class CommentsScreen extends StatelessWidget {
+  const CommentsScreen({super.key, required this.postId, required this.place});
 
+  final String postId;
   final String place;
 
   @override
-  State<CommentsScreen> createState() => _CommentsScreenState();
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: context.colors.surface,
+      resizeToAvoidBottomInset: true,
+      body: SafeArea(
+        child: Column(
+          children: [
+            DetailHeader(title: 'Comments', subtitle: place),
+            Expanded(child: CommentsSection(postId: postId)),
+          ],
+        ),
+      ),
+    );
+  }
 }
 
-class _Comment {
-  _Comment(this.author, this.color, this.text, this.time);
-  final String author;
-  final Color color;
-  final String text;
-  final String time;
+/// The comment list + composer for one post — every comment shown here is
+/// scoped to [postId] only (`comments.post_id = postId`), so a
+/// post's comments never leak into another post's thread. Reused by
+/// [CommentsScreen] (pushed from the feed) and `PostDetailScreen` (the
+/// landing screen for a shared post link).
+class CommentsSection extends StatefulWidget {
+  const CommentsSection({super.key, required this.postId});
+
+  final String postId;
+
+  @override
+  State<CommentsSection> createState() => _CommentsSectionState();
 }
 
-class _CommentsScreenState extends State<CommentsScreen> {
+class _CommentsSectionState extends State<CommentsSection> {
+  final _service = CommunityService();
   final _controller = TextEditingController();
-  final _comments = [
-    _Comment(
-      'Arif Hakim',
-      Color(0xFF5C6BC0),
-      'Adding this to my list right now!',
-      '1h ago',
-    ),
-    _Comment(
-      'Sophia Tan',
-      Color(0xFF11998E),
-      'Went there last month, so worth it 🙌',
-      '3h ago',
-    ),
-    _Comment(
-      'Daniel Wong',
-      Color(0xFFFFB347),
-      'How early did you go to avoid crowds?',
-      '5h ago',
-    ),
-  ];
+
+  /// Subscribed once for the lifetime of this screen — calling
+  /// [CommunityService.watchComments] fresh on every `build()` would tear
+  /// down and re-create the Realtime subscription (and its initial fetch)
+  /// on every rebuild. [_post] dismisses the keyboard right after posting,
+  /// which changes layout and triggers exactly such a rebuild, so a comment
+  /// submitted right then could briefly show twice — once from the old
+  /// subscription's tail end, once from the new one's fresh fetch.
+  late final Stream<List<PostComment>> _commentsStream = _service.watchComments(
+    widget.postId,
+  );
 
   @override
   void dispose() {
@@ -53,49 +68,57 @@ class _CommentsScreenState extends State<CommentsScreen> {
   void _post() {
     final text = _controller.text.trim();
     if (text.isEmpty) return;
-    setState(() {
-      _comments.insert(0, _Comment('You', AppColors.accent, text, 'now'));
-      _controller.clear();
-    });
+    _service.addComment(widget.postId, text);
+    _controller.clear();
     FocusScope.of(context).unfocus();
   }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: context.colors.surface,
-      resizeToAvoidBottomInset: true,
-      body: SafeArea(
-        child: Column(
-          children: [
-            DetailHeader(title: 'Comments', subtitle: widget.place),
-            Expanded(
-              child: ListView.builder(
-                padding: EdgeInsets.fromLTRB(24, 8, 24, 8),
-                itemCount: _comments.length,
+    return Column(
+      children: [
+        Expanded(
+          child: StreamBuilder<List<PostComment>>(
+            stream: _commentsStream,
+            builder: (context, snapshot) {
+              final comments = snapshot.data ?? const <PostComment>[];
+              if (!snapshot.hasData) {
+                return const Center(child: CircularProgressIndicator());
+              }
+              if (comments.isEmpty) {
+                return Center(
+                  child: Text(
+                    'No comments yet — say something!',
+                    style: TextStyle(color: context.colors.muted),
+                  ),
+                );
+              }
+              return ListView.builder(
+                padding: const EdgeInsets.fromLTRB(24, 8, 24, 8),
+                itemCount: comments.length,
                 itemBuilder: (context, index) {
-                  final c = _comments[index];
+                  final c = comments[index];
                   return Padding(
-                    padding: EdgeInsets.only(bottom: 16),
+                    padding: const EdgeInsets.only(bottom: 16),
                     child: Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         CircleAvatar(
                           radius: 16,
-                          backgroundColor: c.color,
+                          backgroundColor: Color(c.authorColor),
                           child: Text(
-                            c.author[0],
-                            style: TextStyle(
+                            c.authorName[0].toUpperCase(),
+                            style: const TextStyle(
                               color: Colors.white,
                               fontWeight: FontWeight.w800,
                               fontSize: 12,
                             ),
                           ),
                         ),
-                        SizedBox(width: 10),
+                        const SizedBox(width: 10),
                         Expanded(
                           child: Container(
-                            padding: EdgeInsets.all(12),
+                            padding: const EdgeInsets.all(12),
                             decoration: BoxDecoration(
                               color: context.colors.card,
                               borderRadius: BorderRadius.circular(14),
@@ -106,16 +129,16 @@ class _CommentsScreenState extends State<CommentsScreen> {
                                 Row(
                                   children: [
                                     Text(
-                                      c.author,
+                                      c.authorName,
                                       style: TextStyle(
                                         color: context.colors.ink,
                                         fontWeight: FontWeight.w700,
                                         fontSize: 12.5,
                                       ),
                                     ),
-                                    SizedBox(width: 8),
+                                    const SizedBox(width: 8),
                                     Text(
-                                      c.time,
+                                      timeAgo(c.createdAt),
                                       style: TextStyle(
                                         color: context.colors.muted,
                                         fontSize: 10.5,
@@ -123,9 +146,9 @@ class _CommentsScreenState extends State<CommentsScreen> {
                                     ),
                                   ],
                                 ),
-                                SizedBox(height: 4),
+                                const SizedBox(height: 4),
                                 Text(
-                                  c.text,
+                                  c.body,
                                   style: TextStyle(
                                     color: context.colors.ink,
                                     fontSize: 12.5,
@@ -140,56 +163,56 @@ class _CommentsScreenState extends State<CommentsScreen> {
                     ),
                   );
                 },
-              ),
-            ),
-            Padding(
-              padding: EdgeInsets.fromLTRB(20, 8, 20, 16),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: TextField(
-                      controller: _controller,
-                      style: TextStyle(color: context.colors.ink, fontSize: 13),
-                      decoration: InputDecoration(
-                        hintText: 'Add a comment…',
-                        hintStyle: TextStyle(color: context.colors.muted),
-                        filled: true,
-                        fillColor: context.colors.card,
-                        contentPadding: EdgeInsets.symmetric(
-                          horizontal: 16,
-                          vertical: 12,
-                        ),
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(24),
-                          borderSide: BorderSide.none,
-                        ),
-                      ),
-                      onSubmitted: (_) => _post(),
-                    ),
-                  ),
-                  SizedBox(width: 8),
-                  Material(
-                    color: context.colors.ink,
-                    shape: CircleBorder(),
-                    child: InkWell(
-                      customBorder: CircleBorder(),
-                      onTap: _post,
-                      child: Padding(
-                        padding: EdgeInsets.all(12),
-                        child: Icon(
-                          Icons.send_rounded,
-                          color: Colors.white,
-                          size: 18,
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
+              );
+            },
+          ),
         ),
-      ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(20, 8, 20, 16),
+          child: Row(
+            children: [
+              Expanded(
+                child: TextField(
+                  controller: _controller,
+                  style: TextStyle(color: context.colors.ink, fontSize: 13),
+                  decoration: InputDecoration(
+                    hintText: 'Add a comment…',
+                    hintStyle: TextStyle(color: context.colors.muted),
+                    filled: true,
+                    fillColor: context.colors.card,
+                    contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 12,
+                    ),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(24),
+                      borderSide: BorderSide.none,
+                    ),
+                  ),
+                  onSubmitted: (_) => _post(),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Material(
+                color: context.colors.ink,
+                shape: const CircleBorder(),
+                child: InkWell(
+                  customBorder: const CircleBorder(),
+                  onTap: _post,
+                  child: const Padding(
+                    padding: EdgeInsets.all(12),
+                    child: Icon(
+                      Icons.send_rounded,
+                      color: Colors.white,
+                      size: 18,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
     );
   }
 }

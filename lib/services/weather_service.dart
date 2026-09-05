@@ -44,12 +44,29 @@ class ResolvedWeather {
   final String areaLabel;
 }
 
+/// The full rolling forecast window (today onward) for a resolved area —
+/// used by the Weather Forecast screen's multi-day outlook, unlike
+/// [ResolvedWeather] which only carries today's entry for the Home
+/// dashboard's card.
+class ResolvedWeatherWindow {
+  const ResolvedWeatherWindow({
+    required this.forecasts,
+    required this.areaLabel,
+  });
+
+  /// Sorted chronologically, starting from today (or the nearest available
+  /// day if today's row hasn't been published yet).
+  final List<WeatherForecast> forecasts;
+  final String areaLabel;
+}
+
 /// Forecast data for Malaysia via the government's open API
 /// (`api.data.gov.my`, sourced from MET Malaysia) — no API key needed.
-/// Town-level ("Tn") is the finest granularity the API offers; there's
-/// no coordinate lookup built into it, so matching a GPS position to a
-/// town goes through Photon reverse-geocoding (city/district/state name)
-/// plus a fuzzy match against the cached town list.
+/// There's no coordinate lookup built into it, so matching a GPS position
+/// goes through Photon reverse-geocoding (city/district/state name) plus a
+/// fuzzy match against MET Malaysia's own location lists — town ("Tn") for
+/// the city name, falling back to district ("Ds") and then state ("St")
+/// when a spot is too small to have its own town-level forecast.
 class WeatherService {
   WeatherService({http.Client? client, PhotonService? photonService})
     : _client = client ?? http.Client(),
@@ -58,10 +75,14 @@ class WeatherService {
   final http.Client _client;
   final PhotonService _photon;
 
-  /// Town list barely ever changes, so it's cached for the app's
+  /// Location lists barely ever change, so each is cached for the app's
   /// lifetime once fetched — shared across every [WeatherService]
-  /// instance, mirroring `TripService`'s demo-trip-id cache.
-  static List<({String locationId, String name})>? _cachedTowns;
+  /// instance, mirroring `TripService`'s demo-trip-id cache. Keyed by
+  /// MET Malaysia's own prefix: "Tn" (town), "Ds" (district), "St" (state)
+  /// — three different granularities, not one list to fuzzy-match
+  /// everything against.
+  static final Map<String, List<({String locationId, String name})>>
+  _cachedLocations = {};
 
   /// Resolves [point] to the nearest MET Malaysia town and returns its
   /// current forecast.
@@ -72,6 +93,32 @@ class WeatherService {
   /// other failure — a network error, no reverse-geocode result at all,
   /// or no confident town match.
   Future<ResolvedWeather> getForecastForPosition(LatLng point) async {
+    final match = await _resolveArea(point);
+    final forecast = await getForecastForLocationId(match.locationId);
+    if (forecast == null) {
+      throw WeatherServiceException('No forecast available for ${match.name}.');
+    }
+    return ResolvedWeather(forecast: forecast, areaLabel: match.name);
+  }
+
+  /// Resolves [point] the same way as [getForecastForPosition], but
+  /// returns the whole rolling forecast window instead of just today —
+  /// for the Weather Forecast screen's multi-day outlook.
+  Future<ResolvedWeatherWindow> getForecastsForPosition(LatLng point) async {
+    final match = await _resolveArea(point);
+    final forecasts = await getForecastsForLocationId(match.locationId);
+    if (forecasts.isEmpty) {
+      throw WeatherServiceException('No forecast available for ${match.name}.');
+    }
+    return ResolvedWeatherWindow(forecasts: forecasts, areaLabel: match.name);
+  }
+
+  /// Reverse-geocodes [point] and matches it to a MET Malaysia location —
+  /// town first (finest, so the forecast is as local as possible), then
+  /// district, then state — rather than fuzzy-matching all three against
+  /// the town list alone, which can never succeed for a district/state
+  /// name (they simply aren't in that list).
+  Future<({String locationId, String name})> _resolveArea(LatLng point) async {
     final ({String? city, String? district, String? state, String? countryCode})?
     area;
     try {
@@ -88,24 +135,22 @@ class WeatherService {
       throw const LocationNotInMalaysiaException();
     }
 
-    final towns = await _towns();
     ({String locationId, String name})? match;
-    for (final candidate in [area.city, area.district, area.state]) {
-      if (candidate == null) continue;
-      match = _bestMatch(candidate, towns);
-      if (match != null) break;
+    if (area.city != null) {
+      match = _bestMatch(area.city!, await _locations('Tn'));
+    }
+    if (match == null && area.district != null) {
+      match = _bestMatch(area.district!, await _locations('Ds'));
+    }
+    if (match == null && area.state != null) {
+      match = _bestMatch(area.state!, await _locations('St'));
     }
     if (match == null) {
       throw WeatherServiceException(
         'Could not match your location to a forecast area.',
       );
     }
-
-    final forecast = await getForecastForLocationId(match.locationId);
-    if (forecast == null) {
-      throw WeatherServiceException('No forecast available for ${match.name}.');
-    }
-    return ResolvedWeather(forecast: forecast, areaLabel: match.name);
+    return match;
   }
 
   /// Today's forecast for a specific `location_id` (e.g. `"Tn013"`), or
@@ -117,6 +162,16 @@ class WeatherService {
   /// so this fetches the whole window and explicitly picks the entry
   /// whose `date` matches today, rather than assuming a fixed position.
   Future<WeatherForecast?> getForecastForLocationId(String locationId) async {
+    final forecasts = await getForecastsForLocationId(locationId);
+    return forecasts.isEmpty ? null : _pickTodayOrNearest(forecasts);
+  }
+
+  /// The whole rolling forecast window for a specific `location_id` (e.g.
+  /// `"Tn013"`), sorted chronologically from oldest to newest — an empty
+  /// list if the API has nothing for it.
+  Future<List<WeatherForecast>> getForecastsForLocationId(
+    String locationId,
+  ) async {
     final uri = Uri.parse('$_baseUrl/weather/forecast').replace(
       queryParameters: {
         'contains': '$locationId@location__location_id',
@@ -130,19 +185,17 @@ class WeatherService {
       );
     }
     final decoded = jsonDecode(response.body) as List;
-    if (decoded.isEmpty) return null;
     final forecasts = [
       for (final row in decoded)
         WeatherForecast.fromJson(row as Map<String, dynamic>),
-    ];
-    return _pickTodayOrNearest(forecasts);
+    ]..sort((a, b) => a.date.compareTo(b.date));
+    return forecasts;
   }
 
   /// The entry dated today, or — if the API hasn't published today's row
   /// yet (e.g. a brief gap right after midnight) — whichever entry's
-  /// date is closest to today.
-  WeatherForecast? _pickTodayOrNearest(List<WeatherForecast> forecasts) {
-    if (forecasts.isEmpty) return null;
+  /// date is closest to today. [forecasts] need not be pre-sorted.
+  WeatherForecast _pickTodayOrNearest(List<WeatherForecast> forecasts) {
     final today = DateTime.now();
     bool isToday(DateTime d) =>
         d.year == today.year && d.month == today.month && d.day == today.day;
@@ -158,12 +211,19 @@ class WeatherService {
     return sorted.first;
   }
 
-  Future<List<({String locationId, String name})>> _towns() async {
-    final cached = _cachedTowns;
+  /// Every location MET Malaysia has at granularity [prefix] — `"Tn"`
+  /// (town), `"Ds"` (district), or `"St"` (state).
+  Future<List<({String locationId, String name})>> _locations(
+    String prefix,
+  ) async {
+    final cached = _cachedLocations[prefix];
     if (cached != null) return cached;
 
     final uri = Uri.parse('$_baseUrl/weather/forecast').replace(
-      queryParameters: {'contains': 'Tn@location__location_id', 'limit': '1000'},
+      queryParameters: {
+        'contains': '$prefix@location__location_id',
+        'limit': '1000',
+      },
     );
     final response = await _client.get(uri);
     if (response.statusCode != 200) {
@@ -173,16 +233,16 @@ class WeatherService {
     }
     final decoded = jsonDecode(response.body) as List;
     final seen = <String>{};
-    final towns = <({String locationId, String name})>[];
+    final locations = <({String locationId, String name})>[];
     for (final row in decoded) {
       final location = (row as Map<String, dynamic>)['location'] as Map<String, dynamic>?;
       final id = location?['location_id'] as String?;
       final name = location?['location_name'] as String?;
       if (id == null || name == null || !seen.add(id)) continue;
-      towns.add((locationId: id, name: name));
+      locations.add((locationId: id, name: name));
     }
-    _cachedTowns = towns;
-    return towns;
+    _cachedLocations[prefix] = locations;
+    return locations;
   }
 
   String _normalize(String s) =>

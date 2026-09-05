@@ -44,5 +44,19 @@
             <action android:name="android.intent.action.PROCESS_TEXT"/>
             <data android:mimeType="text/plain"/>
         </intent>
+        <!-- Lets url_launcher's canLaunchUrl/launchUrl resolve tel: links
+             (Emergency Contacts' "Call" button) on Android 11+, where
+             package-visibility restrictions otherwise hide the dialer
+             app from this query. -->
+        <intent>
+            <action android:name="android.intent.action.VIEW"/>
+            <data android:scheme="tel"/>
+        </intent>
+        <!-- Lets flutter_tts find the device's text-to-speech engine on
+             Android 11+ (Translator's "read aloud" button on each Common
+             Phrase). -->
+        <intent>
+            <action android:name="android.intent.action.TTS_SERVICE"/>
+        </intent>
     </queries>
 </manifest>

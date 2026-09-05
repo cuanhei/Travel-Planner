@@ -280,12 +280,19 @@ class _ExpenseTrackerScreenState extends State<ExpenseTrackerScreen> {
   String? _filterUserId;
   DateTimeRange? _filterDateRange;
 
+  /// null = both, true = group-only, false = personal-only — a quick
+  /// toggle separate from [_showFilterSheet]'s advanced filters, since
+  /// Group vs Personal is the primary split of this list rather than
+  /// an incidental narrowing.
+  bool? _filterShared;
+
   bool get _hasActiveFilters =>
       _filterCategory != null ||
       _filterUserId != null ||
       _filterDateRange != null;
 
   bool _matchesFilters(Expense e) {
+    if (_filterShared != null && e.isShared != _filterShared) return false;
     if (_filterCategory != null && e.category != _filterCategory) {
       return false;
     }
@@ -1256,9 +1263,26 @@ class _ExpenseTrackerScreenState extends State<ExpenseTrackerScreen> {
                     final personalTotal = expenses
                         .where((e) => !e.isShared)
                         .fold<double>(0, (sum, e) => sum + e.amount);
+                    // Everyone's shared spending only — RLS already
+                    // scopes `expenses` to the whole group's shared rows
+                    // plus this viewer's own personal ones, so
+                    // `total - personalTotal` is exactly the group's
+                    // total with no other member's personal spending
+                    // mixed in.
+                    final groupTotal = total - personalTotal;
+
+                    // Insights below (avg per stop, top category) are
+                    // about the trip's shared spending pattern, not this
+                    // viewer's own private expenses — same is_shared
+                    // filter as Budget Planner/Pie Chart/Category
+                    // breakdown, so personal spending never surfaces
+                    // outside its own Personal total/badge.
+                    final sharedExpenses = expenses
+                        .where((e) => e.isShared)
+                        .toList();
 
                     final byStop = <String, List<Expense>>{};
-                    for (final e in expenses) {
+                    for (final e in sharedExpenses) {
                       if (e.stopPlace == null) continue;
                       byStop.putIfAbsent(e.stopPlace!, () => []).add(e);
                     }
@@ -1275,7 +1299,7 @@ class _ExpenseTrackerScreenState extends State<ExpenseTrackerScreen> {
                               byStop.length;
 
                     final byCategory = <String, double>{};
-                    for (final e in expenses) {
+                    for (final e in sharedExpenses) {
                       byCategory.update(
                         e.category,
                         (v) => v + e.amount,
@@ -1324,10 +1348,8 @@ class _ExpenseTrackerScreenState extends State<ExpenseTrackerScreen> {
                       children: [
                         DetailHeader(
                           title: 'Expense Tracker',
-                          subtitle: personalTotal > 0
-                              ? 'RM ${total.toStringAsFixed(2)} logged · '
-                                    'RM ${personalTotal.toStringAsFixed(2)} personal'
-                              : 'RM ${total.toStringAsFixed(2)} logged',
+                          subtitle:
+                              '${expenses.length} expense${expenses.length == 1 ? '' : 's'} logged',
                           trailing: IconButton(
                             onPressed: () => _showExpenseSheet(
                               stopSuggestions: stopSuggestions,
@@ -1338,6 +1360,41 @@ class _ExpenseTrackerScreenState extends State<ExpenseTrackerScreen> {
                               color: context.colors.ink,
                               size: 26,
                             ),
+                          ),
+                        ),
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(24, 10, 24, 0),
+                          child: Row(
+                            children: [
+                              Expanded(
+                                child: _SharedTotalCard(
+                                  icon: Icons.groups_rounded,
+                                  label: 'Group',
+                                  value: 'RM ${formatAmount(groupTotal)}',
+                                  isSelected: _filterShared == true,
+                                  onTap: () => setState(
+                                    () => _filterShared = _filterShared == true
+                                        ? null
+                                        : true,
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: _SharedTotalCard(
+                                  icon: Icons.lock_rounded,
+                                  label: 'Personal (only you)',
+                                  value: 'RM ${formatAmount(personalTotal)}',
+                                  isSelected: _filterShared == false,
+                                  onTap: () => setState(
+                                    () =>
+                                        _filterShared = _filterShared == false
+                                        ? null
+                                        : false,
+                                  ),
+                                ),
+                              ),
+                            ],
                           ),
                         ),
                         Padding(
@@ -1527,8 +1584,15 @@ class _ExpenseTrackerScreenState extends State<ExpenseTrackerScreen> {
                                 ),
                               ...filteredExpenses.map((e) {
                                 final visuals = categoryVisuals(e.category);
+                                // The organizer's edit access doesn't
+                                // reach another member's personal
+                                // expenses — matches expenses_update/
+                                // delete_owner_or_organizer's RLS, which
+                                // would otherwise silently reject the
+                                // edit anyway.
                                 final canEdit =
-                                    e.userId == myUid || isOrganizer;
+                                    e.userId == myUid ||
+                                    (isOrganizer && e.isShared);
                                 return Material(
                                   color: context.colors.card,
                                   borderRadius: BorderRadius.circular(16),
@@ -1998,6 +2062,90 @@ class _InsightStat extends StatelessWidget {
           style: TextStyle(color: context.colors.muted, fontSize: 10.5),
         ),
       ],
+    );
+  }
+}
+
+/// One half of the Expense Tracker's Group/Personal totals row.
+/// Doubles as a quick filter toggle: tapping narrows the list below to
+/// just that side (tapping the already-selected side clears it back to
+/// showing both) — [isSelected] highlights whichever is active.
+class _SharedTotalCard extends StatelessWidget {
+  const _SharedTotalCard({
+    required this.icon,
+    required this.label,
+    required this.value,
+    required this.isSelected,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String label;
+  final String value;
+  final bool isSelected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: isSelected
+          ? AppColors.accent.withValues(alpha: 0.14)
+          : context.colors.card,
+      borderRadius: BorderRadius.circular(16),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(16),
+        onTap: onTap,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+              color: isSelected ? AppColors.accent : Colors.transparent,
+              width: 1.2,
+            ),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Icon(
+                    icon,
+                    size: 14,
+                    color: isSelected ? AppColors.accent : context.colors.muted,
+                  ),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: Text(
+                      label,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: isSelected
+                            ? AppColors.accent
+                            : context.colors.muted,
+                        fontWeight: FontWeight.w700,
+                        fontSize: 11,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 6),
+              Text(
+                value,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  color: context.colors.ink,
+                  fontWeight: FontWeight.w800,
+                  fontSize: 15,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }

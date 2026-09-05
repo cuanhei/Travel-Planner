@@ -1,0 +1,150 @@
+/// National mobile-number digit count (min, max) after the dial code and
+/// any trunk `0`, keyed by [Country.isoCode] — e.g. Malaysia's `12-345
+/// 6789` is 9 digits, `11-2345 6789` is 10. Used to validate the phone
+/// fields on Edit Profile and Emergency Contact. Countries not listed fall
+/// back to a generic (7, 12) range in
+/// [Country.minPhoneDigits]/[Country.maxPhoneDigits].
+const Map<String, (int, int)> _phoneDigitRanges = {
+  'MY': (9, 10), 'SG': (8, 8), 'ID': (9, 12), 'TH': (9, 9), 'VN': (9, 9),
+  'PH': (10, 10), 'BN': (7, 7), 'KH': (8, 9), 'LA': (8, 9), 'MM': (7, 9),
+  'CN': (11, 11), 'JP': (10, 10), 'KR': (9, 10), 'KP': (7, 10), 'TW': (9, 9),
+  'HK': (8, 8), 'MO': (8, 8), 'MN': (8, 8), 'IN': (10, 10), 'PK': (10, 10),
+  'BD': (10, 10), 'LK': (9, 9), 'NP': (10, 10), 'BT': (8, 8), 'MV': (7, 7),
+  'AF': (9, 9), 'SA': (9, 9), 'AE': (9, 9), 'QA': (8, 8), 'KW': (8, 8),
+  'BH': (8, 8), 'OM': (8, 8), 'JO': (9, 9), 'LB': (7, 8), 'IL': (9, 9),
+  'PS': (9, 9), 'IQ': (10, 10), 'IR': (10, 10), 'TR': (10, 10), 'YE': (9, 9),
+  'GB': (10, 10), 'IE': (9, 9), 'FR': (9, 9), 'DE': (10, 11), 'NL': (9, 9),
+  'BE': (9, 9), 'CH': (9, 9), 'AT': (10, 11), 'ES': (9, 9), 'PT': (9, 9),
+  'IT': (9, 10), 'GR': (10, 10), 'PL': (9, 9), 'CZ': (9, 9), 'SK': (9, 9),
+  'HU': (9, 9), 'RO': (9, 9), 'BG': (9, 9), 'UA': (9, 9), 'RU': (10, 10),
+  'BY': (9, 9), 'SE': (9, 9), 'NO': (8, 8), 'DK': (8, 8), 'FI': (9, 10),
+  'IS': (7, 7), 'EE': (7, 8), 'LV': (8, 8), 'LT': (8, 8), 'HR': (9, 9),
+  'RS': (8, 9), 'SI': (8, 8), 'EG': (10, 10), 'ZA': (9, 9), 'NG': (10, 10),
+  'KE': (9, 9), 'MA': (9, 9), 'GH': (9, 9), 'ET': (9, 9), 'TZ': (9, 9),
+  'US': (10, 10), 'CA': (10, 10), 'MX': (10, 10), 'BR': (10, 11),
+  'AR': (10, 11), 'CL': (9, 9), 'CO': (10, 10), 'PE': (9, 9), 'VE': (10, 10),
+  'AU': (9, 9), 'NZ': (8, 9), 'FJ': (7, 7), 'PG': (8, 8),
+};
+
+/// Countries offered by the phone-number country picker on Edit Profile.
+/// [isoCode] is ISO 3166-1 alpha-2, used to derive the flag emoji.
+class Country {
+  const Country({
+    required this.name,
+    required this.isoCode,
+    required this.dialCode,
+  });
+
+  final String name;
+  final String isoCode;
+  final String dialCode;
+
+  /// Unicode regional-indicator flag built from [isoCode] — no image
+  /// assets needed, renders as the real flag on modern browsers/OSes.
+  String get flag => isoCode.toUpperCase().codeUnits
+      .map((c) => String.fromCharCode(c + 127397))
+      .join();
+
+  (int, int) get _phoneDigitRange => _phoneDigitRanges[isoCode] ?? (7, 12);
+  int get minPhoneDigits => _phoneDigitRange.$1;
+  int get maxPhoneDigits => _phoneDigitRange.$2;
+
+  @override
+  String toString() => '$flag $name ($dialCode)';
+}
+
+const List<Country> countries = [
+  Country(name: 'Malaysia', isoCode: 'MY', dialCode: '+60'),
+  Country(name: 'Singapore', isoCode: 'SG', dialCode: '+65'),
+  Country(name: 'Indonesia', isoCode: 'ID', dialCode: '+62'),
+  Country(name: 'Thailand', isoCode: 'TH', dialCode: '+66'),
+  Country(name: 'Vietnam', isoCode: 'VN', dialCode: '+84'),
+  Country(name: 'Philippines', isoCode: 'PH', dialCode: '+63'),
+  Country(name: 'Brunei', isoCode: 'BN', dialCode: '+673'),
+  Country(name: 'Cambodia', isoCode: 'KH', dialCode: '+855'),
+  Country(name: 'Laos', isoCode: 'LA', dialCode: '+856'),
+  Country(name: 'Myanmar', isoCode: 'MM', dialCode: '+95'),
+  Country(name: 'China', isoCode: 'CN', dialCode: '+86'),
+  Country(name: 'Japan', isoCode: 'JP', dialCode: '+81'),
+  Country(name: 'South Korea', isoCode: 'KR', dialCode: '+82'),
+  Country(name: 'North Korea', isoCode: 'KP', dialCode: '+850'),
+  Country(name: 'Taiwan', isoCode: 'TW', dialCode: '+886'),
+  Country(name: 'Hong Kong', isoCode: 'HK', dialCode: '+852'),
+  Country(name: 'Macau', isoCode: 'MO', dialCode: '+853'),
+  Country(name: 'Mongolia', isoCode: 'MN', dialCode: '+976'),
+  Country(name: 'India', isoCode: 'IN', dialCode: '+91'),
+  Country(name: 'Pakistan', isoCode: 'PK', dialCode: '+92'),
+  Country(name: 'Bangladesh', isoCode: 'BD', dialCode: '+880'),
+  Country(name: 'Sri Lanka', isoCode: 'LK', dialCode: '+94'),
+  Country(name: 'Nepal', isoCode: 'NP', dialCode: '+977'),
+  Country(name: 'Bhutan', isoCode: 'BT', dialCode: '+975'),
+  Country(name: 'Maldives', isoCode: 'MV', dialCode: '+960'),
+  Country(name: 'Afghanistan', isoCode: 'AF', dialCode: '+93'),
+  Country(name: 'Saudi Arabia', isoCode: 'SA', dialCode: '+966'),
+  Country(name: 'United Arab Emirates', isoCode: 'AE', dialCode: '+971'),
+  Country(name: 'Qatar', isoCode: 'QA', dialCode: '+974'),
+  Country(name: 'Kuwait', isoCode: 'KW', dialCode: '+965'),
+  Country(name: 'Bahrain', isoCode: 'BH', dialCode: '+973'),
+  Country(name: 'Oman', isoCode: 'OM', dialCode: '+968'),
+  Country(name: 'Jordan', isoCode: 'JO', dialCode: '+962'),
+  Country(name: 'Lebanon', isoCode: 'LB', dialCode: '+961'),
+  Country(name: 'Israel', isoCode: 'IL', dialCode: '+972'),
+  Country(name: 'Palestine', isoCode: 'PS', dialCode: '+970'),
+  Country(name: 'Iraq', isoCode: 'IQ', dialCode: '+964'),
+  Country(name: 'Iran', isoCode: 'IR', dialCode: '+98'),
+  Country(name: 'Turkey', isoCode: 'TR', dialCode: '+90'),
+  Country(name: 'Yemen', isoCode: 'YE', dialCode: '+967'),
+  Country(name: 'United Kingdom', isoCode: 'GB', dialCode: '+44'),
+  Country(name: 'Ireland', isoCode: 'IE', dialCode: '+353'),
+  Country(name: 'France', isoCode: 'FR', dialCode: '+33'),
+  Country(name: 'Germany', isoCode: 'DE', dialCode: '+49'),
+  Country(name: 'Netherlands', isoCode: 'NL', dialCode: '+31'),
+  Country(name: 'Belgium', isoCode: 'BE', dialCode: '+32'),
+  Country(name: 'Switzerland', isoCode: 'CH', dialCode: '+41'),
+  Country(name: 'Austria', isoCode: 'AT', dialCode: '+43'),
+  Country(name: 'Spain', isoCode: 'ES', dialCode: '+34'),
+  Country(name: 'Portugal', isoCode: 'PT', dialCode: '+351'),
+  Country(name: 'Italy', isoCode: 'IT', dialCode: '+39'),
+  Country(name: 'Greece', isoCode: 'GR', dialCode: '+30'),
+  Country(name: 'Poland', isoCode: 'PL', dialCode: '+48'),
+  Country(name: 'Czech Republic', isoCode: 'CZ', dialCode: '+420'),
+  Country(name: 'Slovakia', isoCode: 'SK', dialCode: '+421'),
+  Country(name: 'Hungary', isoCode: 'HU', dialCode: '+36'),
+  Country(name: 'Romania', isoCode: 'RO', dialCode: '+40'),
+  Country(name: 'Bulgaria', isoCode: 'BG', dialCode: '+359'),
+  Country(name: 'Ukraine', isoCode: 'UA', dialCode: '+380'),
+  Country(name: 'Russia', isoCode: 'RU', dialCode: '+7'),
+  Country(name: 'Belarus', isoCode: 'BY', dialCode: '+375'),
+  Country(name: 'Sweden', isoCode: 'SE', dialCode: '+46'),
+  Country(name: 'Norway', isoCode: 'NO', dialCode: '+47'),
+  Country(name: 'Denmark', isoCode: 'DK', dialCode: '+45'),
+  Country(name: 'Finland', isoCode: 'FI', dialCode: '+358'),
+  Country(name: 'Iceland', isoCode: 'IS', dialCode: '+354'),
+  Country(name: 'Estonia', isoCode: 'EE', dialCode: '+372'),
+  Country(name: 'Latvia', isoCode: 'LV', dialCode: '+371'),
+  Country(name: 'Lithuania', isoCode: 'LT', dialCode: '+370'),
+  Country(name: 'Croatia', isoCode: 'HR', dialCode: '+385'),
+  Country(name: 'Serbia', isoCode: 'RS', dialCode: '+381'),
+  Country(name: 'Slovenia', isoCode: 'SI', dialCode: '+386'),
+  Country(name: 'Egypt', isoCode: 'EG', dialCode: '+20'),
+  Country(name: 'South Africa', isoCode: 'ZA', dialCode: '+27'),
+  Country(name: 'Nigeria', isoCode: 'NG', dialCode: '+234'),
+  Country(name: 'Kenya', isoCode: 'KE', dialCode: '+254'),
+  Country(name: 'Morocco', isoCode: 'MA', dialCode: '+212'),
+  Country(name: 'Ghana', isoCode: 'GH', dialCode: '+233'),
+  Country(name: 'Ethiopia', isoCode: 'ET', dialCode: '+251'),
+  Country(name: 'Tanzania', isoCode: 'TZ', dialCode: '+255'),
+  Country(name: 'United States', isoCode: 'US', dialCode: '+1'),
+  Country(name: 'Canada', isoCode: 'CA', dialCode: '+1'),
+  Country(name: 'Mexico', isoCode: 'MX', dialCode: '+52'),
+  Country(name: 'Brazil', isoCode: 'BR', dialCode: '+55'),
+  Country(name: 'Argentina', isoCode: 'AR', dialCode: '+54'),
+  Country(name: 'Chile', isoCode: 'CL', dialCode: '+56'),
+  Country(name: 'Colombia', isoCode: 'CO', dialCode: '+57'),
+  Country(name: 'Peru', isoCode: 'PE', dialCode: '+51'),
+  Country(name: 'Venezuela', isoCode: 'VE', dialCode: '+58'),
+  Country(name: 'Australia', isoCode: 'AU', dialCode: '+61'),
+  Country(name: 'New Zealand', isoCode: 'NZ', dialCode: '+64'),
+  Country(name: 'Fiji', isoCode: 'FJ', dialCode: '+679'),
+  Country(name: 'Papua New Guinea', isoCode: 'PG', dialCode: '+675'),
+];

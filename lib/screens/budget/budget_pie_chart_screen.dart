@@ -66,7 +66,11 @@ class _BudgetPieChartScreenState extends State<BudgetPieChartScreen> {
         child: StreamBuilder<List<Expense>>(
           stream: _budgetService.watchExpenses(widget.tripId),
           builder: (context, snapshot) {
-            final expenses = snapshot.data ?? const <Expense>[];
+            // Personal expenses are private spending, excluded from the
+            // trip-wide category breakdown — see budget_planner_screen.
+            final expenses = (snapshot.data ?? const <Expense>[])
+                .where((e) => e.isShared)
+                .toList();
             final byCategory = <String, double>{};
             for (final e in expenses) {
               byCategory.update(

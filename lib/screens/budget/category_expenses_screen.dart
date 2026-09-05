@@ -56,8 +56,11 @@ class CategoryExpensesScreen extends StatelessWidget {
         child: StreamBuilder<List<Expense>>(
           stream: budgetService.watchExpenses(tripId),
           builder: (context, snapshot) {
+            // Personal expenses are private spending, excluded from the
+            // category's planned/spent budget tracking here — see
+            // budget_planner_screen.
             final expenses = (snapshot.data ?? const <Expense>[])
-                .where((e) => e.category == label)
+                .where((e) => e.category == label && e.isShared)
                 .toList();
             final spent = expenses.fold<double>(0, (s, e) => s + e.amount);
             final remaining = planned - spent;

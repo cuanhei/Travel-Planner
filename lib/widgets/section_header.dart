@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../services/locale_service.dart';
 import '../theme/app_theme.dart';
 
 /// A section title with an optional "See all" action, used to introduce
@@ -8,12 +9,12 @@ class SectionHeader extends StatelessWidget {
   const SectionHeader({
     super.key,
     required this.title,
-    this.actionLabel = 'See all',
+    this.actionLabel,
     this.onAction,
   });
 
   final String title;
-  final String actionLabel;
+  final String? actionLabel;
   final VoidCallback? onAction;
 
   @override
@@ -34,7 +35,7 @@ class SectionHeader extends StatelessWidget {
           GestureDetector(
             onTap: onAction,
             child: Text(
-              actionLabel,
+              actionLabel ?? tr('explore_see_all'),
               style: TextStyle(
                 color: AppColors.accent,
                 fontSize: 13,

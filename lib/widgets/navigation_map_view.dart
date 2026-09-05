@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 
+import '../utils/geo.dart';
 import 'current_location_marker.dart';
 
 const _osmTileUrl = 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
@@ -42,7 +43,10 @@ class _NavigationMapViewState extends State<NavigationMapView> {
   void didUpdateWidget(covariant NavigationMapView oldWidget) {
     super.didUpdateWidget(oldWidget);
     final user = widget.userPosition;
-    if (_following && user != null && user != _lastFollowedPosition) {
+    if (_following &&
+        user != null &&
+        isValidLatLng(user) &&
+        user != _lastFollowedPosition) {
       _lastFollowedPosition = user;
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted) return;
@@ -54,7 +58,7 @@ class _NavigationMapViewState extends State<NavigationMapView> {
   void _recenter() {
     final user = widget.userPosition;
     setState(() => _following = true);
-    if (user != null) {
+    if (user != null && isValidLatLng(user)) {
       _lastFollowedPosition = user;
       _mapController.move(user, _followZoom);
     }
@@ -62,8 +66,13 @@ class _NavigationMapViewState extends State<NavigationMapView> {
 
   @override
   Widget build(BuildContext context) {
-    final user = widget.userPosition;
-    final target = widget.targetPosition;
+    final user = widget.userPosition != null && isValidLatLng(widget.userPosition!)
+        ? widget.userPosition
+        : null;
+    final target = widget.targetPosition != null && isValidLatLng(widget.targetPosition!)
+        ? widget.targetPosition
+        : null;
+    final polylinePoints = widget.polylinePoints.where(isValidLatLng).toList();
     return Stack(
       children: [
         FlutterMap(
@@ -83,11 +92,11 @@ class _NavigationMapViewState extends State<NavigationMapView> {
               urlTemplate: _osmTileUrl,
               userAgentPackageName: _osmUserAgent,
             ),
-            if (widget.polylinePoints.length > 1)
+            if (polylinePoints.length > 1)
               PolylineLayer(
                 polylines: [
                   Polyline(
-                    points: widget.polylinePoints,
+                    points: polylinePoints,
                     strokeWidth: 5,
                     color: widget.polylineColor,
                   ),
@@ -100,6 +109,7 @@ class _NavigationMapViewState extends State<NavigationMapView> {
                     point: target,
                     width: 42,
                     height: 42,
+                    alignment: Alignment.bottomCenter,
                     child: const Icon(
                       Icons.location_on_rounded,
                       color: Color(0xFFFF7A59),

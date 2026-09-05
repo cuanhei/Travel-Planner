@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 
 import '../../models/transit_route.dart';
-import '../../models/transport_location.dart';
+import '../../models/trip_stop_location.dart';
+import '../../services/locale_service.dart';
 import '../../services/transit_navigation_controller.dart';
 import '../../utils/format.dart';
 import '../../utils/transit_vehicle_display.dart';
@@ -21,8 +22,8 @@ class TransitNavigationScreen extends StatefulWidget {
   });
 
   final TransitRoute route;
-  final TransportLocation departure;
-  final TransportLocation destination;
+  final TripStopLocation departure;
+  final TripStopLocation destination;
 
   @override
   State<TransitNavigationScreen> createState() =>

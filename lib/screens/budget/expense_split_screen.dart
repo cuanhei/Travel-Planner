@@ -283,9 +283,9 @@ class _ExpenseSplitScreenState extends State<ExpenseSplitScreen> {
                               return Padding(
                                 padding: const EdgeInsets.only(bottom: 10),
                                 child: Text(
-                                  'RM ${personalTotal.toStringAsFixed(2)} in '
-                                  "personal expenses isn't included above — "
-                                  'mark an expense "Split with group" in '
+                                  'Your RM ${personalTotal.toStringAsFixed(2)} '
+                                  "in personal expenses isn't included above "
+                                  '— mark an expense "Split with group" in '
                                   'Expense Tracker to include it.',
                                   style: TextStyle(
                                     color: context.colors.muted,

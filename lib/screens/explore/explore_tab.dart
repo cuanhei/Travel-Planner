@@ -1,11 +1,14 @@
 import 'package:flutter/material.dart';
+import 'package:geolocator/geolocator.dart';
+import 'package:latlong2/latlong.dart';
 
+import '../../models/nearby_place.dart';
+import '../../services/google_places_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/destination_search_bar.dart';
 import '../../widgets/section_header.dart';
-import 'categories_screen.dart';
+import 'explore_place_details_screen.dart';
 import 'nearby_places_screen.dart';
-import 'place_details_screen.dart';
 
 class Place {
   Place({
@@ -144,12 +147,91 @@ class ExploreTab extends StatefulWidget {
 class _ExploreTabState extends State<ExploreTab> {
   String? _selectedCategory;
 
+  final _placesService = GooglePlacesService();
+  List<NearbyPlace> _nearbyPlaces = [];
+  bool _nearbyLoading = true;
+  String? _nearbyError;
+
+  /// Resolved once (GPS permission/lookup is the slow, user-facing part)
+  /// and reused for every subsequent category re-search, so switching
+  /// chips doesn't re-prompt for location each time.
+  LatLng? _center;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadNearby();
+  }
+
+  void _selectCategory(String? category) {
+    setState(() => _selectedCategory = category);
+    _loadNearby();
+  }
+
+  /// Fetches real places around the traveler's current GPS position via
+  /// Google Places API (New) Nearby Search, restricted server-side to
+  /// [_selectedCategory]'s Google types when one is picked — mirrors the
+  /// permission handling other GPS-driven sections (Weather, Map View)
+  /// already use for resolving [_center] the first time this runs.
+  Future<void> _loadNearby() async {
+    setState(() {
+      _nearbyLoading = true;
+      _nearbyError = null;
+    });
+    try {
+      var center = _center;
+      if (center == null) {
+        if (!await Geolocator.isLocationServiceEnabled()) {
+          throw Exception('Location services are turned off.');
+        }
+        var permission = await Geolocator.checkPermission();
+        if (permission == LocationPermission.denied) {
+          permission = await Geolocator.requestPermission();
+        }
+        if (permission == LocationPermission.deniedForever) {
+          throw Exception('Location permission is permanently denied.');
+        }
+        if (permission == LocationPermission.denied) {
+          throw Exception(
+            'Location permission is needed to find nearby places.',
+          );
+        }
+        final position = await Geolocator.getCurrentPosition(
+          locationSettings: const LocationSettings(
+            accuracy: LocationAccuracy.high,
+          ),
+        );
+        center = LatLng(position.latitude, position.longitude);
+        _center = center;
+      }
+      final category = _selectedCategory;
+      final results = await _placesService.nearbySearch(
+        center: center,
+        // "All" still means "all travel-related categories", not
+        // "anything Google returns nearby" — an unrestricted search
+        // includes plenty of non-touristy noise (apartments, offices,
+        // random shops with no travel relevance), so it's restricted to
+        // the union of every category's types rather than left open.
+        includedTypes: category == null
+            ? _allCategoryPlaceTypes
+            : _placeTypesForCategory(category),
+      );
+      if (!mounted) return;
+      setState(() {
+        _nearbyPlaces = results;
+        _nearbyLoading = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _nearbyLoading = false;
+        _nearbyError = e.toString();
+      });
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
-    final filtered = _selectedCategory == null
-        ? places
-        : places.where((p) => p.category == _selectedCategory).toList();
-
     return SafeArea(
       child: ListView(
         padding: EdgeInsets.fromLTRB(24, 20, 24, 24),
@@ -179,7 +261,7 @@ class _ExploreTabState extends State<ExploreTab> {
                   label: 'All',
                   icon: Icons.apps_rounded,
                   selected: _selectedCategory == null,
-                  onTap: () => setState(() => _selectedCategory = null),
+                  onTap: () => _selectCategory(null),
                 ),
                 SizedBox(width: 8),
                 ...categories.map(
@@ -189,17 +271,9 @@ class _ExploreTabState extends State<ExploreTab> {
                       label: c.label,
                       icon: c.icon,
                       selected: _selectedCategory == c.label,
-                      onTap: () => setState(() => _selectedCategory = c.label),
+                      onTap: () => _selectCategory(c.label),
                     ),
                   ),
-                ),
-                _CategoryChip(
-                  label: 'Browse all',
-                  icon: Icons.grid_view_rounded,
-                  selected: false,
-                  onTap: () => Navigator.of(
-                    context,
-                  ).push(MaterialPageRoute(builder: (_) => CategoriesScreen())),
                 ),
               ],
             ),
@@ -207,41 +281,94 @@ class _ExploreTabState extends State<ExploreTab> {
           SizedBox(height: 24),
           SectionHeader(
             title: 'Nearby Places',
-            onAction: () => Navigator.of(
-              context,
-            ).push(MaterialPageRoute(builder: (_) => NearbyPlacesScreen())),
-          ),
-          SizedBox(height: 14),
-          SizedBox(
-            height: 130,
-            child: ListView.separated(
-              scrollDirection: Axis.horizontal,
-              itemCount: places.length,
-              separatorBuilder: (_, _) => SizedBox(width: 12),
-              itemBuilder: (context, index) {
-                final p = places[index];
-                return _NearbyChip(place: p);
-              },
-            ),
-          ),
-          SizedBox(height: 28),
-          Text(
-            _selectedCategory == null
-                ? 'Popular Destinations'
-                : '$_selectedCategory Spots',
-            style: TextStyle(
-              color: context.colors.ink,
-              fontSize: 18,
-              fontWeight: FontWeight.w800,
+            onAction: () => Navigator.of(context).push(
+              MaterialPageRoute(
+                builder: (_) => NearbyPlacesScreen(
+                  places: _nearbyPlaces,
+                  category: _selectedCategory,
+                ),
+              ),
             ),
           ),
           SizedBox(height: 14),
-          ...filtered.map((p) => _PlaceListCard(place: p)),
+          _NearbyPlacesSection(
+            loading: _nearbyLoading,
+            error: _nearbyError,
+            places: _nearbyPlaces,
+            emptyMessage: _selectedCategory == null
+                ? 'No nearby places found'
+                : 'No nearby $_selectedCategory places found',
+            onRetry: _loadNearby,
+          ),
         ],
       ),
     );
   }
 }
+
+/// Google Places `primaryType` values that fall under each of the
+/// existing category chip labels (see [categories]) — sent as
+/// `includedTypes` on the Nearby Search request, so every value here
+/// must be one of Places API (New)'s documented "Table A" types (the
+/// ones allowed in requests). "Table B" types — e.g. `place_of_worship`,
+/// `mosque`, `church` — can be *returned* in a response's `primaryType`
+/// but aren't valid here; including one makes Google reject the whole
+/// request with a 400, which is what broke "Culture" originally.
+const _categoryPlaceTypes = {
+  'Shopping': {
+    'shopping_mall',
+    'store',
+    'clothing_store',
+    'department_store',
+    'supermarket',
+    'convenience_store',
+    'shoe_store',
+    'jewelry_store',
+    'book_store',
+    'market',
+  },
+  'Food': {
+    'restaurant',
+    'cafe',
+    'bakery',
+    'meal_takeaway',
+    'meal_delivery',
+    'food_court',
+    'ice_cream_shop',
+    'fast_food_restaurant',
+  },
+  'Nature': {
+    'park',
+    'national_park',
+    'garden',
+    'hiking_area',
+    'zoo',
+    'aquarium',
+    'wildlife_park',
+  },
+  'Culture': {
+    'museum',
+    'art_museum',
+    'history_museum',
+    'art_gallery',
+    'tourist_attraction',
+    'historical_landmark',
+    'historical_place',
+    'cultural_landmark',
+    'performing_arts_theater',
+    'monument',
+  },
+  'Beach': {'beach'},
+  'Nightlife': {'night_club', 'bar', 'casino'},
+};
+
+Set<String> _placeTypesForCategory(String category) =>
+    _categoryPlaceTypes[category] ?? const {};
+
+/// Union of every category's types — what "All" actually searches for,
+/// so it still means "every kind of travel-relevant place" rather than
+/// an unrestricted nearby search.
+final _allCategoryPlaceTypes = _categoryPlaceTypes.values.expand((s) => s).toSet();
 
 class _CategoryChip extends StatelessWidget {
   const _CategoryChip({
@@ -292,45 +419,166 @@ class _CategoryChip extends StatelessWidget {
   }
 }
 
-class _NearbyChip extends StatelessWidget {
-  const _NearbyChip({required this.place});
+/// Same 130-height horizontal strip the dummy version always occupied —
+/// loading/error/empty states fill that same footprint so the page
+/// doesn't jump around while GPS/the API resolve.
+class _NearbyPlacesSection extends StatelessWidget {
+  const _NearbyPlacesSection({
+    required this.loading,
+    required this.error,
+    required this.places,
+    required this.emptyMessage,
+    required this.onRetry,
+  });
 
-  final Place place;
+  final bool loading;
+  final String? error;
+  final List<NearbyPlace> places;
+  final String emptyMessage;
+  final VoidCallback onRetry;
 
   @override
   Widget build(BuildContext context) {
+    if (loading) {
+      return const SizedBox(
+        height: 130,
+        child: Center(child: CircularProgressIndicator()),
+      );
+    }
+    if (error != null) {
+      return SizedBox(
+        height: 130,
+        child: Center(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                Icons.error_outline_rounded,
+                color: context.colors.muted,
+                size: 26,
+              ),
+              const SizedBox(height: 6),
+              Text(
+                error!,
+                textAlign: TextAlign.center,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(color: context.colors.muted, fontSize: 12),
+              ),
+              const SizedBox(height: 4),
+              TextButton(
+                onPressed: onRetry,
+                child: const Text('Retry'),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+    if (places.isEmpty) {
+      return SizedBox(
+        height: 130,
+        child: Center(
+          child: Text(
+            emptyMessage,
+            style: TextStyle(color: context.colors.muted, fontSize: 12.5),
+          ),
+        ),
+      );
+    }
+    return SizedBox(
+      height: 130,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        itemCount: places.length,
+        separatorBuilder: (_, _) => SizedBox(width: 12),
+        itemBuilder: (context, index) => _NearbyPlaceCard(place: places[index]),
+      ),
+    );
+  }
+}
+
+class _NearbyPlaceCard extends StatelessWidget {
+  const _NearbyPlaceCard({required this.place});
+
+  final NearbyPlace place;
+
+  static const _placeholderGradient = AppColors.horizon;
+
+  @override
+  Widget build(BuildContext context) {
+    final hasPhoto = place.photoUrl != null;
     return GestureDetector(
       onTap: () => Navigator.of(context).push(
-        MaterialPageRoute(builder: (_) => PlaceDetailsScreen(place: place)),
+        MaterialPageRoute(
+          builder: (_) => ExplorePlaceDetailsScreen(place: place),
+        ),
       ),
       child: Container(
         width: 108,
-        padding: EdgeInsets.all(12),
+        clipBehavior: Clip.antiAlias,
         decoration: BoxDecoration(
-          gradient: LinearGradient(colors: place.gradient),
+          gradient: hasPhoto
+              ? null
+              : const LinearGradient(colors: _placeholderGradient),
           borderRadius: BorderRadius.circular(18),
         ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+        child: Stack(
+          fit: StackFit.expand,
           children: [
-            Icon(place.icon, color: Colors.white, size: 22),
-            Spacer(),
-            Text(
-              place.name,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                color: Colors.white,
-                fontWeight: FontWeight.w800,
-                fontSize: 12.5,
+            if (hasPhoto)
+              Image.network(
+                place.photoUrl!,
+                fit: BoxFit.cover,
+                errorBuilder: (context, error, stackTrace) => const DecoratedBox(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(colors: _placeholderGradient),
+                  ),
+                ),
+                loadingBuilder: (context, child, progress) => progress == null
+                    ? child
+                    : const DecoratedBox(
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(colors: _placeholderGradient),
+                        ),
+                      ),
               ),
-            ),
-            SizedBox(height: 2),
-            Text(
-              '${place.distanceKm} km',
-              style: TextStyle(
-                color: Colors.white.withValues(alpha: 0.8),
-                fontSize: 10.5,
+            if (hasPhoto)
+              const DecoratedBox(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [Colors.transparent, Color(0x8C000000)],
+                  ),
+                ),
+              ),
+            Padding(
+              padding: EdgeInsets.all(12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Icon(place.icon, color: Colors.white, size: 22),
+                  Spacer(),
+                  Text(
+                    place.name,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w800,
+                      fontSize: 12.5,
+                    ),
+                  ),
+                  SizedBox(height: 2),
+                  Text(
+                    place.distanceLabel,
+                    style: TextStyle(
+                      color: Colors.white.withValues(alpha: 0.8),
+                      fontSize: 10.5,
+                    ),
+                  ),
+                ],
               ),
             ),
           ],
@@ -340,94 +588,3 @@ class _NearbyChip extends StatelessWidget {
   }
 }
 
-class _PlaceListCard extends StatelessWidget {
-  const _PlaceListCard({required this.place});
-
-  final Place place;
-
-  @override
-  Widget build(BuildContext context) {
-    return Material(
-      color: context.colors.card,
-      borderRadius: BorderRadius.circular(18),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(18),
-        onTap: () => Navigator.of(context).push(
-          MaterialPageRoute(builder: (_) => PlaceDetailsScreen(place: place)),
-        ),
-        child: Container(
-          margin: EdgeInsets.only(bottom: 12),
-          padding: EdgeInsets.all(12),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(18),
-            boxShadow: [
-              BoxShadow(
-                color: context.colors.ink.withValues(alpha: 0.05),
-                blurRadius: 12,
-                offset: Offset(0, 5),
-              ),
-            ],
-          ),
-          child: Row(
-            children: [
-              Container(
-                width: 64,
-                height: 64,
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(colors: place.gradient),
-                  borderRadius: BorderRadius.circular(16),
-                ),
-                alignment: Alignment.center,
-                child: Icon(place.icon, color: Colors.white, size: 28),
-              ),
-              SizedBox(width: 14),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      place.name,
-                      style: TextStyle(
-                        color: context.colors.ink,
-                        fontWeight: FontWeight.w800,
-                        fontSize: 14.5,
-                      ),
-                    ),
-                    SizedBox(height: 3),
-                    Text(
-                      place.area,
-                      style: TextStyle(
-                        color: context.colors.muted,
-                        fontSize: 12,
-                      ),
-                    ),
-                    SizedBox(height: 6),
-                    Row(
-                      children: [
-                        Icon(
-                          Icons.star_rounded,
-                          color: Color(0xFFFFB347),
-                          size: 15,
-                        ),
-                        SizedBox(width: 2),
-                        Text(
-                          '${place.rating} (${place.reviews})',
-                          style: TextStyle(
-                            color: context.colors.ink,
-                            fontSize: 11.5,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-              Icon(Icons.chevron_right_rounded, color: context.colors.muted),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}

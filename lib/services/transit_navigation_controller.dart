@@ -5,7 +5,7 @@ import 'package:geolocator/geolocator.dart';
 import 'package:latlong2/latlong.dart';
 
 import '../models/transit_route.dart';
-import '../models/transport_location.dart';
+import '../models/trip_stop_location.dart';
 import '../utils/geo.dart';
 import 'route_service.dart';
 
@@ -81,8 +81,8 @@ class TransitNavigationController extends ChangeNotifier {
   }) : _routeService = routeService ?? RouteService();
 
   final TransitRoute route;
-  final TransportLocation departure;
-  final TransportLocation destination;
+  final TripStopLocation departure;
+  final TripStopLocation destination;
   final RouteService _routeService;
 
   StreamSubscription<Position>? _positionSub;
