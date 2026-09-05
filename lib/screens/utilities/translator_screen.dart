@@ -532,6 +532,7 @@ class _LanguagePickerSheetState extends State<_LanguagePickerSheet> {
   @override
   Widget build(BuildContext context) {
     final filtered = widget.languages
+        .where((l) => l.code != 'auto')
         .where((l) => l.name.toLowerCase().contains(_query.toLowerCase()))
         .toList();
 

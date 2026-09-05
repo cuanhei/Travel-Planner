@@ -15,7 +15,9 @@ import '../../widgets/detail_header.dart';
 /// Switching tabs (e.g. Penang → Kedah) switches which state's numbers are
 /// shown.
 class EmergencyContactsScreen extends StatefulWidget {
-  const EmergencyContactsScreen({super.key});
+  const EmergencyContactsScreen({super.key, required this.tripId});
+
+  final String tripId;
 
   @override
   State<EmergencyContactsScreen> createState() =>
@@ -34,26 +36,15 @@ class _EmergencyContactsScreenState extends State<EmergencyContactsScreen> {
   final _stateByStop = <TripStopLocation, String?>{};
   final _resolving = <TripStopLocation>{};
 
-  /// Created once the demo trip's id resolves, not inline in [build] — a fresh
+  /// Created once in [initState], not inline in [build] — a fresh
   /// `Stream` instance on every build would give `StreamBuilder` a
   /// changed `stream` identity each time, forcing it to tear down and
   /// resubscribe from scratch. Since [_resolveState] calls `setState` as
   /// each stop's geocode result lands, an inline stream would restart the
   /// whole fetch on every single one of those — which can keep resetting
   /// to "loading" indefinitely instead of ever settling.
-  Stream<List<TripStopLocation>>? _stopsStream;
-
-  @override
-  void initState() {
-    super.initState();
-    _tripService.ensureDemoTrip().then((id) {
-      if (mounted) {
-        setState(() {
-          _stopsStream = _tripService.watchTripStops(id);
-        });
-      }
-    });
-  }
+  late final Stream<List<TripStopLocation>> _stopsStream =
+      _tripService.watchTripStops(widget.tripId);
 
   Future<void> _resolveState(TripStopLocation stop) async {
     if (_stateByStop.containsKey(stop) || _resolving.contains(stop)) return;
@@ -66,7 +57,6 @@ class _EmergencyContactsScreenState extends State<EmergencyContactsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final stopsStream = _stopsStream;
     return Scaffold(
       backgroundColor: context.colors.surface,
       body: SafeArea(
@@ -77,34 +67,30 @@ class _EmergencyContactsScreenState extends State<EmergencyContactsScreen> {
               subtitle: "Numbers for your trip's current stop",
             ),
             Expanded(
-              child: stopsStream == null
-                  ? const Center(child: CircularProgressIndicator())
-                  : StreamBuilder<List<TripStopLocation>>(
-                      stream: stopsStream,
-                      builder: (context, snapshot) {
-                        if (snapshot.hasError) {
-                          return _ErrorState(colors: context.colors);
-                        }
-                        if (!snapshot.hasData) {
-                          return const Center(
-                            child: CircularProgressIndicator(),
-                          );
-                        }
-                        final stops = snapshot.data!;
-                        if (stops.isEmpty) {
-                          return _EmptyState(colors: context.colors);
-                        }
-                        // Kick off (idempotent) resolution for whichever
-                        // stops don't have a cached state yet, without
-                        // blocking this build.
-                        WidgetsBinding.instance.addPostFrameCallback((_) {
-                          for (final stop in stops) {
-                            _resolveState(stop);
-                          }
-                        });
-                        return _buildBody(context, stops);
-                      },
-                    ),
+              child: StreamBuilder<List<TripStopLocation>>(
+                stream: _stopsStream,
+                builder: (context, snapshot) {
+                  if (snapshot.hasError) {
+                    return _ErrorState(colors: context.colors);
+                  }
+                  if (!snapshot.hasData) {
+                    return const Center(child: CircularProgressIndicator());
+                  }
+                  final stops = snapshot.data!;
+                  if (stops.isEmpty) {
+                    return _EmptyState(colors: context.colors);
+                  }
+                  // Kick off (idempotent) resolution for whichever
+                  // stops don't have a cached state yet, without
+                  // blocking this build.
+                  WidgetsBinding.instance.addPostFrameCallback((_) {
+                    for (final stop in stops) {
+                      _resolveState(stop);
+                    }
+                  });
+                  return _buildBody(context, stops);
+                },
+              ),
             ),
           ],
         ),
