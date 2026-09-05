@@ -98,7 +98,11 @@ class TripService {
     await retryOnJwtClockSkew(
       () => _client.from('budget_categories').insert([
         for (final entry in _defaultCategoryPlan.entries)
-          {'trip_id': tripId, 'label': entry.key, 'planned_amount': entry.value},
+          {
+            'trip_id': tripId,
+            'label': entry.key,
+            'planned_amount': entry.value,
+          },
       ]),
     );
 
@@ -128,9 +132,11 @@ class TripService {
     String? startTime,
     String? endTime,
     required double totalBudget,
+
     /// "driving" or "transit" — the transport mode toggle above Create
     /// Trip's day tabs, applied to every travel leg in the trip.
     String transportMode = 'driving',
+
     /// One accommodation per night of the trip — index 0 is the first
     /// night (after day 1), index 1 the second, and so on. A trip
     /// spanning N days has N-1 nights, so this is empty for a single-day
@@ -522,6 +528,39 @@ class TripService {
     return _parseTrips(rows);
   }
 
+  /// The first trip the signed-in user already belongs to — as organizer
+  /// *or* plain member, same `trip_members` join as [myTrips] — whose
+  /// dates clash with `[start, end]` (inclusive: a trip ending the day
+  /// another starts still counts, matching `check_trip_date_conflict`'s
+  /// server-side trigger). Null if none does. [excludeTripId] skips a
+  /// trip against itself, for checking a date change on an already-
+  /// existing trip rather than a brand-new one.
+  ///
+  /// This is Create Trip's client-side check — a friendlier, inline
+  /// warning before ever hitting Save — but the database trigger is what
+  /// actually enforces it; this call can't be the only guard against a
+  /// race (two trips created back-to-back) or a bypassed client.
+  Future<Trip?> findDateConflict({
+    required DateTime start,
+    required DateTime end,
+    String? excludeTripId,
+  }) async {
+    final startStr = start.toIso8601String().split('T').first;
+    final endStr = end.toIso8601String().split('T').first;
+    final rows = await retryOnJwtClockSkew(
+      () => _client
+          .from('trips')
+          .select('*, trip_members!inner(user_id)')
+          .eq('trip_members.user_id', _uid)
+          .lte('start_date', endStr)
+          .gte('end_date', startStr),
+    );
+    final trips = _parseTrips(
+      rows,
+    ).where((t) => t.id != excludeTripId).toList();
+    return trips.isEmpty ? null : trips.first;
+  }
+
   /// Parses each row via [Trip.fromMap], skipping (and logging) any row
   /// that fails — one malformed/legacy row (e.g. missing a required
   /// column from before a migration backfilled it) shouldn't take down
@@ -575,7 +614,8 @@ class TripService {
   /// Trip Details' "Travelers" stat.
   Future<int> memberCount(String tripId) async {
     final rows = await retryOnJwtClockSkew(
-      () => _client.from('trip_members').select('user_id').eq('trip_id', tripId),
+      () =>
+          _client.from('trip_members').select('user_id').eq('trip_id', tripId),
     );
     return rows.length;
   }
@@ -634,10 +674,8 @@ class TripService {
 
   Future<void> removeFavoriteStop(String favoriteStopId) async {
     await retryOnJwtClockSkew(
-      () => _client
-          .from('trip_favorite_stops')
-          .delete()
-          .eq('id', favoriteStopId),
+      () =>
+          _client.from('trip_favorite_stops').delete().eq('id', favoriteStopId),
     );
   }
 

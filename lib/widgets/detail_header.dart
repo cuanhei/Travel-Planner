@@ -10,11 +10,16 @@ class DetailHeader extends StatelessWidget {
     required this.title,
     this.subtitle,
     this.trailing,
+    this.onBack,
   });
 
   final String title;
   final String? subtitle;
   final Widget? trailing;
+
+  /// Overrides the back button's default `Navigator.maybePop()` — e.g. to
+  /// confirm discarding unsaved changes first. Null keeps the default.
+  final VoidCallback? onBack;
 
   @override
   Widget build(BuildContext context) {
@@ -23,7 +28,7 @@ class DetailHeader extends StatelessWidget {
       child: Row(
         children: [
           IconButton(
-            onPressed: () => Navigator.of(context).maybePop(),
+            onPressed: onBack ?? () => Navigator.of(context).maybePop(),
             icon: Icon(
               Icons.arrow_back_ios_new_rounded,
               color: context.colors.ink,

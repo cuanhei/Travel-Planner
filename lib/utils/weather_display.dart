@@ -65,3 +65,30 @@ IconData weatherIconFor(String? value) {
   }
   return Icons.wb_sunny_rounded;
 }
+
+/// Gradient colors matching one MET Malaysia forecast phrase — same
+/// phrase-family matching as [weatherIconFor] (original Malay text, not
+/// the translated label), so a weather card actually looks like the
+/// condition it's reporting instead of always showing the same sunny
+/// blue regardless of what the forecast says.
+List<Color> weatherGradientFor(String? value) {
+  final normalized = (value ?? '').trim().toLowerCase();
+  if (normalized.contains('ribut') || normalized.contains('petir')) {
+    // Thunderstorm — dark, stormy purple-grey.
+    return const [Color(0xFF3B3B58), Color(0xFF6B5B8E)];
+  }
+  if (normalized.contains('jerebu')) {
+    // Haze — muted, dusty tan.
+    return const [Color(0xFF8B8272), Color(0xFFB9AF95)];
+  }
+  if (normalized.contains('mendung')) {
+    // Cloudy — flat grey-blue.
+    return const [Color(0xFF63707D), Color(0xFF93A2B0)];
+  }
+  if (normalized.contains('hujan') && !normalized.contains('tiada')) {
+    // Rain — deeper, cooler blue.
+    return const [Color(0xFF34547A), Color(0xFF4E7DA8)];
+  }
+  // No rain / clear — the original sunny blue.
+  return const [Color(0xFF2E9CCA), Color(0xFF6DD5FA)];
+}

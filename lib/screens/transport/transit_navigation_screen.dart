@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 
 import '../../models/transit_route.dart';
 import '../../models/trip_stop_location.dart';
-import '../../services/locale_service.dart';
 import '../../services/transit_navigation_controller.dart';
 import '../../utils/format.dart';
 import '../../utils/transit_vehicle_display.dart';
@@ -85,10 +84,16 @@ class _TransitNavigationScreenState extends State<TransitNavigationScreen> {
       case NavigationStatus.arrived:
         return _ArrivedState(onEnd: _endNavigation);
       case NavigationStatus.walking:
-        return _WalkingNavigation(controller: _controller, onClose: _endNavigation);
+        return _WalkingNavigation(
+          controller: _controller,
+          onClose: _endNavigation,
+        );
       case NavigationStatus.transit:
       case NavigationStatus.approachingAlight:
-        return _TransitNavigation(controller: _controller, onClose: _endNavigation);
+        return _TransitNavigation(
+          controller: _controller,
+          onClose: _endNavigation,
+        );
     }
   }
 }
@@ -190,7 +195,11 @@ class _ArrivedState extends StatelessWidget {
               shape: BoxShape.circle,
             ),
             alignment: Alignment.center,
-            child: const Icon(Icons.check_rounded, color: Colors.white, size: 40),
+            child: const Icon(
+              Icons.check_rounded,
+              color: Colors.white,
+              size: 40,
+            ),
           ),
           const SizedBox(height: 18),
           const Text(
@@ -240,7 +249,11 @@ class _WalkingNavigation extends StatelessWidget {
           onClose: onClose,
           child: Row(
             children: [
-              const Icon(Icons.arrow_upward_rounded, color: Colors.white, size: 24),
+              const Icon(
+                Icons.arrow_upward_rounded,
+                color: Colors.white,
+                size: 24,
+              ),
               const SizedBox(width: 10),
               Expanded(
                 child: Column(
@@ -260,7 +273,10 @@ class _WalkingNavigation extends StatelessWidget {
                       const SizedBox(height: 3),
                       Text(
                         formatDistanceMeters(remaining.round()),
-                        style: const TextStyle(color: Colors.white70, fontSize: 12.5),
+                        style: const TextStyle(
+                          color: Colors.white70,
+                          fontSize: 12.5,
+                        ),
                       ),
                     ],
                   ],
@@ -300,14 +316,16 @@ class _WalkingNavigation extends StatelessWidget {
                         fontSize: 14,
                       ),
                     ),
-                    const SizedBox(height: 2),
-                    Text(
-                      [
-                        formatDuration(step.duration),
-                        if (remaining != null) formatDistanceMeters(remaining.round()),
-                      ].join(' • '),
-                      style: const TextStyle(color: Colors.white60, fontSize: 12),
-                    ),
+                    if (remaining != null) ...[
+                      const SizedBox(height: 2),
+                      Text(
+                        formatDistanceMeters(remaining.round()),
+                        style: const TextStyle(
+                          color: Colors.white60,
+                          fontSize: 12,
+                        ),
+                      ),
+                    ],
                   ],
                 ),
               ),
@@ -344,9 +362,10 @@ class _TransitNavigation extends StatelessWidget {
     final lineLabel = details == null
         ? 'Transit'
         : (details.lineShortName?.isNotEmpty == true
-            ? '${display.label} ${details.lineShortName}'
-            : details.lineName);
-    final gettingReady = controller.status == NavigationStatus.approachingAlight &&
+              ? '${display.label} ${details.lineShortName}'
+              : details.lineName);
+    final gettingReady =
+        controller.status == NavigationStatus.approachingAlight &&
         !controller.showAlightBanner;
 
     return Column(
@@ -379,7 +398,10 @@ class _TransitNavigation extends StatelessWidget {
                     const SizedBox(height: 4),
                     Text(
                       'Get off: ${details?.arrivalStop ?? '—'}',
-                      style: const TextStyle(color: Colors.white70, fontSize: 12.5),
+                      style: const TextStyle(
+                        color: Colors.white70,
+                        fontSize: 12.5,
+                      ),
                     ),
                     if (gettingReady) ...[
                       const SizedBox(height: 8),
@@ -467,7 +489,11 @@ class _WarningChip extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          const Icon(Icons.warning_amber_rounded, color: Color(0xFFFFB347), size: 15),
+          const Icon(
+            Icons.warning_amber_rounded,
+            color: Color(0xFFFFB347),
+            size: 15,
+          ),
           const SizedBox(width: 6),
           Text(
             text,

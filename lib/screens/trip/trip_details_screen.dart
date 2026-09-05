@@ -9,7 +9,7 @@ import '../budget/budget_planner_screen.dart';
 import '../group/group_dashboard_screen.dart';
 import '../transport/transport_routes_screen.dart';
 import '../utilities/utilities_home_screen.dart';
-import '../weather/weather_forecast_screen.dart';
+import '../weather/transport_weather_screen.dart';
 import 'daily_timeline_screen.dart';
 import 'edit_schedule_screen.dart';
 import 'edit_trip_screen.dart';
@@ -381,7 +381,9 @@ class _ToolsGrid extends StatelessWidget {
         icon: Icons.view_timeline_rounded,
         color: Color(0xFF2E9CCA),
         onTap: () => Navigator.of(context).push(
-          MaterialPageRoute(builder: (_) => DailyTimelineScreen(tripId: tripId)),
+          MaterialPageRoute(
+            builder: (_) => DailyTimelineScreen(tripId: tripId),
+          ),
         ),
       ),
       (
@@ -390,7 +392,9 @@ class _ToolsGrid extends StatelessWidget {
         color: Color(0xFFE0704E),
         onTap: () async {
           final updated = await Navigator.of(context).push<bool>(
-            MaterialPageRoute(builder: (_) => EditScheduleScreen(tripId: tripId)),
+            MaterialPageRoute(
+              builder: (_) => EditScheduleScreen(tripId: tripId),
+            ),
           );
           if (updated == true) onScheduleUpdated();
         },
@@ -404,20 +408,22 @@ class _ToolsGrid extends StatelessWidget {
         ),
       ),
       (
-        label: 'Weather',
-        icon: Icons.wb_sunny_rounded,
-        color: Color(0xFF2E9CCA),
-        onTap: () => Navigator.of(
-          context,
-        ).push(MaterialPageRoute(builder: (_) => WeatherForecastScreen())),
-      ),
-      (
         label: 'Transport',
         icon: Icons.directions_bus_filled_rounded,
         color: Color(0xFF8E63CE),
         onTap: () => Navigator.of(context).push(
           MaterialPageRoute(
             builder: (_) => TransportRoutesScreen(tripId: tripId),
+          ),
+        ),
+      ),
+      (
+        label: 'Transport\nWeather',
+        icon: Icons.cloudy_snowing,
+        color: Color(0xFF2E9CCA),
+        onTap: () => Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (_) => TransportWeatherScreen(tripId: tripId),
           ),
         ),
       ),
@@ -556,13 +562,11 @@ class _ActivityTile extends StatelessWidget {
                 Row(
                   children: [
                     Container(
-                      padding: EdgeInsets.symmetric(
-                        horizontal: 8,
-                        vertical: 3,
-                      ),
+                      padding: EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                       decoration: BoxDecoration(
-                        color: (completed ? done : AppColors.accent)
-                            .withValues(alpha: 0.12),
+                        color: (completed ? done : AppColors.accent).withValues(
+                          alpha: 0.12,
+                        ),
                         borderRadius: BorderRadius.circular(8),
                       ),
                       child: Text(

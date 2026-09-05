@@ -4,12 +4,14 @@ import 'package:latlong2/latlong.dart';
 
 import '../../models/nearby_place.dart';
 import '../../models/trip.dart';
+import '../../models/trip_stop_location.dart';
 import '../../services/community_service.dart';
 import '../../services/trip_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/gradient_button.dart';
 import '../../widgets/route_map_view.dart';
 import '../community/review_details_screen.dart';
+import '../trip/edit_schedule_screen.dart';
 
 /// Full profile for a real place — currently only reached from Explore's
 /// Nearby Places (Google Places API (New) data), but named/shaped to
@@ -31,8 +33,7 @@ class ExplorePlaceDetailsScreen extends StatefulWidget {
       _ExplorePlaceDetailsScreenState();
 }
 
-class _ExplorePlaceDetailsScreenState
-    extends State<ExplorePlaceDetailsScreen> {
+class _ExplorePlaceDetailsScreenState extends State<ExplorePlaceDetailsScreen> {
   final _reviewService = CommunityService();
   final _tripService = TripService();
   LatLng? _currentPosition;
@@ -175,7 +176,10 @@ class _ExplorePlaceDetailsScreenState
                     runSpacing: 8,
                     children: [
                       _Tag(label: _formatType(place.primaryType)),
-                      _Tag(label: place.distanceLabel, icon: Icons.near_me_rounded),
+                      _Tag(
+                        label: place.distanceLabel,
+                        icon: Icons.near_me_rounded,
+                      ),
                       _StatusChip(label: status.label, color: status.color),
                       if (place.openNow != null)
                         _StatusChip(
@@ -333,9 +337,7 @@ class _ExplorePlaceDetailsScreenState
                                   alpha: 0.3,
                                 ),
                               ),
-                              padding: const EdgeInsets.symmetric(
-                                vertical: 14,
-                              ),
+                              padding: const EdgeInsets.symmetric(vertical: 14),
                               shape: RoundedRectangleBorder(
                                 borderRadius: BorderRadius.circular(28),
                               ),
@@ -363,12 +365,24 @@ class _ExplorePlaceDetailsScreenState
     );
   }
 
-  void _openAddToTripSheet(BuildContext context, NearbyPlace place) {
-    showModalBottomSheet(
+  Future<void> _openAddToTripSheet(
+    BuildContext context,
+    NearbyPlace place,
+  ) async {
+    final trip = await showModalBottomSheet<Trip>(
       context: context,
       backgroundColor: Colors.transparent,
       isScrollControlled: true,
       builder: (_) => _AddToTripSheet(place: place),
+    );
+    if (trip == null || !context.mounted) return;
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => EditScheduleScreen(
+          tripId: trip.id,
+          pendingStop: TripStopLocation.fromNearbyPlace(place),
+        ),
+      ),
     );
   }
 }
@@ -432,14 +446,20 @@ class _ReviewsSummaryCard extends StatelessWidget {
                   Expanded(
                     child: Text(
                       '${summary.count} review${summary.count == 1 ? '' : 's'}',
-                      style: TextStyle(color: context.colors.muted, fontSize: 12.5),
+                      style: TextStyle(
+                        color: context.colors.muted,
+                        fontSize: 12.5,
+                      ),
                     ),
                   ),
                 ] else
                   Expanded(
                     child: Text(
                       'No reviews yet — be the first!',
-                      style: TextStyle(color: context.colors.muted, fontSize: 12.5),
+                      style: TextStyle(
+                        color: context.colors.muted,
+                        fontSize: 12.5,
+                      ),
                     ),
                   ),
                 Icon(
@@ -458,10 +478,12 @@ class _ReviewsSummaryCard extends StatelessWidget {
 
 /// "Add to Trip" bottom sheet — lists the signed-in traveler's current +
 /// upcoming trips where they're the organizer, since only an organizer
-/// can add a place to a trip (a plain member can't). [place] is carried
-/// through ready for the next step; actually saving it to a picked trip
-/// isn't wired up yet, so a trip row isn't tappable — this sheet only
-/// covers listing the eligible trips.
+/// can add a place to a trip (a plain member can't). Tapping a trip just
+/// picks it — [_openAddToTripSheet] takes the selection from here and
+/// hands off to Edit Schedule, which stages the place as a new,
+/// not-yet-saved stop on that trip's first upcoming day for the traveler
+/// to actually confirm (or remove) there, rather than this sheet saving
+/// it unreviewed.
 class _AddToTripSheet extends StatefulWidget {
   const _AddToTripSheet({required this.place});
 
@@ -501,7 +523,9 @@ class _AddToTripSheetState extends State<_AddToTripSheet> {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
+      padding: EdgeInsets.only(
+        bottom: MediaQuery.of(context).viewInsets.bottom,
+      ),
       child: SafeArea(
         child: Container(
           margin: const EdgeInsets.all(12),
@@ -599,73 +623,87 @@ class _AddToTripSheetState extends State<_AddToTripSheet> {
       shrinkWrap: true,
       itemCount: trips.length,
       separatorBuilder: (_, _) => const SizedBox(height: 10),
-      itemBuilder: (context, i) => _TripOptionTile(trip: trips[i]),
+      itemBuilder: (context, i) => _TripOptionTile(
+        trip: trips[i],
+        onTap: () => Navigator.of(context).pop(trips[i]),
+      ),
     );
   }
 }
 
-/// One organizer trip in the "Add to Trip" list — display only for now
-/// (see [_AddToTripSheet]'s doc comment); not tappable until saving a
-/// place to a trip is implemented.
+/// One organizer trip in the "Add to Trip" list — tapping it just picks
+/// this trip (see [_AddToTripSheet]'s doc comment for what happens next).
 class _TripOptionTile extends StatelessWidget {
-  const _TripOptionTile({required this.trip});
+  const _TripOptionTile({required this.trip, required this.onTap});
 
   final Trip trip;
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
     final isOngoing = trip.status == TripStatus.current;
     final badgeLabel = isOngoing ? 'Ongoing' : 'Upcoming';
     final badgeColor = isOngoing ? const Color(0xFF11998E) : AppColors.accent;
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: context.colors.surface,
+    return Material(
+      color: context.colors.surface,
+      borderRadius: BorderRadius.circular(16),
+      child: InkWell(
         borderRadius: BorderRadius.circular(16),
-      ),
-      child: Row(
-        children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  trip.name,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
+        onTap: onTap,
+        child: Container(
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: context.colors.surface,
+            borderRadius: BorderRadius.circular(16),
+          ),
+          child: Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      trip.name,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: context.colors.ink,
+                        fontWeight: FontWeight.w700,
+                        fontSize: 13.5,
+                      ),
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      trip.routeLabel ?? trip.dateRangeLabel,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: context.colors.muted,
+                        fontSize: 11.5,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 8),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: badgeColor.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Text(
+                  badgeLabel,
                   style: TextStyle(
-                    color: context.colors.ink,
+                    color: badgeColor,
                     fontWeight: FontWeight.w700,
-                    fontSize: 13.5,
+                    fontSize: 10.5,
                   ),
                 ),
-                const SizedBox(height: 3),
-                Text(
-                  trip.routeLabel ?? trip.dateRangeLabel,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(color: context.colors.muted, fontSize: 11.5),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(width: 8),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-            decoration: BoxDecoration(
-              color: badgeColor.withValues(alpha: 0.12),
-              borderRadius: BorderRadius.circular(20),
-            ),
-            child: Text(
-              badgeLabel,
-              style: TextStyle(
-                color: badgeColor,
-                fontWeight: FontWeight.w700,
-                fontSize: 10.5,
               ),
-            ),
+            ],
           ),
-        ],
+        ),
       ),
     );
   }
