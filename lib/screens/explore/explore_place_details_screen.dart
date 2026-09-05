@@ -5,6 +5,7 @@ import 'package:latlong2/latlong.dart';
 import '../../models/nearby_place.dart';
 import '../../models/trip.dart';
 import '../../services/community_service.dart';
+import '../../services/saved_places_service.dart';
 import '../../services/trip_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/gradient_button.dart';
@@ -35,6 +36,7 @@ class _ExplorePlaceDetailsScreenState
     extends State<ExplorePlaceDetailsScreen> {
   final _reviewService = CommunityService();
   final _tripService = TripService();
+  final _savedPlacesService = SavedPlacesService();
   LatLng? _currentPosition;
 
   /// Whether the user can review this place — true once they have an
@@ -49,11 +51,42 @@ class _ExplorePlaceDetailsScreenState
   /// pick the disabled-button message.
   bool _everVisited = false;
 
+  /// Null while [_loadSaved] hasn't resolved yet — the bookmark button
+  /// stays hidden rather than briefly flashing the wrong (outline) state.
+  bool? _saved;
+
   @override
   void initState() {
     super.initState();
     _locateCurrentPosition();
     _loadCanReview();
+    _loadSaved();
+  }
+
+  Future<void> _loadSaved() async {
+    final saved = await _savedPlacesService.isSaved(widget.place.id);
+    if (mounted) setState(() => _saved = saved);
+  }
+
+  Future<void> _toggleSaved() async {
+    final wasSaved = _saved ?? false;
+    setState(() => _saved = !wasSaved);
+    try {
+      if (wasSaved) {
+        await _savedPlacesService.unsavePlace(widget.place.id);
+      } else {
+        await _savedPlacesService.savePlace(widget.place);
+      }
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _saved = wasSaved);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          behavior: SnackBarBehavior.floating,
+          content: Text('Could not update saved places: $e'),
+        ),
+      );
+    }
   }
 
   /// Re-checked after returning from [ReviewDetailsScreen] — a review
@@ -129,6 +162,25 @@ class _ExplorePlaceDetailsScreenState
                 ),
               ),
             ),
+            actions: [
+              if (_saved != null)
+                Padding(
+                  padding: const EdgeInsets.all(8),
+                  child: CircleAvatar(
+                    backgroundColor: Colors.black.withValues(alpha: 0.25),
+                    child: IconButton(
+                      onPressed: _toggleSaved,
+                      icon: Icon(
+                        _saved!
+                            ? Icons.bookmark_rounded
+                            : Icons.bookmark_border_rounded,
+                        color: Colors.white,
+                        size: 20,
+                      ),
+                    ),
+                  ),
+                ),
+            ],
             flexibleSpace: FlexibleSpaceBar(
               background: _HeroImage(place: place),
             ),

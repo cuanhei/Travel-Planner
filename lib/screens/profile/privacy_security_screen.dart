@@ -225,18 +225,6 @@ class _PrivacySecurityScreenState extends State<PrivacySecurityScreen> {
                   const SizedBox(height: 20),
                   _SectionLabel(tr('auth_your_data_section')),
                   ListTileCard(
-                    icon: Icons.download_rounded,
-                    title: tr('auth_download_my_data'),
-                    subtitle: tr('auth_download_my_data_desc'),
-                    onTap: () => ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        behavior: SnackBarBehavior.floating,
-                        backgroundColor: context.colors.ink,
-                        content: Text(tr('auth_export_not_available_demo')),
-                      ),
-                    ),
-                  ),
-                  ListTileCard(
                     icon: Icons.delete_outline_rounded,
                     title: tr('auth_delete_account'),
                     iconColor: Colors.redAccent,

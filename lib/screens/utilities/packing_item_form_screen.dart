@@ -67,12 +67,25 @@ class _PackingItemFormScreenState extends State<PackingItemFormScreen> {
     ...widget.existingCategories,
   }.toList();
 
-  bool get _canSave =>
-      _labelController.text.trim().isNotEmpty &&
-      _categoryController.text.trim().isNotEmpty;
+  void _showError(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(behavior: SnackBarBehavior.floating, content: Text(message)),
+    );
+  }
 
   void _save() {
-    if (!_canSave) return;
+    if (_labelController.text.trim().isEmpty) {
+      _showError('Please enter an item name.');
+      return;
+    }
+    if (_categoryController.text.trim().isEmpty) {
+      _showError('Please enter a category.');
+      return;
+    }
+    if (_quantity < 1) {
+      _showError('Quantity cannot be less than 1.');
+      return;
+    }
     // id/createdBy/createdAt are placeholders here — the screen that
     // pushed this form only reads label/category/quantity/note/packed
     // off the result and does the actual insert/update itself, since
@@ -285,7 +298,7 @@ class _PackingItemFormScreenState extends State<PackingItemFormScreen> {
                         ? tr('utilities_save_changes')
                         : tr('utilities_add_item'),
                     icon: Icons.check_rounded,
-                    onPressed: _canSave ? _save : () {},
+                    onPressed: _save,
                   ),
                   if (widget.isEditing) ...[
                     const SizedBox(height: 14),

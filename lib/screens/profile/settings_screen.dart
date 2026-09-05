@@ -2,10 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../l10n/app_language.dart';
 import '../../services/auth_service.dart';
-import '../../services/fcm_service.dart';
 import '../../services/locale_service.dart';
-import '../../services/notification_prefs_service.dart';
-import '../../services/push_notifications.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/detail_header.dart';
 import '../../widgets/list_tile_card.dart';
@@ -17,7 +14,7 @@ import 'help_center_screen.dart';
 import 'language_screen.dart';
 import 'privacy_security_screen.dart';
 
-/// App preferences: notifications, language, account, and sign out.
+/// App preferences: appearance, language, account, and sign out.
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
 
@@ -26,34 +23,6 @@ class SettingsScreen extends StatefulWidget {
 }
 
 class _SettingsScreenState extends State<SettingsScreen> {
-  void _showMessage(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(behavior: SnackBarBehavior.floating, content: Text(message)),
-    );
-  }
-
-  Future<void> _togglePush(bool value) async {
-    if (!value) {
-      await NotificationPrefsService.instance.setPushEnabled(false);
-      return;
-    }
-    final token = await FcmService.instance.enable();
-    if (token == null) {
-      if (mounted) _showMessage(tr('auth_push_permission_denied'));
-      return;
-    }
-    debugPrint('FCM token: $token');
-    await NotificationPrefsService.instance.setPushEnabled(true, fcmToken: token);
-    showLocalNotification(tr('auth_push_enabled_title'), tr('auth_push_enabled_body'));
-  }
-
-  Future<void> _toggleTripReminders(bool value) async {
-    await NotificationPrefsService.instance.setTripRemindersEnabled(value);
-    if (value) {
-      showLocalNotification(tr('auth_trip_reminders_enabled_title'), tr('auth_trip_reminders_enabled_body'));
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -66,30 +35,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
               child: ListView(
                 padding: EdgeInsets.fromLTRB(24, 8, 24, 24),
                 children: [
-                  _SectionLabel(tr('auth_notifications')),
-                  ValueListenableBuilder<NotificationPrefs>(
-                    valueListenable: NotificationPrefsService.instance.current,
-                    builder: (context, prefs, _) {
-                      final pushOn = prefs.pushEnabled && !pushPermissionDenied;
-                      return Column(
-                        children: [
-                          _SwitchCard(
-                            icon: Icons.notifications_none_rounded,
-                            title: tr('auth_push_notifications'),
-                            value: pushOn,
-                            onChanged: _togglePush,
-                          ),
-                          _SwitchCard(
-                            icon: Icons.event_available_rounded,
-                            title: tr('auth_trip_reminders'),
-                            value: pushOn && prefs.tripRemindersEnabled,
-                            onChanged: pushOn ? _toggleTripReminders : null,
-                          ),
-                        ],
-                      );
-                    },
-                  ),
-                  SizedBox(height: 20),
                   _SectionLabel(tr('auth_appearance')),
                   ValueListenableBuilder<ThemeMode>(
                     valueListenable: themeModeNotifier,
