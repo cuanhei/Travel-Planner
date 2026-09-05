@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../models/trip.dart';
+import '../models/trip_schedule_input.dart';
 import '../models/trip_stop_location.dart';
 import 'supabase_config.dart';
 
@@ -126,6 +127,9 @@ class TripService {
     String? startTime,
     String? endTime,
     required double totalBudget,
+    /// "driving" or "transit" — the transport mode toggle above Create
+    /// Trip's day tabs, applied to every travel leg in the trip.
+    String transportMode = 'driving',
     /// One accommodation per night of the trip — index 0 is the first
     /// night (after day 1), index 1 the second, and so on. A trip
     /// spanning N days has N-1 nights, so this is empty for a single-day
@@ -161,6 +165,7 @@ class TripService {
             'end_date': endDate?.toIso8601String().split('T').first,
             'start_time': startTime,
             'end_time': endTime,
+            'transport_mode': transportMode,
             'created_by': _uid,
             'total_budget': totalBudget,
           })
@@ -187,6 +192,112 @@ class TripService {
 
     tripsChanged.value++;
     return tripId;
+  }
+
+  /// Persists Create Trip's full day-by-day timeline — one row per day
+  /// tab (`trip_days`), one row per scheduled stop with its computed
+  /// arrival/end time and weather flag (`trip_stops`), and one row per
+  /// travel leg actually shown (`trip_travel_segments`). Called once,
+  /// right after [createTrip] returns [tripId] — there's no partial-save/
+  /// resume flow yet, so this always writes a trip's entire schedule in
+  /// one call.
+  ///
+  /// Insert order matters: stops must exist before segments, since a
+  /// `legKind: TripLegKind.stop` segment's `to_stop_id` is resolved from
+  /// the just-inserted stops' ids (matched by `day_number` + `sequence` —
+  /// a stop leg's own `sequence` is always the same as the stop it
+  /// arrives at, so no separate correlation key is needed).
+  Future<void> saveTripSchedule({
+    required String tripId,
+    required List<TripDayInput> days,
+    required List<TripStopInput> stops,
+    required List<TripTravelSegmentInput> segments,
+  }) async {
+    if (days.isNotEmpty) {
+      await retryOnJwtClockSkew(
+        () => _client.from('trip_days').insert([
+          for (final day in days)
+            {
+              'trip_id': tripId,
+              'day_number': day.dayNumber,
+              'date': day.date.toIso8601String().split('T').first,
+              'start_time_override': day.startTimeOverride,
+            },
+        ]),
+      );
+    }
+
+    // day_number/sequence -> the inserted trip_stops row's id, so a
+    // 'stop' leg below can resolve its to_stop_id.
+    final stopIds = <(int, int), String>{};
+    if (stops.isNotEmpty) {
+      final rows = await retryOnJwtClockSkew(
+        () => _client
+            .from('trip_stops')
+            .insert([for (final stop in stops) _stopRow(tripId, stop)])
+            .select('id, day_number, sequence'),
+      );
+      for (final row in rows) {
+        stopIds[(row['day_number'] as int, row['sequence'] as int)] =
+            row['id'] as String;
+      }
+    }
+
+    if (segments.isNotEmpty) {
+      await retryOnJwtClockSkew(
+        () => _client.from('trip_travel_segments').insert([
+          for (final segment in segments)
+            {
+              'trip_id': tripId,
+              'day_number': segment.dayNumber,
+              'sequence': segment.sequence,
+              'from_name': segment.fromName,
+              'from_latitude': segment.fromLatitude,
+              'from_longitude': segment.fromLongitude,
+              'to_name': segment.toName,
+              'to_latitude': segment.toLatitude,
+              'to_longitude': segment.toLongitude,
+              'to_stop_id': segment.legKind == TripLegKind.stop
+                  ? stopIds[(segment.dayNumber, segment.sequence)]
+                  : null,
+              'leg_kind': segment.legKind.column,
+              'transport_mode': segment.transportMode,
+              'duration_minutes': segment.durationMinutes,
+            },
+        ]),
+      );
+    }
+  }
+
+  Map<String, dynamic> _stopRow(String tripId, TripStopInput stop) {
+    final location = stop.location;
+    return {
+      'trip_id': tripId,
+      'name': location.name,
+      'address': location.address,
+      'latitude': location.latitude,
+      'longitude': location.longitude,
+      'osm_id': location.osmId,
+      'category': location.category,
+      'place_id': location.placeId,
+      'primary_type': location.primaryType,
+      'types': location.types,
+      'business_status': location.businessStatus,
+      'opening_hours': location.openingHours,
+      'opening_hours_periods': location.openingHoursPeriods
+          ?.map((p) => p.toJson())
+          .toList(),
+      'environment': location.environment.name,
+      'visit_minutes': stop.visitMinutes,
+      'day_number': stop.dayNumber,
+      'sequence': stop.sequence,
+      'arrival_minutes': stop.arrivalMinutes,
+      'end_minutes': stop.endMinutes,
+      'weather_flagged': stop.weatherFlagged,
+      'weather_bad_periods': stop.weatherBadPeriods,
+      'weather_forecast_phrase': stop.weatherForecastPhrase,
+      'weather_checked_at': stop.weatherCheckedAt?.toIso8601String(),
+    };
   }
 
   /// Updates a trip's core details from the Edit Trip form — everything
