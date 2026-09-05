@@ -450,6 +450,28 @@ class TripService {
     return _parseTrips(rows);
   }
 
+  Stream<List<Trip>> watchMyTrips() {
+    return _client
+        .from('trip_members')
+        .stream(primaryKey: ['trip_id', 'user_id'])
+        .eq('user_id', _uid)
+        .asyncMap((memberRows) async {
+          final tripIds = memberRows
+              .map((row) => row['trip_id'] as String)
+              .toSet()
+              .toList();
+          if (tripIds.isEmpty) return const <Trip>[];
+          final rows = await retryOnJwtClockSkew(
+            () => _client
+                .from('trips')
+                .select()
+                .inFilter('id', tripIds)
+                .order('created_at', ascending: false),
+          );
+          return _parseTrips(rows);
+        });
+  }
+
   Future<Trip?> findDateConflict({
     required DateTime start,
     required DateTime end,

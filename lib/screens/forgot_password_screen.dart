@@ -1,12 +1,19 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:supabase_flutter/supabase_flutter.dart' show AuthException;
 
 import '../services/auth_error_messages.dart';
 import '../services/auth_service.dart';
+import '../services/locale_service.dart';
 import '../theme/app_theme.dart';
 import '../utils/validators.dart';
+import '../widgets/code_expiry_timer.dart';
 import '../widgets/gradient_button.dart';
+import 'reset_password_screen.dart';
 
+/// Requests a Supabase password-reset code, then lets the user enter the
+/// 6-digit code emailed to them. Verifying it establishes a recovery
+/// session and opens the Reset Password screen.
 class ForgotPasswordScreen extends StatefulWidget {
   const ForgotPasswordScreen({super.key});
 
@@ -14,34 +21,59 @@ class ForgotPasswordScreen extends StatefulWidget {
   State<ForgotPasswordScreen> createState() => _ForgotPasswordScreenState();
 }
 
+enum _Step { request, code }
+
 class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
-  final _formKey = GlobalKey<FormState>();
+  static final _digits = 6;
+
   final _emailController = TextEditingController();
-  bool _linkSent = false;
+  final _codeControllers = List.generate(_digits, (_) => TextEditingController());
+  final _codeFocusNodes = List.generate(_digits, (_) => FocusNode());
+
+  _Step _step = _Step.request;
   bool _loading = false;
+  bool _codeError = false;
+  bool _codeExpired = false;
   int _cooldown = 0;
+  int _codeRequestId = 0;
 
   @override
   void dispose() {
     _emailController.dispose();
+    for (final c in _codeControllers) {
+      c.dispose();
+    }
+    for (final f in _codeFocusNodes) {
+      f.dispose();
+    }
     super.dispose();
   }
 
-  Future<void> _sendLink() async {
-    if (!(_formKey.currentState?.validate() ?? false)) return;
+  String get _code => _codeControllers.map((c) => c.text).join();
+
+  Future<void> _sendCode() async {
+    final error = Validators.email(_emailController.text);
+    if (error != null) {
+      _showError(error);
+      return;
+    }
 
     setState(() => _loading = true);
     try {
-      await AuthService.instance.sendPasswordResetEmail(
+      await AuthService.instance.sendPasswordResetCode(
         _emailController.text.trim(),
       );
       if (!mounted) return;
-      setState(() => _linkSent = true);
+      setState(() {
+        _step = _Step.code;
+        _codeExpired = false;
+        _codeRequestId++;
+      });
       _startCooldown();
     } on AuthException catch (e) {
       _showError(friendlyAuthError(e));
     } catch (_) {
-      _showError('Something went wrong. Please try again.');
+      _showError(tr('common_error_generic'));
     } finally {
       if (mounted) setState(() => _loading = false);
     }
@@ -50,16 +82,69 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
   Future<void> _resend() async {
     setState(() => _loading = true);
     try {
-      await AuthService.instance.sendPasswordResetEmail(
+      await AuthService.instance.resendPasswordResetCode(
         _emailController.text.trim(),
       );
+      if (mounted) {
+        setState(() {
+          _codeExpired = false;
+          _codeRequestId++;
+        });
+      }
       _startCooldown();
     } on AuthException catch (e) {
       _showError(friendlyAuthError(e));
     } catch (_) {
-      _showError('Something went wrong. Please try again.');
+      _showError(tr('common_error_generic'));
     } finally {
       if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  Future<void> _verifyCode() async {
+    if (_codeExpired) {
+      _showError(tr('auth_code_expired_error'));
+      return;
+    }
+    if (_code.length < _digits) {
+      setState(() => _codeError = true);
+      return;
+    }
+
+    setState(() {
+      _codeError = false;
+      _loading = true;
+    });
+    try {
+      await AuthService.instance.verifyRecoveryCode(
+        email: _emailController.text.trim(),
+        token: _code,
+      );
+      if (!mounted) return;
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute(builder: (_) => ResetPasswordScreen()),
+      );
+    } on AuthException catch (e) {
+      setState(() => _codeError = true);
+      _showError(friendlyAuthError(e));
+    } catch (_) {
+      setState(() => _codeError = true);
+      _showError(tr('common_error_generic'));
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  void _onCodeChanged(int index, String value) {
+    setState(() => _codeError = false);
+    if (value.isNotEmpty && index < _digits - 1) {
+      _codeFocusNodes[index + 1].requestFocus();
+    }
+    if (value.isEmpty && index > 0) {
+      _codeFocusNodes[index - 1].requestFocus();
+    }
+    if (_code.length == _digits) {
+      FocusScope.of(context).unfocus();
     }
   }
 
@@ -86,7 +171,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
       resizeToAvoidBottomInset: true,
       body: Stack(
         children: [
-          _Header(isSent: _linkSent),
+          _Header(step: _step),
           SafeArea(
             child: Column(
               children: [
@@ -114,20 +199,27 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                             child: child,
                           ),
                         ),
-                        child: _linkSent
-                            ? _SentView(
-                                key: ValueKey('sent'),
+                        child: _step == _Step.code
+                            ? _CodeView(
+                                key: ValueKey('code'),
                                 email: _emailController.text.trim(),
-                                cooldown: _cooldown,
+                                controllers: _codeControllers,
+                                focusNodes: _codeFocusNodes,
+                                hasError: _codeError,
                                 loading: _loading,
+                                cooldown: _cooldown,
+                                codeRequestId: _codeRequestId,
+                                onExpired: () =>
+                                    setState(() => _codeExpired = true),
+                                onChanged: _onCodeChanged,
+                                onVerify: _verifyCode,
                                 onResend: _cooldown == 0 ? _resend : null,
                               )
                             : _RequestView(
                                 key: ValueKey('request'),
-                                formKey: _formKey,
                                 emailController: _emailController,
                                 loading: _loading,
-                                onSubmit: _sendLink,
+                                onSubmit: _sendCode,
                               ),
                       ),
                     ),
@@ -154,12 +246,13 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
 }
 
 class _Header extends StatelessWidget {
-  const _Header({required this.isSent});
+  const _Header({required this.step});
 
-  final bool isSent;
+  final _Step step;
 
   @override
   Widget build(BuildContext context) {
+    final isCode = step == _Step.code;
     return Container(
       height: 260,
       width: double.infinity,
@@ -187,7 +280,7 @@ class _Header extends StatelessWidget {
                 ),
               ),
               child: Icon(
-                isSent
+                isCode
                     ? Icons.mark_email_read_rounded
                     : Icons.lock_reset_rounded,
                 color: Colors.white,
@@ -196,7 +289,7 @@ class _Header extends StatelessWidget {
             ),
             SizedBox(height: 16),
             Text(
-              isSent ? 'Check Your Email' : 'Forgot Password?',
+              isCode ? tr('auth_enter_reset_code_title') : tr('auth_forgot_password_title'),
               style: TextStyle(
                 color: Colors.white,
                 fontSize: 24,
@@ -207,9 +300,9 @@ class _Header extends StatelessWidget {
             Padding(
               padding: EdgeInsets.symmetric(horizontal: 40),
               child: Text(
-                isSent
-                    ? 'We sent a password reset link to your inbox'
-                    : "No worries, we'll send you reset instructions",
+                isCode
+                    ? tr('auth_enter_reset_code_subtitle')
+                    : tr('auth_forgot_password_subtitle'),
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   color: Colors.white.withValues(alpha: 0.85),
@@ -227,102 +320,112 @@ class _Header extends StatelessWidget {
 class _RequestView extends StatelessWidget {
   const _RequestView({
     super.key,
-    required this.formKey,
     required this.emailController,
     required this.loading,
     required this.onSubmit,
   });
 
-  final GlobalKey<FormState> formKey;
   final TextEditingController emailController;
   final bool loading;
   final VoidCallback onSubmit;
 
   @override
   Widget build(BuildContext context) {
-    return Form(
-      key: formKey,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          TextFormField(
-            controller: emailController,
-            keyboardType: TextInputType.emailAddress,
-            style: TextStyle(
-              fontWeight: FontWeight.w600,
-              color: context.colors.ink,
-            ),
-            validator: Validators.email,
-            decoration: InputDecoration(
-              labelText: 'Email',
-              prefixIcon: Icon(
-                Icons.mail_outline_rounded,
-                color: context.colors.muted,
-                size: 20,
-              ),
-              filled: true,
-              fillColor: context.colors.surface,
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(16),
-                borderSide: BorderSide.none,
-              ),
-              focusedBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(16),
-                borderSide: BorderSide(color: context.colors.ink, width: 1.5),
-              ),
-              errorBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(16),
-                borderSide: BorderSide(color: Colors.redAccent, width: 1.2),
-              ),
-              contentPadding: EdgeInsets.symmetric(vertical: 16),
-            ),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        TextField(
+          controller: emailController,
+          keyboardType: TextInputType.emailAddress,
+          style: TextStyle(
+            fontWeight: FontWeight.w600,
+            color: context.colors.ink,
           ),
-          SizedBox(height: 28),
-          GradientButton(
-            label: 'Send Reset Link',
-            onPressed: onSubmit,
-            loading: loading,
+          decoration: InputDecoration(
+            labelText: tr('auth_email'),
+            floatingLabelBehavior: FloatingLabelBehavior.always,
+            hintText: 'you@example.com',
+            hintStyle: TextStyle(
+              color: context.colors.muted.withValues(alpha: 0.6),
+              fontWeight: FontWeight.w500,
+            ),
+            prefixIcon: Icon(
+              Icons.mail_outline_rounded,
+              color: context.colors.muted,
+              size: 20,
+            ),
+            filled: true,
+            fillColor: context.colors.surface,
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(16),
+              borderSide: BorderSide.none,
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(16),
+              borderSide: BorderSide(color: context.colors.ink, width: 1.5),
+            ),
+            contentPadding: EdgeInsets.symmetric(vertical: 16),
           ),
-          SizedBox(height: 24),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(
-                Icons.arrow_back_rounded,
-                size: 16,
-                color: context.colors.muted,
-              ),
-              SizedBox(width: 6),
-              GestureDetector(
-                onTap: () => Navigator.of(context).maybePop(),
-                child: Text(
-                  'Back to Sign In',
-                  style: TextStyle(
-                    color: context.colors.muted,
-                    fontWeight: FontWeight.w600,
-                  ),
+        ),
+        SizedBox(height: 28),
+        GradientButton(
+          label: tr('auth_send_reset_code'),
+          onPressed: onSubmit,
+          loading: loading,
+        ),
+        SizedBox(height: 24),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              Icons.arrow_back_rounded,
+              size: 16,
+              color: context.colors.muted,
+            ),
+            SizedBox(width: 6),
+            GestureDetector(
+              onTap: () => Navigator.of(context).maybePop(),
+              child: Text(
+                tr('auth_back_to_sign_in'),
+                style: TextStyle(
+                  color: context.colors.muted,
+                  fontWeight: FontWeight.w600,
                 ),
               ),
-            ],
-          ),
-        ],
-      ),
+            ),
+          ],
+        ),
+      ],
     );
   }
 }
 
-class _SentView extends StatelessWidget {
-  const _SentView({
+class _CodeView extends StatelessWidget {
+  const _CodeView({
     super.key,
     required this.email,
-    required this.cooldown,
+    required this.controllers,
+    required this.focusNodes,
+    required this.hasError,
     required this.loading,
+    required this.cooldown,
+    required this.codeRequestId,
+    required this.onExpired,
+    required this.onChanged,
+    required this.onVerify,
     required this.onResend,
   });
 
   final String email;
-  final int cooldown;
+  final List<TextEditingController> controllers;
+  final List<FocusNode> focusNodes;
+  final bool hasError;
   final bool loading;
+  final int cooldown;
+  final int codeRequestId;
+  final VoidCallback onExpired;
+  final void Function(int, String) onChanged;
+  final VoidCallback onVerify;
   final VoidCallback? onResend;
 
   @override
@@ -330,49 +433,98 @@ class _SentView extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Text.rich(
-          TextSpan(
-            style: TextStyle(color: context.colors.muted, height: 1.5),
-            children: [
-              TextSpan(text: "Didn't get the email? Check your spam "),
-              TextSpan(text: 'folder, or resend it to '),
+        if (email.isNotEmpty)
+          Padding(
+            padding: EdgeInsets.only(bottom: 20),
+            child: Text.rich(
               TextSpan(
-                text: email.isEmpty ? 'your email address' : email,
-                style: TextStyle(
-                  color: context.colors.ink,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-              TextSpan(text: '.'),
-            ],
-          ),
-          textAlign: TextAlign.center,
-        ),
-        SizedBox(height: 28),
-        SizedBox(
-          height: 48,
-          child: loading
-              ? Center(
-                  child: SizedBox(
-                    width: 20,
-                    height: 20,
-                    child: CircularProgressIndicator(strokeWidth: 2.4),
-                  ),
-                )
-              : TextButton(
-                  onPressed: onResend,
-                  child: Text(
-                    onResend == null
-                        ? 'Resend in ${cooldown}s'
-                        : 'Resend Email',
+                style: TextStyle(color: context.colors.muted, height: 1.5),
+                children: [
+                  TextSpan(text: tr('auth_code_sent_to')),
+                  TextSpan(
+                    text: email,
                     style: TextStyle(
-                      color: onResend == null
-                          ? context.colors.muted
-                          : AppColors.accent,
+                      color: context.colors.ink,
                       fontWeight: FontWeight.w700,
                     ),
                   ),
+                ],
+              ),
+              textAlign: TextAlign.center,
+            ),
+          ),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: List.generate(controllers.length, (index) {
+            return SizedBox(
+              width: 46,
+              height: 56,
+              child: TextField(
+                controller: controllers[index],
+                focusNode: focusNodes[index],
+                textAlign: TextAlign.center,
+                keyboardType: TextInputType.number,
+                maxLength: 1,
+                inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                style: TextStyle(
+                  fontSize: 22,
+                  fontWeight: FontWeight.w800,
+                  color: context.colors.ink,
                 ),
+                decoration: InputDecoration(
+                  counterText: '',
+                  filled: true,
+                  fillColor: context.colors.surface,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(14),
+                    borderSide: hasError
+                        ? BorderSide(color: Colors.redAccent, width: 1.2)
+                        : BorderSide.none,
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(14),
+                    borderSide: BorderSide(
+                      color: context.colors.ink,
+                      width: 1.5,
+                    ),
+                  ),
+                ),
+                onChanged: (value) => onChanged(index, value),
+              ),
+            );
+          }),
+        ),
+        if (hasError)
+          Padding(
+            padding: EdgeInsets.only(top: 10),
+            child: Text(
+              tr('auth_enter_full_code'),
+              style: TextStyle(color: Colors.redAccent, fontSize: 12),
+            ),
+          ),
+        SizedBox(height: 14),
+        CodeExpiryTimer(resetKey: codeRequestId, onExpired: onExpired),
+        SizedBox(height: 14),
+        GradientButton(
+          label: tr('auth_verify_code'),
+          onPressed: onVerify,
+          loading: loading,
+        ),
+        SizedBox(height: 20),
+        SizedBox(
+          height: 48,
+          child: TextButton(
+            onPressed: onResend,
+            child: Text(
+              onResend == null ? '${tr('auth_resend_in_seconds')} ${cooldown}s' : tr('auth_resend_code'),
+              style: TextStyle(
+                color: onResend == null
+                    ? context.colors.muted
+                    : AppColors.accent,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
         ),
         SizedBox(height: 8),
         Row(
@@ -387,7 +539,7 @@ class _SentView extends StatelessWidget {
             GestureDetector(
               onTap: () => Navigator.of(context).popUntil((r) => r.isFirst),
               child: Text(
-                'Back to Sign In',
+                tr('auth_back_to_sign_in'),
                 style: TextStyle(
                   color: context.colors.muted,
                   fontWeight: FontWeight.w600,

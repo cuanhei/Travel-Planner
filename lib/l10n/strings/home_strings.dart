@@ -1,6 +1,8 @@
 const Map<String, Map<String, String>> homeStrings = {
   'en': {
-    'home_greeting': 'Good morning ☀️',
+    'home_greeting_morning': 'Good morning ☀️',
+    'home_greeting_afternoon': 'Good afternoon 🌤️',
+    'home_greeting_evening': 'Good evening 🌙',
     'home_hi': 'Hi',
     'home_upcoming_trip_badge': 'UPCOMING TRIP',
     'home_no_trip_subtitle': "Plan your next adventure and it'll show up here.",
@@ -49,9 +51,19 @@ const Map<String, Map<String, String>> homeStrings = {
     'home_no_destinations_found': 'No destinations found',
     'home_recent_gurney_drive': 'Gurney Drive',
     'home_recent_komtar': 'Komtar',
+    'home_reminder_ongoing': 'Your trip to {place} is happening now — enjoy!',
+    'home_reminder_today': 'Your trip to {place} starts today!',
+    'home_reminder_tomorrow': 'Your trip to {place} starts tomorrow!',
+    'home_reminder_days': 'Your trip to {place} starts in {days} days!',
+    'home_reminders_title': 'Trip Reminders',
+    'home_reminders_empty_title': 'No reminders right now',
+    'home_reminders_empty_body':
+        'Trips show up here once they\'re underway or starting soon.',
   },
   'ms': {
-    'home_greeting': 'Selamat pagi ☀️',
+    'home_greeting_morning': 'Selamat pagi ☀️',
+    'home_greeting_afternoon': 'Selamat petang 🌤️',
+    'home_greeting_evening': 'Selamat malam 🌙',
     'home_hi': 'Hai',
     'home_upcoming_trip_badge': 'PERJALANAN AKAN DATANG',
     'home_no_trip_subtitle':
@@ -104,7 +116,9 @@ const Map<String, Map<String, String>> homeStrings = {
     'home_recent_komtar': 'Komtar',
   },
   'zh': {
-    'home_greeting': '早上好 ☀️',
+    'home_greeting_morning': '早上好 ☀️',
+    'home_greeting_afternoon': '下午好 🌤️',
+    'home_greeting_evening': '晚上好 🌙',
     'home_hi': '你好',
     'home_upcoming_trip_badge': '即将出行',
     'home_no_trip_subtitle': '规划您的下一次冒险，它将显示在这里。',
@@ -151,7 +165,9 @@ const Map<String, Map<String, String>> homeStrings = {
     'home_recent_komtar': 'Komtar',
   },
   'ja': {
-    'home_greeting': 'おはようございます ☀️',
+    'home_greeting_morning': 'おはようございます ☀️',
+    'home_greeting_afternoon': 'こんにちは 🌤️',
+    'home_greeting_evening': 'こんばんは 🌙',
     'home_hi': 'こんにちは',
     'home_upcoming_trip_badge': '次の旅行',
     'home_no_trip_subtitle': '次の冒険を計画すると、ここに表示されます。',
@@ -198,7 +214,9 @@ const Map<String, Map<String, String>> homeStrings = {
     'home_recent_komtar': 'コムタ',
   },
   'ko': {
-    'home_greeting': '좋은 아침이에요 ☀️',
+    'home_greeting_morning': '좋은 아침이에요 ☀️',
+    'home_greeting_afternoon': '좋은 오후예요 🌤️',
+    'home_greeting_evening': '좋은 저녁이에요 🌙',
     'home_hi': '안녕하세요',
     'home_upcoming_trip_badge': '예정된 여행',
     'home_no_trip_subtitle': '다음 모험을 계획하면 여기에 표시됩니다.',
@@ -245,7 +263,9 @@ const Map<String, Map<String, String>> homeStrings = {
     'home_recent_komtar': '콤타르',
   },
   'th': {
-    'home_greeting': 'อรุณสวัสดิ์ ☀️',
+    'home_greeting_morning': 'อรุณสวัสดิ์ ☀️',
+    'home_greeting_afternoon': 'สวัสดีตอนบ่าย 🌤️',
+    'home_greeting_evening': 'สวัสดีตอนเย็น 🌙',
     'home_hi': 'สวัสดี',
     'home_upcoming_trip_badge': 'ทริปที่กำลังจะมาถึง',
     'home_no_trip_subtitle':
@@ -297,7 +317,9 @@ const Map<String, Map<String, String>> homeStrings = {
     'home_recent_komtar': 'Komtar',
   },
   'vi': {
-    'home_greeting': 'Chào buổi sáng ☀️',
+    'home_greeting_morning': 'Chào buổi sáng ☀️',
+    'home_greeting_afternoon': 'Chào buổi chiều 🌤️',
+    'home_greeting_evening': 'Chào buổi tối 🌙',
     'home_hi': 'Xin chào',
     'home_upcoming_trip_badge': 'CHUYẾN ĐI SẮP TỚI',
     'home_no_trip_subtitle':
@@ -350,7 +372,9 @@ const Map<String, Map<String, String>> homeStrings = {
     'home_recent_komtar': 'Komtar',
   },
   'id': {
-    'home_greeting': 'Selamat pagi ☀️',
+    'home_greeting_morning': 'Selamat pagi ☀️',
+    'home_greeting_afternoon': 'Selamat siang 🌤️',
+    'home_greeting_evening': 'Selamat malam 🌙',
     'home_hi': 'Hai',
     'home_upcoming_trip_badge': 'PERJALANAN MENDATANG',
     'home_no_trip_subtitle':
@@ -404,7 +428,9 @@ const Map<String, Map<String, String>> homeStrings = {
     'home_recent_komtar': 'Komtar',
   },
   'hi': {
-    'home_greeting': 'सुप्रभात ☀️',
+    'home_greeting_morning': 'सुप्रभात ☀️',
+    'home_greeting_afternoon': 'शुभ दोपहर 🌤️',
+    'home_greeting_evening': 'शुभ संध्या 🌙',
     'home_hi': 'नमस्ते',
     'home_upcoming_trip_badge': 'आगामी यात्रा',
     'home_no_trip_subtitle':
@@ -456,7 +482,9 @@ const Map<String, Map<String, String>> homeStrings = {
     'home_recent_komtar': 'कोमटार',
   },
   'ta': {
-    'home_greeting': 'காலை வணக்கம் ☀️',
+    'home_greeting_morning': 'காலை வணக்கம் ☀️',
+    'home_greeting_afternoon': 'மதிய வணக்கம் 🌤️',
+    'home_greeting_evening': 'மாலை வணக்கம் 🌙',
     'home_hi': 'வணக்கம்',
     'home_upcoming_trip_badge': 'வரவிருக்கும் பயணம்',
     'home_no_trip_subtitle':
@@ -511,7 +539,9 @@ const Map<String, Map<String, String>> homeStrings = {
     'home_recent_komtar': 'கோம்டார்',
   },
   'ar': {
-    'home_greeting': 'صباح الخير ☀️',
+    'home_greeting_morning': 'صباح الخير ☀️',
+    'home_greeting_afternoon': 'طاب نهارك 🌤️',
+    'home_greeting_evening': 'مساء الخير 🌙',
     'home_hi': 'مرحبًا',
     'home_upcoming_trip_badge': 'رحلة قادمة',
     'home_no_trip_subtitle': 'خطط لمغامرتك القادمة وستظهر هنا.',
@@ -560,7 +590,9 @@ const Map<String, Map<String, String>> homeStrings = {
     'home_recent_komtar': 'كومتار',
   },
   'es': {
-    'home_greeting': 'Buenos días ☀️',
+    'home_greeting_morning': 'Buenos días ☀️',
+    'home_greeting_afternoon': 'Buenas tardes 🌤️',
+    'home_greeting_evening': 'Buenas noches 🌙',
     'home_hi': 'Hola',
     'home_upcoming_trip_badge': 'PRÓXIMO VIAJE',
     'home_no_trip_subtitle': 'Planifica tu próxima aventura y aparecerá aquí.',
@@ -614,7 +646,9 @@ const Map<String, Map<String, String>> homeStrings = {
     'home_recent_komtar': 'Komtar',
   },
   'fr': {
-    'home_greeting': 'Bonjour ☀️',
+    'home_greeting_morning': 'Bonjour ☀️',
+    'home_greeting_afternoon': 'Bon après-midi 🌤️',
+    'home_greeting_evening': 'Bonsoir 🌙',
     'home_hi': 'Salut',
     'home_upcoming_trip_badge': 'PROCHAIN VOYAGE',
     'home_no_trip_subtitle':
@@ -668,7 +702,9 @@ const Map<String, Map<String, String>> homeStrings = {
     'home_recent_komtar': 'Komtar',
   },
   'de': {
-    'home_greeting': 'Guten Morgen ☀️',
+    'home_greeting_morning': 'Guten Morgen ☀️',
+    'home_greeting_afternoon': 'Guten Tag 🌤️',
+    'home_greeting_evening': 'Guten Abend 🌙',
     'home_hi': 'Hallo',
     'home_upcoming_trip_badge': 'BEVORSTEHENDE REISE',
     'home_no_trip_subtitle':
@@ -722,7 +758,9 @@ const Map<String, Map<String, String>> homeStrings = {
     'home_recent_komtar': 'Komtar',
   },
   'pt': {
-    'home_greeting': 'Bom dia ☀️',
+    'home_greeting_morning': 'Bom dia ☀️',
+    'home_greeting_afternoon': 'Boa tarde 🌤️',
+    'home_greeting_evening': 'Boa noite 🌙',
     'home_hi': 'Olá',
     'home_upcoming_trip_badge': 'PRÓXIMA VIAGEM',
     'home_no_trip_subtitle':
@@ -777,7 +815,9 @@ const Map<String, Map<String, String>> homeStrings = {
     'home_recent_komtar': 'Komtar',
   },
   'ru': {
-    'home_greeting': 'Доброе утро ☀️',
+    'home_greeting_morning': 'Доброе утро ☀️',
+    'home_greeting_afternoon': 'Добрый день 🌤️',
+    'home_greeting_evening': 'Добрый вечер 🌙',
     'home_hi': 'Привет',
     'home_upcoming_trip_badge': 'ПРЕДСТОЯЩАЯ ПОЕЗДКА',
     'home_no_trip_subtitle':

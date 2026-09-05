@@ -119,4 +119,15 @@ class Trip {
     if (start == null || end == null) return 0;
     return end.difference(start).inDays + 1;
   }
+
+  /// Calendar days from today until [startDate] (0 = starts today,
+  /// negative = already started); null if [startDate] is unset.
+  int? get daysUntilStart {
+    final start = startDate;
+    if (start == null) return null;
+    final today = DateTime.now();
+    final todayDate = DateTime(today.year, today.month, today.day);
+    final startDateOnly = DateTime(start.year, start.month, start.day);
+    return startDateOnly.difference(todayDate).inDays;
+  }
 }

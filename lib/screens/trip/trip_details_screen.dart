@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 
 import '../../models/trip.dart';
-import '../../services/trip_service.dart';
 import '../../services/budget_service.dart';
+import '../../services/trip_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/section_header.dart';
 import '../budget/budget_planner_screen.dart';

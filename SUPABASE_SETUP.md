@@ -225,3 +225,55 @@ skippable if you just want the rest of the app working.
    error in the app.
 
 Source: `supabase/functions/send-login-alert/index.ts`.
+
+## Optional: Welcome email on sign-up
+
+Sends "You're signed up for TravelPlanner!" to a new user's email the
+moment their account is created (a `profiles` row insert — see step 4's
+`schema.sql`, whose `handle_new_user` trigger creates that row the instant
+`AuthService.signUp` succeeds). This is separate from Supabase's own
+"Confirm signup" email (the 6-digit code the Verify Email screen asks
+for) — that one confirms the address; this one is just a welcome note.
+Same Resend-based setup as the sign-in alert above, so skip straight to
+step 3 if you've already done steps 1-2 for that.
+
+1. **Get a Resend API key** (skip if already done for the sign-in alert
+   above) — sign up free at [resend.com](https://resend.com), **API
+   Keys** → **Create API Key** → copy the `re_...` value.
+
+2. **Install the Supabase CLI, log in, and link this repo** (skip if
+   already done):
+   ```
+   npm install -g supabase
+   supabase login
+   supabase link --project-ref YOUR_PROJECT_REF
+   ```
+
+3. **Set the Resend key as a function secret** (skip if already set for
+   the sign-in alert — it's the same secret, shared by every function in
+   the project):
+   ```
+   supabase secrets set RESEND_API_KEY=re_your_key_here
+   ```
+
+4. **Deploy the function**:
+   ```
+   supabase functions deploy send-welcome-email
+   ```
+
+5. **Wire up the Database Webhook** — dashboard → **Database** →
+   **Webhooks** → **Create a new hook**:
+   - **Table**: `profiles`
+   - **Events**: `Insert` only
+   - **Type**: `Supabase Edge Functions` → select `send-welcome-email`
+     (if your dashboard only offers `HTTP Request` instead, set the URL to
+     `https://YOUR_PROJECT_REF.supabase.co/functions/v1/send-welcome-email`
+     — no `Authorization` header needed here since, unlike the sign-in
+     alert, this function never calls back into Supabase itself)
+
+6. **Test**: sign up with a fresh email in the app — a welcome email
+   should land in that inbox within a few seconds, separate from the
+   verification-code email. Check **Edge Functions** →
+   `send-welcome-email` → **Logs** in the dashboard if it doesn't.
+
+Source: `supabase/functions/send-welcome-email/index.ts`.

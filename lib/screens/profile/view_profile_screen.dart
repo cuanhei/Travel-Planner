@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
 
 import '../../models/profile_avatar_state.dart';
+import '../../services/auth_service.dart';
 import '../../services/locale_service.dart';
 import '../../services/profile_service.dart';
 import '../../theme/app_theme.dart';
 import '../../utils/gender_options.dart';
 import '../../widgets/avatar_viewer.dart';
+import '../../widgets/category_badge_chip.dart';
 import '../../widgets/detail_header.dart';
 import '../../widgets/user_avatar.dart';
 
@@ -27,6 +29,19 @@ const _monthNames = [
 String _formatDate(DateTime d) =>
     '${d.day} ${_monthNames[d.month - 1]} ${d.year}';
 
+/// Read-only view of a user's profile — the "other side" of the
+/// Instagram-style public/private switch in Settings → Privacy &
+/// Security. A public profile shows everything; a private one is
+/// limited to name, photo, and bio, with a "This account is private"
+/// notice instead of the rest — unless [userId] is the signed-in user's
+/// own id, in which case everything always shows regardless of that
+/// switch, since the restriction is about hiding details from others.
+///
+/// Reachable via Settings → Privacy & Security → "Preview My Profile"
+/// (always the signed-in user's own [userId]) and by tapping a post
+/// author's avatar in the Community feed (`PostCard`) — either the
+/// signed-in user's own posts or someone else's, since [ProfileService.
+/// getById] just returns whichever profile row [userId] points at.
 class ViewProfileScreen extends StatefulWidget {
   const ViewProfileScreen({super.key, required this.userId});
 
@@ -69,12 +84,21 @@ class _ViewProfileScreenState extends State<ViewProfileScreen> {
                       ),
                     );
                   }
+                  // The private-profile restriction is about hiding your
+                  // details from *other* people — viewing your own profile
+                  // (e.g. tapping your own avatar on a Community post)
+                  // always shows everything, same as Edit Profile would.
+                  final isOwnProfile =
+                      profile.id == AuthService.instance.currentUser?.id;
                   return ListView(
                     padding: const EdgeInsets.fromLTRB(24, 8, 24, 24),
                     children: [
-                      _ProfileHeader(profile: profile),
+                      _ProfileHeader(
+                        profile: profile,
+                        isOwnProfile: isOwnProfile,
+                      ),
                       const SizedBox(height: 28),
-                      if (profile.isPublic)
+                      if (profile.isPublic || isOwnProfile)
                         _PublicDetails(profile: profile)
                       else
                         const _PrivateNotice(),
@@ -91,9 +115,16 @@ class _ViewProfileScreenState extends State<ViewProfileScreen> {
 }
 
 class _ProfileHeader extends StatelessWidget {
-  const _ProfileHeader({required this.profile});
+  const _ProfileHeader({required this.profile, required this.isOwnProfile});
 
   final UserProfile profile;
+
+  /// Whether the signed-in viewer is looking at their own profile — the
+  /// private-account lock icon is about warning a *viewer* that they're
+  /// only seeing a limited view of someone else, so it stays hidden here
+  /// even when [profile.isPublic] is off, since the full details below
+  /// are already showing regardless (see [ViewProfileScreen]).
+  final bool isOwnProfile;
 
   @override
   Widget build(BuildContext context) {
@@ -123,23 +154,36 @@ class _ProfileHeader extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 14),
-        Row(
-          mainAxisSize: MainAxisSize.min,
+        Wrap(
+          alignment: WrapAlignment.center,
+          crossAxisAlignment: WrapCrossAlignment.center,
+          spacing: 8,
+          runSpacing: 4,
           children: [
-            Text(
-              profile.fullName.isEmpty
-                  ? tr('auth_traveler_default')
-                  : profile.fullName,
-              style: TextStyle(
-                color: context.colors.ink,
-                fontSize: 20,
-                fontWeight: FontWeight.w800,
-              ),
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  profile.fullName.isEmpty
+                      ? tr('auth_traveler_default')
+                      : profile.fullName,
+                  style: TextStyle(
+                    color: context.colors.ink,
+                    fontSize: 20,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                if (!profile.isPublic && !isOwnProfile) ...[
+                  const SizedBox(width: 6),
+                  Icon(
+                    Icons.lock_rounded,
+                    size: 16,
+                    color: context.colors.muted,
+                  ),
+                ],
+              ],
             ),
-            if (!profile.isPublic) ...[
-              const SizedBox(width: 6),
-              Icon(Icons.lock_rounded, size: 16, color: context.colors.muted),
-            ],
+            CategoryBadgeRow(categories: profile.earnedCategoryBadges),
           ],
         ),
         if (profile.bio?.isNotEmpty ?? false) ...[

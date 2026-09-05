@@ -16,6 +16,8 @@ const Map<String, Map<String, String>> communityStrings = {
     'community_caption_placeholder': 'Your caption will appear here…',
     'community_location_placeholder': 'Location',
     'community_just_now': 'Just now',
+    'community_ip_prefix': 'IP:',
+    'community_ip_unknown': 'Unknown',
     'community_post_button': 'Post',
     'community_write_review': 'Write a Review',
     'community_review_for': 'Review for',

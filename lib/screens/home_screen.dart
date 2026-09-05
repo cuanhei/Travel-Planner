@@ -187,7 +187,7 @@ class _GreetingBar extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    tr('home_greeting'),
+                    _greetingFor(DateTime.now()),
                     style: TextStyle(
                       color: context.colors.muted,
                       fontSize: 13,
