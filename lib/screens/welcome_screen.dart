@@ -45,8 +45,6 @@ List<_OnboardData> _pages = [
   ),
 ];
 
-/// The app's intro / welcome experience: a swipeable feature carousel
-/// that leads into the sign in / sign up screen.
 class WelcomeScreen extends StatefulWidget {
   const WelcomeScreen({super.key});
 

@@ -4,10 +4,6 @@ import '../../theme/app_theme.dart';
 import '../../utils/chat_time.dart';
 import '../../widgets/detail_header.dart';
 
-/// One message reduced to just what search needs to show/filter/jump
-/// to — built by Group Chat and Direct Message screens from their own
-/// message types so [ChatSearchScreen] doesn't need to know about
-/// either.
 class SearchableChatMessage {
   const SearchableChatMessage({
     required this.id,
@@ -24,11 +20,6 @@ class SearchableChatMessage {
   final bool hasAttachment;
 }
 
-/// Search this conversation's history by keyword and/or date range —
-/// entirely in-memory over the messages already loaded by the caller
-/// (a trip's chat history is small enough that a server round-trip
-/// isn't worth it). Tapping a result pops this screen back with that
-/// message's id, so the caller can scroll to and highlight it.
 class ChatSearchScreen extends StatefulWidget {
   const ChatSearchScreen({
     super.key,
@@ -55,10 +46,6 @@ class _ChatSearchScreenState extends State<ChatSearchScreen> {
     super.dispose();
   }
 
-  /// A separate single-date picker per boundary rather than one
-  /// combined range picker — each gets its own tappable year header for
-  /// jumping straight to any year, instead of only being able to step
-  /// month-by-month through the range picker's one visible calendar.
   Future<void> _pickStartDate() async {
     final now = DateTime.now();
     final picked = await showDatePicker(
@@ -101,10 +88,6 @@ class _ChatSearchScreenState extends State<ChatSearchScreen> {
         return false;
       }
       if (start != null || end != null) {
-        // .toLocal() matters: createdAt is UTC (as parsed from
-        // Supabase), and comparing its raw year/month/day against a
-        // locally-picked calendar date silently shifts the boundary by
-        // a day for anyone not at UTC+0.
         final local = m.createdAt.toLocal();
         final day = DateTime(local.year, local.month, local.day);
         if (start != null &&

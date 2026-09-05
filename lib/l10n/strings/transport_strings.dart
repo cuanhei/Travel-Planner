@@ -1,9 +1,3 @@
-/// Transport module translations (Transport Routes, Route Details, Fare
-/// Calculator). Keys are prefixed `transport_`.
-///
-/// Sentences with embedded data use `{placeholder}` tokens (e.g. `{stop}`,
-/// `{bus}`, `{min}`, `{dest}`, `{fare}`) — callers do
-/// `tr('key').replaceAll('{x}', value)` to fill them in.
 const Map<String, Map<String, String>> transportStrings = {
   'en': {
     'transport_title': 'Transport',
@@ -74,19 +68,26 @@ const Map<String, Map<String, String>> transportStrings = {
     'transport_skip_next_step': 'Skip to next step',
     'transport_arrived_at': "You've arrived at {dest}",
     'transport_done': 'Done',
-    'transport_location_services_off_search': 'Location services are turned off. Search for a departure point instead.',
-    'transport_location_permission_denied_forever_search': 'Location permission is permanently denied. Enable it in Settings, or search for a departure point.',
-    'transport_location_permission_denied_search': 'Location permission denied. Search for a departure point instead.',
+    'transport_location_services_off_search':
+        'Location services are turned off. Search for a departure point instead.',
+    'transport_location_permission_denied_forever_search':
+        'Location permission is permanently denied. Enable it in Settings, or search for a departure point.',
+    'transport_location_permission_denied_search':
+        'Location permission denied. Search for a departure point instead.',
     'transport_current_location_word': 'Current Location',
-    'transport_unable_retrieve_location_search': 'Unable to retrieve your current location. Search for a departure point instead.',
-    'transport_no_transit_routes_found': 'No public transport routes found between these points.',
-    'transport_could_not_load_transit_routes': 'Could not load public transport routes. Check your connection and try again.',
+    'transport_unable_retrieve_location_search':
+        'Unable to retrieve your current location. Search for a departure point instead.',
+    'transport_no_transit_routes_found':
+        'No public transport routes found between these points.',
+    'transport_could_not_load_transit_routes':
+        'Could not load public transport routes. Check your connection and try again.',
     'transport_depart_from_label': 'Depart From',
     'transport_getting_location': 'Getting your location…',
     'transport_search_departure_location_hint': 'Search departure location…',
     'transport_use_current_location': 'Use current location',
     'transport_destination_label': 'Destination',
-    'transport_find_destination_malaysia': 'Find any destination in Malaysia to get started.',
+    'transport_find_destination_malaysia':
+        'Find any destination in Malaysia to get started.',
     'transport_depart_from_caps': 'DEPART FROM',
     'transport_locating_word': 'Locating…',
     'transport_not_set_word': 'Not set',
@@ -119,7 +120,8 @@ const Map<String, Map<String, String>> transportStrings = {
     'transport_get_off_here': 'Get off here',
     'transport_next_planned_stop_desc': 'Your next planned stop on this trip.',
     'transport_search_location_hint': 'Search a location…',
-    'transport_could_not_search_locations': 'Could not search locations. Check your connection and try again.',
+    'transport_could_not_search_locations':
+        'Could not search locations. Check your connection and try again.',
     'transport_no_destinations_found': 'No destinations found',
   },
   'ms': {
@@ -194,19 +196,26 @@ const Map<String, Map<String, String>> transportStrings = {
     'transport_skip_next_step': 'Langkau ke langkah seterusnya',
     'transport_arrived_at': 'Anda telah tiba di {dest}',
     'transport_done': 'Selesai',
-    'transport_location_services_off_search': 'Perkhidmatan lokasi dimatikan. Cari titik permulaan sebaliknya.',
-    'transport_location_permission_denied_forever_search': 'Kebenaran lokasi ditolak secara kekal. Aktifkan dalam Tetapan, atau cari titik permulaan.',
-    'transport_location_permission_denied_search': 'Kebenaran lokasi ditolak. Cari titik permulaan sebaliknya.',
+    'transport_location_services_off_search':
+        'Perkhidmatan lokasi dimatikan. Cari titik permulaan sebaliknya.',
+    'transport_location_permission_denied_forever_search':
+        'Kebenaran lokasi ditolak secara kekal. Aktifkan dalam Tetapan, atau cari titik permulaan.',
+    'transport_location_permission_denied_search':
+        'Kebenaran lokasi ditolak. Cari titik permulaan sebaliknya.',
     'transport_current_location_word': 'Lokasi Semasa',
-    'transport_unable_retrieve_location_search': 'Tidak dapat mendapatkan lokasi semasa anda. Cari titik permulaan sebaliknya.',
-    'transport_no_transit_routes_found': 'Tiada laluan pengangkutan awam dijumpai antara titik ini.',
-    'transport_could_not_load_transit_routes': 'Tidak dapat memuatkan laluan pengangkutan awam. Semak sambungan anda dan cuba lagi.',
+    'transport_unable_retrieve_location_search':
+        'Tidak dapat mendapatkan lokasi semasa anda. Cari titik permulaan sebaliknya.',
+    'transport_no_transit_routes_found':
+        'Tiada laluan pengangkutan awam dijumpai antara titik ini.',
+    'transport_could_not_load_transit_routes':
+        'Tidak dapat memuatkan laluan pengangkutan awam. Semak sambungan anda dan cuba lagi.',
     'transport_depart_from_label': 'Bertolak Dari',
     'transport_getting_location': 'Mendapatkan lokasi anda…',
     'transport_search_departure_location_hint': 'Cari lokasi bertolak…',
     'transport_use_current_location': 'Guna lokasi semasa',
     'transport_destination_label': 'Destinasi',
-    'transport_find_destination_malaysia': 'Cari mana-mana destinasi di Malaysia untuk bermula.',
+    'transport_find_destination_malaysia':
+        'Cari mana-mana destinasi di Malaysia untuk bermula.',
     'transport_depart_from_caps': 'BERTOLAK DARI',
     'transport_locating_word': 'Mencari lokasi…',
     'transport_not_set_word': 'Belum ditetapkan',
@@ -237,9 +246,11 @@ const Map<String, Map<String, String>> transportStrings = {
     'transport_riding_prefix': 'Menaiki',
     'transport_board_at_prefix': 'Naik di',
     'transport_get_off_here': 'Turun di sini',
-    'transport_next_planned_stop_desc': 'Perhentian seterusnya yang dirancang dalam perjalanan ini.',
+    'transport_next_planned_stop_desc':
+        'Perhentian seterusnya yang dirancang dalam perjalanan ini.',
     'transport_search_location_hint': 'Cari lokasi…',
-    'transport_could_not_search_locations': 'Tidak dapat mencari lokasi. Semak sambungan anda dan cuba lagi.',
+    'transport_could_not_search_locations':
+        'Tidak dapat mencari lokasi. Semak sambungan anda dan cuba lagi.',
     'transport_no_destinations_found': 'Tiada destinasi dijumpai',
   },
   'zh': {
@@ -305,7 +316,8 @@ const Map<String, Map<String, String>> transportStrings = {
     'transport_arrived_at': '你已到达{dest}',
     'transport_done': '完成',
     'transport_location_services_off_search': '定位服务已关闭。请改为搜索出发点。',
-    'transport_location_permission_denied_forever_search': '定位权限已被永久拒绝。请在设置中启用，或搜索出发点。',
+    'transport_location_permission_denied_forever_search':
+        '定位权限已被永久拒绝。请在设置中启用，或搜索出发点。',
     'transport_location_permission_denied_search': '定位权限被拒绝。请改为搜索出发点。',
     'transport_current_location_word': '当前位置',
     'transport_unable_retrieve_location_search': '无法获取您的当前位置。请改为搜索出发点。',
@@ -357,19 +369,16 @@ const Map<String, Map<String, String>> transportStrings = {
     'transport_find_your_way': 'ペナン島内の行き方を探す',
     'transport_my_stops': 'マイストップ',
     'transport_add': '追加',
-    'transport_favourite_places_hint':
-        'この旅行のお気に入りの場所 — タップすると行き方がわかります',
+    'transport_favourite_places_hint': 'この旅行のお気に入りの場所 — タップすると行き方がわかります',
     'transport_no_favourite_stops': 'お気に入りの停留所はまだありません。',
     'transport_next_up': '次のスポット',
-    'transport_next_stop_question':
-        '次の目的地は{stop}です。そこへ行きますか？',
+    'transport_next_stop_question': '次の目的地は{stop}です。そこへ行きますか？',
     'transport_yes_find_transport': 'はい、{stop}への交通手段を探す',
     'transport_removed_favourite': '{place}をお気に入りの停留所から削除しました',
     'transport_undo': '元に戻す',
     'transport_tap_for_directions': 'タップしてバスの行き方を見る · {area}',
     'transport_add_favourite_title': 'お気に入りの停留所を追加',
-    'transport_add_favourite_subtitle':
-        'この旅行の場所を保存してすぐに行き方を確認',
+    'transport_add_favourite_subtitle': 'この旅行の場所を保存してすぐに行き方を確認',
     'transport_search_places_hint': '場所を検索…',
     'transport_all_places_added': 'すべての場所が追加済みです。',
     'transport_no_matching_places': '一致する場所がありません',
@@ -377,8 +386,7 @@ const Map<String, Map<String, String>> transportStrings = {
     'transport_you_are_here': '現在地 · {location}',
     'transport_no_matching_destinations': '一致する目的地がありません',
     'transport_search_where_title': '行きたい場所を検索',
-    'transport_search_where_subtitle':
-        'すべてのバスの選択肢、到着時刻、乗り方を表示します。',
+    'transport_search_where_subtitle': 'すべてのバスの選択肢、到着時刻、乗り方を表示します。',
     'transport_buses_to': '{dest}行きのバス',
     'transport_options_count': '{count}件のオプション',
     'transport_bus_number': 'バス {bus}',
@@ -405,12 +413,10 @@ const Map<String, Map<String, String>> transportStrings = {
     'transport_step_walk_to_title': '{stop}まで徒歩',
     'transport_step_walk_to_detail': '現在地から徒歩約{min}分です。',
     'transport_step_wait_title': '{bus}番バスを待つ',
-    'transport_step_wait_detail':
-        '約{min}分で到着します — 番号にご注意ください。',
+    'transport_step_wait_detail': '約{min}分で到着します — 番号にご注意ください。',
     'transport_step_board_title': '{bus}番バスに乗車',
     'transport_step_ride_title': '{bus}番バスに乗車',
-    'transport_step_ride_fare_detail':
-        '約{min}分乗車します。運賃は{fare}です。',
+    'transport_step_ride_fare_detail': '約{min}分乗車します。運賃は{fare}です。',
     'transport_step_alight_title': '{stop}で下車',
     'transport_step_alight_detail': '約{min}分歩いて{dest}に到着します。',
     'transport_step_walk_dest_title': '{dest}まで徒歩',
@@ -420,13 +426,18 @@ const Map<String, Map<String, String>> transportStrings = {
     'transport_skip_next_step': '次のステップへスキップ',
     'transport_arrived_at': '{dest}に到着しました',
     'transport_done': '完了',
-    'transport_location_services_off_search': '位置情報サービスがオフになっています。代わりに出発地点を検索してください。',
-    'transport_location_permission_denied_forever_search': '位置情報の許可が完全に拒否されています。設定で有効にするか、出発地点を検索してください。',
-    'transport_location_permission_denied_search': '位置情報の許可が拒否されました。代わりに出発地点を検索してください。',
+    'transport_location_services_off_search':
+        '位置情報サービスがオフになっています。代わりに出発地点を検索してください。',
+    'transport_location_permission_denied_forever_search':
+        '位置情報の許可が完全に拒否されています。設定で有効にするか、出発地点を検索してください。',
+    'transport_location_permission_denied_search':
+        '位置情報の許可が拒否されました。代わりに出発地点を検索してください。',
     'transport_current_location_word': '現在地',
-    'transport_unable_retrieve_location_search': '現在地を取得できません。代わりに出発地点を検索してください。',
+    'transport_unable_retrieve_location_search':
+        '現在地を取得できません。代わりに出発地点を検索してください。',
     'transport_no_transit_routes_found': 'これらの地点間の公共交通機関のルートが見つかりませんでした。',
-    'transport_could_not_load_transit_routes': '公共交通機関のルートを読み込めませんでした。接続を確認して再試行してください。',
+    'transport_could_not_load_transit_routes':
+        '公共交通機関のルートを読み込めませんでした。接続を確認して再試行してください。',
     'transport_depart_from_label': '出発地',
     'transport_getting_location': '現在地を取得中…',
     'transport_search_departure_location_hint': '出発地を検索…',
@@ -473,20 +484,16 @@ const Map<String, Map<String, String>> transportStrings = {
     'transport_find_your_way': '페낭에서 길찾기',
     'transport_my_stops': '내 정류장',
     'transport_add': '추가',
-    'transport_favourite_places_hint':
-        '이 여행에서 즐겨찾는 장소 — 탭하면 가는 방법을 볼 수 있어요',
+    'transport_favourite_places_hint': '이 여행에서 즐겨찾는 장소 — 탭하면 가는 방법을 볼 수 있어요',
     'transport_no_favourite_stops': '아직 즐겨찾는 정류장이 없습니다.',
     'transport_next_up': '다음 목적지',
-    'transport_next_stop_question':
-        '다음 목적지는 {stop}입니다. 그곳으로 갈까요?',
+    'transport_next_stop_question': '다음 목적지는 {stop}입니다. 그곳으로 갈까요?',
     'transport_yes_find_transport': '네, {stop}로 가는 교통편 찾기',
-    'transport_removed_favourite':
-        '{place}이(가) 즐겨찾는 정류장에서 삭제되었습니다',
+    'transport_removed_favourite': '{place}이(가) 즐겨찾는 정류장에서 삭제되었습니다',
     'transport_undo': '실행 취소',
     'transport_tap_for_directions': '탭하여 버스 경로 보기 · {area}',
     'transport_add_favourite_title': '즐겨찾는 정류장 추가',
-    'transport_add_favourite_subtitle':
-        '이 여행의 장소를 저장하여 빠르게 길찾기',
+    'transport_add_favourite_subtitle': '이 여행의 장소를 저장하여 빠르게 길찾기',
     'transport_search_places_hint': '장소 검색…',
     'transport_all_places_added': '모든 장소가 이미 추가되었습니다.',
     'transport_no_matching_places': '일치하는 장소가 없습니다',
@@ -494,8 +501,7 @@ const Map<String, Map<String, String>> transportStrings = {
     'transport_you_are_here': '현재 위치 · {location}',
     'transport_no_matching_destinations': '일치하는 목적지가 없습니다',
     'transport_search_where_title': '가고 싶은 곳을 검색하세요',
-    'transport_search_where_subtitle':
-        '모든 버스 옵션, 도착 시간, 타는 방법을 보여드립니다.',
+    'transport_search_where_subtitle': '모든 버스 옵션, 도착 시간, 타는 방법을 보여드립니다.',
     'transport_buses_to': '{dest}행 버스',
     'transport_options_count': '옵션 {count}개',
     'transport_bus_number': '{bus}번 버스',
@@ -522,12 +528,10 @@ const Map<String, Map<String, String>> transportStrings = {
     'transport_step_walk_to_title': '{stop}까지 도보',
     'transport_step_walk_to_detail': '현재 위치에서 도보로 약 {min}분입니다.',
     'transport_step_wait_title': '{bus}번 버스 기다리기',
-    'transport_step_wait_detail':
-        '약 {min}분 후 도착합니다 — 번호를 확인하세요.',
+    'transport_step_wait_detail': '약 {min}분 후 도착합니다 — 번호를 확인하세요.',
     'transport_step_board_title': '{bus}번 버스 탑승',
     'transport_step_ride_title': '{bus}번 버스 탑승',
-    'transport_step_ride_fare_detail':
-        '약 {min}분간 탑승합니다. 요금은 {fare}입니다.',
+    'transport_step_ride_fare_detail': '약 {min}분간 탑승합니다. 요금은 {fare}입니다.',
     'transport_step_alight_title': '{stop}에서 하차',
     'transport_step_alight_detail': '{dest}까지 약 {min}분 걸어가세요.',
     'transport_step_walk_dest_title': '{dest}까지 도보',
@@ -538,12 +542,16 @@ const Map<String, Map<String, String>> transportStrings = {
     'transport_arrived_at': '{dest}에 도착했습니다',
     'transport_done': '완료',
     'transport_location_services_off_search': '위치 서비스가 꺼져 있습니다. 대신 출발지를 검색하세요.',
-    'transport_location_permission_denied_forever_search': '위치 권한이 영구적으로 거부되었습니다. 설정에서 활성화하거나 출발지를 검색하세요.',
-    'transport_location_permission_denied_search': '위치 권한이 거부되었습니다. 대신 출발지를 검색하세요.',
+    'transport_location_permission_denied_forever_search':
+        '위치 권한이 영구적으로 거부되었습니다. 설정에서 활성화하거나 출발지를 검색하세요.',
+    'transport_location_permission_denied_search':
+        '위치 권한이 거부되었습니다. 대신 출발지를 검색하세요.',
     'transport_current_location_word': '현재 위치',
-    'transport_unable_retrieve_location_search': '현재 위치를 가져올 수 없습니다. 대신 출발지를 검색하세요.',
+    'transport_unable_retrieve_location_search':
+        '현재 위치를 가져올 수 없습니다. 대신 출발지를 검색하세요.',
     'transport_no_transit_routes_found': '이 지점 간 대중교통 경로를 찾을 수 없습니다.',
-    'transport_could_not_load_transit_routes': '대중교통 경로를 불러올 수 없습니다. 연결을 확인하고 다시 시도하세요.',
+    'transport_could_not_load_transit_routes':
+        '대중교통 경로를 불러올 수 없습니다. 연결을 확인하고 다시 시도하세요.',
     'transport_depart_from_label': '출발지',
     'transport_getting_location': '위치를 가져오는 중…',
     'transport_search_departure_location_hint': '출발 위치 검색…',
@@ -582,7 +590,8 @@ const Map<String, Map<String, String>> transportStrings = {
     'transport_get_off_here': '여기서 하차',
     'transport_next_planned_stop_desc': '이 여행에서 다음으로 계획된 정류지입니다.',
     'transport_search_location_hint': '장소 검색…',
-    'transport_could_not_search_locations': '장소를 검색할 수 없습니다. 연결 상태를 확인하고 다시 시도하세요.',
+    'transport_could_not_search_locations':
+        '장소를 검색할 수 없습니다. 연결 상태를 확인하고 다시 시도하세요.',
     'transport_no_destinations_found': '목적지를 찾을 수 없습니다',
   },
   'th': {
@@ -639,36 +648,40 @@ const Map<String, Map<String, String>> transportStrings = {
     'transport_step_walk_to_detail':
         'เดินเท้าประมาณ {min} นาทีจากตำแหน่งปัจจุบันของคุณ',
     'transport_step_wait_title': 'รอรถบัส {bus}',
-    'transport_step_wait_detail':
-        'มาถึงในประมาณ {min} นาที — สังเกตหมายเลขรถ',
+    'transport_step_wait_detail': 'มาถึงในประมาณ {min} นาที — สังเกตหมายเลขรถ',
     'transport_step_board_title': 'ขึ้นรถบัส {bus}',
     'transport_step_ride_title': 'ขึ้นรถบัส {bus}',
     'transport_step_ride_fare_detail':
         'นั่งรถประมาณ {min} นาที ค่าโดยสาร {fare}',
     'transport_step_alight_title': 'ลงที่ {stop}',
-    'transport_step_alight_detail':
-        'เดินประมาณ {min} นาทีเพื่อไปยัง {dest}',
+    'transport_step_alight_detail': 'เดินประมาณ {min} นาทีเพื่อไปยัง {dest}',
     'transport_step_walk_dest_title': 'เดินไปยัง {dest}',
-    'transport_step_walk_dest_detail':
-        'เดินเท้าประมาณ {min} นาทีเพื่อไปถึง',
+    'transport_step_walk_dest_detail': 'เดินเท้าประมาณ {min} นาทีเพื่อไปถึง',
     'transport_left': 'เหลือ',
     'transport_arrived_button': 'ฉันถึงแล้ว',
     'transport_skip_next_step': 'ข้ามไปขั้นตอนถัดไป',
     'transport_arrived_at': 'คุณมาถึง {dest} แล้ว',
     'transport_done': 'เสร็จสิ้น',
-    'transport_location_services_off_search': 'บริการตำแหน่งที่ตั้งถูกปิดอยู่ โปรดค้นหาจุดออกเดินทางแทน',
-    'transport_location_permission_denied_forever_search': 'สิทธิ์การเข้าถึงตำแหน่งถูกปฏิเสธอย่างถาวร เปิดใช้งานในการตั้งค่า หรือค้นหาจุดออกเดินทาง',
-    'transport_location_permission_denied_search': 'สิทธิ์การเข้าถึงตำแหน่งถูกปฏิเสธ โปรดค้นหาจุดออกเดินทางแทน',
+    'transport_location_services_off_search':
+        'บริการตำแหน่งที่ตั้งถูกปิดอยู่ โปรดค้นหาจุดออกเดินทางแทน',
+    'transport_location_permission_denied_forever_search':
+        'สิทธิ์การเข้าถึงตำแหน่งถูกปฏิเสธอย่างถาวร เปิดใช้งานในการตั้งค่า หรือค้นหาจุดออกเดินทาง',
+    'transport_location_permission_denied_search':
+        'สิทธิ์การเข้าถึงตำแหน่งถูกปฏิเสธ โปรดค้นหาจุดออกเดินทางแทน',
     'transport_current_location_word': 'ตำแหน่งปัจจุบัน',
-    'transport_unable_retrieve_location_search': 'ไม่สามารถดึงตำแหน่งปัจจุบันของคุณได้ โปรดค้นหาจุดออกเดินทางแทน',
-    'transport_no_transit_routes_found': 'ไม่พบเส้นทางขนส่งสาธารณะระหว่างจุดเหล่านี้',
-    'transport_could_not_load_transit_routes': 'ไม่สามารถโหลดเส้นทางขนส่งสาธารณะได้ ตรวจสอบการเชื่อมต่อของคุณแล้วลองอีกครั้ง',
+    'transport_unable_retrieve_location_search':
+        'ไม่สามารถดึงตำแหน่งปัจจุบันของคุณได้ โปรดค้นหาจุดออกเดินทางแทน',
+    'transport_no_transit_routes_found':
+        'ไม่พบเส้นทางขนส่งสาธารณะระหว่างจุดเหล่านี้',
+    'transport_could_not_load_transit_routes':
+        'ไม่สามารถโหลดเส้นทางขนส่งสาธารณะได้ ตรวจสอบการเชื่อมต่อของคุณแล้วลองอีกครั้ง',
     'transport_depart_from_label': 'ออกเดินทางจาก',
     'transport_getting_location': 'กำลังรับตำแหน่งของคุณ…',
     'transport_search_departure_location_hint': 'ค้นหาตำแหน่งออกเดินทาง…',
     'transport_use_current_location': 'ใช้ตำแหน่งปัจจุบัน',
     'transport_destination_label': 'จุดหมายปลายทาง',
-    'transport_find_destination_malaysia': 'ค้นหาจุดหมายปลายทางที่ใดก็ได้ในมาเลเซียเพื่อเริ่มต้น',
+    'transport_find_destination_malaysia':
+        'ค้นหาจุดหมายปลายทางที่ใดก็ได้ในมาเลเซียเพื่อเริ่มต้น',
     'transport_depart_from_caps': 'ออกเดินทางจาก',
     'transport_locating_word': 'กำลังค้นหาตำแหน่ง…',
     'transport_not_set_word': 'ยังไม่ได้ตั้งค่า',
@@ -701,7 +714,8 @@ const Map<String, Map<String, String>> transportStrings = {
     'transport_get_off_here': 'ลงรถที่นี่',
     'transport_next_planned_stop_desc': 'จุดแวะถัดไปที่วางแผนไว้ในทริปนี้',
     'transport_search_location_hint': 'ค้นหาสถานที่…',
-    'transport_could_not_search_locations': 'ไม่สามารถค้นหาสถานที่ได้ ตรวจสอบการเชื่อมต่อของคุณแล้วลองอีกครั้ง',
+    'transport_could_not_search_locations':
+        'ไม่สามารถค้นหาสถานที่ได้ ตรวจสอบการเชื่อมต่อของคุณแล้วลองอีกครั้ง',
     'transport_no_destinations_found': 'ไม่พบจุดหมายปลายทาง',
   },
   'vi': {
@@ -716,8 +730,7 @@ const Map<String, Map<String, String>> transportStrings = {
     'transport_next_stop_question':
         'Điểm dừng tiếp theo của bạn là {stop}. Bạn có muốn đến đó không?',
     'transport_yes_find_transport': 'Có, tìm phương tiện đến {stop}',
-    'transport_removed_favourite':
-        'Đã xóa {place} khỏi điểm dừng yêu thích',
+    'transport_removed_favourite': 'Đã xóa {place} khỏi điểm dừng yêu thích',
     'transport_undo': 'Hoàn tác',
     'transport_tap_for_directions': 'Nhấn để xem hướng dẫn xe buýt · {area}',
     'transport_add_favourite_title': 'Thêm Điểm dừng Yêu thích',
@@ -766,29 +779,34 @@ const Map<String, Map<String, String>> transportStrings = {
     'transport_step_ride_fare_detail':
         'Đi khoảng {min} phút. Giá vé là {fare}.',
     'transport_step_alight_title': 'Xuống tại {stop}',
-    'transport_step_alight_detail':
-        'Đi bộ khoảng {min} phút để đến {dest}.',
+    'transport_step_alight_detail': 'Đi bộ khoảng {min} phút để đến {dest}.',
     'transport_step_walk_dest_title': 'Đi bộ đến {dest}',
-    'transport_step_walk_dest_detail':
-        'Khoảng {min} phút đi bộ để đến nơi.',
+    'transport_step_walk_dest_detail': 'Khoảng {min} phút đi bộ để đến nơi.',
     'transport_left': 'còn lại',
     'transport_arrived_button': 'Tôi đã đến',
     'transport_skip_next_step': 'Bỏ qua bước tiếp theo',
     'transport_arrived_at': 'Bạn đã đến {dest}',
     'transport_done': 'Xong',
-    'transport_location_services_off_search': 'Dịch vụ định vị đang tắt. Hãy tìm điểm khởi hành thay thế.',
-    'transport_location_permission_denied_forever_search': 'Quyền vị trí đã bị từ chối vĩnh viễn. Hãy bật trong Cài đặt, hoặc tìm điểm khởi hành.',
-    'transport_location_permission_denied_search': 'Quyền vị trí bị từ chối. Hãy tìm điểm khởi hành thay thế.',
+    'transport_location_services_off_search':
+        'Dịch vụ định vị đang tắt. Hãy tìm điểm khởi hành thay thế.',
+    'transport_location_permission_denied_forever_search':
+        'Quyền vị trí đã bị từ chối vĩnh viễn. Hãy bật trong Cài đặt, hoặc tìm điểm khởi hành.',
+    'transport_location_permission_denied_search':
+        'Quyền vị trí bị từ chối. Hãy tìm điểm khởi hành thay thế.',
     'transport_current_location_word': 'Vị Trí Hiện Tại',
-    'transport_unable_retrieve_location_search': 'Không thể lấy vị trí hiện tại của bạn. Hãy tìm điểm khởi hành thay thế.',
-    'transport_no_transit_routes_found': 'Không tìm thấy tuyến giao thông công cộng giữa các điểm này.',
-    'transport_could_not_load_transit_routes': 'Không thể tải tuyến giao thông công cộng. Kiểm tra kết nối của bạn và thử lại.',
+    'transport_unable_retrieve_location_search':
+        'Không thể lấy vị trí hiện tại của bạn. Hãy tìm điểm khởi hành thay thế.',
+    'transport_no_transit_routes_found':
+        'Không tìm thấy tuyến giao thông công cộng giữa các điểm này.',
+    'transport_could_not_load_transit_routes':
+        'Không thể tải tuyến giao thông công cộng. Kiểm tra kết nối của bạn và thử lại.',
     'transport_depart_from_label': 'Khởi Hành Từ',
     'transport_getting_location': 'Đang lấy vị trí của bạn…',
     'transport_search_departure_location_hint': 'Tìm địa điểm khởi hành…',
     'transport_use_current_location': 'Dùng vị trí hiện tại',
     'transport_destination_label': 'Điểm Đến',
-    'transport_find_destination_malaysia': 'Tìm bất kỳ điểm đến nào ở Malaysia để bắt đầu.',
+    'transport_find_destination_malaysia':
+        'Tìm bất kỳ điểm đến nào ở Malaysia để bắt đầu.',
     'transport_depart_from_caps': 'KHỞI HÀNH TỪ',
     'transport_locating_word': 'Đang định vị…',
     'transport_not_set_word': 'Chưa đặt',
@@ -819,9 +837,11 @@ const Map<String, Map<String, String>> transportStrings = {
     'transport_riding_prefix': 'Đang đi:',
     'transport_board_at_prefix': 'Lên xe tại:',
     'transport_get_off_here': 'Xuống xe tại đây',
-    'transport_next_planned_stop_desc': 'Điểm dừng tiếp theo được lên kế hoạch trong chuyến đi này.',
+    'transport_next_planned_stop_desc':
+        'Điểm dừng tiếp theo được lên kế hoạch trong chuyến đi này.',
     'transport_search_location_hint': 'Tìm một địa điểm…',
-    'transport_could_not_search_locations': 'Không thể tìm kiếm địa điểm. Kiểm tra kết nối của bạn và thử lại.',
+    'transport_could_not_search_locations':
+        'Không thể tìm kiếm địa điểm. Kiểm tra kết nối của bạn và thử lại.',
     'transport_no_destinations_found': 'Không tìm thấy điểm đến',
   },
   'id': {
@@ -895,19 +915,26 @@ const Map<String, Map<String, String>> transportStrings = {
     'transport_skip_next_step': 'Lewati ke langkah berikutnya',
     'transport_arrived_at': 'Anda telah tiba di {dest}',
     'transport_done': 'Selesai',
-    'transport_location_services_off_search': 'Layanan lokasi dimatikan. Cari titik keberangkatan sebagai gantinya.',
-    'transport_location_permission_denied_forever_search': 'Izin lokasi ditolak secara permanen. Aktifkan di Pengaturan, atau cari titik keberangkatan.',
-    'transport_location_permission_denied_search': 'Izin lokasi ditolak. Cari titik keberangkatan sebagai gantinya.',
+    'transport_location_services_off_search':
+        'Layanan lokasi dimatikan. Cari titik keberangkatan sebagai gantinya.',
+    'transport_location_permission_denied_forever_search':
+        'Izin lokasi ditolak secara permanen. Aktifkan di Pengaturan, atau cari titik keberangkatan.',
+    'transport_location_permission_denied_search':
+        'Izin lokasi ditolak. Cari titik keberangkatan sebagai gantinya.',
     'transport_current_location_word': 'Lokasi Saat Ini',
-    'transport_unable_retrieve_location_search': 'Tidak dapat mengambil lokasi Anda saat ini. Cari titik keberangkatan sebagai gantinya.',
-    'transport_no_transit_routes_found': 'Tidak ditemukan rute transportasi umum antara titik-titik ini.',
-    'transport_could_not_load_transit_routes': 'Tidak dapat memuat rute transportasi umum. Periksa koneksi Anda dan coba lagi.',
+    'transport_unable_retrieve_location_search':
+        'Tidak dapat mengambil lokasi Anda saat ini. Cari titik keberangkatan sebagai gantinya.',
+    'transport_no_transit_routes_found':
+        'Tidak ditemukan rute transportasi umum antara titik-titik ini.',
+    'transport_could_not_load_transit_routes':
+        'Tidak dapat memuat rute transportasi umum. Periksa koneksi Anda dan coba lagi.',
     'transport_depart_from_label': 'Berangkat Dari',
     'transport_getting_location': 'Mengambil lokasi Anda…',
     'transport_search_departure_location_hint': 'Cari lokasi keberangkatan…',
     'transport_use_current_location': 'Gunakan lokasi saat ini',
     'transport_destination_label': 'Tujuan',
-    'transport_find_destination_malaysia': 'Cari tujuan mana pun di Malaysia untuk memulai.',
+    'transport_find_destination_malaysia':
+        'Cari tujuan mana pun di Malaysia untuk memulai.',
     'transport_depart_from_caps': 'BERANGKAT DARI',
     'transport_locating_word': 'Mencari lokasi…',
     'transport_not_set_word': 'Belum diatur',
@@ -938,9 +965,11 @@ const Map<String, Map<String, String>> transportStrings = {
     'transport_riding_prefix': 'Menaiki:',
     'transport_board_at_prefix': 'Naik di:',
     'transport_get_off_here': 'Turun di sini',
-    'transport_next_planned_stop_desc': 'Lokasi berikutnya yang direncanakan dalam perjalanan ini.',
+    'transport_next_planned_stop_desc':
+        'Lokasi berikutnya yang direncanakan dalam perjalanan ini.',
     'transport_search_location_hint': 'Cari lokasi…',
-    'transport_could_not_search_locations': 'Tidak dapat mencari lokasi. Periksa koneksi Anda dan coba lagi.',
+    'transport_could_not_search_locations':
+        'Tidak dapat mencari lokasi. Periksa koneksi Anda dan coba lagi.',
     'transport_no_destinations_found': 'Tidak ada tujuan yang ditemukan',
   },
   'hi': {
@@ -955,8 +984,7 @@ const Map<String, Map<String, String>> transportStrings = {
     'transport_next_stop_question':
         'आपका अगला पड़ाव {stop} है। क्या आप वहाँ जाना चाहते हैं?',
     'transport_yes_find_transport': 'हाँ, {stop} के लिए परिवहन खोजें',
-    'transport_removed_favourite':
-        '{place} को पसंदीदा स्टॉप से हटा दिया गया',
+    'transport_removed_favourite': '{place} को पसंदीदा स्टॉप से हटा दिया गया',
     'transport_undo': 'पूर्ववत करें',
     'transport_tap_for_directions':
         'बस दिशा-निर्देश देखने के लिए टैप करें · {area}',
@@ -1016,19 +1044,26 @@ const Map<String, Map<String, String>> transportStrings = {
     'transport_skip_next_step': 'अगले चरण पर जाएं',
     'transport_arrived_at': 'आप {dest} पहुंच गए हैं',
     'transport_done': 'पूर्ण',
-    'transport_location_services_off_search': 'स्थान सेवाएं बंद हैं। इसके बजाय प्रस्थान बिंदु खोजें।',
-    'transport_location_permission_denied_forever_search': 'स्थान की अनुमति स्थायी रूप से अस्वीकृत है। सेटिंग्स में सक्षम करें, या प्रस्थान बिंदु खोजें।',
-    'transport_location_permission_denied_search': 'स्थान की अनुमति अस्वीकृत। इसके बजाय प्रस्थान बिंदु खोजें।',
+    'transport_location_services_off_search':
+        'स्थान सेवाएं बंद हैं। इसके बजाय प्रस्थान बिंदु खोजें।',
+    'transport_location_permission_denied_forever_search':
+        'स्थान की अनुमति स्थायी रूप से अस्वीकृत है। सेटिंग्स में सक्षम करें, या प्रस्थान बिंदु खोजें।',
+    'transport_location_permission_denied_search':
+        'स्थान की अनुमति अस्वीकृत। इसके बजाय प्रस्थान बिंदु खोजें।',
     'transport_current_location_word': 'वर्तमान स्थान',
-    'transport_unable_retrieve_location_search': 'आपका वर्तमान स्थान प्राप्त नहीं हो सका। इसके बजाय प्रस्थान बिंदु खोजें।',
-    'transport_no_transit_routes_found': 'इन बिंदुओं के बीच कोई सार्वजनिक परिवहन मार्ग नहीं मिला।',
-    'transport_could_not_load_transit_routes': 'सार्वजनिक परिवहन मार्ग लोड नहीं हो सके। अपना कनेक्शन जांचें और फिर से प्रयास करें।',
+    'transport_unable_retrieve_location_search':
+        'आपका वर्तमान स्थान प्राप्त नहीं हो सका। इसके बजाय प्रस्थान बिंदु खोजें।',
+    'transport_no_transit_routes_found':
+        'इन बिंदुओं के बीच कोई सार्वजनिक परिवहन मार्ग नहीं मिला।',
+    'transport_could_not_load_transit_routes':
+        'सार्वजनिक परिवहन मार्ग लोड नहीं हो सके। अपना कनेक्शन जांचें और फिर से प्रयास करें।',
     'transport_depart_from_label': 'यहां से प्रस्थान',
     'transport_getting_location': 'आपका स्थान प्राप्त हो रहा है…',
     'transport_search_departure_location_hint': 'प्रस्थान स्थान खोजें…',
     'transport_use_current_location': 'वर्तमान स्थान का उपयोग करें',
     'transport_destination_label': 'गंतव्य',
-    'transport_find_destination_malaysia': 'शुरू करने के लिए मलेशिया में कहीं भी गंतव्य खोजें।',
+    'transport_find_destination_malaysia':
+        'शुरू करने के लिए मलेशिया में कहीं भी गंतव्य खोजें।',
     'transport_depart_from_caps': 'यहां से प्रस्थान',
     'transport_locating_word': 'स्थान खोजा जा रहा है…',
     'transport_not_set_word': 'सेट नहीं है',
@@ -1059,9 +1094,11 @@ const Map<String, Map<String, String>> transportStrings = {
     'transport_riding_prefix': 'सवार हैं:',
     'transport_board_at_prefix': 'यहां सवार हों:',
     'transport_get_off_here': 'यहां उतरें',
-    'transport_next_planned_stop_desc': 'इस यात्रा में आपका अगला नियोजित पड़ाव।',
+    'transport_next_planned_stop_desc':
+        'इस यात्रा में आपका अगला नियोजित पड़ाव।',
     'transport_search_location_hint': 'कोई स्थान खोजें…',
-    'transport_could_not_search_locations': 'स्थान खोजे नहीं जा सके। अपना कनेक्शन जांचें और पुनः प्रयास करें।',
+    'transport_could_not_search_locations':
+        'स्थान खोजे नहीं जा सके। अपना कनेक्शन जांचें और पुनः प्रयास करें।',
     'transport_no_destinations_found': 'कोई गंतव्य नहीं मिला',
   },
   'ta': {
@@ -1080,8 +1117,7 @@ const Map<String, Map<String, String>> transportStrings = {
     'transport_removed_favourite':
         '{place} விருப்பமான நிறுத்தங்களிலிருந்து அகற்றப்பட்டது',
     'transport_undo': 'செயல்தவிர்',
-    'transport_tap_for_directions':
-        'பேருந்து வழிகளைக் காண தட்டவும் · {area}',
+    'transport_tap_for_directions': 'பேருந்து வழிகளைக் காண தட்டவும் · {area}',
     'transport_add_favourite_title': 'விருப்பமான நிறுத்தத்தைச் சேர்',
     'transport_add_favourite_subtitle':
         'விரைவான வழிகளுக்கு இந்த பயணத்தில் ஒரு இடத்தைச் சேமிக்கவும்',
@@ -1099,7 +1135,8 @@ const Map<String, Map<String, String>> transportStrings = {
     'transport_buses_to': '{dest}க்கான பேருந்துகள்',
     'transport_options_count': '{count} தேர்வுகள்',
     'transport_bus_number': 'பேருந்து {bus}',
-    'transport_departs_in': '{min} நிமிடத்தில் புறப்படுகிறது · {stop} இலிருந்து',
+    'transport_departs_in':
+        '{min} நிமிடத்தில் புறப்படுகிறது · {stop} இலிருந்து',
     'transport_min': 'நிமிடம்',
     'transport_wait': 'காத்திருப்பு',
     'transport_ride': 'பயணம்',
@@ -1140,19 +1177,27 @@ const Map<String, Map<String, String>> transportStrings = {
     'transport_skip_next_step': 'அடுத்த படிக்குச் செல்',
     'transport_arrived_at': 'நீங்கள் {dest}ஐ அடைந்துவிட்டீர்கள்',
     'transport_done': 'முடிந்தது',
-    'transport_location_services_off_search': 'இருப்பிட சேவைகள் முடக்கப்பட்டுள்ளன. அதற்குப் பதிலாக புறப்படும் இடத்தைத் தேடுங்கள்.',
-    'transport_location_permission_denied_forever_search': 'இருப்பிட அனுமதி நிரந்தரமாக மறுக்கப்பட்டது. அமைப்புகளில் இயக்கவும் அல்லது புறப்படும் இடத்தைத் தேடுங்கள்.',
-    'transport_location_permission_denied_search': 'இருப்பிட அனுமதி மறுக்கப்பட்டது. அதற்குப் பதிலாக புறப்படும் இடத்தைத் தேடுங்கள்.',
+    'transport_location_services_off_search':
+        'இருப்பிட சேவைகள் முடக்கப்பட்டுள்ளன. அதற்குப் பதிலாக புறப்படும் இடத்தைத் தேடுங்கள்.',
+    'transport_location_permission_denied_forever_search':
+        'இருப்பிட அனுமதி நிரந்தரமாக மறுக்கப்பட்டது. அமைப்புகளில் இயக்கவும் அல்லது புறப்படும் இடத்தைத் தேடுங்கள்.',
+    'transport_location_permission_denied_search':
+        'இருப்பிட அனுமதி மறுக்கப்பட்டது. அதற்குப் பதிலாக புறப்படும் இடத்தைத் தேடுங்கள்.',
     'transport_current_location_word': 'தற்போதைய இருப்பிடம்',
-    'transport_unable_retrieve_location_search': 'உங்கள் தற்போதைய இருப்பிடத்தைப் பெற முடியவில்லை. அதற்குப் பதிலாக புறப்படும் இடத்தைத் தேடுங்கள்.',
-    'transport_no_transit_routes_found': 'இந்த இடங்களுக்கு இடையே பொது போக்குவரத்து வழிகள் எதுவும் இல்லை.',
-    'transport_could_not_load_transit_routes': 'பொது போக்குவரத்து வழிகளை ஏற்ற முடியவில்லை. உங்கள் இணைப்பைச் சரிபார்த்து மீண்டும் முயற்சிக்கவும்.',
+    'transport_unable_retrieve_location_search':
+        'உங்கள் தற்போதைய இருப்பிடத்தைப் பெற முடியவில்லை. அதற்குப் பதிலாக புறப்படும் இடத்தைத் தேடுங்கள்.',
+    'transport_no_transit_routes_found':
+        'இந்த இடங்களுக்கு இடையே பொது போக்குவரத்து வழிகள் எதுவும் இல்லை.',
+    'transport_could_not_load_transit_routes':
+        'பொது போக்குவரத்து வழிகளை ஏற்ற முடியவில்லை. உங்கள் இணைப்பைச் சரிபார்த்து மீண்டும் முயற்சிக்கவும்.',
     'transport_depart_from_label': 'இதிலிருந்து புறப்படு',
     'transport_getting_location': 'உங்கள் இருப்பிடத்தைப் பெறுகிறது…',
-    'transport_search_departure_location_hint': 'புறப்படும் இடத்தைத் தேடுங்கள்…',
+    'transport_search_departure_location_hint':
+        'புறப்படும் இடத்தைத் தேடுங்கள்…',
     'transport_use_current_location': 'தற்போதைய இருப்பிடத்தைப் பயன்படுத்து',
     'transport_destination_label': 'இலக்கு',
-    'transport_find_destination_malaysia': 'தொடங்க மலேசியாவில் எங்கும் ஒரு இலக்கைத் தேடுங்கள்.',
+    'transport_find_destination_malaysia':
+        'தொடங்க மலேசியாவில் எங்கும் ஒரு இலக்கைத் தேடுங்கள்.',
     'transport_depart_from_caps': 'இதிலிருந்து புறப்படு',
     'transport_locating_word': 'இருப்பிடம் கண்டறியப்படுகிறது…',
     'transport_not_set_word': 'அமைக்கப்படவில்லை',
@@ -1170,7 +1215,8 @@ const Map<String, Map<String, String>> transportStrings = {
     'transport_transit_word': 'போக்குவரத்து',
     'transport_towards_prefix': 'நோக்கி',
     'transport_walk_duration_prefix': 'நடை',
-    'transport_navigation_could_not_start': 'வழிசெலுத்தலைத் தொடங்க முடியவில்லை.',
+    'transport_navigation_could_not_start':
+        'வழிசெலுத்தலைத் தொடங்க முடியவில்லை.',
     'transport_close_word': 'மூடு',
     'transport_you_have_arrived': 'நீங்கள் வந்துவிட்டீர்கள்',
     'transport_end_navigation': 'வழிசெலுத்தலை முடி',
@@ -1183,9 +1229,11 @@ const Map<String, Map<String, String>> transportStrings = {
     'transport_riding_prefix': 'பயணிக்கிறீர்கள்:',
     'transport_board_at_prefix': 'ஏறவும்:',
     'transport_get_off_here': 'இங்கே இறங்கவும்',
-    'transport_next_planned_stop_desc': 'இந்தப் பயணத்தில் திட்டமிடப்பட்ட உங்கள் அடுத்த நிறுத்தம்.',
+    'transport_next_planned_stop_desc':
+        'இந்தப் பயணத்தில் திட்டமிடப்பட்ட உங்கள் அடுத்த நிறுத்தம்.',
     'transport_search_location_hint': 'ஒரு இடத்தைத் தேடுங்கள்…',
-    'transport_could_not_search_locations': 'இடங்களைத் தேட முடியவில்லை. உங்கள் இணைப்பைச் சரிபார்த்து மீண்டும் முயற்சிக்கவும்.',
+    'transport_could_not_search_locations':
+        'இடங்களைத் தேட முடியவில்லை. உங்கள் இணைப்பைச் சரிபார்த்து மீண்டும் முயற்சிக்கவும்.',
     'transport_no_destinations_found': 'இலக்குகள் எதுவும் கிடைக்கவில்லை',
   },
   'ar': {
@@ -1239,18 +1287,15 @@ const Map<String, Map<String, String>> transportStrings = {
     'transport_directions_header': 'الاتجاهات',
     'transport_start_navigation': 'بدء التنقل',
     'transport_step_walk_to_title': 'المشي إلى {stop}',
-    'transport_step_walk_to_detail':
-        'حوالي {min} دقيقة مشيًا من موقعك الحالي.',
+    'transport_step_walk_to_detail': 'حوالي {min} دقيقة مشيًا من موقعك الحالي.',
     'transport_step_wait_title': 'انتظار حافلة {bus}',
-    'transport_step_wait_detail':
-        'تصل خلال حوالي {min} دقيقة — انتبه للرقم.',
+    'transport_step_wait_detail': 'تصل خلال حوالي {min} دقيقة — انتبه للرقم.',
     'transport_step_board_title': 'ركوب حافلة {bus}',
     'transport_step_ride_title': 'ركوب حافلة {bus}',
     'transport_step_ride_fare_detail':
         'ركوب لمدة حوالي {min} دقيقة. الأجرة {fare}.',
     'transport_step_alight_title': 'النزول عند {stop}',
-    'transport_step_alight_detail':
-        'امشِ حوالي {min} دقيقة للوصول إلى {dest}.',
+    'transport_step_alight_detail': 'امشِ حوالي {min} دقيقة للوصول إلى {dest}.',
     'transport_step_walk_dest_title': 'المشي إلى {dest}',
     'transport_step_walk_dest_detail': 'حوالي {min} دقيقة مشيًا للوصول.',
     'transport_left': 'متبقٍ',
@@ -1258,13 +1303,19 @@ const Map<String, Map<String, String>> transportStrings = {
     'transport_skip_next_step': 'تخطَّ إلى الخطوة التالية',
     'transport_arrived_at': 'لقد وصلت إلى {dest}',
     'transport_done': 'تم',
-    'transport_location_services_off_search': 'خدمات الموقع مغلقة. ابحث عن نقطة انطلاق بدلاً من ذلك.',
-    'transport_location_permission_denied_forever_search': 'تم رفض إذن الموقع بشكل دائم. فعّله من الإعدادات، أو ابحث عن نقطة انطلاق.',
-    'transport_location_permission_denied_search': 'تم رفض إذن الموقع. ابحث عن نقطة انطلاق بدلاً من ذلك.',
+    'transport_location_services_off_search':
+        'خدمات الموقع مغلقة. ابحث عن نقطة انطلاق بدلاً من ذلك.',
+    'transport_location_permission_denied_forever_search':
+        'تم رفض إذن الموقع بشكل دائم. فعّله من الإعدادات، أو ابحث عن نقطة انطلاق.',
+    'transport_location_permission_denied_search':
+        'تم رفض إذن الموقع. ابحث عن نقطة انطلاق بدلاً من ذلك.',
     'transport_current_location_word': 'الموقع الحالي',
-    'transport_unable_retrieve_location_search': 'تعذر الحصول على موقعك الحالي. ابحث عن نقطة انطلاق بدلاً من ذلك.',
-    'transport_no_transit_routes_found': 'لم يتم العثور على مسارات نقل عام بين هاتين النقطتين.',
-    'transport_could_not_load_transit_routes': 'تعذر تحميل مسارات النقل العام. تحقق من اتصالك وحاول مرة أخرى.',
+    'transport_unable_retrieve_location_search':
+        'تعذر الحصول على موقعك الحالي. ابحث عن نقطة انطلاق بدلاً من ذلك.',
+    'transport_no_transit_routes_found':
+        'لم يتم العثور على مسارات نقل عام بين هاتين النقطتين.',
+    'transport_could_not_load_transit_routes':
+        'تعذر تحميل مسارات النقل العام. تحقق من اتصالك وحاول مرة أخرى.',
     'transport_depart_from_label': 'الانطلاق من',
     'transport_getting_location': 'جارٍ تحديد موقعك…',
     'transport_search_departure_location_hint': 'البحث عن موقع الانطلاق…',
@@ -1303,7 +1354,8 @@ const Map<String, Map<String, String>> transportStrings = {
     'transport_get_off_here': 'انزل هنا',
     'transport_next_planned_stop_desc': 'محطتك التالية المخططة في هذه الرحلة.',
     'transport_search_location_hint': 'ابحث عن مكان…',
-    'transport_could_not_search_locations': 'تعذر البحث عن المواقع. تحقق من اتصالك وحاول مرة أخرى.',
+    'transport_could_not_search_locations':
+        'تعذر البحث عن المواقع. تحقق من اتصالك وحاول مرة أخرى.',
     'transport_no_destinations_found': 'لم يتم العثور على وجهات',
   },
   'es': {
@@ -1318,8 +1370,7 @@ const Map<String, Map<String, String>> transportStrings = {
     'transport_next_stop_question':
         'Tu próxima parada es {stop}. ¿Quieres ir allí?',
     'transport_yes_find_transport': 'Sí, buscar transporte a {stop}',
-    'transport_removed_favourite':
-        '{place} eliminado de las paradas favoritas',
+    'transport_removed_favourite': '{place} eliminado de las paradas favoritas',
     'transport_undo': 'Deshacer',
     'transport_tap_for_directions':
         'Toca para ver indicaciones del autobús · {area}',
@@ -1379,19 +1430,26 @@ const Map<String, Map<String, String>> transportStrings = {
     'transport_skip_next_step': 'Saltar al siguiente paso',
     'transport_arrived_at': 'Has llegado a {dest}',
     'transport_done': 'Listo',
-    'transport_location_services_off_search': 'Los servicios de ubicación están desactivados. Busca un punto de partida en su lugar.',
-    'transport_location_permission_denied_forever_search': 'El permiso de ubicación está denegado permanentemente. Actívalo en Configuración, o busca un punto de partida.',
-    'transport_location_permission_denied_search': 'Permiso de ubicación denegado. Busca un punto de partida en su lugar.',
+    'transport_location_services_off_search':
+        'Los servicios de ubicación están desactivados. Busca un punto de partida en su lugar.',
+    'transport_location_permission_denied_forever_search':
+        'El permiso de ubicación está denegado permanentemente. Actívalo en Configuración, o busca un punto de partida.',
+    'transport_location_permission_denied_search':
+        'Permiso de ubicación denegado. Busca un punto de partida en su lugar.',
     'transport_current_location_word': 'Ubicación Actual',
-    'transport_unable_retrieve_location_search': 'No se pudo obtener tu ubicación actual. Busca un punto de partida en su lugar.',
-    'transport_no_transit_routes_found': 'No se encontraron rutas de transporte público entre estos puntos.',
-    'transport_could_not_load_transit_routes': 'No se pudieron cargar las rutas de transporte público. Verifica tu conexión e inténtalo de nuevo.',
+    'transport_unable_retrieve_location_search':
+        'No se pudo obtener tu ubicación actual. Busca un punto de partida en su lugar.',
+    'transport_no_transit_routes_found':
+        'No se encontraron rutas de transporte público entre estos puntos.',
+    'transport_could_not_load_transit_routes':
+        'No se pudieron cargar las rutas de transporte público. Verifica tu conexión e inténtalo de nuevo.',
     'transport_depart_from_label': 'Salir Desde',
     'transport_getting_location': 'Obteniendo tu ubicación…',
     'transport_search_departure_location_hint': 'Buscar ubicación de partida…',
     'transport_use_current_location': 'Usar ubicación actual',
     'transport_destination_label': 'Destino',
-    'transport_find_destination_malaysia': 'Busca cualquier destino en Malasia para comenzar.',
+    'transport_find_destination_malaysia':
+        'Busca cualquier destino en Malasia para comenzar.',
     'transport_depart_from_caps': 'SALIR DESDE',
     'transport_locating_word': 'Localizando…',
     'transport_not_set_word': 'No establecido',
@@ -1422,9 +1480,11 @@ const Map<String, Map<String, String>> transportStrings = {
     'transport_riding_prefix': 'En camino:',
     'transport_board_at_prefix': 'Subir en:',
     'transport_get_off_here': 'Bajar aquí',
-    'transport_next_planned_stop_desc': 'Tu próxima parada planificada en este viaje.',
+    'transport_next_planned_stop_desc':
+        'Tu próxima parada planificada en este viaje.',
     'transport_search_location_hint': 'Buscar una ubicación…',
-    'transport_could_not_search_locations': 'No se pudieron buscar ubicaciones. Verifica tu conexión e inténtalo de nuevo.',
+    'transport_could_not_search_locations':
+        'No se pudieron buscar ubicaciones. Verifica tu conexión e inténtalo de nuevo.',
     'transport_no_destinations_found': 'No se encontraron destinos',
   },
   'fr': {
@@ -1493,31 +1553,38 @@ const Map<String, Map<String, String>> transportStrings = {
     'transport_step_alight_detail':
         'Marchez environ {min} min pour atteindre {dest}.',
     'transport_step_walk_dest_title': "Marcher jusqu'à {dest}",
-    'transport_step_walk_dest_detail':
-        'Environ {min} min à pied pour arriver.',
+    'transport_step_walk_dest_detail': 'Environ {min} min à pied pour arriver.',
     'transport_left': 'restant',
     'transport_arrived_button': 'Je suis arrivé(e)',
     'transport_skip_next_step': "Passer à l'étape suivante",
     'transport_arrived_at': 'Vous êtes arrivé(e) à {dest}',
     'transport_done': 'Terminé',
-    'transport_location_services_off_search': 'Les services de localisation sont désactivés. Recherchez plutôt un point de départ.',
-    'transport_location_permission_denied_forever_search': "L'autorisation de localisation est refusée définitivement. Activez-la dans les Paramètres, ou recherchez un point de départ.",
-    'transport_location_permission_denied_search': 'Autorisation de localisation refusée. Recherchez plutôt un point de départ.',
+    'transport_location_services_off_search':
+        'Les services de localisation sont désactivés. Recherchez plutôt un point de départ.',
+    'transport_location_permission_denied_forever_search':
+        "L'autorisation de localisation est refusée définitivement. Activez-la dans les Paramètres, ou recherchez un point de départ.",
+    'transport_location_permission_denied_search':
+        'Autorisation de localisation refusée. Recherchez plutôt un point de départ.',
     'transport_current_location_word': 'Position Actuelle',
-    'transport_unable_retrieve_location_search': "Impossible d'obtenir votre position actuelle. Recherchez plutôt un point de départ.",
-    'transport_no_transit_routes_found': "Aucun itinéraire de transport public trouvé entre ces points.",
-    'transport_could_not_load_transit_routes': "Impossible de charger les itinéraires de transport public. Vérifiez votre connexion et réessayez.",
+    'transport_unable_retrieve_location_search':
+        "Impossible d'obtenir votre position actuelle. Recherchez plutôt un point de départ.",
+    'transport_no_transit_routes_found':
+        "Aucun itinéraire de transport public trouvé entre ces points.",
+    'transport_could_not_load_transit_routes':
+        "Impossible de charger les itinéraires de transport public. Vérifiez votre connexion et réessayez.",
     'transport_depart_from_label': 'Départ De',
     'transport_getting_location': 'Récupération de votre position…',
     'transport_search_departure_location_hint': 'Rechercher un lieu de départ…',
     'transport_use_current_location': 'Utiliser la position actuelle',
     'transport_destination_label': 'Destination',
-    'transport_find_destination_malaysia': 'Recherchez n\'importe quelle destination en Malaisie pour commencer.',
+    'transport_find_destination_malaysia':
+        'Recherchez n\'importe quelle destination en Malaisie pour commencer.',
     'transport_depart_from_caps': 'DÉPART DE',
     'transport_locating_word': 'Localisation…',
     'transport_not_set_word': 'Non défini',
     'transport_destination_caps': 'DESTINATION',
-    'transport_finding_routes': 'Recherche des itinéraires de transport public…',
+    'transport_finding_routes':
+        'Recherche des itinéraires de transport public…',
     'transport_public_transport_section': 'Transport Public',
     'transport_alternative_section': 'Alternative',
     'transport_recommended_badge': 'RECOMMANDÉ',
@@ -1530,7 +1597,8 @@ const Map<String, Map<String, String>> transportStrings = {
     'transport_transit_word': 'Transit',
     'transport_towards_prefix': 'Vers',
     'transport_walk_duration_prefix': 'Marche',
-    'transport_navigation_could_not_start': "La navigation n'a pas pu démarrer.",
+    'transport_navigation_could_not_start':
+        "La navigation n'a pas pu démarrer.",
     'transport_close_word': 'Fermer',
     'transport_you_have_arrived': 'Vous êtes arrivé',
     'transport_end_navigation': 'Terminer la Navigation',
@@ -1543,9 +1611,11 @@ const Map<String, Map<String, String>> transportStrings = {
     'transport_riding_prefix': 'En trajet :',
     'transport_board_at_prefix': 'Monter à :',
     'transport_get_off_here': 'Descendre ici',
-    'transport_next_planned_stop_desc': 'Votre prochain arrêt prévu pour ce voyage.',
+    'transport_next_planned_stop_desc':
+        'Votre prochain arrêt prévu pour ce voyage.',
     'transport_search_location_hint': 'Rechercher un lieu…',
-    'transport_could_not_search_locations': "Impossible de rechercher des lieux. Vérifiez votre connexion et réessayez.",
+    'transport_could_not_search_locations':
+        "Impossible de rechercher des lieux. Vérifiez votre connexion et réessayez.",
     'transport_no_destinations_found': 'Aucune destination trouvée',
   },
   'de': {
@@ -1560,16 +1630,14 @@ const Map<String, Map<String, String>> transportStrings = {
     'transport_next_stop_question':
         'Ihr nächster Halt ist {stop}. Möchten Sie dorthin?',
     'transport_yes_find_transport': 'Ja, Transport nach {stop} finden',
-    'transport_removed_favourite':
-        '{place} aus Lieblingshaltestellen entfernt',
+    'transport_removed_favourite': '{place} aus Lieblingshaltestellen entfernt',
     'transport_undo': 'Rückgängig',
     'transport_tap_for_directions': 'Tippen für Busanweisungen · {area}',
     'transport_add_favourite_title': 'Lieblingshaltestelle Hinzufügen',
     'transport_add_favourite_subtitle':
         'Speichern Sie einen Ort dieser Reise für schnelle Wegbeschreibungen',
     'transport_search_places_hint': 'Orte suchen…',
-    'transport_all_places_added':
-        'Alle Orte wurden bereits hinzugefügt.',
+    'transport_all_places_added': 'Alle Orte wurden bereits hinzugefügt.',
     'transport_no_matching_places': 'Keine passenden Orte',
     'transport_where_to_go_hint': 'Wohin möchten Sie?',
     'transport_you_are_here': 'Sie sind hier · {location}',
@@ -1622,19 +1690,26 @@ const Map<String, Map<String, String>> transportStrings = {
     'transport_skip_next_step': 'Zum nächsten Schritt überspringen',
     'transport_arrived_at': 'Sie sind in {dest} angekommen',
     'transport_done': 'Fertig',
-    'transport_location_services_off_search': 'Standortdienste sind deaktiviert. Suche stattdessen nach einem Abfahrtsort.',
-    'transport_location_permission_denied_forever_search': 'Standortberechtigung wurde dauerhaft verweigert. Aktiviere sie in den Einstellungen oder suche nach einem Abfahrtsort.',
-    'transport_location_permission_denied_search': 'Standortberechtigung verweigert. Suche stattdessen nach einem Abfahrtsort.',
+    'transport_location_services_off_search':
+        'Standortdienste sind deaktiviert. Suche stattdessen nach einem Abfahrtsort.',
+    'transport_location_permission_denied_forever_search':
+        'Standortberechtigung wurde dauerhaft verweigert. Aktiviere sie in den Einstellungen oder suche nach einem Abfahrtsort.',
+    'transport_location_permission_denied_search':
+        'Standortberechtigung verweigert. Suche stattdessen nach einem Abfahrtsort.',
     'transport_current_location_word': 'Aktueller Standort',
-    'transport_unable_retrieve_location_search': 'Dein aktueller Standort konnte nicht ermittelt werden. Suche stattdessen nach einem Abfahrtsort.',
-    'transport_no_transit_routes_found': 'Keine öffentlichen Verkehrsrouten zwischen diesen Punkten gefunden.',
-    'transport_could_not_load_transit_routes': 'Öffentliche Verkehrsrouten konnten nicht geladen werden. Überprüfe deine Verbindung und versuche es erneut.',
+    'transport_unable_retrieve_location_search':
+        'Dein aktueller Standort konnte nicht ermittelt werden. Suche stattdessen nach einem Abfahrtsort.',
+    'transport_no_transit_routes_found':
+        'Keine öffentlichen Verkehrsrouten zwischen diesen Punkten gefunden.',
+    'transport_could_not_load_transit_routes':
+        'Öffentliche Verkehrsrouten konnten nicht geladen werden. Überprüfe deine Verbindung und versuche es erneut.',
     'transport_depart_from_label': 'Abfahrt Von',
     'transport_getting_location': 'Standort wird ermittelt…',
     'transport_search_departure_location_hint': 'Abfahrtsort suchen…',
     'transport_use_current_location': 'Aktuellen Standort verwenden',
     'transport_destination_label': 'Ziel',
-    'transport_find_destination_malaysia': 'Suche ein beliebiges Ziel in Malaysia, um zu beginnen.',
+    'transport_find_destination_malaysia':
+        'Suche ein beliebiges Ziel in Malaysia, um zu beginnen.',
     'transport_depart_from_caps': 'ABFAHRT VON',
     'transport_locating_word': 'Standort wird gesucht…',
     'transport_not_set_word': 'Nicht festgelegt',
@@ -1648,11 +1723,13 @@ const Map<String, Map<String, String>> transportStrings = {
     'transport_transfer_plural': 'Umstiege',
     'transport_drive_word': 'Fahren',
     'transport_route_details_title': 'Routendetails',
-    'transport_public_transport_journey': 'Fahrt mit öffentlichen Verkehrsmitteln',
+    'transport_public_transport_journey':
+        'Fahrt mit öffentlichen Verkehrsmitteln',
     'transport_transit_word': 'Transit',
     'transport_towards_prefix': 'Richtung',
     'transport_walk_duration_prefix': 'Gehen',
-    'transport_navigation_could_not_start': 'Navigation konnte nicht gestartet werden.',
+    'transport_navigation_could_not_start':
+        'Navigation konnte nicht gestartet werden.',
     'transport_close_word': 'Schließen',
     'transport_you_have_arrived': 'Du bist angekommen',
     'transport_end_navigation': 'Navigation Beenden',
@@ -1665,9 +1742,11 @@ const Map<String, Map<String, String>> transportStrings = {
     'transport_riding_prefix': 'Unterwegs:',
     'transport_board_at_prefix': 'Einsteigen bei:',
     'transport_get_off_here': 'Hier aussteigen',
-    'transport_next_planned_stop_desc': 'Dein nächster geplanter Stopp auf dieser Reise.',
+    'transport_next_planned_stop_desc':
+        'Dein nächster geplanter Stopp auf dieser Reise.',
     'transport_search_location_hint': 'Einen Ort suchen…',
-    'transport_could_not_search_locations': 'Orte konnten nicht gesucht werden. Überprüfe deine Verbindung und versuche es erneut.',
+    'transport_could_not_search_locations':
+        'Orte konnten nicht gesucht werden. Überprüfe deine Verbindung und versuche es erneut.',
     'transport_no_destinations_found': 'Keine Ziele gefunden',
   },
   'pt': {
@@ -1682,8 +1761,7 @@ const Map<String, Map<String, String>> transportStrings = {
     'transport_next_stop_question':
         'Sua próxima parada é {stop}. Deseja ir até lá?',
     'transport_yes_find_transport': 'Sim, buscar transporte para {stop}',
-    'transport_removed_favourite':
-        '{place} removido das paradas favoritas',
+    'transport_removed_favourite': '{place} removido das paradas favoritas',
     'transport_undo': 'Desfazer',
     'transport_tap_for_directions':
         'Toque para ver instruções de ônibus · {area}',
@@ -1736,26 +1814,32 @@ const Map<String, Map<String, String>> transportStrings = {
     'transport_step_alight_detail':
         'Caminhe cerca de {min} min para chegar a {dest}.',
     'transport_step_walk_dest_title': 'Caminhar até {dest}',
-    'transport_step_walk_dest_detail':
-        'Cerca de {min} min a pé para chegar.',
+    'transport_step_walk_dest_detail': 'Cerca de {min} min a pé para chegar.',
     'transport_left': 'restante',
     'transport_arrived_button': 'Eu cheguei',
     'transport_skip_next_step': 'Pular para a próxima etapa',
     'transport_arrived_at': 'Você chegou a {dest}',
     'transport_done': 'Concluído',
-    'transport_location_services_off_search': 'Os serviços de localização estão desativados. Procure um ponto de partida.',
-    'transport_location_permission_denied_forever_search': 'A permissão de localização foi negada permanentemente. Ative-a nas Configurações, ou procure um ponto de partida.',
-    'transport_location_permission_denied_search': 'Permissão de localização negada. Procure um ponto de partida.',
+    'transport_location_services_off_search':
+        'Os serviços de localização estão desativados. Procure um ponto de partida.',
+    'transport_location_permission_denied_forever_search':
+        'A permissão de localização foi negada permanentemente. Ative-a nas Configurações, ou procure um ponto de partida.',
+    'transport_location_permission_denied_search':
+        'Permissão de localização negada. Procure um ponto de partida.',
     'transport_current_location_word': 'Localização Atual',
-    'transport_unable_retrieve_location_search': 'Não foi possível obter sua localização atual. Procure um ponto de partida.',
-    'transport_no_transit_routes_found': 'Nenhuma rota de transporte público encontrada entre esses pontos.',
-    'transport_could_not_load_transit_routes': 'Não foi possível carregar as rotas de transporte público. Verifique sua conexão e tente novamente.',
+    'transport_unable_retrieve_location_search':
+        'Não foi possível obter sua localização atual. Procure um ponto de partida.',
+    'transport_no_transit_routes_found':
+        'Nenhuma rota de transporte público encontrada entre esses pontos.',
+    'transport_could_not_load_transit_routes':
+        'Não foi possível carregar as rotas de transporte público. Verifique sua conexão e tente novamente.',
     'transport_depart_from_label': 'Partir De',
     'transport_getting_location': 'Obtendo sua localização…',
     'transport_search_departure_location_hint': 'Buscar local de partida…',
     'transport_use_current_location': 'Usar localização atual',
     'transport_destination_label': 'Destino',
-    'transport_find_destination_malaysia': 'Encontre qualquer destino na Malásia para começar.',
+    'transport_find_destination_malaysia':
+        'Encontre qualquer destino na Malásia para começar.',
     'transport_depart_from_caps': 'PARTIR DE',
     'transport_locating_word': 'Localizando…',
     'transport_not_set_word': 'Não definido',
@@ -1773,7 +1857,8 @@ const Map<String, Map<String, String>> transportStrings = {
     'transport_transit_word': 'Trânsito',
     'transport_towards_prefix': 'Em direção a',
     'transport_walk_duration_prefix': 'Caminhar',
-    'transport_navigation_could_not_start': 'A navegação não pôde ser iniciada.',
+    'transport_navigation_could_not_start':
+        'A navegação não pôde ser iniciada.',
     'transport_close_word': 'Fechar',
     'transport_you_have_arrived': 'Você chegou',
     'transport_end_navigation': 'Encerrar Navegação',
@@ -1786,9 +1871,11 @@ const Map<String, Map<String, String>> transportStrings = {
     'transport_riding_prefix': 'A bordo:',
     'transport_board_at_prefix': 'Embarcar em:',
     'transport_get_off_here': 'Descer aqui',
-    'transport_next_planned_stop_desc': 'Sua próxima parada planejada nesta viagem.',
+    'transport_next_planned_stop_desc':
+        'Sua próxima parada planejada nesta viagem.',
     'transport_search_location_hint': 'Buscar um local…',
-    'transport_could_not_search_locations': 'Não foi possível buscar locais. Verifique sua conexão e tente novamente.',
+    'transport_could_not_search_locations':
+        'Não foi possível buscar locais. Verifique sua conexão e tente novamente.',
     'transport_no_destinations_found': 'Nenhum destino encontrado',
   },
   'ru': {
@@ -1803,8 +1890,7 @@ const Map<String, Map<String, String>> transportStrings = {
     'transport_next_stop_question':
         'Ваша следующая остановка — {stop}. Хотите поехать туда?',
     'transport_yes_find_transport': 'Да, найти транспорт до {stop}',
-    'transport_removed_favourite':
-        '{place} удалено из избранных остановок',
+    'transport_removed_favourite': '{place} удалено из избранных остановок',
     'transport_undo': 'Отменить',
     'transport_tap_for_directions':
         'Нажмите, чтобы увидеть маршрут автобуса · {area}',
@@ -1852,32 +1938,37 @@ const Map<String, Map<String, String>> transportStrings = {
         'Прибудет примерно через {min} мин — следите за номером.',
     'transport_step_board_title': 'Сесть на автобус {bus}',
     'transport_step_ride_title': 'Сесть на автобус {bus}',
-    'transport_step_ride_fare_detail':
-        'Поездка около {min} мин. Тариф {fare}.',
+    'transport_step_ride_fare_detail': 'Поездка около {min} мин. Тариф {fare}.',
     'transport_step_alight_title': 'Выйти на {stop}',
     'transport_step_alight_detail':
         'Идите около {min} мин, чтобы добраться до {dest}.',
     'transport_step_walk_dest_title': 'Идти до {dest}',
-    'transport_step_walk_dest_detail':
-        'Около {min} мин пешком до прибытия.',
+    'transport_step_walk_dest_detail': 'Около {min} мин пешком до прибытия.',
     'transport_left': 'осталось',
     'transport_arrived_button': 'Я прибыл(а)',
     'transport_skip_next_step': 'Пропустить к следующему шагу',
     'transport_arrived_at': 'Вы прибыли в {dest}',
     'transport_done': 'Готово',
-    'transport_location_services_off_search': 'Службы геолокации отключены. Найдите точку отправления вручную.',
-    'transport_location_permission_denied_forever_search': 'Доступ к геолокации навсегда запрещён. Включите его в настройках или найдите точку отправления.',
-    'transport_location_permission_denied_search': 'Доступ к геолокации запрещён. Найдите точку отправления вручную.',
+    'transport_location_services_off_search':
+        'Службы геолокации отключены. Найдите точку отправления вручную.',
+    'transport_location_permission_denied_forever_search':
+        'Доступ к геолокации навсегда запрещён. Включите его в настройках или найдите точку отправления.',
+    'transport_location_permission_denied_search':
+        'Доступ к геолокации запрещён. Найдите точку отправления вручную.',
     'transport_current_location_word': 'Текущее местоположение',
-    'transport_unable_retrieve_location_search': 'Не удалось определить ваше текущее местоположение. Найдите точку отправления вручную.',
-    'transport_no_transit_routes_found': 'Маршруты общественного транспорта между этими точками не найдены.',
-    'transport_could_not_load_transit_routes': 'Не удалось загрузить маршруты общественного транспорта. Проверьте подключение и повторите попытку.',
+    'transport_unable_retrieve_location_search':
+        'Не удалось определить ваше текущее местоположение. Найдите точку отправления вручную.',
+    'transport_no_transit_routes_found':
+        'Маршруты общественного транспорта между этими точками не найдены.',
+    'transport_could_not_load_transit_routes':
+        'Не удалось загрузить маршруты общественного транспорта. Проверьте подключение и повторите попытку.',
     'transport_depart_from_label': 'Отправление из',
     'transport_getting_location': 'Определение вашего местоположения…',
     'transport_search_departure_location_hint': 'Поиск места отправления…',
     'transport_use_current_location': 'Использовать текущее местоположение',
     'transport_destination_label': 'Пункт назначения',
-    'transport_find_destination_malaysia': 'Найдите любой пункт назначения в Малайзии, чтобы начать.',
+    'transport_find_destination_malaysia':
+        'Найдите любой пункт назначения в Малайзии, чтобы начать.',
     'transport_depart_from_caps': 'ОТПРАВЛЕНИЕ ИЗ',
     'transport_locating_word': 'Определение местоположения…',
     'transport_not_set_word': 'Не задано',
@@ -1908,9 +1999,11 @@ const Map<String, Map<String, String>> transportStrings = {
     'transport_riding_prefix': 'В пути:',
     'transport_board_at_prefix': 'Посадка:',
     'transport_get_off_here': 'Выйти здесь',
-    'transport_next_planned_stop_desc': 'Ваша следующая запланированная остановка в этой поездке.',
+    'transport_next_planned_stop_desc':
+        'Ваша следующая запланированная остановка в этой поездке.',
     'transport_search_location_hint': 'Поиск места…',
-    'transport_could_not_search_locations': 'Не удалось найти места. Проверьте соединение и попробуйте снова.',
+    'transport_could_not_search_locations':
+        'Не удалось найти места. Проверьте соединение и попробуйте снова.',
     'transport_no_destinations_found': 'Пункты назначения не найдены',
   },
 };

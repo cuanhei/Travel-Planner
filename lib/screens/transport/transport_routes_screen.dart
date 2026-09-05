@@ -15,12 +15,6 @@ import '../../widgets/location_search_field.dart';
 import '../../widgets/route_map_view.dart';
 import 'transit_route_details_screen.dart';
 
-/// Real transit planner: Depart From/Destination search, a live map,
-/// and public-transport (primary) + driving (comparison) route results
-/// via [RouteService]. [showTripExtras] additionally surfaces a
-/// trip-aware "Next Up" suggestion and the traveler's saved "Quick
-/// Stops" above the search — the search/map/results below are identical
-/// either way.
 class TransportRoutesScreen extends StatefulWidget {
   const TransportRoutesScreen({
     super.key,
@@ -28,18 +22,8 @@ class TransportRoutesScreen extends StatefulWidget {
     this.tripId,
   });
 
-  /// Whether to show the trip-specific extras — the "Next Up" stop
-  /// suggestion and the "Quick Stops" list. The home dashboard's entry
-  /// point keeps it simpler: just the map, search, and results.
   final bool showTripExtras;
 
-  /// The trip "Quick Stops" belongs to — each trip has its own independent
-  /// quick-stop list (see [TripService.getFavoriteStops]) of places the
-  /// traveler commonly visits on this trip, saved purely for fast
-  /// transport access — not part of the trip's travel plan/itinerary.
-  /// Required for that section to load/save; when null (as from entry
-  /// points that haven't been wired to a real trip yet) "Quick Stops"
-  /// just doesn't render, even if [showTripExtras] is true.
   final String? tripId;
 
   @override
@@ -51,10 +35,6 @@ class _TransportRoutesScreenState extends State<TransportRoutesScreen> {
   List<TripStopLocation> _favoriteStops = const [];
   bool _loadingFavorites = false;
 
-  /// The traveler's next planned itinerary stop for this trip — the
-  /// earliest scheduled stop, across every day, whose arrival time
-  /// hasn't passed yet. Null until loaded, or if this trip has no
-  /// upcoming stop left (schedule empty, or every stop already passed).
   TripStopLocation? _nextStop;
 
   TripStopLocation? _departure;
@@ -80,11 +60,6 @@ class _TransportRoutesScreenState extends State<TransportRoutesScreen> {
     }
   }
 
-  /// Finds the earliest stop, across every day of this trip's saved
-  /// schedule, whose arrival time is still ahead of now — that's "Next
-  /// Up". Each stop's arrival is anchored to its own day's date (not
-  /// just a time-of-day), so this naturally rolls over correctly at
-  /// midnight and across day boundaries without any special-casing.
   Future<void> _loadNextStop() async {
     final tripId = widget.tripId;
     if (tripId == null) return;
@@ -112,10 +87,7 @@ class _TransportRoutesScreenState extends State<TransportRoutesScreen> {
       }
       if (!mounted) return;
       setState(() => _nextStop = best);
-    } catch (_) {
-      // No "Next Up" card is a fine fallback — the rest of the screen
-      // (search, map, results) doesn't depend on this.
-    }
+    } catch (_) {}
   }
 
   Future<void> _loadFavoriteStops() async {
@@ -135,10 +107,6 @@ class _TransportRoutesScreenState extends State<TransportRoutesScreen> {
     }
   }
 
-  /// Resolves the traveler's current GPS position as the default
-  /// "Depart From" location, handling every permission/service outcome
-  /// without ever blocking the screen — on any failure, "Depart From"
-  /// just stays empty and searchable.
   Future<void> _initDeparture() async {
     setState(() {
       _locatingDeparture = true;
@@ -198,12 +166,6 @@ class _TransportRoutesScreenState extends State<TransportRoutesScreen> {
     });
   }
 
-  /// Fetches transit (primary) and driving (secondary comparison) routes
-  /// whenever both endpoints are set. Transit and drive are requested
-  /// independently — a driving failure never blocks or clears transit
-  /// results, per the "public transport must keep working" requirement.
-  /// A monotonic [_routeRequestId] discards stale responses if the
-  /// traveler changes an endpoint again before the first request lands.
   Future<void> _maybeFetchRoutes() async {
     final departure = _departure;
     final destination = _selectedDestination;
@@ -259,16 +221,9 @@ class _TransportRoutesScreenState extends State<TransportRoutesScreen> {
       );
       if (!mounted || requestId != _routeRequestId) return;
       setState(() => _driveRoute = drive);
-    } catch (_) {
-      // Driving is a secondary comparison — silently unavailable is fine;
-      // transit results above are unaffected.
-    }
+    } catch (_) {}
   }
 
-  /// Polyline currently shown on the single persistent map — always the
-  /// selected transit route; the driving comparison is reference-only
-  /// and never plotted. Empty before both endpoints are set or while
-  /// routes are still loading.
   List<LatLng> get _mapPolylinePoints {
     if (_transitRoutes.isEmpty) return const [];
     final index = _selectedTransitIndex.clamp(0, _transitRoutes.length - 1);
@@ -343,18 +298,13 @@ class _TransportRoutesScreenState extends State<TransportRoutesScreen> {
                     _favoriteStops = [..._favoriteStops]
                       ..insert(index.clamp(0, _favoriteStops.length), restored),
               );
-            } catch (_) {
-              // Best-effort undo — nothing more to do if it fails.
-            }
+            } catch (_) {}
           },
         ),
       ),
     );
   }
 
-  /// A favourite stop already carries real coordinates (unlike "Next Up",
-  /// which only has a name to re-geocode), so tapping one sets it as the
-  /// destination directly.
   void _selectFavoriteStop(TripStopLocation stop) {
     setState(() => _selectedDestination = stop);
     _maybeFetchRoutes();
@@ -370,17 +320,6 @@ class _TransportRoutesScreenState extends State<TransportRoutesScreen> {
             DetailHeader(
               title: 'Transport',
               subtitle: 'Find your way around Malaysia',
-              // trailing: IconButton(
-              //   onPressed: () => Navigator.of(context).push(
-              //     MaterialPageRoute(
-              //       builder: (_) => const FareCalculatorScreen(),
-              //     ),
-              //   ),
-              //   icon: Icon(
-              //     Icons.calculate_outlined,
-              //     color: context.colors.ink,
-              //   ),
-              // ),
             ),
             Expanded(
               child: ListView(
@@ -764,10 +703,6 @@ class _FavoriteStopCard extends StatelessWidget {
   }
 }
 
-/// Bottom sheet for adding a quick stop — searches any real place via
-/// Photon (see [LocationSearchField]) rather than picking from a fixed
-/// list, since a quick stop can be anywhere the traveler commonly visits
-/// on this trip. Results already saved to this trip show as disabled.
 class _FavoriteStopPicker extends StatelessWidget {
   const _FavoriteStopPicker({required this.alreadyAdded});
 
@@ -882,10 +817,6 @@ class _FieldLabel extends StatelessWidget {
   }
 }
 
-/// Confirms both endpoints once a destination has been picked — the
-/// "Depart From → Destination" pair whose coordinates will be handed to
-/// the Route API next. [departure] may still be null (GPS pending or
-/// failed and the traveler hasn't searched one yet).
 class _RouteEndpointsCard extends StatelessWidget {
   const _RouteEndpointsCard({
     required this.departure,
@@ -1014,14 +945,6 @@ class _EndpointRow extends StatelessWidget {
   }
 }
 
-/// Public-transport (primary) + driving (secondary comparison) results
-/// for the current Depart From/Destination pair — brief route summaries,
-/// tap-through to full details, and a map preview of whichever route
-/// (transit or drive) is currently selected for display.
-/// Route summaries only — the map itself lives once, persistently,
-/// above this section on the Transport screen. Tapping a transit card
-/// both selects it (updates the shared map's polyline) and opens the
-/// full step-by-step details.
 class _RouteResultsSection extends StatelessWidget {
   const _RouteResultsSection({
     required this.loading,
@@ -1168,10 +1091,6 @@ class _SectionLabel extends StatelessWidget {
   }
 }
 
-/// Brief route summary — vehicle chips + duration/transfers, matching
-/// the "🚌 Bus + 🚆 LRT · 45 min · 2 transfers" style. Tapping it both
-/// selects the route (updates the shared map's polyline) and opens the
-/// full step-by-step [TransitRouteDetailsScreen].
 class _TransitRouteSummaryCard extends StatelessWidget {
   const _TransitRouteSummaryCard({
     required this.route,
@@ -1299,10 +1218,6 @@ class _TransitRouteSummaryCard extends StatelessWidget {
   }
 }
 
-/// Secondary driving comparison — reference only: how long driving would
-/// take compared to the public-transport options above. Not tappable and
-/// never plotted on the map; it never appears inside the "Public
-/// Transport" list itself.
 class _DriveRouteSummaryCard extends StatelessWidget {
   const _DriveRouteSummaryCard({required this.route});
 

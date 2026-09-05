@@ -1,7 +1,5 @@
 import 'package:latlong2/latlong.dart';
 
-/// Decodes a Google encoded-polyline string (the standard algorithm used
-/// by the Directions/Routes APIs) into a list of coordinates.
 List<LatLng> decodePolyline(String encoded) {
   if (encoded.isEmpty) return const [];
   final points = <LatLng>[];

@@ -9,8 +9,6 @@ import 'emergency_contacts_screen.dart';
 import 'packing_list_screen.dart';
 import 'translator_screen.dart';
 
-/// Hub linking into the trip utility tools: packing list, currency
-/// converter, translator, and emergency contacts.
 class UtilitiesHomeScreen extends StatelessWidget {
   const UtilitiesHomeScreen({super.key, required this.tripId});
 

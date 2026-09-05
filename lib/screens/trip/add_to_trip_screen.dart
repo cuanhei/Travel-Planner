@@ -7,7 +7,6 @@ import '../explore/explore_tab.dart' show Place;
 import 'create_trip_screen.dart';
 import 'trip_data.dart';
 
-/// UI-only picker: choose which upcoming trip to add a place's stop to.
 class AddToTripScreen extends StatefulWidget {
   const AddToTripScreen({super.key, required this.place});
 

@@ -26,12 +26,6 @@ const _monthNames = [
 
 String _formatShortDate(DateTime d) => '${_monthNames[d.month - 1]} ${d.day}';
 
-/// "What's in this category" view, reached by tapping a category card
-/// in the Budget Planner's By Category list — every expense logged
-/// under [label], with a planned/spent/remaining summary up top.
-/// Read-only: editing an expense stays in the Expense Tracker, editing
-/// the category's planned amount (or deleting it) stays on the Budget
-/// Planner row itself.
 class CategoryExpensesScreen extends StatelessWidget {
   const CategoryExpensesScreen({
     super.key,
@@ -56,9 +50,6 @@ class CategoryExpensesScreen extends StatelessWidget {
         child: StreamBuilder<List<Expense>>(
           stream: budgetService.watchExpenses(tripId),
           builder: (context, snapshot) {
-            // Personal expenses are private spending, excluded from the
-            // category's planned/spent budget tracking here — see
-            // budget_planner_screen.
             final expenses = (snapshot.data ?? const <Expense>[])
                 .where((e) => e.category == label && e.isShared)
                 .toList();
@@ -273,9 +264,6 @@ class _CategoryStat extends StatelessWidget {
   }
 }
 
-/// One expense row, tappable to a read-only detail view (including its
-/// photo, if any) — this screen never edits, matching its "what's in
-/// this category" purpose.
 class _ExpenseTile extends StatelessWidget {
   const _ExpenseTile({
     required this.expense,
@@ -290,11 +278,7 @@ class _ExpenseTile extends StatelessWidget {
   void _showDetails(BuildContext context) {
     showModalBottomSheet(
       context: context,
-      // Without this, the sheet caps itself at a fixed fraction of
-      // screen height and its content doesn't scroll — a multi-photo
-      // strip plus the detail rows can then overflow past that cap and
-      // get laid out (and hit-tested) somewhere other than where
-      // they're visibly drawn, making the photo look unclickable.
+
       isScrollControlled: true,
       backgroundColor: context.colors.card,
       shape: const RoundedRectangleBorder(
@@ -525,10 +509,6 @@ class _ExpenseTile extends StatelessWidget {
   }
 }
 
-/// Read-only display of an expense's photos — a single one shown large
-/// and full-width, several shown as a scrollable strip of square
-/// thumbnails. Tapping any of them opens the full-screen zoomable
-/// viewer instead of just a bigger fixed-size crop.
 class _PhotoStrip extends StatelessWidget {
   const _PhotoStrip({required this.urls});
 
@@ -546,11 +526,6 @@ class _PhotoStrip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (urls.length == 1) {
-      // BoxFit.contain, not cover: the crop step is freeform (any
-      // aspect ratio the traveler drags to), so this must show exactly
-      // what they cropped rather than silently re-cropping it again to
-      // fit a fixed box — that's the same "still be exactly what I
-      // cropped" promise the full-screen viewer already keeps.
       return GestureDetector(
         onTap: () => _openViewer(context, 0),
         child: ClipRRect(
@@ -589,9 +564,6 @@ class _PhotoStrip extends StatelessWidget {
   }
 }
 
-/// Full-screen, swipeable, pinch-to-zoom viewer for an expense's
-/// photos — the whole image via [BoxFit.contain], not a center-cropped
-/// preview box, so nothing is ever hidden off-frame.
 class _PhotoViewerScreen extends StatelessWidget {
   const _PhotoViewerScreen({required this.urls, required this.initialIndex});
 
@@ -616,10 +588,6 @@ class _PhotoViewerScreen extends StatelessWidget {
   }
 }
 
-/// One photo's zoom/pan surface — pinch (touch), double-tap (toggles
-/// between fit and zoomed-in, centered on the tap), and mouse-wheel
-/// scroll (desktop/web, centered on the cursor) all zoom in and out,
-/// matching how a phone's photo viewer behaves regardless of input.
 class _ZoomablePhoto extends StatefulWidget {
   const _ZoomablePhoto({required this.url});
 

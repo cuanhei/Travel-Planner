@@ -4,8 +4,6 @@ import '../data/countries.dart';
 import '../services/locale_service.dart';
 import '../theme/app_theme.dart';
 
-/// Tappable "🇲🇾 +60" chip. Opens a searchable bottom sheet of countries;
-/// selecting one calls [onChanged].
 class CountryCodePicker extends StatelessWidget {
   const CountryCodePicker({
     super.key,
@@ -82,13 +80,13 @@ class _CountryPickerSheetState extends State<_CountryPickerSheet> {
       _filtered = q.isEmpty
           ? countries
           : countries
-              .where(
-                (c) =>
-                    c.name.toLowerCase().contains(q) ||
-                    c.dialCode.contains(q) ||
-                    c.isoCode.toLowerCase().contains(q),
-              )
-              .toList();
+                .where(
+                  (c) =>
+                      c.name.toLowerCase().contains(q) ||
+                      c.dialCode.contains(q) ||
+                      c.isoCode.toLowerCase().contains(q),
+                )
+                .toList();
     });
   }
 

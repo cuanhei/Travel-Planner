@@ -14,8 +14,6 @@ import 'edit_profile_screen.dart';
 import 'settings_screen.dart';
 import 'travel_history_screen.dart';
 
-/// "Profile" bottom-nav tab: identity header, stats, and a menu into the
-/// rest of the profile-related modules.
 class ProfileTab extends StatefulWidget {
   const ProfileTab({super.key});
 
@@ -53,7 +51,9 @@ class _ProfileTabState extends State<ProfileTab> {
                     cursor: SystemMouseCursors.click,
                     child: GestureDetector(
                       onTap: () => Navigator.of(context).push(
-                        MaterialPageRoute(builder: (_) => const EditProfileScreen()),
+                        MaterialPageRoute(
+                          builder: (_) => const EditProfileScreen(),
+                        ),
                       ),
                       child: UserAvatar(
                         name: name,
@@ -88,9 +88,9 @@ class _ProfileTabState extends State<ProfileTab> {
                     ),
                   ),
                   IconButton(
-                    onPressed: () => Navigator.of(context).push(
-                      MaterialPageRoute(builder: (_) => SettingsScreen()),
-                    ),
+                    onPressed: () => Navigator.of(
+                      context,
+                    ).push(MaterialPageRoute(builder: (_) => SettingsScreen())),
                     icon: Icon(
                       Icons.settings_outlined,
                       color: context.colors.ink,

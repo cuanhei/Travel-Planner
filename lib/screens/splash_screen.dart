@@ -6,8 +6,6 @@ import '../theme/app_theme.dart';
 import 'home_screen.dart';
 import 'welcome_screen.dart';
 
-/// App launch screen: logo + loading, auto-advances to Home if a session is
-/// already active, otherwise into the welcome/auth flow.
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
 
@@ -21,7 +19,8 @@ class _SplashScreenState extends State<SplashScreen> {
     super.initState();
     Future.delayed(Duration(milliseconds: 1800), () {
       if (!mounted) return;
-      final signedIn = SupabaseConfig.isConfigured && AuthService.instance.isSignedIn;
+      final signedIn =
+          SupabaseConfig.isConfigured && AuthService.instance.isSignedIn;
       Navigator.of(context).pushReplacement(
         PageRouteBuilder(
           transitionDuration: Duration(milliseconds: 500),

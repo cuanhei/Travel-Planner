@@ -5,19 +5,11 @@ import 'package:media_kit_video/media_kit_video.dart';
 import '../../theme/app_theme.dart';
 import 'chat_composer.dart';
 
-/// Shown right after picking a photo/video and before it actually
-/// uploads — lets the traveler see exactly what they're about to send
-/// (and add a caption) instead of it going out the moment it's picked.
-/// Pops `null` if backed out (X or system back), or the caption text
-/// (possibly empty, for "send with no caption") once "Send" is tapped.
 class MediaPreviewScreen extends StatefulWidget {
   const MediaPreviewScreen({super.key, required this.media, this.videoPath});
 
   final PickedChatMedia media;
 
-  /// Local file path for a video pick — media_kit can play a file path
-  /// directly, so this avoids re-writing the already-read [media.bytes]
-  /// out to a temp file just to preview them.
   final String? videoPath;
 
   @override

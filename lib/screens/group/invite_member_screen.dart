@@ -8,9 +8,6 @@ import '../../services/group_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/detail_header.dart';
 
-/// Organizer-side "invite a member" flow: generates a real invite code
-/// (`trip_invites`, valid 1 minute) the traveler can share, and
-/// shows/decides pending join requests live via Supabase Realtime.
 class InviteMemberScreen extends StatefulWidget {
   const InviteMemberScreen({
     super.key,
@@ -60,7 +57,9 @@ class _InviteMemberScreenState extends State<InviteMemberScreen> {
     final expiresAt = _expiresAt;
     if (expiresAt == null) return;
     final remaining = expiresAt.difference(DateTime.now());
-    setState(() => _remaining = remaining.isNegative ? Duration.zero : remaining);
+    setState(
+      () => _remaining = remaining.isNegative ? Duration.zero : remaining,
+    );
     if (remaining.isNegative || remaining == Duration.zero) {
       _countdownTimer?.cancel();
     }

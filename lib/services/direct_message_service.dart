@@ -10,8 +10,6 @@ import '../models/reaction_event.dart';
 import 'chat_media_service.dart';
 import 'supabase_config.dart';
 
-/// Backend for private 1:1 messaging between two members of the same
-/// trip — started from a member's tile in the Group Travel dashboard.
 class DirectMessageService {
   DirectMessageService({SupabaseClient? client})
     : _client = client ?? SupabaseConfig.client;
@@ -21,13 +19,6 @@ class DirectMessageService {
 
   String get _uid => _client.auth.currentUser!.id;
 
-  /// One conversation's messages, oldest first. RLS already restricts
-  /// `direct_messages` rows to ones the caller sends or receives, but a
-  /// realtime `.stream()` filter can only express a flat AND of
-  /// equality checks — not "sender=me AND recipient=them, OR the
-  /// reverse" — so this streams every DM row from [tripId] the caller
-  /// is party to (across all their conversations in that trip) and
-  /// narrows it down to just [otherUserId] client-side.
   Stream<List<DirectMessage>> watchConversation({
     required String tripId,
     required String otherUserId,
@@ -61,9 +52,7 @@ class DirectMessageService {
                   ChatReplyPreview(
                     messageId: replyToId,
                     senderId: target['sender_id'] as String,
-                    // Left blank — DirectMessageService doesn't fetch
-                    // profile data; the screen derives "You" vs the
-                    // other participant's name from senderId itself.
+
                     senderName: '',
                     body: target['body'] as String?,
                     hasAttachment: target['attachment_url'] != null,
@@ -110,7 +99,6 @@ class DirectMessageService {
     );
   }
 
-  /// Sender-only: changes [messageId]'s text, marking it as edited.
   Future<void> editMessage({
     required String messageId,
     required String body,
@@ -125,9 +113,6 @@ class DirectMessageService {
         .eq('id', messageId);
   }
 
-  /// Sender-only: "delete for everyone" — clears the body/attachment
-  /// and marks it deleted, rather than removing the row, so the chat
-  /// can still show a placeholder in its place.
   Future<void> deleteMessage(String messageId) async {
     await _client
         .from('direct_messages')
@@ -141,9 +126,6 @@ class DirectMessageService {
         .eq('id', messageId);
   }
 
-  /// Pins [messageId] as this conversation's one pinned message
-  /// (unpinning whatever was pinned before), or unpins entirely when
-  /// null. Either participant can do this, not just the sender.
   Future<void> setPinnedMessage({
     required String tripId,
     required String otherUserId,
@@ -159,10 +141,6 @@ class DirectMessageService {
     );
   }
 
-  /// Every DM the signed-in user has sent or received in [tripId],
-  /// across all of their conversations there — RLS already limits this
-  /// to their own rows. The Personal Message inbox groups it by the
-  /// other participant to show a preview + unread count per member.
   Stream<List<DirectMessage>> watchAllMyMessages(String tripId) {
     return _client
         .from('direct_messages')
@@ -172,8 +150,6 @@ class DirectMessageService {
         .map((rows) => rows.map(DirectMessage.fromMap).toList());
   }
 
-  /// The signed-in user's "read up to" marker for every conversation
-  /// they have in [tripId] — `other_user_id` -> `last_read_at`.
   Stream<Map<String, DateTime>> watchAllLastRead(String tripId) {
     return _client
         .from('direct_message_reads')
@@ -190,8 +166,6 @@ class DirectMessageService {
         );
   }
 
-  /// Marks the conversation with [otherUserId] as read as of now — call
-  /// whenever [DirectChatScreen] is open and showing its messages.
   Future<void> markConversationRead({
     required String tripId,
     required String otherUserId,
@@ -204,11 +178,6 @@ class DirectMessageService {
     }, onConflict: 'trip_id,user_id,other_user_id');
   }
 
-  /// [otherUserId]'s own "read up to" marker for *their* conversation
-  /// with the signed-in user — i.e. whether (and when) they've seen the
-  /// messages the signed-in user sent them. This is their row, not the
-  /// caller's, so it relies on direct_message_reads' select policy
-  /// covering both participants (migration 0017).
   Stream<DateTime?> watchTheirLastRead({
     required String tripId,
     required String otherUserId,
@@ -227,11 +196,6 @@ class DirectMessageService {
         );
   }
 
-  /// Every reaction on a DM the signed-in user can see (i.e. is
-  /// sender/recipient of), across the whole trip — grouped by message
-  /// id then by the member who reacted. [DirectChatScreen] narrows this
-  /// down to just its own conversation's message ids, the same way
-  /// [watchConversation] narrows [watchAllMyMessages].
   Stream<Map<String, Map<String, String>>> watchReactions(String tripId) {
     return _client
         .from('direct_message_reactions')
@@ -249,11 +213,6 @@ class DirectMessageService {
         });
   }
 
-  /// Same reactions as [watchReactions], but as a flat list of events
-  /// with `createdAt` — used to tell a genuinely new reaction from one
-  /// that already existed, for the "reacted to your message" toast.
-  /// [watchReactions] itself drops the timestamp since none of its
-  /// callers (rendering reaction pills) need it.
   Stream<List<ReactionEvent>> watchReactionEvents(String tripId) {
     return _client
         .from('direct_message_reactions')
@@ -262,8 +221,6 @@ class DirectMessageService {
         .map((rows) => rows.map(ReactionEvent.fromMap).toList());
   }
 
-  /// Sets (replacing any previous one) the signed-in member's reaction
-  /// on [messageId].
   Future<void> setReaction({
     required String tripId,
     required String messageId,
@@ -277,7 +234,6 @@ class DirectMessageService {
     }, onConflict: 'message_id,user_id');
   }
 
-  /// Removes the signed-in member's reaction on [messageId], if any.
   Future<void> removeReaction(String messageId) async {
     await _client
         .from('direct_message_reactions')
@@ -286,20 +242,11 @@ class DirectMessageService {
         .eq('user_id', _uid);
   }
 
-  // ---- Typing indicator ----------------------------------------------
-  //
-  // Purely ephemeral — Realtime Broadcast, nothing written to the
-  // database. One channel per (trip, other participant) pair, shared by
-  // [sendTyping] and [watchTyping] on a given [DirectMessageService]
-  // instance.
-
   RealtimeChannel? _typingChannel;
   String? _typingChannelKey;
   bool _typingSubscribed = false;
 
   RealtimeChannel _typingChannelFor(String tripId, String otherUserId) {
-    // Sorted so both participants derive the same channel name
-    // regardless of who's "me" and who's "otherUserId".
     final pair = [_uid, otherUserId]..sort();
     final key = 'typing:dm:$tripId:${pair.join('-')}';
     if (_typingChannel == null || _typingChannelKey != key) {
@@ -319,9 +266,6 @@ class DirectMessageService {
     }
   }
 
-  /// Broadcasts that the signed-in member is typing to [otherUserId] in
-  /// [tripId]. Call this occasionally while the composer has text (the
-  /// caller debounces), not on every keystroke.
   void sendTyping({required String tripId, required String otherUserId}) {
     _ensureTypingSubscribed(tripId, otherUserId);
     _typingChannelFor(
@@ -330,9 +274,6 @@ class DirectMessageService {
     ).sendBroadcastMessage(event: 'typing', payload: {'user_id': _uid});
   }
 
-  /// A live event each time [otherUserId] broadcasts that they're
-  /// typing — the UI times the indicator back out a few seconds after
-  /// the last event rather than wait for an explicit "stopped" signal.
   Stream<void> watchTyping({
     required String tripId,
     required String otherUserId,

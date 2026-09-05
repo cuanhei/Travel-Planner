@@ -33,9 +33,6 @@ const _monthNames = [
 
 String _formatShortDate(DateTime d) => '${_monthNames[d.month - 1]} ${d.day}';
 
-/// File extension for an [XFile] picked via image_picker, used to name
-/// the storage object and pick its content-type — falls back to "jpg"
-/// when the picked file has no extension (some web/camera captures).
 String _photoFileExt(XFile file) {
   final name = file.name;
   final dot = name.lastIndexOf('.');
@@ -43,24 +40,14 @@ String _photoFileExt(XFile file) {
   return name.substring(dot + 1);
 }
 
-/// Cap on how many photos one expense can carry — keeps the picker strip
-/// and upload time bounded rather than a hard product requirement.
 const _maxPhotosPerExpense = 6;
 
-/// A freshly picked-and-cropped photo waiting to be uploaded on save —
-/// distinct from an already-saved [Expense.photoUrls] entry, which is
-/// just a URL with no local bytes to re-upload.
 class _PendingPhoto {
   const _PendingPhoto({required this.bytes, required this.ext});
   final Uint8List bytes;
   final String ext;
 }
 
-/// Full-screen crop step shown right after picking a photo — drag the
-/// handles to choose which part of the image to keep (freeform, no
-/// fixed aspect ratio) instead of silently center-cropping it later to
-/// fit a thumbnail box. Pops with the cropped bytes, or null if the
-/// user backs out.
 class _CropPhotoScreen extends StatefulWidget {
   const _CropPhotoScreen({required this.bytes});
 
@@ -125,11 +112,6 @@ class _CropPhotoScreenState extends State<_CropPhotoScreen> {
 
 const _calcOperators = {'+', '−', '×', '÷'};
 
-/// Evaluates a calculator-style expression typed via the amount field's
-/// on-screen keypad, e.g. "13+12" -> 25 or "100×2−5" -> 195 (standard
-/// ×/÷-before-+/− precedence, left to right within each). Returns null
-/// if it can't be parsed (empty, a leading/trailing/doubled operator,
-/// or division by zero).
 double? _evaluateExpression(String input) {
   final expr = input.trim();
   if (expr.isEmpty) return null;
@@ -152,7 +134,6 @@ double? _evaluateExpression(String input) {
   final first = double.tryParse(tokens[0]);
   if (first == null) return null;
 
-  // First pass: × and ÷, left to right.
   final reduced = <Object>[first];
   var i = 1;
   while (i < tokens.length - 1) {
@@ -170,7 +151,6 @@ double? _evaluateExpression(String input) {
     i += 2;
   }
 
-  // Second pass: + and −, left to right.
   var result = reduced[0] as double;
   var j = 1;
   while (j < reduced.length - 1) {
@@ -182,11 +162,6 @@ double? _evaluateExpression(String input) {
   return result;
 }
 
-/// Applies one calculator keypad tap to [controller]'s text: digits and
-/// `.` append (guarding against a second `.` within the current
-/// number), an operator appends (or replaces a trailing operator rather
-/// than stacking two), `⌫` deletes the last character, `C` clears, and
-/// `=` evaluates the expression in place.
 void _applyCalculatorKey(TextEditingController controller, String key) {
   final text = controller.text;
 
@@ -220,11 +195,6 @@ void _applyCalculatorKey(TextEditingController controller, String key) {
   controller.text = text + key;
 }
 
-/// Handles a physical-keyboard edit to the amount field: normalizes the
-/// ASCII operators a keyboard actually types (`* / -`) to the keypad's
-/// symbols (`× ÷ −`) so both entry paths produce the exact same
-/// expression text, and evaluates immediately if the just-typed
-/// character was `=` (e.g. typing "13+12=").
 void _handleAmountTyped(TextEditingController controller, String value) {
   final normalized = value
       .replaceAll('*', '×')
@@ -247,11 +217,6 @@ void _handleAmountTyped(TextEditingController controller, String value) {
   }
 }
 
-/// Live running log of trip expenses, backed by Supabase: each entry
-/// can be tagged with a category and the stop it was spent at, added
-/// fresh or edited later. The per-stop / per-category breakdown is
-/// surfaced as "insights" — framed as the data a future AI budget
-/// recommendation would draw on.
 class ExpenseTrackerScreen extends StatefulWidget {
   const ExpenseTrackerScreen({super.key, required this.tripId});
 
@@ -268,8 +233,6 @@ class _ExpenseTrackerScreenState extends State<ExpenseTrackerScreen> {
     widget.tripId,
   );
 
-  /// One-shot rather than live — only needed to label the "logged by"
-  /// filter chips with names, not to react to roster changes mid-session.
   late final Future<List<GroupMember>> _membersFuture = _groupService
       .watchMembers(widget.tripId)
       .first;
@@ -280,10 +243,6 @@ class _ExpenseTrackerScreenState extends State<ExpenseTrackerScreen> {
   String? _filterUserId;
   DateTimeRange? _filterDateRange;
 
-  /// null = both, true = group-only, false = personal-only — a quick
-  /// toggle separate from [_showFilterSheet]'s advanced filters, since
-  /// Group vs Personal is the primary split of this list rather than
-  /// an incidental narrowing.
   bool? _filterShared;
 
   bool get _hasActiveFilters =>
@@ -391,19 +350,11 @@ class _ExpenseTrackerScreenState extends State<ExpenseTrackerScreen> {
     }
   }
 
-  /// Read-only counterpart to [_showExpenseSheet] for an expense the
-  /// viewer can't edit (logged by someone else, and they're not the
-  /// organizer) — every member can still see what it was for, so the
-  /// list doesn't hide details behind a permission wall it doesn't need.
   void _showExpenseDetailsSheet(Expense expense) {
     final visuals = categoryVisuals(expense.category);
     showModalBottomSheet(
       context: context,
-      // Without this, the sheet caps itself at a fixed fraction of
-      // screen height and its content doesn't scroll — a multi-photo
-      // strip plus the detail rows can then overflow past that cap and
-      // get laid out (and hit-tested) somewhere other than where
-      // they're visibly drawn, making the photo look unclickable.
+
       isScrollControlled: true,
       backgroundColor: context.colors.card,
       shape: const RoundedRectangleBorder(
@@ -587,9 +538,7 @@ class _ExpenseTrackerScreenState extends State<ExpenseTrackerScreen> {
               if (file == null) return;
               final bytes = await file.readAsBytes();
               if (!mounted) return;
-              // Crop before adding — otherwise a portrait photo just
-              // gets silently center-cropped later to fit the square
-              // thumbnail box, hiding whatever wasn't in the middle.
+
               final cropped = await Navigator.of(context).push<Uint8List>(
                 MaterialPageRoute(
                   builder: (_) => _CropPhotoScreen(bytes: bytes),
@@ -607,8 +556,7 @@ class _ExpenseTrackerScreenState extends State<ExpenseTrackerScreen> {
             Future<void> save() async {
               final title = titleController.text.trim();
               final rawAmount = amountController.text.trim();
-              // Save works whether or not "=" was tapped first — typing
-              // "13+12" and hitting Add directly computes and saves 25.
+
               final amount =
                   double.tryParse(rawAmount) ?? _evaluateExpression(rawAmount);
               if (title.isEmpty) {
@@ -801,13 +749,7 @@ class _ExpenseTrackerScreenState extends State<ExpenseTrackerScreen> {
                                 setSheetState(() => selectedCategory = c),
                           ),
                         ),
-                        // Custom categories typed in via "Other" on a
-                        // past expense (e.g. "Visa") — offered directly
-                        // as a chip from here on, instead of having to
-                        // retype it through "Other" every time. Skips
-                        // whichever one is currently selected-but-custom
-                        // — the "Other" chip below already represents
-                        // that case, so this avoids showing it twice.
+
                         ...categorySuggestions
                             .where(
                               (c) =>
@@ -1263,20 +1205,9 @@ class _ExpenseTrackerScreenState extends State<ExpenseTrackerScreen> {
                     final personalTotal = expenses
                         .where((e) => !e.isShared)
                         .fold<double>(0, (sum, e) => sum + e.amount);
-                    // Everyone's shared spending only — RLS already
-                    // scopes `expenses` to the whole group's shared rows
-                    // plus this viewer's own personal ones, so
-                    // `total - personalTotal` is exactly the group's
-                    // total with no other member's personal spending
-                    // mixed in.
+
                     final groupTotal = total - personalTotal;
 
-                    // Insights below (avg per stop, top category) are
-                    // about the trip's shared spending pattern, not this
-                    // viewer's own private expenses — same is_shared
-                    // filter as Budget Planner/Pie Chart/Category
-                    // breakdown, so personal spending never surfaces
-                    // outside its own Personal total/badge.
                     final sharedExpenses = expenses
                         .where((e) => e.isShared)
                         .toList();
@@ -1312,22 +1243,12 @@ class _ExpenseTrackerScreenState extends State<ExpenseTrackerScreen> {
                             (a, b) => a.value > b.value ? a : b,
                           );
 
-                    // Suggestions for "Where were you?": planned trip
-                    // stops plus any custom stop name already typed on an
-                    // expense — a trip with no planned stops (e.g. the
-                    // auto-created demo trip) would otherwise offer no
-                    // suggestions at all and, since the field used to be
-                    // chip-only, no way to tag a stop whatsoever.
                     final stopSuggestions = <String>{
                       ...stopNames,
                       for (final e in expenses)
                         if (e.stopPlace != null) e.stopPlace!,
                     }.toList()..sort();
 
-                    // Custom categories already typed in via "Other" on
-                    // a past expense (e.g. "Visa") — offered directly as
-                    // a chip from here on instead of only through the
-                    // fixed budgetCategories set.
                     final categorySuggestions = <String>{
                       for (final e in expenses)
                         if (!budgetCategories.any((c) => c.label == e.category))
@@ -1387,8 +1308,7 @@ class _ExpenseTrackerScreenState extends State<ExpenseTrackerScreen> {
                                   value: 'RM ${formatAmount(personalTotal)}',
                                   isSelected: _filterShared == false,
                                   onTap: () => setState(
-                                    () =>
-                                        _filterShared = _filterShared == false
+                                    () => _filterShared = _filterShared == false
                                         ? null
                                         : false,
                                   ),
@@ -1584,12 +1504,7 @@ class _ExpenseTrackerScreenState extends State<ExpenseTrackerScreen> {
                                 ),
                               ...filteredExpenses.map((e) {
                                 final visuals = categoryVisuals(e.category);
-                                // The organizer's edit access doesn't
-                                // reach another member's personal
-                                // expenses — matches expenses_update/
-                                // delete_owner_or_organizer's RLS, which
-                                // would otherwise silently reject the
-                                // edit anyway.
+
                                 final canEdit =
                                     e.userId == myUid ||
                                     (isOrganizer && e.isShared);
@@ -1774,11 +1689,6 @@ class _ExpenseTrackerScreenState extends State<ExpenseTrackerScreen> {
   }
 }
 
-/// On-screen calculator keypad for the amount field — digits plus
-/// `+ − × ÷` and `=`, so "13+12" can be typed and evaluated to 25
-/// directly, like a receipt/accounting app's amount entry. Replaces the
-/// OS keyboard (the amount field is read-only) since a plain numeric
-/// keypad has no operator keys.
 class _CalculatorKeypad extends StatelessWidget {
   const _CalculatorKeypad({required this.onKeyTap});
 
@@ -1879,8 +1789,6 @@ class _KeypadButton extends StatelessWidget {
   }
 }
 
-/// A single selectable category chip — shared by the fixed
-/// [budgetCategories] and by previously-used custom categories.
 class _CategoryChip extends StatelessWidget {
   const _CategoryChip({
     required this.category,
@@ -1929,10 +1837,6 @@ class _CategoryChip extends StatelessWidget {
   }
 }
 
-/// Chip for a category outside the fixed [budgetCategories] set —
-/// prompts for a custom name (e.g. "Souvenirs", "Visa Fees") so
-/// spending that doesn't fit the presets still gets tagged and shows
-/// up in the Budget Planner's "By Category" breakdown.
 class _OtherCategoryChip extends StatelessWidget {
   const _OtherCategoryChip({
     required this.selectedCategory,
@@ -2066,10 +1970,6 @@ class _InsightStat extends StatelessWidget {
   }
 }
 
-/// One half of the Expense Tracker's Group/Personal totals row.
-/// Doubles as a quick filter toggle: tapping narrows the list below to
-/// just that side (tapping the already-selected side clears it back to
-/// showing both) — [isSelected] highlights whichever is active.
 class _SharedTotalCard extends StatelessWidget {
   const _SharedTotalCard({
     required this.icon,
@@ -2150,13 +2050,6 @@ class _SharedTotalCard extends StatelessWidget {
   }
 }
 
-/// One photo in the Add/Edit Expense sheet's picker strip — either an
-/// already-saved URL or freshly picked (and cropped) local bytes, with
-/// a small remove button. Square thumbnail: fine to center-crop here
-/// since the user already chose the crop themselves upstream. Tapping
-/// the image (not the remove button) opens the same full-screen
-/// zoomable viewer the read-only details sheet uses, so a photo isn't
-/// stuck at this fixed 80x80 preview size while editing either.
 class _PhotoThumb extends StatelessWidget {
   const _PhotoThumb({
     super.key,
@@ -2217,8 +2110,6 @@ class _PhotoThumb extends StatelessWidget {
   }
 }
 
-/// Trailing tile in the photo picker strip — tap to add another photo
-/// (opens source picker, then the crop screen).
 class _AddPhotoTile extends StatelessWidget {
   const _AddPhotoTile({required this.onTap});
 
@@ -2249,10 +2140,6 @@ class _AddPhotoTile extends StatelessWidget {
   }
 }
 
-/// Read-only display of an expense's photos — a single one shown large
-/// and full-width, several shown as a scrollable strip of square
-/// thumbnails. Tapping any of them opens the full-screen zoomable
-/// viewer instead of just a bigger fixed-size crop.
 class _PhotoStrip extends StatelessWidget {
   const _PhotoStrip({required this.urls});
 
@@ -2273,11 +2160,6 @@ class _PhotoStrip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (urls.length == 1) {
-      // BoxFit.contain, not cover: the crop step is freeform (any
-      // aspect ratio the traveler drags to), so this must show exactly
-      // what they cropped rather than silently re-cropping it again to
-      // fit a fixed box — that's the same "still be exactly what I
-      // cropped" promise the full-screen viewer already keeps.
       return GestureDetector(
         onTap: () => _openViewer(context, 0),
         child: ClipRRect(
@@ -2316,11 +2198,6 @@ class _PhotoStrip extends StatelessWidget {
   }
 }
 
-/// Full-screen, swipeable, pinch-to-zoom viewer for an expense's
-/// photos — the whole image via [BoxFit.contain], not a center-cropped
-/// preview box, so nothing is ever hidden off-frame. Takes
-/// [ImageProvider]s rather than URLs so it can show a freshly-picked,
-/// not-yet-uploaded photo (in-memory bytes) just as well as a saved one.
 class _PhotoViewerScreen extends StatelessWidget {
   const _PhotoViewerScreen({required this.images, required this.initialIndex});
 
@@ -2345,10 +2222,6 @@ class _PhotoViewerScreen extends StatelessWidget {
   }
 }
 
-/// One photo's zoom/pan surface — pinch (touch), double-tap (toggles
-/// between fit and zoomed-in, centered on the tap), and mouse-wheel
-/// scroll (desktop/web, centered on the cursor) all zoom in and out,
-/// matching how a phone's photo viewer behaves regardless of input.
 class _ZoomablePhoto extends StatefulWidget {
   const _ZoomablePhoto({required this.image});
 
@@ -2431,8 +2304,6 @@ class _ZoomablePhotoState extends State<_ZoomablePhoto> {
   }
 }
 
-/// One labeled row in the read-only expense detail sheet — icon, label,
-/// value, all on a line.
 class _DetailRow extends StatelessWidget {
   const _DetailRow({
     required this.icon,

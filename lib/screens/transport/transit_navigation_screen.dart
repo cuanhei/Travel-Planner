@@ -7,11 +7,6 @@ import '../../utils/format.dart';
 import '../../utils/transit_vehicle_display.dart';
 import '../../widgets/navigation_map_view.dart';
 
-/// Full-screen, live public-transport navigation for one already-picked
-/// [TransitRoute] — walks its WALK/TRANSIT steps in order, following the
-/// traveler's GPS via [TransitNavigationController]. Pushed from
-/// [TransitRouteDetailsScreen]'s "Start Navigation" button; does not
-/// request a new route or touch the Transport search underneath it.
 class TransitNavigationScreen extends StatefulWidget {
   const TransitNavigationScreen({
     super.key,
@@ -509,8 +504,6 @@ class _WarningChip extends StatelessWidget {
   }
 }
 
-/// Top bar wrapping walking/transit instructions — always carries the
-/// close button so navigation can be ended manually at any time.
 class _InstructionBar extends StatelessWidget {
   const _InstructionBar({required this.onClose, required this.child});
 

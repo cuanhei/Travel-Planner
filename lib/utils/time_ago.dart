@@ -1,4 +1,3 @@
-/// Short relative-time label for a past [DateTime], e.g. "2h ago", "3d ago".
 String timeAgo(DateTime time) {
   final diff = DateTime.now().difference(time);
   if (diff.inSeconds < 60) return 'Just now';

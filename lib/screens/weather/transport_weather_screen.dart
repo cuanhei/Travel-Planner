@@ -28,8 +28,6 @@ const _monthNames = [
 
 String _formatShortDate(DateTime d) => '${d.day} ${_monthNames[d.month - 1]}';
 
-/// One day's resolved (or unresolvable) forecast, anchored at that day's
-/// own starting location rather than the traveler's live GPS position.
 class _DayWeather {
   const _DayWeather({
     required this.dayNumber,
@@ -44,25 +42,12 @@ class _DayWeather {
   final DateTime date;
   final String originName;
 
-  /// The MET Malaysia area this was actually resolved against (may read
-  /// slightly differently from [originName], e.g. "Georgetown" vs
-  /// "George Town") — shown alongside it so it's clear where the numbers
-  /// came from.
   final String? areaLabel;
   final WeatherForecast? forecast;
 
-  /// Why there's no [forecast] — outside the forecast window, no
-  /// starting location for this day, or the lookup itself failed.
   final String? unavailableReason;
 }
 
-/// Per-day weather for a trip's own itinerary — unlike [WeatherForecastScreen]
-/// (single forecast for wherever the traveler is standing right now), this
-/// resolves one forecast per day at *that day's own starting location*
-/// (the trip's starting location on Day 1, otherwise the previous night's
-/// accommodation — see [TripScheduleLeg.fromName]/[TripScheduleDay.legs]),
-/// so a multi-city trip shows "Day 1 (George Town)", "Day 2 (Perlis)", …
-/// each against its own local forecast rather than one blanket reading.
 class TransportWeatherScreen extends StatefulWidget {
   const TransportWeatherScreen({super.key, required this.tripId});
 
@@ -94,9 +79,7 @@ class _TransportWeatherScreenState extends State<TransportWeatherScreen> {
     try {
       final schedule = await _tripService.getTripSchedule(widget.tripId);
       final results = <_DayWeather>[];
-      // Consecutive days often share a starting point (e.g. two nights at
-      // the same hotel) — cache each resolved window by rounded
-      // coordinates so those days don't refetch the same forecast twice.
+
       final cache = <String, ResolvedWeatherWindow>{};
 
       for (final day in schedule.days) {

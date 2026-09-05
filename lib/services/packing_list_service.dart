@@ -5,9 +5,6 @@ import '../models/trip.dart';
 import 'locale_service.dart';
 import 'supabase_config.dart';
 
-/// One rule-based starter suggestion — not yet an inserted [PackingItem],
-/// just the label/category/quantity/note [PackingListService.generateSuggestedItems]
-/// would insert.
 typedef PackingSuggestion = ({
   String label,
   String category,
@@ -15,18 +12,6 @@ typedef PackingSuggestion = ({
   String? note,
 });
 
-/// Rule-based starter checklist for [trip] — no external calls (the
-/// app's only weather API covers Malaysia and needs GPS coordinates, not
-/// a free-text destination, so this leans on trip length, the trip's
-/// own dates, and destination keywords instead). Always includes the
-/// same basics the old hardcoded mock list had, then layers on
-/// destination- and season-specific extras:
-/// - Clothing quantities scale with trip length (capped at a week's
-///   worth — nobody packs 20 shirts, they do laundry).
-/// - A beach/island-sounding destination adds swimwear-focused extras;
-///   a highland-sounding one adds warmer layers instead.
-/// - A trip whose dates fall in Malaysia's Nov–Mar wet season gets rain
-///   gear called out explicitly, not just the always-included jacket.
 List<PackingSuggestion> buildSuggestedItems(Trip trip) {
   final days = trip.days == 0 ? 3 : trip.days;
   final clothingQty = days.clamp(1, 7);
@@ -36,11 +21,22 @@ List<PackingSuggestion> buildSuggestedItems(Trip trip) {
       keywords.any((k) => destination.contains(k));
 
   final isBeach = matchesAny([
-    'beach', 'island', 'pantai', 'pulau',
-    'langkawi', 'redang', 'perhentian', 'tioman',
+    'beach',
+    'island',
+    'pantai',
+    'pulau',
+    'langkawi',
+    'redang',
+    'perhentian',
+    'tioman',
   ]);
   final isHighland = matchesAny([
-    'highland', 'hill', 'mountain', 'cameron', 'genting', 'fraser',
+    'highland',
+    'hill',
+    'mountain',
+    'cameron',
+    'genting',
+    'fraser',
   ]);
 
   bool spansWetSeason() {
@@ -202,10 +198,6 @@ List<PackingSuggestion> buildSuggestedItems(Trip trip) {
   return suggestions;
 }
 
-/// Backend for the Packing List module: a live, per-trip, shared
-/// checklist (any trip member can add/check off/remove items — mirrors
-/// Budget's `budget_categories`), plus [generateSuggestedItems] to seed
-/// it from [buildSuggestedItems].
 class PackingListService {
   PackingListService({SupabaseClient? client})
     : _client = client ?? SupabaseConfig.client;
@@ -272,21 +264,13 @@ class PackingListService {
   }
 
   Future<void> setPacked(String id, bool packed) async {
-    await _client
-        .from('packing_items')
-        .update({'packed': packed})
-        .eq('id', id);
+    await _client.from('packing_items').update({'packed': packed}).eq('id', id);
   }
 
   Future<void> deleteItem(String id) async {
     await _client.from('packing_items').delete().eq('id', id);
   }
 
-  /// Inserts [buildSuggestedItems]'s starter checklist for [trip],
-  /// skipping any label already in [existingItems] (case-insensitive) —
-  /// tapping "Auto-generate" again after editing the list tops it up
-  /// with whatever's still missing instead of duplicating everything.
-  /// Returns how many items were actually added.
   Future<int> generateSuggestedItems(
     Trip trip,
     List<PackingItem> existingItems,
@@ -294,9 +278,9 @@ class PackingListService {
     final existingLabels = existingItems
         .map((i) => i.label.toLowerCase())
         .toSet();
-    final suggestions = buildSuggestedItems(trip)
-        .where((s) => !existingLabels.contains(s.label.toLowerCase()))
-        .toList();
+    final suggestions = buildSuggestedItems(
+      trip,
+    ).where((s) => !existingLabels.contains(s.label.toLowerCase())).toList();
     if (suggestions.isEmpty) return 0;
     await _client.from('packing_items').insert([
       for (final s in suggestions)

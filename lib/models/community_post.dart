@@ -1,9 +1,5 @@
-/// One photo/video attached to a post — [url] its Storage URL, [type]
-/// either 'image' or 'video'.
 typedef PostMedia = ({String url, String type});
 
-/// A single Community feed post, joined from `posts` + `profiles` (author)
-/// and `post_likes` (the current user's own reaction, if any).
 class CommunityPost {
   const CommunityPost({
     required this.id,
@@ -34,41 +30,20 @@ class CommunityPost {
   final String category;
   final String coverGradient;
 
-  /// Up to 3 photos/videos, in the order they were attached.
   final List<PostMedia> media;
 
-  /// Total reactions across all types (`sum(reactionCounts.values)`).
   final int likesCount;
 
-  /// Per-type breakdown, e.g. `{'like': 3, 'love': 1}` — only types with a
-  /// count > 0 are present.
   final Map<String, int> reactionCounts;
   final int commentsCount;
 
-  /// The current user's own reaction on this post ('like'/'love'/'wow'),
-  /// or `null` if they haven't reacted.
   final String? myReaction;
   final DateTime createdAt;
   final DateTime updatedAt;
 
-  /// Whether the post's own author has changed it since posting — driven by
-  /// `posts.updated_at`, which only moves on a content edit (place/caption/
-  /// category/media), never on a reaction or comment. A tolerance guards
-  /// against `created_at`/`updated_at` differing by a few stray
-  /// microseconds from being computed as two separate `now()` calls on
-  /// insert, which would otherwise show a brand-new post as "Edited".
   bool get isEdited =>
       updatedAt.difference(createdAt) > const Duration(seconds: 2);
 
-  /// Used for optimistic/live local updates (a reaction tap, or a
-  /// `CommunityFeedEvent` patching in a change from elsewhere) instead of
-  /// re-fetching the post from the paginated feed.
-  ///
-  /// [myReaction] needs to distinguish "leave it alone" from "set it to
-  /// null" (clearing your own reaction is a real, common case) — a plain
-  /// nullable parameter can't tell those apart, so omitting it keeps the
-  /// current value and [clearMyReaction] is how a caller explicitly nulls
-  /// it out.
   CommunityPost copyWith({
     int? likesCount,
     Map<String, int>? reactionCounts,
@@ -101,12 +76,11 @@ class CommunityPost {
     required String? myReaction,
   }) {
     final profile = map['profiles'] as Map<String, dynamic>;
-    final rawCounts = map['reaction_counts'] as Map<String, dynamic>? ?? const {};
+    final rawCounts =
+        map['reaction_counts'] as Map<String, dynamic>? ?? const {};
     final mediaUrls = (map['media_urls'] as List<dynamic>?)?.cast<String>();
     final mediaTypes = (map['media_types'] as List<dynamic>?)?.cast<String>();
-    // Falls back to the legacy single media_url/media_type columns for a
-    // row that predates the media_urls/media_types arrays and was never
-    // backfilled (see migration 0027_post_multi_media.sql).
+
     final legacyUrl = map['media_url'] as String?;
     final media = mediaUrls != null
         ? [

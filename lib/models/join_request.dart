@@ -15,8 +15,6 @@ const _monthNames = [
 
 String _formatShortDate(DateTime d) => '${_monthNames[d.month - 1]} ${d.day}';
 
-/// A pending (or decided) request to join a trip via invite code,
-/// backed by `trip_join_requests`.
 class JoinRequest {
   const JoinRequest({
     required this.id,
@@ -50,11 +48,6 @@ class JoinRequest {
   }
 }
 
-/// The signed-in user's own join request, as seen from the requester's
-/// side — no profile join needed since it's their own name/avatar.
-/// Carries the organizer's [reason] when [status] is `'rejected'`, and
-/// the trip's own name/destination/dates so the requester can tell which
-/// trip a pending or decided request is actually for.
 class MyJoinRequest {
   const MyJoinRequest({
     required this.id,
@@ -80,8 +73,6 @@ class MyJoinRequest {
   final DateTime createdAt;
   final DateTime? decidedAt;
 
-  /// Trip fields are null until [GroupService.watchMyRequests] resolves
-  /// them in a second query (Realtime streams can't embed joins).
   factory MyJoinRequest.fromMap(Map<String, dynamic> map) {
     final trip = map['trips'] as Map<String, dynamic>?;
     return MyJoinRequest(
@@ -104,8 +95,6 @@ class MyJoinRequest {
     );
   }
 
-  /// e.g. "Aug 14 – Aug 16", or "Dates not set" if the trip hasn't
-  /// scheduled them yet (or hasn't resolved over the wire).
   String get dateRangeLabel {
     final start = startDate;
     final end = endDate;

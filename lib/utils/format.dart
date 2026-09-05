@@ -1,5 +1,3 @@
-/// Shared display formatting for route durations/distances/times, used
-/// across the Transport module's route summary and details UI.
 library;
 
 String formatDuration(Duration d) {

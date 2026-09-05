@@ -1,17 +1,22 @@
 const _monthNames = [
-  'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-  'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+  'Jan',
+  'Feb',
+  'Mar',
+  'Apr',
+  'May',
+  'Jun',
+  'Jul',
+  'Aug',
+  'Sep',
+  'Oct',
+  'Nov',
+  'Dec',
 ];
 
 String _formatShortDate(DateTime d) => '${_monthNames[d.month - 1]} ${d.day}';
 
-/// Where a trip sits relative to today, used to bucket the "My Trips"
-/// list into Current / Upcoming / Past sections.
 enum TripStatus { current, upcoming, past }
 
-/// A trip owned (or joined) by the signed-in user, backed by `trips`.
-/// [startDate]/[endDate] are nullable — a trip created without dates yet
-/// (e.g. the auto-seeded demo trip) is treated as [TripStatus.upcoming].
 class Trip {
   const Trip({
     required this.id,
@@ -77,10 +82,6 @@ class Trip {
     );
   }
 
-  /// Brief "Start → End" route — e.g. "George Town Ferry Terminal → KLCC",
-  /// collapsed to just the start when both ends are the same location.
-  /// Falls back to [destination], then null if neither location nor
-  /// destination is set.
   String? get routeLabel {
     final start = startLocationName?.trim();
     final end = endLocationName?.trim();
@@ -105,7 +106,6 @@ class Trip {
     return TripStatus.current;
   }
 
-  /// e.g. "Aug 14 – Aug 16", or "Dates not set" if either date is missing.
   String get dateRangeLabel {
     final start = startDate;
     final end = endDate;
@@ -113,7 +113,6 @@ class Trip {
     return '${_formatShortDate(start)} – ${_formatShortDate(end)}';
   }
 
-  /// Trip length in days, inclusive of both endpoints; 0 if dates are unset.
   int get days {
     final start = startDate;
     final end = endDate;

@@ -8,10 +8,6 @@ import '../../theme/app_theme.dart';
 import '../../utils/format.dart';
 import '../../widgets/detail_header.dart';
 
-/// Turns a raw Supabase error into a message worth showing the user.
-/// `PGRST205` means the `login_activity` table hasn't been created yet on
-/// this project (see supabase/migrations/0015_login_activity.sql) —
-/// everything else falls back to a generic retry message.
 String _friendlyError(Object e) {
   if (e is PostgrestException && e.code == 'PGRST205') {
     return tr('auth_login_activity_not_setup');
@@ -21,17 +17,23 @@ String _friendlyError(Object e) {
 
 String _formatDateTime(DateTime dt) {
   const months = [
-    'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-    'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+    'Jan',
+    'Feb',
+    'Mar',
+    'Apr',
+    'May',
+    'Jun',
+    'Jul',
+    'Aug',
+    'Sep',
+    'Oct',
+    'Nov',
+    'Dec',
   ];
   final local = dt.toLocal();
   return '${months[local.month - 1]} ${local.day}, ${local.year} · ${formatClockTime(local)}';
 }
 
-/// Recent sign-ins to the signed-in user's account (Privacy & Security >
-/// Login Activity) — read-only, backed by `public.login_activity`, rows
-/// written automatically on every real sign-in (see the
-/// `onAuthStateChange` listener in `main.dart`).
 class LoginActivityScreen extends StatefulWidget {
   const LoginActivityScreen({super.key});
 
@@ -194,7 +196,11 @@ class _ErrorState extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.error_outline_rounded, size: 56, color: Colors.redAccent),
+            Icon(
+              Icons.error_outline_rounded,
+              size: 56,
+              color: Colors.redAccent,
+            ),
             SizedBox(height: 16),
             Text(
               message,
@@ -225,11 +231,7 @@ class _EmptyState extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(
-              Icons.history_rounded,
-              size: 56,
-              color: context.colors.muted,
-            ),
+            Icon(Icons.history_rounded, size: 56, color: context.colors.muted),
             SizedBox(height: 16),
             Text(
               tr('auth_login_activity_empty'),

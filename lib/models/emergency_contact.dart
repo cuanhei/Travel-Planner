@@ -1,7 +1,5 @@
 import 'package:flutter/foundation.dart';
 
-/// One entry in the signed-in user's personal emergency-contacts list
-/// (family/friends they add themselves) — see `emergency_contact_service.dart`.
 @immutable
 class EmergencyContact {
   const EmergencyContact({

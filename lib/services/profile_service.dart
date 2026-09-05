@@ -4,7 +4,6 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/avatar_config.dart';
 import '../models/profile_avatar_state.dart';
 
-/// The signed-in user's `public.profiles` row.
 @immutable
 class UserProfile {
   const UserProfile({
@@ -33,15 +32,8 @@ class UserProfile {
   final String? nationality;
   final String? address;
 
-  /// When this account was registered — the `profiles` row's `created_at`,
-  /// set once at sign-up by the `handle_new_user` DB trigger (see
-  /// `supabase/schema.sql`) and never updated afterwards.
   final DateTime? createdAt;
 
-  /// Instagram-style public/private switch (Settings → Privacy &
-  /// Security → "Public Profile"). Public: another viewer sees
-  /// everything on [ViewProfileScreen]. Private: only [fullName],
-  /// [avatarUrl], and [bio] — see `view_profile_screen.dart`.
   final bool isPublic;
 
   factory UserProfile.fromRow(Map<String, dynamic> row) => UserProfile(
@@ -64,9 +56,6 @@ class UserProfile {
   );
 }
 
-/// Loads and edits the signed-in user's profile row, and keeps a live
-/// [current] value so Home, Profile, and Edit Profile all reflect an edit
-/// immediately without each independently re-fetching from Supabase.
 class ProfileService {
   ProfileService._();
 
@@ -76,9 +65,6 @@ class ProfileService {
 
   final ValueNotifier<UserProfile?> current = ValueNotifier(null);
 
-  /// Fetches the signed-in user's profile row. Safe to call repeatedly
-  /// (e.g. on every Home Screen mount) — cheap, and just refreshes
-  /// [current].
   Future<void> load() async {
     final user = _client.auth.currentUser;
     if (user == null) {
@@ -127,17 +113,13 @@ class ProfileService {
           'address': _nullIfBlank(address),
         })
         .eq('id', user.id);
-    // Keep the auth user_metadata copy of the name in sync too — screens
-    // that haven't loaded a profile yet (e.g. right after sign-up) fall
-    // back to reading it from there.
+
     await _client.auth.updateUser(
       UserAttributes(data: {'full_name': fullName}),
     );
     await load();
   }
 
-  /// Turns the Instagram-style public/private switch on/off for the
-  /// signed-in user's own profile.
   Future<void> setPublicProfile(bool isPublic) async {
     final user = _client.auth.currentUser;
     if (user == null) return;
@@ -148,12 +130,6 @@ class ProfileService {
     await load();
   }
 
-  /// Fetches any user's profile row by id, for [ViewProfileScreen]. Every
-  /// signed-in user can read any profile row (needed to render trip-mates'
-  /// names elsewhere in the app — see `schema.sql`'s
-  /// `profiles_select_authenticated` policy), so [isPublic] is enforced
-  /// by the viewing screen deciding what to *show*, not by the database
-  /// deciding what it will *return*.
   Future<UserProfile?> getById(String userId) async {
     final row = await _client
         .from('profiles')
@@ -163,23 +139,15 @@ class ProfileService {
     return row == null ? null : UserProfile.fromRow(row);
   }
 
-  /// Matches each of [phones] against a signed-up TravelPlanner account's
-  /// phone number (via the `find_profiles_by_phone` DB function — see
-  /// `supabase/migrations/0013_find_profiles_by_phone.sql`, which
-  /// normalizes both sides to digits-only before comparing), for Emergency
-  /// Contact's "this contact is also a TravelPlanner user" linking.
-  ///
-  /// Returns a map keyed by the exact string from [phones] that matched
-  /// (so a caller can look up `contact.phone` directly), to that user's
-  /// full profile. A phone with no matching account is simply absent from
-  /// the result — callers should treat that as "not a signed-up user".
   Future<Map<String, UserProfile>> findByPhones(List<String> phones) async {
     final distinctPhones = phones.toSet().toList();
     if (distinctPhones.isEmpty) return {};
-    final matches = await _client.rpc(
-      'find_profiles_by_phone',
-      params: {'p_phones': distinctPhones},
-    ) as List;
+    final matches =
+        await _client.rpc(
+              'find_profiles_by_phone',
+              params: {'p_phones': distinctPhones},
+            )
+            as List;
     if (matches.isEmpty) return {};
 
     final phoneById = <String, String>{};
@@ -200,8 +168,6 @@ class ProfileService {
     return result;
   }
 
-  /// Uploads a new avatar image and points the profile at it. [fileExt]
-  /// is a plain extension like `jpg` or `png`.
   Future<void> uploadAvatar(Uint8List bytes, String fileExt) async {
     final user = _client.auth.currentUser;
     if (user == null) return;
@@ -211,20 +177,14 @@ class ProfileService {
         .uploadBinary(
           path,
           bytes,
-          fileOptions: FileOptions(
-            upsert: true,
-            contentType: 'image/$fileExt',
-          ),
+          fileOptions: FileOptions(upsert: true, contentType: 'image/$fileExt'),
         );
-    // The storage path never changes between uploads, so the URL has to be
-    // cache-busted or the browser (and Image.network's own cache) will
-    // keep showing the old image.
+
     final url = _client.storage.from('avatars').getPublicUrl(path);
     final bustedUrl = '$url?t=${DateTime.now().millisecondsSinceEpoch}';
-    final state = ProfileAvatarState.decode(current.value?.avatarUrl).copyWith(
-      mode: ProfileAvatarMode.photo,
-      photoUrl: bustedUrl,
-    );
+    final state = ProfileAvatarState.decode(
+      current.value?.avatarUrl,
+    ).copyWith(mode: ProfileAvatarMode.photo, photoUrl: bustedUrl);
     await _client
         .from('profiles')
         .update({'avatar_url': state.encode()})
@@ -232,17 +192,12 @@ class ProfileService {
     await load();
   }
 
-  /// Points the profile at a designed avatar instead of an uploaded photo.
-  /// Merges into the existing [ProfileAvatarState] rather than overwriting
-  /// `avatar_url` outright, so a previously-uploaded photo survives and is
-  /// still there if the user switches back to "Photo" mode later.
   Future<void> setAvatarDesign(AvatarConfig config) async {
     final user = _client.auth.currentUser;
     if (user == null) return;
-    final state = ProfileAvatarState.decode(current.value?.avatarUrl).copyWith(
-      mode: ProfileAvatarMode.avatarDesign,
-      design: config,
-    );
+    final state = ProfileAvatarState.decode(
+      current.value?.avatarUrl,
+    ).copyWith(mode: ProfileAvatarMode.avatarDesign, design: config);
     await _client
         .from('profiles')
         .update({'avatar_url': state.encode()})
@@ -250,10 +205,6 @@ class ProfileService {
     await load();
   }
 
-  /// Switches which already-saved avatar (photo or design) is active,
-  /// without changing either one's content — e.g. the Edit Profile screen's
-  /// Photo/Avatar tab toggle only takes effect (persists) once this is
-  /// called, which happens when the user taps "Save Changes".
   Future<void> setActiveAvatarMode(ProfileAvatarMode mode) async {
     final user = _client.auth.currentUser;
     if (user == null) return;

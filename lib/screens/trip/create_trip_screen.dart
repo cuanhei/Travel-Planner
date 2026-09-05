@@ -54,9 +54,6 @@ String _formatTimeOfDay(TimeOfDay? t) {
   return '$hour:$minute $period';
 }
 
-/// 24-hour "HH:mm" clock label for a minutes-since-midnight value, wrapping
-/// at 24h (a day's plan can run past midnight; the timeline just keeps
-/// counting rather than trying to represent a rollover to the next date).
 String _minutesToClock(int minutesSinceMidnight) {
   final wrapped = minutesSinceMidnight % (24 * 60);
   final normalized = wrapped < 0 ? wrapped + 24 * 60 : wrapped;
@@ -67,11 +64,6 @@ String _minutesToClock(int minutesSinceMidnight) {
 
 int _timeOfDayToMinutes(TimeOfDay t) => t.hour * 60 + t.minute;
 
-/// Walks a day's stops in order: each one's arrival is the running clock
-/// plus its travel segment, its end is arrival plus its (editable) visit
-/// duration, and that end becomes the running clock for the next stop.
-/// Shared by the timeline UI and by the weather-recheck trigger, which
-/// both need the same arrival/end minutes.
 ({List<int> arrivals, List<int> ends}) _computeDayTimes(
   int dayStartMinutes,
   List<_StopEntry> stops,
@@ -93,23 +85,10 @@ int _timeOfDayToMinutes(TimeOfDay t) => t.hour * 60 + t.minute;
   return (arrivals: arrivals, ends: ends);
 }
 
-/// How every travel leg in the timeline is computed — driving
-/// ([RouteService.getDriveRoute]) or public transport
-/// ([RouteService.getTransitRoutes], taking the first/most relevant
-/// candidate's duration).
 enum _TransportMode { driving, transit }
 
-/// Peninsular Malaysia and East Malaysia (Sabah & Sarawak) have no road,
-/// rail, or ferry link between them — only flights — so a trip can't mix
-/// stops from both.
 enum _MalaysiaRegion { peninsular, borneo }
 
-/// Rough peninsular-vs-Borneo split by longitude — the South China Sea
-/// separates them with no land from roughly 105°E to 108.5°E (Peninsular
-/// Malaysia's easternmost point, Johor, sits under ~104.5°E; Sarawak's
-/// westernmost, Sematan, sits over ~109.6°E), so a simple cutoff reliably
-/// tells which side of the sea a point is on without needing reverse
-/// geocoding.
 _MalaysiaRegion _regionOf(TripStopLocation location) =>
     location.longitude >= 107
     ? _MalaysiaRegion.borneo
@@ -119,9 +98,6 @@ String _regionLabel(_MalaysiaRegion region) => region == _MalaysiaRegion.borneo
     ? 'East Malaysia (Sabah & Sarawak)'
     : 'Peninsular Malaysia';
 
-/// A stop added to a specific trip day — the place data comes straight
-/// from Google Places ([TripStopLocation.fromNearbyPlace]); [visitMinutes]
-/// starts at the category-based estimate but the traveler can override it.
 class _StopEntry {
   _StopEntry(this.location) : visitMinutes = location.estimatedVisitMinutes;
 
@@ -129,12 +105,6 @@ class _StopEntry {
   int visitMinutes;
 }
 
-/// Drive-time estimate (Google Routes API, via [RouteService.getDriveRoute])
-/// from whatever preceded a stop (the trip's starting location, the
-/// previous night's accommodation, or the prior stop that day) to that
-/// stop. Null [duration] while [loading]; [noOrigin] distinguishes "there
-/// was nothing to route from yet" (e.g. Starting Location isn't set) from
-/// an actual failed API call, since both otherwise show a null duration.
 class _TravelSegment {
   _TravelSegment({
     this.loading = false,
@@ -146,9 +116,6 @@ class _TravelSegment {
   Duration? duration;
   bool noOrigin;
 
-  /// True right after a manual reorder invalidated the previously-fetched
-  /// duration — distinct from an actual failed API call, since both
-  /// otherwise show a null [duration].
   bool stale;
 }
 
@@ -195,19 +162,6 @@ String _travelLabel(_TravelSegment? segment) {
   return minutes < 1 ? 'Travel < 1 min' : 'Travel ${duration.inMinutes} min';
 }
 
-/// Simplified Create Trip flow: a tab-based daily timeline planner.
-///
-/// Trip name/dates/starting location/per-night accommodation are set once
-/// up top; the days in between are horizontally-scrollable tabs, each
-/// showing a single vertical timeline built purely from the order stops
-/// were added — no route optimization runs here. Adding a stop appends it
-/// to the end of that day's timeline, resolves the correct origin (trip
-/// starting location for Day 1's first stop, the previous night's
-/// accommodation for a later day's first stop, otherwise the previous
-/// stop), calls the Google Routes API for the travel ETA, then applies the
-/// existing category-based visit-duration estimate to work out when the
-/// stop ends — which is what the next stop's travel calculation starts
-/// from.
 class CreateTripScreen extends StatefulWidget {
   const CreateTripScreen({super.key});
 
@@ -230,41 +184,19 @@ class _CreateTripScreenState extends State<CreateTripScreen> {
   DateTime? _startDate;
   DateTime? _endDate;
 
-  /// Another trip (organizer or member) the signed-in traveler is
-  /// already committed to whose dates clash with the ones just picked —
-  /// null once both dates are set and don't clash with anything. Blocks
-  /// [_isFormComplete] the same way any other missing required field
-  /// does; [check_trip_date_conflict] on the `trips` table is what
-  /// actually enforces this server-side, this is just the friendly
-  /// inline warning before ever hitting Save.
   Trip? _conflictingTrip;
   bool _checkingDateConflict = false;
 
-  /// The time the traveler leaves the starting location on Day 1 — every
-  /// later day's clock also starts here (leaving that night's
-  /// accommodation), since there's no separate per-day departure field.
-  /// Required — null until explicitly picked, so it can be validated like
-  /// every other required field.
   TimeOfDay? _tripStartTime;
 
-  /// Target time to reach [_endingLocation] (e.g. a flight's departure) —
-  /// purely informational: the last day's timeline still ends whenever its
-  /// stops actually finish, but a computed arrival later than this is
-  /// flagged.
   TimeOfDay? _tripEndTime;
 
   bool _isSubmitting = false;
 
-  /// True once the traveler has attempted to save — turns on the red
-  /// required-field styling/captions across the form rather than showing
-  /// them immediately on a blank page.
   bool _showValidation = false;
 
   int _selectedDay = 0;
 
-  /// True once the traveler has entered anything worth losing — guards
-  /// the back button/gesture behind a discard-changes confirmation
-  /// instead of silently dropping a half-built trip.
   bool get _hasUnsavedChanges =>
       _nameController.text.trim().isNotEmpty ||
       _descriptionController.text.trim().isNotEmpty ||
@@ -277,9 +209,6 @@ class _CreateTripScreenState extends State<CreateTripScreen> {
       _nightAccommodation.any((a) => a != null) ||
       _dayStops.any((stops) => stops.isNotEmpty);
 
-  /// Confirms discarding via a dialog when there's anything to lose, then
-  /// pops the screen — called from both the header's back button and the
-  /// system back gesture/button ([PopScope] below).
   Future<void> _handleBack() async {
     if (!_hasUnsavedChanges) {
       if (mounted) Navigator.of(context).maybePop();
@@ -308,49 +237,21 @@ class _CreateTripScreenState extends State<CreateTripScreen> {
     if (discard == true && mounted) Navigator.of(context).pop();
   }
 
-  /// Per day: stops in add-order, and the travel segment arriving at each
-  /// one (index-aligned 1:1 with the stops — segment 0 is the trip's
-  /// starting location or the previous night's accommodation to stop 0,
-  /// not "no travel").
   List<List<_StopEntry>> _dayStops = [];
   List<List<_TravelSegment>> _dayTravel = [];
 
-  /// One pick per night between two trip days — index 0 is the night
-  /// after Day 1 (i.e. Day 2's starting point), and so on. A trip
-  /// spanning N days has N-1 nights.
   List<TripStopLocation?> _nightAccommodation = [];
 
-  /// Travel segment from the last day's final stop (or its origin, if that
-  /// day has no stops yet) to [_endingLocation] — the trip's very last
-  /// leg, e.g. to the airport.
   _TravelSegment? _tripEndTravel;
 
-  /// Travel segment from a day's current end (its last stop, or — when it
-  /// has none yet — straight from its origin, e.g. the previous night's
-  /// accommodation) to that same day's own accommodation. Index-aligned
-  /// with [_nightAccommodation] (day `i`'s accommodation is night `i`).
   List<_TravelSegment?> _accommodationTravel = [];
 
-  /// Per-day override of [_tripStartTime] — index 0 (Day 1) is never used,
-  /// since Day 1 always starts at [_tripStartTime] itself; a later day
-  /// falls back to [_tripStartTime] until the traveler edits it here.
   List<TimeOfDay?> _dayStartOverride = [];
 
-  /// How every travel leg is computed — applies to the whole trip, not
-  /// per-day. Switching it refetches every already-computed leg.
   _TransportMode _transportMode = _TransportMode.driving;
 
-  /// Weather check for each outdoor/mixed stop's planned visit window,
-  /// keyed by the stop's own identity (default `Object` equality, so each
-  /// [_StopEntry] instance is its own key — stable across reorders since
-  /// entries are moved, not recreated). Absent entirely for an indoor
-  /// stop (never checked) or one not yet checked; null while a check is
-  /// in flight.
   final Map<_StopEntry, StopWeatherCheck?> _stopWeather = {};
 
-  /// Day indices currently running [_optimizeDay] — drives the "Optimize
-  /// Day N" button's loading state and keeps it from being tapped twice
-  /// concurrently for the same day.
   final Set<int> _optimizingDays = {};
 
   @override
@@ -374,8 +275,6 @@ class _CreateTripScreenState extends State<CreateTripScreen> {
     return [for (var i = 0; i < count; i++) start.add(Duration(days: i))];
   }
 
-  /// Resizes the per-day/per-night lists to match [_dayCount], preserving
-  /// already-added stops/accommodations on days/nights that still exist.
   void _syncDays() {
     final count = _dayCount;
     _dayStops = List.generate(
@@ -402,9 +301,6 @@ class _CreateTripScreenState extends State<CreateTripScreen> {
     if (_selectedDay >= count) _selectedDay = count == 0 ? 0 : count - 1;
   }
 
-  /// The effective start-of-day clock for [dayIndex] — [_tripStartTime]
-  /// for Day 1 always, and for any later day too until the traveler picks
-  /// a different time for it via [_pickDayStartOverride].
   int _dayStartMinutesFor(int dayIndex) {
     final time = dayIndex == 0
         ? _tripStartTime
@@ -428,10 +324,6 @@ class _CreateTripScreenState extends State<CreateTripScreen> {
     unawaited(_recheckWeatherForDay(dayIndex));
   }
 
-  /// Travel duration between two points, per the current [_transportMode]
-  /// — driving via [RouteService.getDriveRoute], or transit via
-  /// [RouteService.getTransitRoutes] (taking the first/most relevant
-  /// candidate). Null if the mode has no route between them.
   Future<Duration?> _fetchDuration(
     TripStopLocation origin,
     TripStopLocation destination,
@@ -452,10 +344,6 @@ class _CreateTripScreenState extends State<CreateTripScreen> {
     return route?.duration;
   }
 
-  /// The region every location placed on this trip so far agrees on —
-  /// whichever of the starting location, ending location, any night's
-  /// accommodation, or any stop already added was set first. Null until
-  /// the trip has committed to a side at all, meaning anything goes.
   _MalaysiaRegion? get _committedRegion {
     final candidates = <TripStopLocation?>[
       _startingLocation,
@@ -475,9 +363,6 @@ class _CreateTripScreenState extends State<CreateTripScreen> {
     return committed == null || _regionOf(location) == committed;
   }
 
-  /// Shows why [location] was rejected — only ever called after
-  /// [_isRegionAllowed] already returned false, so [_committedRegion] is
-  /// guaranteed non-null here.
   void _showRegionBlocked(TripStopLocation location) {
     final committed = _committedRegion!;
     ScaffoldMessenger.of(context).showSnackBar(
@@ -493,10 +378,6 @@ class _CreateTripScreenState extends State<CreateTripScreen> {
     );
   }
 
-  /// The place a given day's *first* stop should route from: the trip's
-  /// starting location for Day 1, otherwise the previous night's
-  /// accommodation. If a day already has stops, [_addStop] never needs
-  /// this — it origins from the last stop instead.
   TripStopLocation? _dayOrigin(int dayIndex) {
     if (dayIndex == 0) return _startingLocation;
     final nightIndex = dayIndex - 1;
@@ -505,20 +386,12 @@ class _CreateTripScreenState extends State<CreateTripScreen> {
         : null;
   }
 
-  /// The real origin for the *next* stop added to [dayIndex] — the last
-  /// stop already on that day, or [_dayOrigin] if the day is still empty.
   TripStopLocation? _originForNextStop(int dayIndex) {
     final stops = _dayStops[dayIndex];
     if (stops.isNotEmpty) return stops.last.location;
     return _dayOrigin(dayIndex);
   }
 
-  /// True if [date] combined with [time] hasn't already passed — checked
-  /// only at the moment the traveler picks a date or a time, never
-  /// re-checked later (e.g. at Save Trip). Otherwise a start planned for
-  /// today at 9am would get silently invalidated just because filling in
-  /// the rest of the form took past 9am, punishing slow planning for a
-  /// choice that was perfectly valid when made.
   bool _isStartMomentValid(DateTime date, TimeOfDay time) {
     final combined = DateTime(
       date.year,
@@ -533,12 +406,6 @@ class _CreateTripScreenState extends State<CreateTripScreen> {
   DateTime _combine(DateTime date, TimeOfDay time) =>
       DateTime(date.year, date.month, date.day, time.hour, time.minute);
 
-  /// True if [endDate] combined with [endTime] is after the trip's start
-  /// (start date combined with Trip Start Time) — checked as one
-  /// combined moment each, not just date-before-date, so a same-day trip
-  /// whose end time is earlier in the day than its start time is still
-  /// caught. True whenever the start isn't fully set yet — nothing to
-  /// compare against.
   bool _isEndMomentAfterStart(DateTime endDate, TimeOfDay endTime) {
     final startDate = _startDate;
     final startTime = _tripStartTime;
@@ -546,8 +413,6 @@ class _CreateTripScreenState extends State<CreateTripScreen> {
     return _combine(endDate, endTime).isAfter(_combine(startDate, startTime));
   }
 
-  /// Same check against whatever's *currently* set for [_endDate]/
-  /// [_tripEndTime] — true whenever either isn't set yet.
   bool _isEndAfterStart() {
     final endDate = _endDate;
     final endTime = _tripEndTime;
@@ -555,9 +420,6 @@ class _CreateTripScreenState extends State<CreateTripScreen> {
     return _isEndMomentAfterStart(endDate, endTime);
   }
 
-  /// Clears an already-set Trip End Time if it's no longer after the
-  /// trip's (possibly just-changed) start — called after any edit to the
-  /// start date/time or the end date, all of which can invalidate it.
   void _clearStaleTripEndTime() {
     if (_tripEndTime != null && !_isEndAfterStart()) {
       _tripEndTime = null;
@@ -572,11 +434,6 @@ class _CreateTripScreenState extends State<CreateTripScreen> {
     }
   }
 
-  /// Re-checks [_startDate]/[_endDate] against every trip the traveler
-  /// already belongs to (as organizer or member) whenever both are set —
-  /// called after either date picker closes. Clears any stale result
-  /// first so a since-resolved clash (or one for dates that no longer
-  /// apply) never lingers on screen while the new check is in flight.
   Future<void> _checkDateConflict() async {
     final start = _startDate;
     final end = _endDate;
@@ -594,8 +451,6 @@ class _CreateTripScreenState extends State<CreateTripScreen> {
         _checkingDateConflict = false;
       });
     } catch (e) {
-      // A failed check shouldn't block the traveler from proceeding —
-      // the server-side trigger is still there as the real guard.
       if (!mounted) return;
       setState(() => _checkingDateConflict = false);
     }
@@ -613,9 +468,7 @@ class _CreateTripScreenState extends State<CreateTripScreen> {
       _startDate = picked;
       final end = _endDate;
       if (end != null && end.isBefore(picked)) _endDate = picked;
-      // The already-picked start time may now be earlier than "now" for
-      // this new date (e.g. switching from tomorrow back to today) — ask
-      // for a fresh one rather than silently keeping a stale value.
+
       final time = _tripStartTime;
       if (time != null && !_isStartMomentValid(picked, time)) {
         _tripStartTime = null;
@@ -628,8 +481,6 @@ class _CreateTripScreenState extends State<CreateTripScreen> {
           ),
         );
       } else {
-        // The start moved later in the day (or to a later date entirely)
-        // — the already-picked Trip End Time may no longer be after it.
         _clearStaleTripEndTime();
       }
       _syncDays();
@@ -656,13 +507,6 @@ class _CreateTripScreenState extends State<CreateTripScreen> {
     unawaited(_checkDateConflict());
   }
 
-  /// Keeps reopening the time picker — pre-filled with the traveler's
-  /// last (rejected) attempt — until they either land on a time that
-  /// isn't already past for [_startDate], or cancel outright. Flutter's
-  /// [showTimePicker] has no built-in "earliest selectable time" the way
-  /// [showDatePicker] has `firstDate`, so this is the closest equivalent:
-  /// an invalid pick can never actually be accepted, it just bounces
-  /// straight back to the picker instead of silently closing.
   Future<void> _pickTripStartTime() async {
     var initial = _tripStartTime ?? const TimeOfDay(hour: 8, minute: 0);
     while (true) {
@@ -689,12 +533,10 @@ class _CreateTripScreenState extends State<CreateTripScreen> {
 
       setState(() {
         _tripStartTime = picked;
-        // The start moved later in the day — the already-picked Trip End
-        // Time may no longer be after it.
+
         _clearStaleTripEndTime();
       });
-      // Affects Day 1 always, and any later day that hasn't been given
-      // its own start-time override.
+
       for (var d = 0; d < _dayStops.length; d++) {
         if (d == 0 ||
             d >= _dayStartOverride.length ||
@@ -706,10 +548,6 @@ class _CreateTripScreenState extends State<CreateTripScreen> {
     }
   }
 
-  /// Same reopen-until-valid loop as [_pickTripStartTime], but checked
-  /// against the trip's start (date + time) as one combined moment
-  /// rather than "now" — a same-day trip's end time must still fall
-  /// after its start time, not just be some arbitrary time of day.
   Future<void> _pickTripEndTime() async {
     var initial = _tripEndTime ?? const TimeOfDay(hour: 18, minute: 0);
     while (true) {
@@ -739,11 +577,6 @@ class _CreateTripScreenState extends State<CreateTripScreen> {
     }
   }
 
-  /// Refetches the travel leg from the last day's current end (its last
-  /// stop, or its origin if it has none yet) to [_endingLocation] — called
-  /// whenever something that leg depends on changes (dates, the ending
-  /// location itself, the last day's stops, or — when the last day is
-  /// still empty — its origin).
   Future<void> _refreshTripEndTravel() async {
     final ending = _endingLocation;
     final lastDay = _dayCount - 1;
@@ -764,17 +597,11 @@ class _CreateTripScreenState extends State<CreateTripScreen> {
       duration = null;
     }
     if (!mounted) return;
-    // Guard against a stale response landing after newer trip-end inputs
-    // changed again while this request was in flight.
+
     if (_endingLocation != ending || _dayCount - 1 != lastDay) return;
     setState(() => _tripEndTravel = _TravelSegment(duration: duration));
   }
 
-  /// Refetches the travel leg from day [dayIndex]'s current end (its last
-  /// stop, or — if it has none yet — straight from its origin, e.g. the
-  /// previous night's accommodation) to that day's own accommodation. This
-  /// is what makes an empty day show a direct "yesterday's accommodation
-  /// → tonight's accommodation" leg rather than nothing at all.
   Future<void> _refreshAccommodationTravel(int dayIndex) async {
     if (dayIndex < 0 || dayIndex >= _nightAccommodation.length) return;
     final destination = _nightAccommodation[dayIndex];
@@ -821,15 +648,10 @@ class _CreateTripScreenState extends State<CreateTripScreen> {
     );
     if (place == null) return;
 
-    // Fetch the authoritative full record (opening hours, business
-    // status, etc.) rather than trusting whatever the search endpoint's
-    // lighter field mask happened to include.
     NearbyPlace details = place;
     try {
       details = await _placesService.getPlaceDetails(place.id);
-    } catch (_) {
-      // Fall back to the search-result data if Place Details fails.
-    }
+    } catch (_) {}
 
     final location = TripStopLocation.fromNearbyPlace(details);
     if (!mounted) return;
@@ -880,9 +702,7 @@ class _CreateTripScreenState extends State<CreateTripScreen> {
       duration = null;
     }
     if (!mounted) return;
-    // The stop may have moved or been removed while the request was in
-    // flight — look it up by identity rather than trusting the original
-    // index.
+
     if (dayIndex >= _dayStops.length) return;
     final index = _dayStops[dayIndex].indexOf(entry);
     if (index == -1 || index >= _dayTravel[dayIndex].length) return;
@@ -892,13 +712,6 @@ class _CreateTripScreenState extends State<CreateTripScreen> {
     if (dayIndex < _dayDates.length) unawaited(_recheckWeatherForDay(dayIndex));
   }
 
-  /// Re-derives every outdoor/mixed stop's arrival→end window for
-  /// [dayIndex] and re-checks each against forecast rain — called
-  /// whenever something that could shift those windows changes (a travel
-  /// leg resolving, a duration edit, a reorder, a removal, or the day's
-  /// start time). Indoor stops are never checked at all. A stop moved off
-  /// this day (removed) has its stale check dropped rather than left to
-  /// show against a window that no longer applies.
   Future<void> _recheckWeatherForDay(int dayIndex) async {
     if (dayIndex < 0 ||
         dayIndex >= _dayStops.length ||
@@ -935,8 +748,7 @@ class _CreateTripScreenState extends State<CreateTripScreen> {
         endMinutes: times.ends[i],
       );
       if (!mounted) return;
-      // The stop may have been removed/moved to another day while this
-      // request was in flight.
+
       if (dayIndex >= _dayStops.length || !_dayStops[dayIndex].contains(entry))
         continue;
       setState(() => _stopWeather[entry] = result);
@@ -964,10 +776,6 @@ class _CreateTripScreenState extends State<CreateTripScreen> {
     unawaited(_recheckWeatherForDay(dayIndex));
   }
 
-  /// Manual drag-and-drop reorder within a day. The existing travel
-  /// segments described the *old* order's pairwise legs, which no longer
-  /// match once stops are shuffled — rather than show a now-wrong
-  /// duration, they're cleared and immediately refetched for the new order.
   void _reorderStops(int dayIndex, int oldIndex, int newIndex) {
     setState(() {
       final stops = _dayStops[dayIndex];
@@ -984,13 +792,6 @@ class _CreateTripScreenState extends State<CreateTripScreen> {
     unawaited(_recheckWeatherForDay(dayIndex));
   }
 
-  /// Refetches every stop-to-stop travel leg for [dayIndex] in its
-  /// current order — each stop's origin is the stop before it (or the
-  /// day's own origin for the first stop). Used after anything that
-  /// changes stop order (manual reorder, [_optimizeDay]) or invalidates
-  /// every leg at once ([_changeTransportMode]), so a recalculated order
-  /// always shows real travel times rather than leaving them marked
-  /// stale until some later, unrelated action happens to refetch them.
   Future<void> _refetchDayTravel(int dayIndex) async {
     final stops = _dayStops[dayIndex];
     TripStopLocation? previous;
@@ -1016,14 +817,6 @@ class _CreateTripScreenState extends State<CreateTripScreen> {
     }
   }
 
-  /// Placeholder for the real weather/opening-hours/route optimizer.
-  /// Reorders day [dayIndex]'s stops for travel efficiency via
-  /// [RouteOptimizerService] — starting from the day's own start (trip
-  /// starting location on Day 1, previous night's accommodation
-  /// otherwise) through to its end (that night's accommodation, or the
-  /// trip's ending location on the last day). Weather suitability and
-  /// opening-hours fit aren't factored in yet — this is travel order
-  /// only.
   Future<void> _optimizeDay(int dayIndex) async {
     if (_optimizingDays.contains(dayIndex)) return;
     final stops = _dayStops[dayIndex];
@@ -1065,8 +858,7 @@ class _CreateTripScreenState extends State<CreateTripScreen> {
         useTransit: _transportMode == _TransportMode.transit,
       );
       if (!mounted) return;
-      // The day may have changed (stops added/removed) while this was in
-      // flight — bail rather than apply an order computed for a stale set.
+
       if (!_sameStopSet(_dayStops[dayIndex], orderedLocations)) return;
 
       setState(() {
@@ -1088,9 +880,6 @@ class _CreateTripScreenState extends State<CreateTripScreen> {
     }
   }
 
-  /// True if [entries] and [locations] contain exactly the same set of
-  /// locations (regardless of order) — used to detect that a day's stop
-  /// list hasn't changed while an optimize request was in flight.
   bool _sameStopSet(
     List<_StopEntry> entries,
     List<TripStopLocation> locations,
@@ -1100,10 +889,6 @@ class _CreateTripScreenState extends State<CreateTripScreen> {
     return locations.every(entryLocations.contains);
   }
 
-  /// Switches [_transportMode] and refetches every already-computed leg
-  /// under the new mode — stop-to-stop, each day's accommodation leg, and
-  /// the trip-end leg — since a driving duration and a transit duration
-  /// between the same two points aren't interchangeable.
   Future<void> _changeTransportMode(_TransportMode mode) async {
     if (mode == _transportMode) return;
     setState(() => _transportMode = mode);
@@ -1141,22 +926,15 @@ class _CreateTripScreenState extends State<CreateTripScreen> {
     }
     setState(() => _nightAccommodation[nightIndex] = location);
     unawaited(_refreshAccommodationTravel(nightIndex));
-    // The next day's accommodation leg origins from here too, but only if
-    // that day is still empty (otherwise it origins from its own last
-    // stop instead, which this change doesn't affect).
+
     if (nightIndex + 1 < _nightAccommodation.length &&
         _dayStops[nightIndex + 1].isEmpty) {
       unawaited(_refreshAccommodationTravel(nightIndex + 1));
     }
-    // Only matters if the last day is still empty — then this
-    // accommodation *is* its origin, which the trip-end leg routes from.
+
     if (nightIndex == _dayCount - 2) unawaited(_refreshTripEndTravel());
   }
 
-  /// True once every required field is filled: trip name (via [_formKey]),
-  /// both dates, starting location, trip start time, trip end location,
-  /// and every night's accommodation. Trip end *time* stays optional (it's
-  /// just an informational target).
   bool get _isFormComplete =>
       (_formKey.currentState?.validate() ?? false) &&
       _startDate != null &&
@@ -1167,13 +945,6 @@ class _CreateTripScreenState extends State<CreateTripScreen> {
       _endingLocation != null &&
       _nightAccommodation.every((a) => a != null);
 
-  /// Flattens the whole trip's current on-screen state — every day's
-  /// dates/start-time override, every stop with its computed arrival/end
-  /// time and weather check, and every travel leg — into the plain input
-  /// lists [TripService.saveTripSchedule] persists. Only ever called from
-  /// [_submit], after [_isFormComplete] confirmed the starting location,
-  /// every night's accommodation, and the ending location are all set —
-  /// so [_dayOrigin] is guaranteed non-null for every day here.
   ({
     List<TripDayInput> days,
     List<TripStopInput> stops,
@@ -1282,13 +1053,6 @@ class _CreateTripScreenState extends State<CreateTripScreen> {
     return (days: days, stops: stops, segments: segments);
   }
 
-  /// Every stop, across every day, that's either permanently closed for
-  /// business or currently scheduled outside its own opening hours —
-  /// checked right before saving so a traveler gets one last chance to
-  /// move or remove it rather than only noticing the per-stop warning
-  /// after the fact. Permanently-closed is checked first per stop, since
-  /// a shuttered place's opening hours (if Google still reports any) are
-  /// moot.
   List<({int dayNumber, String name, String reason})> _collectClosedStops() {
     final closed = <({int dayNumber, String name, String reason})>[];
     for (var d = 0; d < _dayCount; d++) {
@@ -1769,10 +1533,6 @@ class _CreateTripScreenState extends State<CreateTripScreen> {
     );
   }
 
-  /// Label for the timeline's origin node — the trip starting location for
-  /// Day 1, the previous night's accommodation for a later day, or a
-  /// "not set" placeholder so the traveler knows why travel ETAs to the
-  /// first stop aren't showing.
   String _originLabel(int dayIndex) {
     final origin = _dayOrigin(dayIndex);
     if (origin != null) return origin.name;
@@ -1816,9 +1576,6 @@ class _FieldLabel extends StatelessWidget {
   }
 }
 
-/// Small red "Required" caption shown under a field once
-/// [_CreateTripScreenState._showValidation] is true and that field is
-/// still empty.
 class _ErrorCaption extends StatelessWidget {
   const _ErrorCaption();
 
@@ -1938,9 +1695,6 @@ class _TimeField extends StatelessWidget {
   }
 }
 
-/// Driving vs transit toggle for every travel leg in the timeline —
-/// applies to the whole trip, not per-day. Switching it refetches every
-/// leg already computed under the previous mode.
 class _TransportModeToggle extends StatelessWidget {
   const _TransportModeToggle({required this.mode, required this.onChanged});
 
@@ -2090,10 +1844,6 @@ class _DayTabBar extends StatelessWidget {
   }
 }
 
-/// A single day's vertical timeline: an origin node (starting location or
-/// previous night's accommodation), then alternating travel connectors and
-/// stop nodes, purely in the order stops were added — no reordering or
-/// route optimization happens here.
 class _DayTimelinePanel extends StatelessWidget {
   const _DayTimelinePanel({
     required this.dayNumber,
@@ -2128,14 +1878,8 @@ class _DayTimelinePanel extends StatelessWidget {
   final DateTime date;
   final int dayStartMinutes;
 
-  /// False when [dayStartMinutes] is just the 8am placeholder default,
-  /// not a value the traveler actually chose (e.g. their pick was
-  /// rejected as already past for today) — shown as "--:--" instead of a
-  /// real time, so an unset start time never *looks* accepted.
   final bool startTimeIsSet;
 
-  /// False for Day 1, whose clock is always [_CreateTripScreenState._tripStartTime]
-  /// set up top — every later day can override it here instead.
   final bool canEditStartTime;
   final VoidCallback? onEditStartTime;
 
@@ -2145,33 +1889,16 @@ class _DayTimelinePanel extends StatelessWidget {
   final bool isLastDay;
   final TripStopLocation? accommodation;
 
-  /// Travel leg from this day's current end to [accommodation] — set even
-  /// with zero stops, so an empty day still shows a direct "yesterday's
-  /// accommodation → tonight's accommodation" leg.
   final _TravelSegment? accommodationTravel;
 
-  /// The previous night's accommodation, if any — lets this day offer a
-  /// one-tap "Same as previous night" to stay at the same place multiple
-  /// nights running, instead of re-searching for it.
   final TripStopLocation? previousNightAccommodation;
 
-  /// True once the traveler has attempted to save — turns on the red
-  /// "Required" caption under this day's accommodation field.
   final bool showValidation;
 
-  /// False when [date] is beyond MET Malaysia's forecast window — every
-  /// outdoor/mixed stop then shows "forecast not available yet" instead
-  /// of attempting a check.
   final bool weatherForecastAvailable;
 
-  /// The weather check for a given stop, if any — null while in flight or
-  /// if it hasn't been checked yet (e.g. an indoor stop, never checked at
-  /// all).
   final StopWeatherCheck? Function(_StopEntry entry) weatherFor;
 
-  /// Only set on the last day: the trip's final destination (e.g. the
-  /// airport), the travel leg reaching it, and an optional target arrival
-  /// time to compare the computed one against.
   final TripStopLocation? tripEndLocation;
   final _TravelSegment? tripEndTravel;
   final int? tripEndTargetMinutes;
@@ -2180,17 +1907,10 @@ class _DayTimelinePanel extends StatelessWidget {
   final void Function(int stopIndex) onRemoveStop;
   final void Function(int stopIndex, int deltaMinutes) onChangeDuration;
 
-  /// Drag-and-drop reorder within this day, in [ReorderableListView]'s raw
-  /// (oldIndex, newIndex) form.
   final void Function(int oldIndex, int newIndex) onReorderStops;
 
-  /// "Optimize Day N" — reorders this day's stops via
-  /// [RouteOptimizerService] for travel efficiency (weather suitability
-  /// and opening-hours fit aren't factored in yet).
   final VoidCallback onOptimize;
 
-  /// True while this day's optimize request is in flight — shows a
-  /// spinner on the button and blocks a second concurrent tap.
   final bool isOptimizing;
 
   final ValueChanged<TripStopLocation?>? onAccommodationChanged;
@@ -2397,9 +2117,6 @@ class _OriginNode extends StatelessWidget {
   final String time;
   final String label;
 
-  /// Null for Day 1 (its clock is fixed to the trip's Start Time above) —
-  /// non-null for any later day, letting the traveler override when that
-  /// day's plan actually begins.
   final VoidCallback? onEditTime;
 
   @override
@@ -2449,10 +2166,6 @@ class _OriginNode extends StatelessWidget {
   }
 }
 
-/// The trip's final leg — arrival at [location] (e.g. the airport). Shown
-/// only on the last day, after every stop. If a target arrival time was
-/// set, it's shown alongside the computed one and flagged when the
-/// computed arrival is later than the target.
 class _TripEndNode extends StatelessWidget {
   const _TripEndNode({
     required this.location,
@@ -2570,25 +2283,14 @@ class _StopNode extends StatelessWidget {
 
   final _StopEntry entry;
 
-  /// This stop's position in its day — the drag handle needs it to tell
-  /// the enclosing [ReorderableListView] which item is being dragged.
   final int index;
   final String arrivalLabel;
   final String endLabel;
 
-  /// False when this stop's day is beyond MET Malaysia's forecast window
-  /// — shown as "forecast not available yet" instead of attempting a
-  /// check. Irrelevant for an indoor stop, which never shows a weather
-  /// row at all.
   final bool weatherForecastAvailable;
 
-  /// Null while a check is in flight, or if this stop hasn't been
-  /// checked (always true for an indoor stop).
   final StopWeatherCheck? weather;
 
-  /// True when the place's own opening hours don't cover the whole
-  /// scheduled visit window — always false for a Photon/OSM stop, which
-  /// carries no opening-hours data to check against.
   final bool closed;
 
   final VoidCallback onRemove;
@@ -2817,9 +2519,6 @@ class _StopNode extends StatelessWidget {
   }
 }
 
-/// Weather line for an outdoor/mixed stop only — indoor stops never show
-/// one at all, matching the "indoor places matter less for weather"
-/// framing from the original planning spec.
 class _StopWeatherRow extends StatelessWidget {
   const _StopWeatherRow({required this.available, required this.check});
 
@@ -3001,8 +2700,6 @@ class _Tag extends StatelessWidget {
   }
 }
 
-/// One-tap "stay here again tonight" — lets the same accommodation cover
-/// multiple consecutive nights without re-searching for it each time.
 class _SameAsPreviousChip extends StatelessWidget {
   const _SameAsPreviousChip({required this.location, required this.onTap});
 
@@ -3043,14 +2740,6 @@ class _SameAsPreviousChip extends StatelessWidget {
   }
 }
 
-/// Search sheet for adding a stop — fuzzy free-text search via
-/// [GooglePlacesService.textSearch] (Google Places already fuzzy-matches
-/// server-side; this just debounces keystrokes rather than hitting the API
-/// on every character), plotted live on a small map as results are picked.
-/// Returns the confirmed [NearbyPlace] so the caller can hydrate it with
-/// full Place Details. [existingPlaceIds] flags a result already on this
-/// day's timeline (by Places ID, or coordinates for a result with none) so
-/// it can't be added twice.
 class _StopSearchSheet extends StatefulWidget {
   const _StopSearchSheet({required this.existingPlaceIds});
 
@@ -3100,10 +2789,6 @@ class _StopSearchSheetState extends State<_StopSearchSheet> {
 
   Future<void> _search(String query) async {
     try {
-      // Every Places category is already eligible (no `includedType` is
-      // ever sent) — request the API's max per query so a broad term
-      // ("food", "clinic", "temple", ...) surfaces a wide spread rather
-      // than just the handful of top-ranked, often tourism-heavy hits.
       final results = await _placesService.textSearch(
         query,
         maxResultCount: 20,
@@ -3324,7 +3009,7 @@ class _SearchMap extends StatelessWidget {
   Widget build(BuildContext context) {
     final place = selected;
     final center = place == null
-        ? const LatLng(3.1390, 101.6869) // Kuala Lumpur fallback
+        ? const LatLng(3.1390, 101.6869)
         : LatLng(place.latitude, place.longitude);
     return FlutterMap(
       mapController: mapController,

@@ -13,8 +13,6 @@ const _monthNames = [
   'Dec',
 ];
 
-/// "Sep 2, 3:45 PM" — a chat message's sent time, or (in Group Chat)
-/// its seen time. Shared by Group Chat and Direct Message screens.
 String formatChatDateTime(DateTime utc) {
   final d = utc.toLocal();
   final hour12 = d.hour % 12 == 0 ? 12 : d.hour % 12;

@@ -15,9 +15,6 @@ import 'edit_schedule_screen.dart';
 import 'edit_trip_screen.dart';
 import 'trip_map_screen.dart';
 
-/// A single itinerary stop. Mutable `completed` flag so the "Activity"
-/// section's Complete button can check a stop off — UI-only, no
-/// persistence.
 class _Stop {
   _Stop({
     required this.name,
@@ -36,10 +33,6 @@ class _Stop {
   bool completed;
 }
 
-/// Trip hub: overview, itinerary stops, and a tools grid linking out to
-/// scheduling, map, weather, transport, budget, and group screens. The
-/// stats row (Stops/Days/Budget/Travelers) and tools grid are wired live
-/// to [trip]; the "Activity" feed below is still UI-only mock data.
 class TripDetailsScreen extends StatefulWidget {
   const TripDetailsScreen({super.key, required this.trip});
 
@@ -100,13 +93,9 @@ class _TripDetailsScreenState extends State<TripDetailsScreen> {
     ),
   ];
 
-  /// The next stop that hasn't happened yet — falls back to the last
-  /// stop if the whole trip is already complete.
   _Stop get _upcomingStop =>
       _stops.firstWhere((s) => !s.completed, orElse: () => _stops.last);
 
-  /// The most recently completed stop — falls back to the first stop
-  /// if nothing has been marked complete yet.
   _Stop get _completedStop =>
       _stops.lastWhere((s) => s.completed, orElse: () => _stops.first);
 
@@ -270,7 +259,6 @@ class _StatsRow extends StatelessWidget {
 
   final Trip trip;
 
-  /// Null while still loading from `trip_stops`/`trip_members`.
   final int? stopsCount;
   final int? travelerCount;
 
@@ -340,11 +328,6 @@ class _StatsRow extends StatelessWidget {
       children: stats.map((s) {
         if (s.label == 'Budget') {
           return Expanded(
-            // Live rather than the `trip` snapshot's own value: `trip` is
-            // whatever was passed in when this screen was opened, so
-            // editing the budget from inside Budget Planner and coming
-            // back here wouldn't otherwise be reflected until this whole
-            // screen was reopened with a freshly-fetched Trip.
             child: StreamBuilder<double>(
               stream: BudgetService().watchTotalBudget(trip.id),
               builder: (context, snapshot) => tile(
@@ -366,9 +349,6 @@ class _ToolsGrid extends StatelessWidget {
 
   final Trip trip;
 
-  /// Called after Edit Schedule is popped having actually saved a
-  /// change, so Trip Details' stats (stop count, etc.) reflect it
-  /// immediately rather than only after the screen is revisited.
   final VoidCallback onScheduleUpdated;
 
   String get tripId => trip.id;
@@ -504,15 +484,11 @@ class _ToolsGrid extends StatelessWidget {
   }
 }
 
-/// A simplified version of the Daily Timeline's activity row: status
-/// tag + time, title, subtitle, a checkmark once done, and — only for
-/// the upcoming stop — a Complete button.
 class _ActivityTile extends StatelessWidget {
   const _ActivityTile({required this.stop, this.onComplete});
 
   final _Stop stop;
 
-  /// Present only for the stop that can currently be marked complete.
   final VoidCallback? onComplete;
 
   @override

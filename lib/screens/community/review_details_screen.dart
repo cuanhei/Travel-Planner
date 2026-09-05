@@ -10,8 +10,6 @@ import '../../widgets/detail_header.dart';
 import '../../widgets/user_avatar.dart';
 import 'add_review_screen.dart';
 
-/// Full review list for a place, with a rating breakdown and an entry
-/// point to add a new review. Backed by `reviews`.
 class ReviewDetailsScreen extends StatefulWidget {
   const ReviewDetailsScreen({super.key, required this.placeName});
 
@@ -24,17 +22,10 @@ class ReviewDetailsScreen extends StatefulWidget {
 class _ReviewDetailsScreenState extends State<ReviewDetailsScreen> {
   final _service = CommunityService();
 
-  /// Whether the user can review this place — true once they have an
-  /// unused visit (via [TripService.visitCount]) not yet spent on a review
-  /// (via [CommunityService.myReviewCount]).
   bool _canReview = false;
 
-  /// Whether the place has ever been visited at all, once loaded — used to
-  /// pick the disabled-button message.
   bool _everVisited = false;
 
-  /// Star rating the user has chosen to filter the list by, via the chip
-  /// row — `null` means "All".
   int? _selectedStar;
 
   @override
@@ -43,10 +34,6 @@ class _ReviewDetailsScreenState extends State<ReviewDetailsScreen> {
     _loadCanReview();
   }
 
-  /// Re-checked after `AddReviewScreen` returns (see the "Write a Review"
-  /// button below), not just once in [initState] — posting a review spends
-  /// the visit that unlocked it, so the button needs to go back to
-  /// disabled without requiring the user to leave and reopen this screen.
   Future<void> _loadCanReview() async {
     final results = await Future.wait([
       TripService().visitCount(widget.placeName),
@@ -61,10 +48,6 @@ class _ReviewDetailsScreenState extends State<ReviewDetailsScreen> {
     });
   }
 
-  /// Deleting frees up the visit that review spent, so [_loadCanReview] is
-  /// re-run afterward the same way it is after `AddReviewScreen` returns —
-  /// otherwise "Write a Review" would stay disabled until the traveler left
-  /// and reopened this screen.
   Future<void> _confirmDeleteReview(PlaceReview review) async {
     final confirmed = await showDialog<bool>(
       context: context,
@@ -411,12 +394,8 @@ class _ReviewTile extends StatelessWidget {
 
   final PlaceReview review;
 
-  /// Opens the review for editing — only shown when [review.authorId]
-  /// matches the signed-in user, checked below.
   final VoidCallback onEdit;
 
-  /// Deletes the review — only shown alongside [onEdit], same ownership
-  /// check.
   final VoidCallback onDelete;
 
   @override

@@ -1,11 +1,6 @@
 import 'chat_attachment.dart';
 import 'chat_reply_preview.dart';
 
-/// A single message in a private 1:1 conversation between two members
-/// of the same trip. Unlike [GroupMessage] this carries no sender
-/// profile — a DM screen already knows who the other person is (it's
-/// the member the conversation was opened with), so the only thing
-/// worth knowing per-message is which of the two participants sent it.
 class DirectMessage {
   const DirectMessage({
     required this.id,
@@ -31,28 +26,16 @@ class DirectMessage {
   final ChatAttachment? attachment;
   final DateTime createdAt;
 
-  /// Who reacted to this message and with which emoji — `user_id` ->
-  /// emoji. Populated separately from `direct_message_reactions` (via
-  /// [withReactions]) since realtime streams don't support joins.
   final Map<String, String> reactions;
 
-  /// The message this one is replying to, if any. [replyPreview] is
-  /// filled in separately (via [withReplyPreview]) since a realtime
-  /// stream can't embed the quoted message's own content.
   final String? replyToId;
   final ChatReplyPreview? replyPreview;
 
-  /// Set when the sender has edited this message's body.
   final DateTime? editedAt;
 
-  /// Set when the sender deleted this message for everyone — [body] and
-  /// [attachment] are cleared server-side once this is set, so the UI
-  /// shows a placeholder instead of the original content.
   final DateTime? deletedAt;
   bool get isDeleted => deletedAt != null;
 
-  /// Set while this is the conversation's pinned message (only one at a
-  /// time).
   final DateTime? pinnedAt;
   bool get isPinned => pinnedAt != null;
 

@@ -8,11 +8,6 @@ import '../../widgets/detail_header.dart';
 import '../../widgets/location_search_field.dart';
 import '../../widgets/route_map_view.dart';
 
-/// Home dashboard's general map: a real OpenStreetMap centered on the
-/// traveler's current GPS location with a Photon-backed search bar —
-/// searching a place plots it as a single marker, replacing whichever
-/// place was searched before. Unrelated to a specific trip's stops —
-/// see `TripMapScreen` for that.
 class MapViewScreen extends StatefulWidget {
   const MapViewScreen({super.key});
 
@@ -32,10 +27,6 @@ class _MapViewScreenState extends State<MapViewScreen> {
     _locateCurrentPosition();
   }
 
-  /// One-shot GPS fetch for the "you are here" marker — mirrors the
-  /// Transport screen's Depart From permission handling, and never
-  /// blocks the map: on any failure the map just falls back to a
-  /// Malaysia-wide view and search still works.
   Future<void> _locateCurrentPosition() async {
     setState(() {
       _locatingCurrentPosition = true;
@@ -61,7 +52,9 @@ class _MapViewScreenState extends State<MapViewScreen> {
         return;
       }
       final position = await Geolocator.getCurrentPosition(
-        locationSettings: const LocationSettings(accuracy: LocationAccuracy.high),
+        locationSettings: const LocationSettings(
+          accuracy: LocationAccuracy.high,
+        ),
       );
       if (!mounted) return;
       setState(() {
@@ -125,8 +118,7 @@ class _MapViewScreenState extends State<MapViewScreen> {
                         ],
                       ),
                     ],
-                    if (_locationError != null &&
-                        _currentPosition == null) ...[
+                    if (_locationError != null && _currentPosition == null) ...[
                       const SizedBox(height: 8),
                       Row(
                         children: [

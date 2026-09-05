@@ -5,17 +5,11 @@ import '../../theme/app_theme.dart';
 import '../../widgets/detail_header.dart';
 import 'explore_place_details_screen.dart';
 
-/// Full-page "See all" view for the Explore tab's Nearby Places section
-/// — takes the same already-fetched, already-category-filtered
-/// [NearbyPlace] list [ExploreTab] is showing inline (no separate fetch
-/// here), just sorted by distance and given room to scroll.
 class NearbyPlacesScreen extends StatelessWidget {
   const NearbyPlacesScreen({super.key, required this.places, this.category});
 
   final List<NearbyPlace> places;
 
-  /// The category chip selected on Explore when "See all" was tapped,
-  /// if any — shown in the subtitle so it's clear this list is filtered.
   final String? category;
 
   @override
@@ -44,10 +38,6 @@ class NearbyPlacesScreen extends StatelessWidget {
                         style: TextStyle(color: context.colors.muted),
                       ),
                     )
-                  // ListView.builder only builds (and only then lets
-                  // Image.network start fetching) the cards actually
-                  // scrolled into view, instead of every photo in
-                  // `sorted` loading up front.
                   : ListView.builder(
                       padding: EdgeInsets.fromLTRB(24, 8, 24, 24),
                       itemCount: sorted.length,
@@ -55,9 +45,8 @@ class NearbyPlacesScreen extends StatelessWidget {
                         place: sorted[index],
                         onTap: () => Navigator.of(context).push(
                           MaterialPageRoute(
-                            builder: (_) => ExplorePlaceDetailsScreen(
-                              place: sorted[index],
-                            ),
+                            builder: (_) =>
+                                ExplorePlaceDetailsScreen(place: sorted[index]),
                           ),
                         ),
                       ),
@@ -70,10 +59,6 @@ class NearbyPlacesScreen extends StatelessWidget {
   }
 }
 
-/// One place, with its real Google photo (already sized `maxWidthPx=400`
-/// server-side — see [NearbyPlace.photoUrl]) as a thumbnail, falling
-/// back to the same gradient+icon placeholder used everywhere else in
-/// Explore when a place has no photo, or while/if the image fails.
 class _NearbyPlaceListCard extends StatelessWidget {
   const _NearbyPlaceListCard({required this.place, required this.onTap});
 
@@ -160,10 +145,7 @@ class _NearbyPlaceListCard extends StatelessWidget {
                   ],
                 ),
               ),
-              Icon(
-                Icons.chevron_right_rounded,
-                color: context.colors.muted,
-              ),
+              Icon(Icons.chevron_right_rounded, color: context.colors.muted),
             ],
           ),
         ),

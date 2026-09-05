@@ -3,13 +3,6 @@ import 'dart:typed_data';
 import 'package:crop_your_image/crop_your_image.dart';
 import 'package:flutter/material.dart';
 
-/// Full-screen photo cropper shown right after picking an image for a
-/// Community post. Pops with the cropped JPEG bytes, or `null` if the user
-/// backed out without confirming a crop.
-///
-/// Uses `crop_your_image` (pure-Dart/Flutter, no native platform views)
-/// rather than the more common `image_cropper`, since this app also builds
-/// for Windows/Linux where `image_cropper` has no implementation.
 class CropImageScreen extends StatefulWidget {
   const CropImageScreen({super.key, required this.imageBytes});
 
@@ -101,10 +94,7 @@ class _CropImageScreenState extends State<CropImageScreen> {
                 image: widget.imageBytes,
                 baseColor: Colors.black,
                 maskColor: Colors.black.withValues(alpha: 0.65),
-                // Always re-encode to JPEG regardless of the source format,
-                // so the caller (AddPostScreen) doesn't need to sniff the
-                // output bytes to know what extension/content-type to
-                // upload with.
+
                 formatDetector: (_) => ImageFormat.jpeg,
                 onCropped: _onCropped,
                 onStatusChanged: (status) {

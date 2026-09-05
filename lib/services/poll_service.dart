@@ -5,8 +5,6 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/poll.dart';
 import 'supabase_config.dart';
 
-/// Backend for the Group module's voting: create/edit/delete polls,
-/// cast or change a vote, and stream live results.
 class PollService {
   PollService({SupabaseClient? client})
     : _client = client ?? SupabaseConfig.client;
@@ -73,11 +71,6 @@ class PollService {
     }).toList();
   }
 
-  /// Live poll list for a trip: re-fetches whenever polls, options, or
-  /// votes change. `poll_options`/`poll_votes` have no `trip_id` column
-  /// of their own, so any change to them triggers a refetch rather than
-  /// being filtered server-side — fine at this scale (a handful of
-  /// polls per trip).
   Stream<List<Poll>> watchPolls(String tripId) {
     late final StreamController<List<Poll>> controller;
     late final RealtimeChannel channel;
@@ -184,7 +177,6 @@ class PollService {
     await _client.from('polls').delete().eq('id', pollId);
   }
 
-  /// Casts or changes the caller's vote on [pollId].
   Future<void> vote({required String pollId, required String optionId}) async {
     await _client.from('poll_votes').upsert({
       'poll_id': pollId,

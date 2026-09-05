@@ -19,21 +19,10 @@ import '../../widgets/detail_header.dart';
 import 'chat_media_screen.dart';
 import 'chat_search_screen.dart';
 
-/// WhatsApp's read-receipt blue — matches Group Chat's.
 const _seenBlue = Color(0xFF34B7F1);
 
-/// Faint yellow flash for a jumped-to message — matches WhatsApp's
-/// highlight when you tap a search result.
 const _highlightColor = Color(0xFFFFF3B0);
 
-/// Private 1:1 chat with another member of the same trip, opened from
-/// their tile in the Group Travel member list, or from the Personal
-/// Message inbox. Same tick behavior as Group Chat: gray double-check
-/// until the other person has read it, then blue — tap your own
-/// message to see exactly when. Same settings menu too (background,
-/// search), minus Group Chat's nickname (there's no group roster here
-/// for one to mean anything to) and @mention (pointless in a 1:1).
-/// Long-press any message for reply/edit/delete/pin.
 class DirectChatScreen extends StatefulWidget {
   const DirectChatScreen({
     super.key,
@@ -52,9 +41,6 @@ class DirectChatScreen extends StatefulWidget {
   State<DirectChatScreen> createState() => _DirectChatScreenState();
 }
 
-/// A conversation's background is scoped by both trip and the other
-/// participant, so each DM keeps its own choice, independent of the
-/// trip's Group Chat background and every other DM in that trip.
 String _backgroundConversationId(String tripId, String otherUserId) =>
     '$tripId/dm/$otherUserId';
 
@@ -62,37 +48,21 @@ class _DirectChatScreenState extends State<DirectChatScreen> {
   final _dmService = DirectMessageService();
   final _scrollController = ScrollController();
 
-  /// -1 until the first snapshot arrives, so the initial load always
-  /// scrolls to the bottom; after that, only a message count *increase*
-  /// triggers another jump.
   int _lastMessageCount = -1;
 
   ChatBackground _background = chatBackgrounds.first;
 
-  /// Kept in sync with every messages-stream emission so "Search
-  /// Messages" (opened from outside that stream, via the settings menu)
-  /// has something current to search over.
   List<DirectMessage> _latestMessages = [];
 
-  /// A GlobalKey per message, reused across rebuilds by id — lets
-  /// [_jumpToMessage] find where a message actually landed in the list
-  /// (via [Scrollable.ensureVisible]) once it's been scrolled near.
   final _messageKeys = <String, GlobalKey>{};
   String? _highlightedMessageId;
   Timer? _highlightTimer;
 
-  /// The message currently being replied to, shown as a quote banner in
-  /// the composer — cleared once the reply is sent or cancelled.
   DirectMessage? _replyTarget;
 
   GlobalKey _keyFor(String messageId) =>
       _messageKeys.putIfAbsent(messageId, () => GlobalKey());
 
-  // Cached once, not created inline in build() — `.stream()` returns a
-  // new Supabase stream object on every call, so building these inline
-  // would make each nested StreamBuilder below tear down and
-  // resubscribe (briefly emitting null/empty data) on *every* rebuild
-  // of this screen, not just when it first opens.
   late final _lastReadStream = _dmService.watchTheirLastRead(
     tripId: widget.tripId,
     otherUserId: widget.otherUserId,
@@ -112,19 +82,9 @@ class _DirectChatScreenState extends State<DirectChatScreen> {
     );
   }
 
-  /// Cutoff up to which the "reacted to your message" toast has already
-  /// run — persisted server-side (chat_reaction_seen_state) so it
-  /// survives leaving and reopening the chat, or switching devices,
-  /// instead of resetting every time this screen is rebuilt. `null`
-  /// until [_initReactionsSeenState] has loaded it (or bootstrapped it
-  /// for a conversation that's never used this feature before) —
-  /// [_notifyNewReactions] stays a no-op until [_reactionsSeenAtReady].
   DateTime? _reactionsSeenAt;
   bool _reactionsSeenAtReady = false;
 
-  /// WhatsApp-style "jump to latest" — shown once the user has scrolled
-  /// away from the bottom, so a new message doesn't yank them back down
-  /// mid-read (see [_maybeScrollToBottom]).
   bool _showJumpToLatest = false;
 
   bool _otherTyping = false;
@@ -142,9 +102,7 @@ class _DirectChatScreenState extends State<DirectChatScreen> {
         .then((key) {
           if (mounted) setState(() => _background = chatBackgroundByKey(key));
         })
-        .catchError((_) {
-          // Fall through with the default background.
-        });
+        .catchError((_) {});
     _initReactionsSeenState(conversationId);
     _scrollController.addListener(_onScroll);
     _typingSub = _dmService
@@ -156,15 +114,8 @@ class _DirectChatScreenState extends State<DirectChatScreen> {
     DateTime? seenAt;
     try {
       seenAt = await loadReactionsSeenAt(conversationId);
-    } catch (_) {
-      // Fall through — treat as "never seen", same as a brand new
-      // conversation.
-    }
-    // First time this feature has run for this conversation: bootstrap
-    // to the epoch (not now) so any reaction that already landed on one
-    // of my messages — including while I hadn't opened this
-    // conversation yet — still gets notified once, instead of being
-    // silently treated as already-seen.
+    } catch (_) {}
+
     seenAt ??= DateTime.fromMillisecondsSinceEpoch(0);
     if (!mounted) return;
     setState(() {
@@ -242,14 +193,6 @@ class _DirectChatScreenState extends State<DirectChatScreen> {
     );
   }
 
-  /// Toasts "{name} reacted {emoji} to your message" the moment the
-  /// other participant reacts to a message the signed-in user sent,
-  /// then jumps to and highlights that message — like tapping a
-  /// notification. Each reaction only ever triggers this once:
-  /// [_reactionsSeenAt] is the persisted (chat_reaction_seen_state)
-  /// cutoff, advanced past the newest notified reaction's timestamp
-  /// every time this runs, so re-opening the chat later (even on
-  /// another device) never replays it.
   void _notifyNewReactions(
     List<DirectMessage> rawMessages,
     List<ReactionEvent> events,
@@ -273,9 +216,7 @@ class _DirectChatScreenState extends State<DirectChatScreen> {
       widget.tripId,
       widget.otherUserId,
     );
-    // Advance the in-memory cutoff synchronously (not via setState) so a
-    // rebuild triggered before the save below completes doesn't re-toast
-    // the same events.
+
     _reactionsSeenAt = newCutoff;
     unawaited(saveReactionsSeenAt(conversationId, newCutoff));
 
@@ -295,12 +236,6 @@ class _DirectChatScreenState extends State<DirectChatScreen> {
     });
   }
 
-  /// Opening the chat (or a new message landing) should show the
-  /// latest message — but only when already at the bottom. A message
-  /// arriving while the user has scrolled up to read older ones leaves
-  /// their scroll position alone (the [_showJumpToLatest] button is how
-  /// they get back down when they're ready), instead of yanking them
-  /// away from what they were reading.
   void _maybeScrollToBottom(int newCount) {
     final shouldScroll = newCount > _lastMessageCount && !_showJumpToLatest;
     _lastMessageCount = newCount;
@@ -309,9 +244,7 @@ class _DirectChatScreenState extends State<DirectChatScreen> {
       if (!_scrollController.hasClients) return;
       _scrollController.jumpTo(_scrollController.position.maxScrollExtent);
     });
-    // Covers both the initial load and a new message landing while
-    // already open (and already at the bottom) — either way, the
-    // viewer has now seen it.
+
     _dmService.markConversationRead(
       tripId: widget.tripId,
       otherUserId: widget.otherUserId,
@@ -521,8 +454,6 @@ class _DirectChatScreenState extends State<DirectChatScreen> {
     );
   }
 
-  /// Scrolls to and briefly highlights [messageId] — see Group Chat's
-  /// identical method for why the estimated-jump-then-refine approach.
   Future<void> _jumpToMessage(String messageId) async {
     final index = _latestMessages.indexWhere((m) => m.id == messageId);
     if (index == -1) return;
@@ -686,9 +617,6 @@ class _DirectChatScreenState extends State<DirectChatScreen> {
     }
   }
 
-  /// Long-press action sheet — Reply always; Edit/Delete only for a
-  /// message the signed-in user sent (and hasn't been deleted); Pin/
-  /// Unpin for either participant, on any non-deleted message.
   void _showMessageActions(DirectMessage message, String? myUid) {
     if (message.isDeleted) return;
     final mine = message.senderId == myUid;
@@ -768,9 +696,6 @@ class _DirectChatScreenState extends State<DirectChatScreen> {
     );
   }
 
-  /// Who reacted to this DM and with what — just the two participants,
-  /// so a simple list rather than Group Chat's member lookup. The
-  /// signed-in user's own row gets a "Remove" action.
   void _showReactionDetails(DirectMessage message, String? myUid) {
     showModalBottomSheet(
       context: context,
@@ -853,8 +778,6 @@ class _DirectChatScreenState extends State<DirectChatScreen> {
     );
   }
 
-  /// WhatsApp-style "message info" for a DM — just the one other
-  /// participant, so it's a single row rather than Group Chat's list.
   void _showMessageInfo(DateTime? seenAt) {
     showModalBottomSheet(
       context: context,
@@ -1128,11 +1051,7 @@ class _DirectChatScreenState extends State<DirectChatScreen> {
                                         children: [
                                           ListView.builder(
                                             controller: _scrollController,
-                                            // Wider than the default 250 so
-                                            // _jumpToMessage's estimated
-                                            // jump lands somewhere
-                                            // ensureVisible can already find
-                                            // built.
+
                                             cacheExtent: 3000,
                                             padding: EdgeInsets.fromLTRB(
                                               20,
@@ -1215,16 +1134,6 @@ class _DirectChatScreenState extends State<DirectChatScreen> {
                                                                         _showMessageInfo(
                                                                           seenAt,
                                                                         )
-                                                                  // Tapping
-                                                                  // their
-                                                                  // message
-                                                                  // reacts
-                                                                  // directly —
-                                                                  // long-press
-                                                                  // opens the
-                                                                  // full
-                                                                  // action
-                                                                  // sheet.
                                                                   : () =>
                                                                         _reactTo(
                                                                           m,
@@ -1349,34 +1258,6 @@ class _DirectChatScreenState extends State<DirectChatScreen> {
                                                                 ),
                                                               ),
                                                             GestureDetector(
-                                                              // A photo
-                                                              // bubble has
-                                                              // its own tap
-                                                              // target (open
-                                                              // fullscreen
-                                                              // preview)
-                                                              // that wins
-                                                              // the gesture
-                                                              // arena over
-                                                              // the
-                                                              // bubble's
-                                                              // tap, so it
-                                                              // can never
-                                                              // reach
-                                                              // _showMessageInfo.
-                                                              // This ticks
-                                                              // row sits
-                                                              // below the
-                                                              // image and
-                                                              // is always
-                                                              // free, so
-                                                              // it's the
-                                                              // reliable way
-                                                              // to open
-                                                              // "Seen" for
-                                                              // photo
-                                                              // messages
-                                                              // too.
                                                               onTap:
                                                                   mine &&
                                                                       myUid !=

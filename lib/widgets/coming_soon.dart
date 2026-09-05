@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 
 import '../theme/app_theme.dart';
 
-/// Shared "not wired up yet" feedback for UI-only actions across the app.
 void showComingSoon(BuildContext context, String feature) {
   ScaffoldMessenger.of(context).showSnackBar(
     SnackBar(

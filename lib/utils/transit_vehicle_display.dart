@@ -2,9 +2,6 @@ import 'package:flutter/material.dart';
 
 import '../models/transit_route.dart';
 
-/// Icon + short label for a transit vehicle type, shared by the route
-/// summary cards and the full route-details view so both render the
-/// same "🚌 Bus" / "🚆 LRT" style chips.
 class TransitVehicleDisplay {
   const TransitVehicleDisplay(this.icon, this.label);
 

@@ -2,8 +2,6 @@ import 'package:flutter/material.dart';
 
 import '../theme/app_theme.dart';
 
-/// Standard top bar for interior (pushed) screens: back button, title,
-/// optional subtitle, and an optional trailing action.
 class DetailHeader extends StatelessWidget {
   const DetailHeader({
     super.key,
@@ -17,8 +15,6 @@ class DetailHeader extends StatelessWidget {
   final String? subtitle;
   final Widget? trailing;
 
-  /// Overrides the back button's default `Navigator.maybePop()` — e.g. to
-  /// confirm discarding unsaved changes first. Null keeps the default.
   final VoidCallback? onBack;
 
   @override

@@ -7,8 +7,6 @@ import '../../widgets/detail_header.dart';
 import '../../widgets/gradient_button.dart';
 import 'packing_list_screen.dart';
 
-/// Result of [PackingItemFormScreen]: either a saved (added/edited)
-/// item, or a request to delete the item being edited.
 class PackingItemFormResult {
   const PackingItemFormResult.save(PackingItem savedItem)
     : item = savedItem,
@@ -19,8 +17,6 @@ class PackingItemFormResult {
   final bool deleted;
 }
 
-/// UI-only form for adding a packing list item, or editing/deleting one
-/// already on the list.
 class PackingItemFormScreen extends StatefulWidget {
   const PackingItemFormScreen({
     super.key,
@@ -28,11 +24,8 @@ class PackingItemFormScreen extends StatefulWidget {
     required this.existingCategories,
   });
 
-  /// Item being edited, or null when adding a new one.
   final PackingItem? initial;
 
-  /// Categories already in use elsewhere on the list, offered as quick
-  /// picks alongside the built-in suggestions.
   final List<String> existingCategories;
 
   bool get isEditing => initial != null;
@@ -62,10 +55,8 @@ class _PackingItemFormScreenState extends State<PackingItemFormScreen> {
     super.dispose();
   }
 
-  List<String> get _categoryOptions => {
-    ...packingCategorySuggestions,
-    ...widget.existingCategories,
-  }.toList();
+  List<String> get _categoryOptions =>
+      {...packingCategorySuggestions, ...widget.existingCategories}.toList();
 
   void _showError(String message) {
     ScaffoldMessenger.of(context).showSnackBar(
@@ -86,10 +77,7 @@ class _PackingItemFormScreenState extends State<PackingItemFormScreen> {
       _showError('Quantity cannot be less than 1.');
       return;
     }
-    // id/createdBy/createdAt are placeholders here — the screen that
-    // pushed this form only reads label/category/quantity/note/packed
-    // off the result and does the actual insert/update itself, since
-    // those fields are assigned server-side.
+
     final item = PackingItem(
       id: widget.initial?.id ?? '',
       tripId: widget.initial?.tripId ?? '',
@@ -180,9 +168,11 @@ class _PackingItemFormScreenState extends State<PackingItemFormScreen> {
                     spacing: 8,
                     runSpacing: 8,
                     children: _categoryOptions.map((category) {
-                      final selected = _categoryController.text.trim() == category;
+                      final selected =
+                          _categoryController.text.trim() == category;
                       return GestureDetector(
-                        onTap: () => setState(() => _categoryController.text = category),
+                        onTap: () =>
+                            setState(() => _categoryController.text = category),
                         child: Container(
                           padding: const EdgeInsets.symmetric(
                             horizontal: 12,
@@ -196,13 +186,17 @@ class _PackingItemFormScreenState extends State<PackingItemFormScreen> {
                             border: Border.all(
                               color: selected
                                   ? context.colors.ink
-                                  : context.colors.muted.withValues(alpha: 0.25),
+                                  : context.colors.muted.withValues(
+                                      alpha: 0.25,
+                                    ),
                             ),
                           ),
                           child: Text(
                             translatedPackingCategory(category),
                             style: TextStyle(
-                              color: selected ? Colors.white : context.colors.ink,
+                              color: selected
+                                  ? Colors.white
+                                  : context.colors.ink,
                               fontWeight: FontWeight.w600,
                               fontSize: 12,
                             ),

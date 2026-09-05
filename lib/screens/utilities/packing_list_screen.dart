@@ -9,8 +9,6 @@ import '../../theme/app_theme.dart';
 import '../../widgets/detail_header.dart';
 import 'packing_item_form_screen.dart';
 
-/// Common category suggestions offered when adding an item, alongside
-/// whatever custom categories the traveler has already typed in.
 const packingCategorySuggestions = [
   'Clothing',
   'Toiletries',
@@ -25,18 +23,11 @@ const _categoryTranslationKeys = {
   'Documents': 'utilities_category_documents',
 };
 
-/// Translates a fixed packing category label; a custom category a
-/// traveler typed in has no fixed-language key, so it's shown exactly
-/// as entered.
 String translatedPackingCategory(String label) {
   final key = _categoryTranslationKeys[label];
   return key == null ? label : tr(key);
 }
 
-/// Packing checklist for one trip, shared live with every member of it
-/// (backed by `packing_items`) — add, edit, or remove items, check them
-/// off as they're packed, or auto-generate a starter list from the
-/// trip's destination and dates.
 class PackingListScreen extends StatefulWidget {
   const PackingListScreen({super.key, required this.tripId});
 
@@ -70,17 +61,14 @@ class _PackingListScreenState extends State<PackingListScreen> {
     try {
       final trip = await _tripService.getTrip(widget.tripId);
       if (mounted) setState(() => _trip = trip);
-    } catch (_) {
-      // Auto-generate just stays hidden if the trip can't be loaded —
-      // manual add/edit doesn't depend on it.
-    }
+    } catch (_) {}
   }
 
   void _showMessage(String message) {
     if (!mounted) return;
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(SnackBar(behavior: SnackBarBehavior.floating, content: Text(message)));
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(behavior: SnackBarBehavior.floating, content: Text(message)),
+    );
   }
 
   Future<void> _autoGenerate(List<PackingItem> currentItems) async {
@@ -224,7 +212,10 @@ class _PackingListScreenState extends State<PackingListScreen> {
                         ),
                       IconButton(
                         onPressed: () => _addItem(existingCategories),
-                        icon: Icon(Icons.add_rounded, color: context.colors.ink),
+                        icon: Icon(
+                          Icons.add_rounded,
+                          color: context.colors.ink,
+                        ),
                       ),
                     ],
                   ),
@@ -323,7 +314,9 @@ class _PackingItemTile extends StatelessWidget {
                 item.label,
                 overflow: TextOverflow.ellipsis,
                 style: TextStyle(
-                  color: item.packed ? context.colors.muted : context.colors.ink,
+                  color: item.packed
+                      ? context.colors.muted
+                      : context.colors.ink,
                   decoration: item.packed ? TextDecoration.lineThrough : null,
                   fontWeight: FontWeight.w600,
                   fontSize: 13,
@@ -333,10 +326,7 @@ class _PackingItemTile extends StatelessWidget {
             if (item.quantity > 1) ...[
               const SizedBox(width: 6),
               Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 6,
-                  vertical: 2,
-                ),
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                 decoration: BoxDecoration(
                   color: context.colors.surface,
                   borderRadius: BorderRadius.circular(8),
@@ -389,7 +379,11 @@ class _EmptyState extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.checklist_rounded, color: context.colors.muted, size: 44),
+            Icon(
+              Icons.checklist_rounded,
+              color: context.colors.muted,
+              size: 44,
+            ),
             const SizedBox(height: 16),
             Text(
               tr('utilities_empty_packing_title'),
@@ -413,11 +407,18 @@ class _EmptyState extends StatelessWidget {
                 borderRadius: BorderRadius.circular(14),
                 onTap: onAdd,
                 child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 18,
+                    vertical: 12,
+                  ),
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      const Icon(Icons.add_rounded, color: Colors.white, size: 18),
+                      const Icon(
+                        Icons.add_rounded,
+                        color: Colors.white,
+                        size: 18,
+                      ),
                       const SizedBox(width: 6),
                       Text(
                         tr('utilities_add_item'),
@@ -458,11 +459,6 @@ class _EmptyState extends StatelessWidget {
   }
 }
 
-/// Shown in place of the (otherwise indefinite) loading spinner when
-/// [PackingListService.watchItems] errors out — e.g. the `packing_items`
-/// table/migration not applied yet on this Supabase project — so a
-/// broken backend surfaces as a visible, retryable error instead of a
-/// screen that spins forever.
 class _ErrorState extends StatelessWidget {
   const _ErrorState({required this.error, required this.onRetry});
 

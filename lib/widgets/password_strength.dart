@@ -4,9 +4,6 @@ import '../services/locale_service.dart';
 import '../theme/app_theme.dart';
 import '../utils/validators.dart';
 
-/// Shared by every "set/change a password" screen (Reset Password, Change
-/// Password, ...) so the strength meter and requirements checklist always
-/// look and behave the same.
 enum PasswordStrength { weak, fair, strong }
 
 PasswordStrength calculatePasswordStrength(String value) {
@@ -19,7 +16,6 @@ PasswordStrength calculatePasswordStrength(String value) {
   return PasswordStrength.weak;
 }
 
-/// The Weak / Fair / Strong segmented bar.
 class PasswordStrengthMeter extends StatelessWidget {
   const PasswordStrengthMeter({super.key, required this.strength});
 
@@ -74,8 +70,6 @@ class PasswordStrengthMeter extends StatelessWidget {
   }
 }
 
-/// Live checklist of each strength requirement — red X by default, flips
-/// to a green check the moment [password] satisfies it.
 class PasswordRequirementsList extends StatelessWidget {
   const PasswordRequirementsList({super.key, required this.password});
 
@@ -84,7 +78,10 @@ class PasswordRequirementsList extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final requirements = [
-      (label: tr('auth_password_req_min_length'), met: Validators.hasMinLength(password)),
+      (
+        label: tr('auth_password_req_min_length'),
+        met: Validators.hasMinLength(password),
+      ),
       (
         label: tr('auth_password_req_uppercase'),
         met: Validators.hasUppercase(password),
@@ -93,7 +90,10 @@ class PasswordRequirementsList extends StatelessWidget {
         label: tr('auth_password_req_lowercase'),
         met: Validators.hasLowercase(password),
       ),
-      (label: tr('auth_password_req_number'), met: Validators.hasNumber(password)),
+      (
+        label: tr('auth_password_req_number'),
+        met: Validators.hasNumber(password),
+      ),
       (
         label: tr('auth_password_req_special'),
         met: Validators.hasSpecialChar(password),

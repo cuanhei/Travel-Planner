@@ -3,9 +3,6 @@ import 'package:flutter/material.dart';
 import '../theme/app_theme.dart';
 import 'simple_card.dart';
 
-/// A tappable card row with a leading icon bubble, title, optional
-/// subtitle, and a trailing widget (defaults to a chevron). Used for
-/// menu lists, settings, saved items, and similar rows.
 class ListTileCard extends StatelessWidget {
   const ListTileCard({
     super.key,

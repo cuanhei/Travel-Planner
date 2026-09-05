@@ -15,10 +15,6 @@ const _monthNames = [
 
 String _formatShortDate(DateTime d) => '${_monthNames[d.month - 1]} ${d.day}';
 
-/// A trip's basic info resolved from an invite code, before the caller
-/// has actually joined — enough for the Join Trip screen to validate
-/// (already-ended trip, date overlap with a trip the caller is already
-/// in) before filing the join request itself.
 class TripInvitePreview {
   const TripInvitePreview({
     required this.tripId,
@@ -47,7 +43,6 @@ class TripInvitePreview {
   final DateTime? startDate;
   final DateTime? endDate;
 
-  /// e.g. "Aug 14 – Aug 16", or "Dates not set" if either date is missing.
   String get dateRangeLabel {
     final start = startDate;
     final end = endDate;

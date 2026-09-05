@@ -1,4 +1,3 @@
-/// A trip member, joined from `trip_members` + `profiles`.
 class GroupMember {
   const GroupMember({
     required this.userId,
@@ -15,14 +14,10 @@ class GroupMember {
   final String role;
   final DateTime joinedAt;
 
-  /// This member's own alias for this trip's Group Chat (set via
-  /// "Change Nickname"), or null to just show [displayName].
   final String? nickname;
 
   bool get isOrganizer => role == 'organizer';
 
-  /// What to actually show for this member: their nickname if they've
-  /// set one for this trip, otherwise their profile name.
   String get label =>
       (nickname != null && nickname!.isNotEmpty) ? nickname! : displayName;
 

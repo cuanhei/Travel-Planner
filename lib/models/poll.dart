@@ -1,4 +1,3 @@
-/// One option within a [Poll], with its live vote tally.
 class PollOptionData {
   const PollOptionData({
     required this.id,
@@ -13,8 +12,6 @@ class PollOptionData {
   final int voteCount;
 }
 
-/// A group decision-making poll, backed by `polls` + `poll_options` +
-/// `poll_votes`. [votedOptionId] is the current user's own vote, if any.
 class Poll {
   const Poll({
     required this.id,

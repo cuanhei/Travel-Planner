@@ -30,9 +30,6 @@ const _monthNames = [
 
 String _formatShortDate(DateTime d) => '${d.day} ${_monthNames[d.month - 1]}';
 
-/// Parses Postgres' canonical "HH:MM:SS" `time` text into minutes since
-/// midnight — null (falls back to the caller's own default) if [value]
-/// is null or unparseable.
 int? _minutesFromTimeString(String? value) {
   if (value == null) return null;
   final parts = value.split(':');
@@ -78,11 +75,6 @@ String _environmentLabel(PlaceEnvironment env) {
   }
 }
 
-/// Read-only view of a trip's saved schedule — every day tab, each with
-/// its vertical timeline of origin → stops → accommodation/trip-end,
-/// travel legs, and weather flags, exactly as saved by Create Trip's
-/// `saveTripSchedule`. No editing, reordering, or optimizing here — this
-/// is a plain "what did we plan" view, not a second Create Trip flow.
 class DailyTimelineScreen extends StatefulWidget {
   const DailyTimelineScreen({super.key, required this.tripId});
 
@@ -101,11 +93,6 @@ class _DailyTimelineScreenState extends State<DailyTimelineScreen> {
   String? _error;
   int _selectedDay = 0;
 
-  /// Freshly-checked weather per stop, keyed by identity — supersedes the
-  /// snapshot saved on [TripScheduleStop] at Create Trip time (which goes
-  /// stale the moment MET Malaysia's forecast updates, or the trip's
-  /// dates approach and fall inside the forecast window for the first
-  /// time). Null while a stop's check is still in flight.
   final Map<TripScheduleStop, StopWeatherCheck?> _liveWeather = {};
 
   @override
@@ -137,9 +124,6 @@ class _DailyTimelineScreenState extends State<DailyTimelineScreen> {
     }
   }
 
-  /// Live-checks every outdoor/mixed stop, across every day, against the
-  /// current forecast — one at a time, updating as each resolves, rather
-  /// than trusting the saved-at-creation snapshot forever.
   Future<void> _checkWeather(TripSchedule schedule) async {
     for (final day in schedule.days) {
       if (!StopWeatherService.isWithinForecastWindow(day.date)) continue;
@@ -362,8 +346,6 @@ class _DayScheduleCard extends StatelessWidget {
 
   final TripScheduleDay day;
 
-  /// The trip's own start time ("HH:MM:SS"), used when this day has no
-  /// override of its own.
   final String? fallbackStartTime;
 
   final Map<TripScheduleStop, StopWeatherCheck?> liveWeather;
@@ -517,8 +499,6 @@ class _StopNode extends StatelessWidget {
   final TripScheduleStop stop;
   final DateTime date;
 
-  /// Null while a live check is in flight (or hasn't started) — falls
-  /// back to [stop]'s saved-at-creation snapshot in that case.
   final StopWeatherCheck? liveWeather;
 
   @override
@@ -705,9 +685,6 @@ class _WeatherRow extends StatelessWidget {
   const _WeatherRow({required this.stop, required this.live});
   final TripScheduleStop stop;
 
-  /// The freshly re-checked result — null while a check is still in
-  /// flight (or before one's started), in which case the saved-at-Create-
-  /// Trip snapshot on [stop] is shown as a fallback instead.
   final StopWeatherCheck? live;
 
   @override

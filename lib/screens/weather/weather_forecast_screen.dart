@@ -8,11 +8,6 @@ import '../../services/weather_service.dart';
 import '../../theme/app_theme.dart';
 import '../../utils/weather_display.dart';
 
-/// Full weather forecast for the traveler's current location, via
-/// [WeatherService] (MET Malaysia data through the government's open
-/// API): today's conditions plus the rest of the available rolling
-/// window as a multi-day outlook. Replaces what used to be entirely
-/// hardcoded placeholder numbers.
 class WeatherForecastScreen extends StatefulWidget {
   const WeatherForecastScreen({super.key});
 
@@ -55,7 +50,9 @@ class _WeatherForecastScreenState extends State<WeatherForecastScreen> {
         throw Exception(tr('home_location_permission_needed'));
       }
       final position = await Geolocator.getCurrentPosition(
-        locationSettings: const LocationSettings(accuracy: LocationAccuracy.high),
+        locationSettings: const LocationSettings(
+          accuracy: LocationAccuracy.high,
+        ),
       );
       final result = await _weatherService.getForecastsForPosition(
         LatLng(position.latitude, position.longitude),
@@ -131,10 +128,7 @@ class _WeatherForecastScreenState extends State<WeatherForecastScreen> {
     }
     final weather = _weather;
     if (weather == null || weather.forecasts.isEmpty) {
-      return _HeroMessage(
-        text: tr('home_weather_no_forecast'),
-        onRetry: _load,
-      );
+      return _HeroMessage(text: tr('home_weather_no_forecast'), onRetry: _load);
     }
 
     final today = DateTime.now();
@@ -147,7 +141,9 @@ class _WeatherForecastScreenState extends State<WeatherForecastScreen> {
       startIndex == -1 ? weather.forecasts.length - 1 : startIndex,
     );
     final current = upcoming.first;
-    final outlook = upcoming.length > 1 ? upcoming.sublist(1).take(5).toList() : const <WeatherForecast>[];
+    final outlook = upcoming.length > 1
+        ? upcoming.sublist(1).take(5).toList()
+        : const <WeatherForecast>[];
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -206,9 +202,6 @@ class _WeatherForecastScreenState extends State<WeatherForecastScreen> {
   }
 }
 
-/// The hero card in a loading/error/informational state — same shape as
-/// the real conditions card so the layout doesn't jump once real data
-/// arrives.
 class _HeroMessage extends StatelessWidget {
   const _HeroMessage({required this.text, this.loading = false, this.onRetry});
 
@@ -243,7 +236,10 @@ class _HeroMessage extends StatelessWidget {
             const SizedBox(
               width: 22,
               height: 22,
-              child: CircularProgressIndicator(strokeWidth: 2.5, color: Colors.white),
+              child: CircularProgressIndicator(
+                strokeWidth: 2.5,
+                color: Colors.white,
+              ),
             )
           else
             const Icon(Icons.cloud_off_rounded, color: Colors.white, size: 28),
@@ -364,7 +360,11 @@ class _PeriodCard extends StatelessWidget {
             style: TextStyle(color: context.colors.muted, fontSize: 11),
           ),
           SizedBox(height: 8),
-          Icon(weatherIconFor(forecastText), color: Color(0xFF2E9CCA), size: 22),
+          Icon(
+            weatherIconFor(forecastText),
+            color: Color(0xFF2E9CCA),
+            size: 22,
+          ),
           SizedBox(height: 8),
           Text(
             translateWeather(forecastText),

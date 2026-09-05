@@ -67,23 +67,12 @@ bool _isPastDay(DateTime date) {
   return dateOnly.isBefore(todayOnly);
 }
 
-/// One day's editable stop: a location plus a mutable visit duration —
-/// distinct from [TripScheduleStop] (which also carries the already-saved
-/// arrival/end minutes computed the last time this day was saved; those
-/// are recomputed live here instead, since removing a stop or changing a
-/// duration shifts every stop after it).
 class _EditStop {
   _EditStop(this.location, this.visitMinutes);
   final TripStopLocation location;
   int visitMinutes;
 }
 
-/// One day's editable state: its stops, the travel legs between them (the
-/// last entry may be a trailing leg to that night's accommodation or the
-/// trip's end), and an optional start-time override. [originName]/
-/// [originLat]/[originLng] are fixed for the day (the very first leg's
-/// origin never changes here) so a removed first stop can re-point the
-/// new first leg back at it.
 class _EditDay {
   _EditDay({
     required this.dayNumber,
@@ -109,20 +98,11 @@ class _EditDay {
   bool get isPast => _isPastDay(date);
 }
 
-/// Lets the trip organizer edit the saved day-by-day schedule — remove a
-/// stop, adjust how long a stop takes, or change a day's start time — for
-/// any day that hasn't happened yet. Past days are shown read-only: once
-/// a day has passed there's nothing left to plan for it. Visually mirrors
-/// Create Trip's day-tab timeline (day-tab strip + vertical stop list) so
-/// editing a saved trip feels like the same tool that built it.
 class EditScheduleScreen extends StatefulWidget {
   const EditScheduleScreen({super.key, required this.tripId, this.pendingStop});
 
   final String tripId;
 
-  /// A place picked elsewhere (Explore's "Add to Trip") to stage as a new
-  /// stop the moment the schedule finishes loading — see
-  /// [_EditScheduleScreenState._applyPendingStop].
   final TripStopLocation? pendingStop;
 
   @override
@@ -144,14 +124,8 @@ class _EditScheduleScreenState extends State<EditScheduleScreen> {
   int _selectedDay = 0;
   bool _saving = false;
 
-  /// Live weather per stop, keyed by identity — re-checked whenever a
-  /// day's timing changes (add/remove/reorder a stop, resize a visit,
-  /// edit the day's start time), since editing here can move a stop into
-  /// or out of a rain window that was fine before.
   final Map<_EditStop, StopWeatherCheck?> _stopWeather = {};
 
-  /// Guards [_applyPendingStop] against running twice — e.g. if [_load]
-  /// is retried after an earlier failure.
   bool _pendingStopApplied = false;
 
   @override
@@ -231,13 +205,6 @@ class _EditScheduleScreenState extends State<EditScheduleScreen> {
     return (arrivals: arrivals, ends: ends);
   }
 
-  /// How many of [day]'s stops are locked against editing — every stop
-  /// whose computed arrival time has already passed. Always 0 for a day
-  /// that isn't today (a future day's stops haven't happened yet; a past
-  /// day is locked as a whole, before this ever gets consulted). Arrival
-  /// times only ever increase along a day's stops, so the locked stops
-  /// are always exactly the leading prefix up to (and including) the
-  /// last one already reached.
   int _lockedStopCount(_EditDay day) {
     if (day.isPast) return day.stops.length;
     final now = DateTime.now();
@@ -256,11 +223,6 @@ class _EditScheduleScreenState extends State<EditScheduleScreen> {
     return count;
   }
 
-  /// Searches for and appends a new stop at the end of [day] — always
-  /// after every existing stop (including locked ones), so a newly added
-  /// stop is never inserted somewhere that's already happened. The new
-  /// leg's origin fields are placeholders, immediately overwritten by
-  /// [_refetchLegsFrom] once it's known what precedes it.
   Future<void> _addStop(_EditDay day) async {
     final picked = await showModalBottomSheet<TripStopLocation>(
       context: context,
@@ -272,11 +234,6 @@ class _EditScheduleScreenState extends State<EditScheduleScreen> {
     _appendLocation(day, picked);
   }
 
-  /// Appends [location] to the end of [day]'s stops (marking it dirty, so
-  /// it's only actually persisted once the traveler taps Save) and
-  /// refetches its travel leg — the shared tail end of both [_addStop]
-  /// (searched via the sheet) and [_applyPendingStop] (arrived pre-picked
-  /// from Explore's "Add to Trip").
   void _appendLocation(_EditDay day, TripStopLocation location) {
     final insertIndex = day.stops.length;
     setState(() {
@@ -302,13 +259,6 @@ class _EditScheduleScreenState extends State<EditScheduleScreen> {
     unawaited(_recheckWeatherForDay(day));
   }
 
-  /// Handles [EditScheduleScreen.pendingStop] once the schedule's loaded:
-  /// picks the first day that hasn't happened yet, selects its tab, and
-  /// stages the place as a new stop there — dirty, but unsaved — so the
-  /// traveler lands straight on "here's what I'm about to add" and just
-  /// needs to confirm via the header's Save button (or remove it via its
-  /// own close button to back out) rather than going through the search
-  /// sheet for a place they already picked in Explore.
   void _applyPendingStop(TripStopLocation location) {
     final index = _days.indexWhere((d) => !d.isPast);
     if (index == -1) {
@@ -334,10 +284,6 @@ class _EditScheduleScreenState extends State<EditScheduleScreen> {
     );
   }
 
-  /// Re-checks weather for every outdoor/mixed stop in [day] against its
-  /// current (possibly just-changed) arrival/end window — a stop moved
-  /// out of the forecast window drops its stale check rather than
-  /// showing a reading that no longer applies to its new slot.
   Future<void> _recheckWeatherForDay(_EditDay day) async {
     if (!StopWeatherService.isWithinForecastWindow(day.date)) {
       setState(() {
@@ -378,9 +324,6 @@ class _EditScheduleScreenState extends State<EditScheduleScreen> {
     unawaited(_recheckWeatherForDay(day));
   }
 
-  /// Drag-and-drop reorder — only ever called for a stop past
-  /// [_lockedStopCount] (locked stops carry no drag handle), and never
-  /// lets it drop back among the locked ones either.
   void _reorderStop(_EditDay day, int oldIndex, int newIndex) {
     final locked = _lockedStopCount(day);
     if (oldIndex < locked) return;
@@ -422,12 +365,6 @@ class _EditScheduleScreenState extends State<EditScheduleScreen> {
     }
   }
 
-  /// Re-derives every travel leg for [day] from [fromIndex] onward — a
-  /// stop was removed or reordered at or after that point, so every leg
-  /// from there on may now run between a different pair of points than
-  /// what was last saved. Everything before [fromIndex] (locked, already-
-  /// reached stops) is left untouched. Legs are cleared to "unavailable"
-  /// immediately, then refetched one at a time in the new order.
   Future<void> _refetchLegsFrom(_EditDay day, int fromIndex) async {
     var prevName = fromIndex == 0
         ? day.originName
@@ -852,8 +789,6 @@ class _PastDayNotice extends StatelessWidget {
   }
 }
 
-/// Day-tab strip — same look as Create Trip's/Daily Timeline's, plus a
-/// small lock badge on any day that's already passed.
 class _DayTabBar extends StatelessWidget {
   const _DayTabBar({
     required this.days,
@@ -951,10 +886,6 @@ class _DayEditCard extends StatelessWidget {
   final int dayStartMinutes;
   final bool editable;
 
-  /// How many of [day.stops]'s leading stops have already been reached
-  /// (their arrival time has passed) — those get no drag handle, no
-  /// remove button, and no duration stepper; only stops after this point
-  /// can still be changed.
   final int lockedStopCount;
 
   final VoidCallback onEditStartTime;
@@ -963,9 +894,6 @@ class _DayEditCard extends StatelessWidget {
   final void Function(int oldIndex, int newIndex) onReorderStop;
   final VoidCallback onAddStop;
 
-  /// The live weather check for a given stop, if any — null while in
-  /// flight, not yet checked, or the stop is indoor/beyond the forecast
-  /// window.
   final StopWeatherCheck? Function(_EditStop stop) weatherFor;
 
   @override
@@ -1105,10 +1033,6 @@ class _DayEditCard extends StatelessWidget {
   }
 }
 
-/// Bottom-sheet search box for picking a new stop to add — Photon-backed
-/// (same search used by Transport's location fields and the accommodation
-/// picker) rather than Create Trip's fuller Google-Places sheet, since
-/// this only needs a quick "find a place, add it" flow.
 class _AddStopSheet extends StatelessWidget {
   const _AddStopSheet();
 
@@ -1273,21 +1197,13 @@ class _StopRow extends StatelessWidget {
   final String endLabel;
   final bool editable;
 
-  /// True when this stop's opening hours don't cover its whole scheduled
-  /// visit window — always false for a Photon/OSM stop, which carries no
-  /// opening-hours data to check against.
   final bool closed;
 
-  /// Live forecast check for this stop's current visit window — null
-  /// while in flight, not yet checked, or the stop is indoor.
   final StopWeatherCheck? weather;
 
   final VoidCallback onRemove;
   final void Function(int deltaMinutes) onChangeDuration;
 
-  /// This stop's position in its [ReorderableListView], to wire up a
-  /// drag handle — null when it's locked (its time already passed) or
-  /// the day isn't in a reorderable list at all, meaning no handle shows.
   final int? dragHandleIndex;
 
   @override
@@ -1459,9 +1375,6 @@ class _StopRow extends StatelessWidget {
   }
 }
 
-/// Weather line for an outdoor/mixed stop only — mirrors Create Trip's
-/// and Daily Timeline's own version, so a stop's forecast reads the same
-/// wherever it's shown.
 class _StopWeatherRow extends StatelessWidget {
   const _StopWeatherRow({required this.check});
   final StopWeatherCheck? check;

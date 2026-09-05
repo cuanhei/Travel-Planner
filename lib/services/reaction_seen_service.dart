@@ -1,11 +1,5 @@
 import 'supabase_config.dart';
 
-/// The cutoff up to which the signed-in user has already been shown the
-/// "so-and-so reacted to your message" toast in [conversationId] — a
-/// trip's id for Group Chat, or `'$tripId/dm/$otherUserId'` for a
-/// Direct Message, same scheme as [loadChatBackgroundKey]. `null` means
-/// the toast has never run for this conversation before (e.g. a brand
-/// new conversation, or before this feature existed).
 Future<DateTime?> loadReactionsSeenAt(String conversationId) async {
   final uid = SupabaseConfig.client.auth.currentUser?.id;
   if (uid == null) return null;

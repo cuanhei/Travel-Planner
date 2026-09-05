@@ -1,17 +1,9 @@
 import 'package:flutter/material.dart';
 
-/// Global switch for the app's theme mode. Settings toggles this; every
-/// screen picks it up automatically because `MaterialApp` listens to it
-/// and rebuilds with the matching `ThemeData`, and every color lookup in
-/// the app goes through `Theme.of(context)` (see [AppColorsContext]),
-/// which propagates correctly even to offstage tabs and backgrounded
-/// routes.
 final ValueNotifier<ThemeMode> themeModeNotifier = ValueNotifier(
   ThemeMode.light,
 );
 
-/// Palette that varies between light and dark mode. Brand/gradient
-/// colors (below, as static consts) stay constant across both.
 @immutable
 class AppColors {
   const AppColors._({
@@ -48,12 +40,6 @@ class AppColors {
   );
 }
 
-/// `context.colors.ink` etc. — resolves to the light or dark palette
-/// based on the active `Theme`, so it stays correct across the whole
-/// navigation stack (unlike a plain global variable, this is backed by
-/// `Theme`'s `InheritedWidget`, so every dependent widget is notified
-/// and rebuilds when the theme changes, even if it isn't currently
-/// being rebuilt by its parent).
 extension AppColorsContext on BuildContext {
   AppColors get colors => Theme.of(this).brightness == Brightness.dark
       ? AppColors.dark

@@ -12,18 +12,11 @@ import '../../widgets/gradient_button.dart';
 
 enum _Cat { skin, hair, face, hat, top, bottom, socks, shoes, accessories }
 
-/// A change to apply to the config being edited — the same shape whether it
-/// came from tapping a swatch or dragging one onto the avatar, so both
-/// interactions share one code path.
 class _Choice {
   const _Choice(this.apply);
   final AvatarConfig Function(AvatarConfig current) apply;
 }
 
-/// Paper-doll style avatar builder: pick a gender, then tap or drag styles
-/// and colors from the option tray onto the avatar to dress it. Every tile
-/// renders a live mini-preview of what the avatar would look like with
-/// that pick applied, so it's a true what-you-see-is-what-you-get picker.
 class AvatarCreatorScreen extends StatefulWidget {
   const AvatarCreatorScreen({super.key, this.initialConfig});
 
@@ -153,7 +146,9 @@ class _AvatarCreatorScreenState extends State<AvatarCreatorScreen> {
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(28),
             color: hovering ? AppColors.accent.withValues(alpha: 0.08) : null,
-            border: hovering ? Border.all(color: AppColors.accent, width: 2) : null,
+            border: hovering
+                ? Border.all(color: AppColors.accent, width: 2)
+                : null,
           ),
           child: AvatarPreview(config: _config, width: 190, height: 240),
         );
@@ -172,8 +167,12 @@ class _AvatarCreatorScreenState extends State<AvatarCreatorScreen> {
       ),
       child: Row(
         children: [
-          Expanded(child: _genderBtn(tr('avatar_gender_male'), AvatarGender.male)),
-          Expanded(child: _genderBtn(tr('avatar_gender_female'), AvatarGender.female)),
+          Expanded(
+            child: _genderBtn(tr('avatar_gender_male'), AvatarGender.male),
+          ),
+          Expanded(
+            child: _genderBtn(tr('avatar_gender_female'), AvatarGender.female),
+          ),
         ],
       ),
     );
@@ -205,7 +204,11 @@ class _AvatarCreatorScreenState extends State<AvatarCreatorScreen> {
   Widget _categoryChips() {
     final cats = [
       (_Cat.skin, tr('avatar_cat_skin'), Icons.palette_outlined),
-      (_Cat.hair, tr('avatar_cat_hair'), Icons.face_retouching_natural_outlined),
+      (
+        _Cat.hair,
+        tr('avatar_cat_hair'),
+        Icons.face_retouching_natural_outlined,
+      ),
       (_Cat.face, tr('avatar_cat_face'), Icons.emoji_emotions_outlined),
       (_Cat.hat, tr('avatar_cat_hat'), Icons.checkroom_outlined),
       (_Cat.top, tr('avatar_cat_top'), Icons.dry_cleaning_outlined),
@@ -236,7 +239,11 @@ class _AvatarCreatorScreenState extends State<AvatarCreatorScreen> {
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Icon(icon, size: 16, color: active ? Colors.white : context.colors.muted),
+                  Icon(
+                    icon,
+                    size: 16,
+                    color: active ? Colors.white : context.colors.muted,
+                  ),
                   const SizedBox(width: 6),
                   Text(
                     label,
@@ -327,8 +334,16 @@ class _AvatarCreatorScreenState extends State<AvatarCreatorScreen> {
             _styleGrid(
               AvatarCatalog.bottoms,
               currentId: _config.bottom,
-              previewFor: (id) => _config.copyWith(bottom: id, top: _config.top == 'dress' ? 'tshirt' : _config.top),
-              onPick: (id) => _Choice((c) => c.copyWith(bottom: id, top: c.top == 'dress' ? 'tshirt' : c.top)),
+              previewFor: (id) => _config.copyWith(
+                bottom: id,
+                top: _config.top == 'dress' ? 'tshirt' : _config.top,
+              ),
+              onPick: (id) => _Choice(
+                (c) => c.copyWith(
+                  bottom: id,
+                  top: c.top == 'dress' ? 'tshirt' : c.top,
+                ),
+              ),
             ),
             const SizedBox(height: 16),
             _colorRow(
@@ -377,7 +392,8 @@ class _AvatarCreatorScreenState extends State<AvatarCreatorScreen> {
           AvatarCatalog.accessories,
           currentId: null,
           isSelected: (id) => _config.accessories.contains(id),
-          previewFor: (id) => _config.copyWith(accessories: {..._config.accessories, id}),
+          previewFor: (id) =>
+              _config.copyWith(accessories: {..._config.accessories, id}),
           onPick: (id) => _Choice((c) {
             final s = {...c.accessories};
             if (!s.remove(id)) s.add(id);
@@ -407,7 +423,9 @@ class _AvatarCreatorScreenState extends State<AvatarCreatorScreen> {
       itemCount: options.length,
       itemBuilder: (context, i) {
         final opt = options[i];
-        final selected = isSelected != null ? isSelected(opt.id) : opt.id == currentId;
+        final selected = isSelected != null
+            ? isSelected(opt.id)
+            : opt.id == currentId;
         return _OptionTile(
           previewConfig: previewFor(opt.id),
           label: opt.label,
@@ -419,7 +437,11 @@ class _AvatarCreatorScreenState extends State<AvatarCreatorScreen> {
     );
   }
 
-  Widget _colorRow(List<int> colors, {required int current, required _Choice Function(int v) onPick}) {
+  Widget _colorRow(
+    List<int> colors, {
+    required int current,
+    required _Choice Function(int v) onPick,
+  }) {
     return Wrap(
       spacing: 12,
       runSpacing: 12,
@@ -526,13 +548,20 @@ class _ColorSwatch extends StatelessWidget {
           width: selected ? 3 : 1,
         ),
         boxShadow: [
-          BoxShadow(color: Colors.black.withValues(alpha: 0.08), blurRadius: 4, offset: const Offset(0, 2)),
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.08),
+            blurRadius: 4,
+            offset: const Offset(0, 2),
+          ),
         ],
       ),
     );
     return Draggable<_Choice>(
       data: choice,
-      feedback: Material(color: Colors.transparent, child: Transform.scale(scale: 1.3, child: dot)),
+      feedback: Material(
+        color: Colors.transparent,
+        child: Transform.scale(scale: 1.3, child: dot),
+      ),
       childWhenDragging: Opacity(opacity: 0.3, child: dot),
       child: GestureDetector(onTap: () => onApply(choice), child: dot),
     );

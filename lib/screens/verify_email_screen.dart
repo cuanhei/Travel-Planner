@@ -8,8 +8,6 @@ import '../theme/app_theme.dart';
 import '../widgets/gradient_button.dart';
 import 'home_screen.dart';
 
-/// 6-digit email-verification screen reached after sign up. Confirms the
-/// code with Supabase, which also signs the user in.
 class VerifyEmailScreen extends StatefulWidget {
   const VerifyEmailScreen({super.key, this.email});
 

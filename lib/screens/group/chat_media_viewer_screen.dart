@@ -4,11 +4,6 @@ import 'package:media_kit_video/media_kit_video.dart';
 
 import '../../models/chat_attachment.dart';
 
-/// WhatsApp-style swipeable viewer for every photo/video in a
-/// conversation's Media grid — left/right arrow buttons (plus swiping)
-/// move between items, and the title shows "3 / 12". Distinct from the
-/// single-item [FullscreenImageViewer]/[FullscreenVideoViewer] a chat
-/// bubble opens, which has nothing to navigate between.
 class ChatMediaViewerScreen extends StatefulWidget {
   const ChatMediaViewerScreen({
     super.key,
@@ -114,10 +109,6 @@ class _NavArrowButton extends StatelessWidget {
   }
 }
 
-/// Pinch/double-tap/scroll-zoomable single image — same interaction
-/// model as [FullscreenImageViewer], duplicated rather than shared
-/// since that one is a whole [Scaffold]/[AppBar] and this is just the
-/// image content for one [PageView] page here.
 class _ZoomableImage extends StatefulWidget {
   const _ZoomableImage({required this.url});
 
@@ -173,9 +164,6 @@ class _ZoomableImageState extends State<_ZoomableImage> {
   }
 }
 
-/// One [PageView] page's video playback — its own [Player] created on
-/// build and torn down on dispose, so swiping away from a video stops
-/// it rather than leaving it playing off-screen.
 class _InlineVideo extends StatefulWidget {
   const _InlineVideo({required this.url});
 

@@ -2,14 +2,8 @@ import 'package:flutter/material.dart';
 
 import '../../theme/app_theme.dart';
 
-/// Quick-react emoji set — mirrors WhatsApp's default six.
 const quickReactionEmojis = ['👍', '❤️', '😂', '😮', '😢', '🙏'];
 
-/// Floating row of quick-react emojis shown on tapping/long-pressing a
-/// message bubble. Returns the tapped emoji, or null if dismissed.
-/// [selectedEmoji] — the signed-in user's existing reaction on this
-/// message, if any — is highlighted, since tapping it again is how you
-/// remove a reaction rather than change it.
 Future<String?> showReactionPicker(
   BuildContext context, {
   String? selectedEmoji,
@@ -58,13 +52,9 @@ Future<String?> showReactionPicker(
   );
 }
 
-/// Small pill of aggregated reaction emoji + counts, shown under a
-/// message bubble — e.g. "👍 2  ❤️". Tap it to see who reacted with
-/// what. Renders nothing if there are no reactions.
 class ReactionsBar extends StatelessWidget {
   const ReactionsBar({super.key, required this.reactionsByUser, this.onTap});
 
-  /// user_id -> emoji they reacted with.
   final Map<String, String> reactionsByUser;
   final VoidCallback? onTap;
 

@@ -8,10 +8,6 @@ import '../../widgets/detail_header.dart';
 import 'budget_pie_chart_screen.dart';
 import 'budget_planner_screen.dart' show formatAmount;
 
-/// Detail view behind the Expense Tracker's "Spending Insights" card —
-/// a ranked breakdown of spending by stop (nowhere else in the app
-/// shows this), plus a link into the category pie chart rather than
-/// duplicating it here.
 class SpendingInsightsScreen extends StatelessWidget {
   const SpendingInsightsScreen({super.key, required this.tripId});
 
@@ -27,8 +23,6 @@ class SpendingInsightsScreen extends StatelessWidget {
         child: StreamBuilder<List<Expense>>(
           stream: budgetService.watchExpenses(tripId),
           builder: (context, snapshot) {
-            // Personal expenses are private spending, excluded from
-            // this trip-wide breakdown — see budget_planner_screen.
             final expenses = (snapshot.data ?? const <Expense>[])
                 .where((e) => e.isShared)
                 .toList();

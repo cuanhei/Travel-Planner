@@ -1,10 +1,6 @@
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 
-/// Full-screen, pinch/double-tap/scroll-zoomable viewer for a single
-/// chat photo — same interaction model as the Expense Tracker's photo
-/// viewer, kept as its own small widget since a chat bubble only ever
-/// opens one image at a time (no swipe-between-photos strip to share).
 class FullscreenImageViewer extends StatefulWidget {
   const FullscreenImageViewer({super.key, required this.url});
 

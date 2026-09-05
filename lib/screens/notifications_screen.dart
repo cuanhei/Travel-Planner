@@ -4,7 +4,8 @@ import '../services/locale_service.dart';
 import '../theme/app_theme.dart';
 import '../widgets/detail_header.dart';
 
-List<({IconData icon, Color color, String title, String subtitle, String time})> _todayNotifications() => [
+List<({IconData icon, Color color, String title, String subtitle, String time})>
+_todayNotifications() => [
   (
     icon: Icons.wb_cloudy_rounded,
     color: const Color(0xFF2E9CCA),
@@ -21,7 +22,8 @@ List<({IconData icon, Color color, String title, String subtitle, String time})>
   ),
 ];
 
-List<({IconData icon, Color color, String title, String subtitle, String time})> _earlierNotifications() => [
+List<({IconData icon, Color color, String title, String subtitle, String time})>
+_earlierNotifications() => [
   (
     icon: Icons.event_available_rounded,
     color: const Color(0xFF11998E),
@@ -45,8 +47,6 @@ List<({IconData icon, Color color, String title, String subtitle, String time})>
   ),
 ];
 
-/// Alerts and reminders feed: trip updates, weather alerts, and social
-/// notifications grouped by recency.
 class NotificationsScreen extends StatelessWidget {
   const NotificationsScreen({super.key});
 

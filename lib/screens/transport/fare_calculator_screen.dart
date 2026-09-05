@@ -4,7 +4,6 @@ import '../../theme/app_theme.dart';
 import '../../widgets/detail_header.dart';
 import '../../widgets/gradient_button.dart';
 
-/// Estimates transport cost across modes for a given distance.
 class FareCalculatorScreen extends StatefulWidget {
   const FareCalculatorScreen({super.key});
 

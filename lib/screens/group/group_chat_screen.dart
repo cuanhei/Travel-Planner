@@ -25,16 +25,10 @@ import 'chat_search_screen.dart';
 import 'direct_chat_screen.dart';
 import 'group_activity_log_screen.dart';
 
-/// Faint yellow flash for a jumped-to message — matches WhatsApp's
-/// highlight when you tap a search result.
 const _highlightColor = Color(0xFFFFF3B0);
 
-/// WhatsApp's read-receipt blue.
 const _seenBlue = Color(0xFF34B7F1);
 
-/// One row in the chat feed — either a real message or a "so-and-so
-/// joined/left" system event — merged and sorted by time so the two
-/// render interleaved, WhatsApp-style, in a single scrolling list.
 class _ChatFeedItem {
   const _ChatFeedItem.message(GroupMessage this.message) : activity = null;
   const _ChatFeedItem.activity(GroupActivityEvent this.activity)
@@ -46,12 +40,6 @@ class _ChatFeedItem {
   DateTime get createdAt => (message?.createdAt ?? activity?.createdAt)!;
 }
 
-/// Live group chat for a trip, backed by Supabase Realtime. Every
-/// message shows when it was sent; a message you sent also shows a
-/// double-check tick — gray until *every other member* has read it,
-/// then blue. Tapping your own message shows exactly who's seen it and
-/// when, like WhatsApp's message info screen. Long-press any message
-/// for reply/edit/delete/pin.
 class GroupChatScreen extends StatefulWidget {
   const GroupChatScreen({super.key, required this.tripId});
 
@@ -69,11 +57,6 @@ class _GroupChatScreenState extends State<GroupChatScreen> {
     widget.tripId,
   );
 
-  // Cached once, not created inline in build() — `.stream()` returns a
-  // new Supabase stream object on every call, so building these inline
-  // would make each nested StreamBuilder below tear down and
-  // resubscribe (briefly emitting null/empty data) on *every* rebuild
-  // of this screen, not just when it first opens.
   late final _membersStream = _groupService.watchMembers(widget.tripId);
   late final _messagesStream = _chatService.watchMessages(widget.tripId);
   late final _readsStream = _chatService.watchReadReceipts(widget.tripId);
@@ -83,34 +66,19 @@ class _GroupChatScreenState extends State<GroupChatScreen> {
   );
   late final _activityStream = _groupService.watchActivityLog(widget.tripId);
 
-  /// Message ids already reported as read this screen session — avoids
-  /// re-sending the same read receipt on every rebuild of the messages
-  /// stream (harmless since the upsert ignores duplicates, but pointless
-  /// network chatter otherwise).
   final _markedRead = <String>{};
 
-  /// -1 until the first snapshot arrives, so the initial load always
-  /// scrolls to the bottom; after that, only a message count *increase*
-  /// (a new message landing) triggers another jump.
   int _lastMessageCount = -1;
 
   ChatBackground _background = chatBackgrounds.first;
 
-  /// Kept in sync with every messages-stream emission so "Search
-  /// Messages" (opened from outside that stream, via the settings menu)
-  /// has something current to search over.
   List<GroupMessage> _latestMessages = [];
   List<GroupMember> _latestMembers = [];
 
-  /// A GlobalKey per message, reused across rebuilds by id — lets
-  /// [_jumpToMessage] find where a message actually landed in the list
-  /// (via [Scrollable.ensureVisible]) once it's been scrolled near.
   final _messageKeys = <String, GlobalKey>{};
   String? _highlightedMessageId;
   Timer? _highlightTimer;
 
-  /// The message currently being replied to, shown as a quote banner in
-  /// the composer — cleared once the reply is sent or cancelled.
   GroupMessage? _replyTarget;
 
   GlobalKey _keyFor(String messageId) =>
@@ -122,34 +90,15 @@ class _GroupChatScreenState extends State<GroupChatScreen> {
     );
   }
 
-  /// Cutoff up to which the "so-and-so reacted to your message" toast
-  /// has already run — persisted server-side (chat_reaction_seen_state)
-  /// so it survives leaving and reopening the chat, or switching
-  /// devices, instead of resetting every time this screen is rebuilt.
-  /// `null` until [_initReactionsSeenState] has loaded it (or bootstrapped
-  /// it for a conversation that's never used this feature before) —
-  /// [_notifyNewReactions] stays a no-op until [_reactionsSeenAtReady].
   DateTime? _reactionsSeenAt;
   bool _reactionsSeenAtReady = false;
 
-  /// Cutoff up to which the "so-and-so mentioned you" toast has already
-  /// run — same persisted-cutoff mechanism as [_reactionsSeenAt] (reuses
-  /// chat_reaction_seen_state via a `mentions:` key, since it's just a
-  /// generic per-user, per-key "seen up to" cursor), so a mention that
-  /// lands while this chat isn't open still gets toasted once the next
-  /// time it's opened, instead of only ever firing live.
   DateTime? _mentionsSeenAt;
   bool _mentionsSeenAtReady = false;
   String get _mentionsSeenKey => 'mentions:${widget.tripId}';
 
-  /// WhatsApp-style "jump to latest" — shown once the user has scrolled
-  /// away from the bottom, so a new message doesn't yank them back down
-  /// mid-read (see [_maybeScrollToBottom]).
   bool _showJumpToLatest = false;
 
-  /// Other members currently typing — each id is removed a few seconds
-  /// after its last broadcast (see [_onTypingEvent]), since Realtime
-  /// Broadcast has no "stopped typing" signal of its own.
   final Set<String> _typingUserIds = {};
   final Map<String, Timer> _typingTimers = {};
   StreamSubscription<String>? _typingSub;
@@ -161,9 +110,7 @@ class _GroupChatScreenState extends State<GroupChatScreen> {
         .then((key) {
           if (mounted) setState(() => _background = chatBackgroundByKey(key));
         })
-        .catchError((_) {
-          // Fall through with the default background.
-        });
+        .catchError((_) {});
     _initReactionsSeenState();
     _initMentionsSeenState();
     _scrollController.addListener(_onScroll);
@@ -174,15 +121,8 @@ class _GroupChatScreenState extends State<GroupChatScreen> {
     DateTime? seenAt;
     try {
       seenAt = await loadReactionsSeenAt(widget.tripId);
-    } catch (_) {
-      // Fall through — treat as "never seen", same as a brand new
-      // conversation.
-    }
-    // First time this feature has run for this conversation: bootstrap
-    // to the epoch (not now) so any reaction that already landed on one
-    // of my messages — including while I hadn't opened this chat yet —
-    // still gets notified once, instead of being silently treated as
-    // already-seen.
+    } catch (_) {}
+
     seenAt ??= DateTime.fromMillisecondsSinceEpoch(0);
     if (!mounted) return;
     setState(() {
@@ -195,13 +135,8 @@ class _GroupChatScreenState extends State<GroupChatScreen> {
     DateTime? seenAt;
     try {
       seenAt = await loadReactionsSeenAt(_mentionsSeenKey);
-    } catch (_) {
-      // Fall through — treat as "never seen", same as a brand new
-      // conversation.
-    }
-    // Same epoch bootstrap as reactions: a mention that already landed
-    // before this feature's first-ever run still gets toasted once,
-    // rather than silently treated as already-seen.
+    } catch (_) {}
+
     seenAt ??= DateTime.fromMillisecondsSinceEpoch(0);
     if (!mounted) return;
     setState(() {
@@ -291,14 +226,6 @@ class _GroupChatScreenState extends State<GroupChatScreen> {
     _chatService.markMessagesRead(tripId: widget.tripId, messageIds: toMark);
   }
 
-  /// Toasts "{name} reacted {emoji} to your message" the moment
-  /// someone else reacts to a message the signed-in user sent, then
-  /// jumps to and highlights that message — like tapping a
-  /// notification. Each reaction only ever triggers this once:
-  /// [_reactionsSeenAt] is the persisted (chat_reaction_seen_state)
-  /// cutoff, advanced past the newest notified reaction's timestamp
-  /// every time this runs, so re-opening the chat later (even on
-  /// another device) never replays it.
   void _notifyNewReactions(
     List<GroupMessage> rawMessages,
     List<ReactionEvent> events,
@@ -319,9 +246,7 @@ class _GroupChatScreenState extends State<GroupChatScreen> {
     if (newEvents.isEmpty) return;
     newEvents.sort((a, b) => a.createdAt.compareTo(b.createdAt));
     final newCutoff = newEvents.last.createdAt;
-    // Advance the in-memory cutoff synchronously (not via setState) so a
-    // rebuild triggered before the save below completes doesn't re-toast
-    // the same events.
+
     _reactionsSeenAt = newCutoff;
     unawaited(saveReactionsSeenAt(widget.tripId, newCutoff));
 
@@ -348,11 +273,6 @@ class _GroupChatScreenState extends State<GroupChatScreen> {
     });
   }
 
-  /// Toasts "{name} mentioned you" the moment a message mentioning the
-  /// signed-in user lands *while this screen is open* — live-only,
-  /// unlike the reaction toast: [_knownMessageIds] resets every time
-  /// this screen is reopened, so a mention that happened while away
-  /// doesn't replay (there's no persisted cutoff for it).
   void _notifyMentions(List<GroupMessage> rawMessages, String? myUid) {
     if (myUid == null || !_mentionsSeenAtReady) return;
     final cutoff = _mentionsSeenAt;
@@ -367,9 +287,7 @@ class _GroupChatScreenState extends State<GroupChatScreen> {
     if (newMentions.isEmpty) return;
     newMentions.sort((a, b) => a.createdAt.compareTo(b.createdAt));
     final newCutoff = newMentions.last.createdAt;
-    // Advance the in-memory cutoff synchronously (not via setState) so a
-    // rebuild triggered before the save below completes doesn't re-toast
-    // the same messages.
+
     _mentionsSeenAt = newCutoff;
     unawaited(saveReactionsSeenAt(_mentionsSeenKey, newCutoff));
 
@@ -386,12 +304,6 @@ class _GroupChatScreenState extends State<GroupChatScreen> {
     });
   }
 
-  /// Opening the chat (or a new message landing) should show the
-  /// latest message — but only when already at the bottom. A message
-  /// arriving while the user has scrolled up to read older ones leaves
-  /// their scroll position alone (the [_showJumpToLatest] button is how
-  /// they get back down when they're ready), instead of yanking them
-  /// away from what they were reading.
   void _maybeScrollToBottom(int newCount) {
     final shouldScroll = newCount > _lastMessageCount && !_showJumpToLatest;
     _lastMessageCount = newCount;
@@ -445,12 +357,6 @@ class _GroupChatScreenState extends State<GroupChatScreen> {
     );
   }
 
-  /// Scrolls to and briefly highlights [messageId] — e.g. after tapping
-  /// a search result. `ensureVisible` only works on an already-built
-  /// widget, which for a message far from the current scroll position
-  /// won't exist yet; jumping to an estimated offset first gets
-  /// `ListView.builder` to build around there, then `ensureVisible`
-  /// (once the frame settles) corrects to the exact position.
   Future<void> _jumpToMessage(String messageId) async {
     final index = _latestMessages.indexWhere((m) => m.id == messageId);
     if (index == -1) return;
@@ -616,9 +522,6 @@ class _GroupChatScreenState extends State<GroupChatScreen> {
     }
   }
 
-  /// Long-press action sheet — Reply always; Edit/Delete only for a
-  /// message the signed-in user sent (and hasn't been deleted); Pin/
-  /// Unpin for anyone, on any non-deleted message.
   void _showMessageActions(GroupMessage message, String? myUid) {
     if (message.isDeleted) return;
     final mine = message.userId == myUid;
@@ -698,11 +601,6 @@ class _GroupChatScreenState extends State<GroupChatScreen> {
     );
   }
 
-  /// Who reacted to this message and with what — tapping a reaction
-  /// pill opens this, like WhatsApp's reaction details. The
-  /// signed-in user's own row gets a "Remove" action instead of just a
-  /// timestamp-free label, so removing a reaction doesn't require
-  /// reopening the emoji picker and re-tapping the same emoji.
   void _showReactionDetails(GroupMessage message, List<GroupMember> members) {
     final myUid = Supabase.instance.client.auth.currentUser?.id;
     final memberById = {for (final m in members) m.userId: m};
@@ -1097,8 +995,6 @@ class _GroupChatScreenState extends State<GroupChatScreen> {
     );
   }
 
-  /// WhatsApp-style "message info": who's seen this message and when,
-  /// listed for every other trip member (not just the ones who have).
   void _showMessageInfo(GroupMessage message, List<GroupMember> members) {
     final others = members.where((m) => m.userId != message.userId).toList();
     showModalBottomSheet(
@@ -1306,9 +1202,6 @@ class _GroupChatScreenState extends State<GroupChatScreen> {
     );
   }
 
-  /// A "so-and-so joined/left the group" system message — centered,
-  /// muted, no bubble — interleaved into the chat feed by
-  /// [_buildMessageColumn]'s [_ChatFeedItem] list, same as WhatsApp.
   Widget _buildActivityTile(GroupActivityEvent event) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 8),
@@ -1347,13 +1240,7 @@ class _GroupChatScreenState extends State<GroupChatScreen> {
             children: [
               ListView.builder(
                 controller: _scrollController,
-                // Wider than the default 250
-                // so _jumpToMessage's
-                // estimated jump lands
-                // somewhere ensureVisible can
-                // already find built, even
-                // when the 70px/message
-                // guess is off.
+
                 cacheExtent: 3000,
                 padding: EdgeInsets.fromLTRB(20, 8, 20, 8),
                 itemCount: feedItems.length,
@@ -1430,17 +1317,6 @@ class _GroupChatScreenState extends State<GroupChatScreen> {
                                       ? null
                                       : mine
                                       ? () => _showMessageInfo(m, members)
-                                      // Tapping
-                                      // someone
-                                      // else's
-                                      // message
-                                      // reacts
-                                      // directly —
-                                      // long-press
-                                      // opens
-                                      // the full
-                                      // action
-                                      // sheet.
                                       : () => _reactTo(m, myUid),
                                   onLongPress: myUid == null
                                       ? null
@@ -1513,35 +1389,6 @@ class _GroupChatScreenState extends State<GroupChatScreen> {
                                     ),
                                   ),
                                 GestureDetector(
-                                  // A photo
-                                  // bubble has
-                                  // its own tap
-                                  // target
-                                  // (open
-                                  // fullscreen
-                                  // preview)
-                                  // that wins
-                                  // the gesture
-                                  // arena over
-                                  // the
-                                  // bubble's
-                                  // tap, so it
-                                  // can never
-                                  // reach
-                                  // _showMessageInfo.
-                                  // This ticks
-                                  // row sits
-                                  // below the
-                                  // image and
-                                  // is always
-                                  // free, so
-                                  // it's the
-                                  // reliable
-                                  // way to open
-                                  // "Seen by"
-                                  // for photo
-                                  // messages
-                                  // too.
                                   onTap: mine && myUid != null
                                       ? () => _showMessageInfo(m, members)
                                       : null,

@@ -14,16 +14,6 @@ import '../../widgets/route_map_view.dart';
 import '../community/review_details_screen.dart';
 import '../trip/edit_schedule_screen.dart';
 
-/// Full profile for a real place — currently only reached from Explore's
-/// Nearby Places (Google Places API (New) data), but named/shaped to
-/// become the shared details screen once Popular Destinations moves off
-/// its dummy `Place` catalog too. Shows every field the app actually has
-/// (name, address, photo, type, open/closed status, distance, location).
-/// No description or budget from Google: those aren't part of the Nearby
-/// Search field mask. Ratings/reviews are this app's own review system
-/// (`CommunityService`/`reviews` table), keyed by [NearbyPlace.name] the
-/// same way `ReviewDetailsScreen` keys them by `place_name` elsewhere —
-/// there's no separate place id to join on.
 class ExplorePlaceDetailsScreen extends StatefulWidget {
   const ExplorePlaceDetailsScreen({super.key, required this.place});
 
@@ -40,20 +30,10 @@ class _ExplorePlaceDetailsScreenState extends State<ExplorePlaceDetailsScreen> {
   final _savedPlacesService = SavedPlacesService();
   LatLng? _currentPosition;
 
-  /// Whether the user can review this place — true once they have an
-  /// unused visit (via [TripService.visitCount]) not yet spent on a review
-  /// (via [CommunityService.myReviewCount]). Mirrors the gating on
-  /// [ReviewDetailsScreen]'s "Write a Review" button, so the top-level
-  /// "Add Review" button here reflects the same rule up front instead of
-  /// only surfacing it after drilling in.
   bool _canReview = false;
 
-  /// Whether the place has ever been visited at all, once loaded — used to
-  /// pick the disabled-button message.
   bool _everVisited = false;
 
-  /// Null while [_loadSaved] hasn't resolved yet — the bookmark button
-  /// stays hidden rather than briefly flashing the wrong (outline) state.
   bool? _saved;
 
   @override
@@ -90,10 +70,6 @@ class _ExplorePlaceDetailsScreenState extends State<ExplorePlaceDetailsScreen> {
     }
   }
 
-  /// Re-checked after returning from [ReviewDetailsScreen] — a review
-  /// submitted there spends the visit that unlocked it, so this button
-  /// needs to go back to disabled without requiring the user to leave and
-  /// reopen this screen.
   Future<void> _loadCanReview() async {
     final results = await Future.wait([
       _tripService.visitCount(widget.place.name),
@@ -108,10 +84,6 @@ class _ExplorePlaceDetailsScreenState extends State<ExplorePlaceDetailsScreen> {
     });
   }
 
-  /// One-shot GPS fetch for the location map's "you are here" marker —
-  /// mirrors the same permission handling used elsewhere (Map View,
-  /// Nearby Places itself); never blocks the screen, since the map is
-  /// still useful showing just the place if this fails or is denied.
   Future<void> _locateCurrentPosition() async {
     try {
       if (!await Geolocator.isLocationServiceEnabled()) return;
@@ -132,9 +104,7 @@ class _ExplorePlaceDetailsScreenState extends State<ExplorePlaceDetailsScreen> {
       setState(() {
         _currentPosition = LatLng(position.latitude, position.longitude);
       });
-    } catch (_) {
-      // Silently degrade — the map still shows the place itself.
-    }
+    } catch (_) {}
   }
 
   @override
@@ -439,12 +409,6 @@ class _ExplorePlaceDetailsScreenState extends State<ExplorePlaceDetailsScreen> {
   }
 }
 
-/// Tappable "X.X ★ (N reviews)" summary — live via
-/// [CommunityService.watchRatingSummaries] so a review submitted from
-/// [ReviewDetailsScreen] updates this the moment its Realtime stream
-/// picks up the new row. Shows a neutral "No reviews yet" state instead
-/// of a bare 0.0 when [placeName] has none. Tapping either state opens
-/// the full [ReviewDetailsScreen] (list + "Write a Review").
 class _ReviewsSummaryCard extends StatelessWidget {
   const _ReviewsSummaryCard({required this.service, required this.placeName});
 
@@ -528,18 +492,9 @@ class _ReviewsSummaryCard extends StatelessWidget {
   }
 }
 
-/// "Add to Trip" bottom sheet — lists the signed-in traveler's current +
-/// upcoming trips where they're the organizer, since only an organizer
-/// can add a place to a trip (a plain member can't). Tapping a trip just
-/// picks it — [_openAddToTripSheet] takes the selection from here and
-/// hands off to Edit Schedule, which stages the place as a new,
-/// not-yet-saved stop on that trip's first upcoming day for the traveler
-/// to actually confirm (or remove) there, rather than this sheet saving
-/// it unreviewed.
 class _AddToTripSheet extends StatefulWidget {
   const _AddToTripSheet({required this.place});
 
-  // ignore: unused_field
   final NearbyPlace place;
 
   @override
@@ -683,8 +638,6 @@ class _AddToTripSheetState extends State<_AddToTripSheet> {
   }
 }
 
-/// One organizer trip in the "Add to Trip" list — tapping it just picks
-/// this trip (see [_AddToTripSheet]'s doc comment for what happens next).
 class _TripOptionTile extends StatelessWidget {
   const _TripOptionTile({required this.trip, required this.onTap});
 
@@ -881,7 +834,6 @@ class _StatusChip extends StatelessWidget {
   }
 }
 
-/// e.g. "tourist_attraction" -> "Tourist Attraction".
 String _formatType(String? type) {
   if (type == null || type.isEmpty) return 'Place';
   return type

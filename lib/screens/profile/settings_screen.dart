@@ -14,7 +14,6 @@ import 'help_center_screen.dart';
 import 'language_screen.dart';
 import 'privacy_security_screen.dart';
 
-/// App preferences: appearance, language, account, and sign out.
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
 
@@ -90,7 +89,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     icon: Icons.help_outline_rounded,
                     title: tr('auth_help_center'),
                     onTap: () => Navigator.of(context).push(
-                      MaterialPageRoute(builder: (_) => const HelpCenterScreen()),
+                      MaterialPageRoute(
+                        builder: (_) => const HelpCenterScreen(),
+                      ),
                     ),
                   ),
                   ListTileCard(

@@ -11,9 +11,6 @@ class AvatarOption {
   final String label;
 }
 
-/// Every selectable style + the shared color palette used across the
-/// avatar creator. Adding a new style here is enough to make it pickable —
-/// `AvatarPainter` switches on the same `id` strings to draw it.
 class AvatarCatalog {
   AvatarCatalog._();
 
@@ -106,11 +103,6 @@ class AvatarCatalog {
   ];
 }
 
-/// A user-designed avatar: gender + one style/color per slot, plus a free
-/// set of toggleable accessories. Encodes to a single string so it can be
-/// stored in the existing `profiles.avatar_url` column (see [encode]) —
-/// switching "Photo" vs "Avatar" mode is then just whichever kind of
-/// string that column currently holds.
 @immutable
 class AvatarConfig {
   const AvatarConfig({
@@ -240,8 +232,6 @@ class AvatarConfig {
   String encode() =>
       '$_prefix${base64Url.encode(utf8.encode(jsonEncode(toJson())))}';
 
-  /// Returns null for anything that isn't one of our encoded strings
-  /// (a real photo URL, or nothing at all) so callers can fall back.
   static AvatarConfig? tryDecode(String? value) {
     if (value == null || !value.startsWith(_prefix)) return null;
     try {

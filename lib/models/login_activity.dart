@@ -1,5 +1,3 @@
-/// One row from `public.login_activity` — a past sign-in for the current
-/// user (Privacy & Security > Login Activity).
 class LoginActivityEntry {
   const LoginActivityEntry({
     required this.id,

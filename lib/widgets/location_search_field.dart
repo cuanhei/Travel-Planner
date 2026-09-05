@@ -8,15 +8,6 @@ import '../services/photon_service.dart';
 
 const _debounceDuration = Duration(milliseconds: 400);
 
-/// Controlled search-as-you-type field for picking a Malaysia-only place
-/// via Photon geocoding — autocomplete dropdown, loading/empty/error
-/// states, and a read-only display once a location is selected. The one
-/// shared search UI + service for every Photon-backed location picker in
-/// the app (Transport's "Depart From"/"Destination", the Trip Map
-/// picker's search bar); the parent owns [value] and decides what
-/// "selecting" means — e.g. [TripLocationPicker] always passes `value:
-/// null` and stages its own pending-stop UI outside this widget entirely,
-/// rather than ever marking a result "selected" here.
 class LocationSearchField extends StatefulWidget {
   const LocationSearchField({
     super.key,
@@ -34,38 +25,21 @@ class LocationSearchField extends StatefulWidget {
     this.emptyResultsText = 'No results found',
   });
 
-  /// The currently selected location, owned by the parent. When non-null
-  /// the field shows it read-only; when null the field is an editable
-  /// search box.
   final TripStopLocation? value;
 
-  /// Called with the picked location, or null when the selection is
-  /// cleared.
   final ValueChanged<TripStopLocation?> onChanged;
   final String hintText;
   final IconData selectedIcon;
   final double maxDropdownHeight;
 
-  /// Small message shown under the field when there's no selection and
-  /// no query typed — e.g. a GPS-lookup failure explaining why the field
-  /// is empty and inviting a manual search.
   final String? helperText;
 
-  /// True while the parent is resolving a location on the field's
-  /// behalf (e.g. fetching GPS) — shows the same loading affordance as
-  /// an in-flight search and disables input meanwhile.
   final bool externalLoading;
 
-  /// Label for an optional quick-select row shown whenever the field is
-  /// empty and idle (no selection, no query typed) — e.g. "Use current
-  /// location". Null hides the row.
   final String? quickActionLabel;
   final IconData quickActionIcon;
   final VoidCallback? onQuickAction;
 
-  /// Marks a result as already picked elsewhere (e.g. already added to
-  /// the trip) — shown with a checkmark instead of being tappable. Null
-  /// means no result is ever disabled.
   final bool Function(TripStopLocation)? isResultDisabled;
 
   final String emptyResultsText;
@@ -210,7 +184,9 @@ class _LocationSearchFieldState extends State<LocationSearchField> {
                       fontWeight: FontWeight.w600,
                     ),
                     decoration: InputDecoration(
-                      hintText: widget.hintText ?? tr('transport_search_location_hint'),
+                      hintText:
+                          widget.hintText ??
+                          tr('transport_search_location_hint'),
                       hintStyle: const TextStyle(
                         color: Color(0xFF6E7A93),
                         fontWeight: FontWeight.w500,
@@ -247,10 +223,7 @@ class _LocationSearchFieldState extends State<LocationSearchField> {
               widget.value!.address,
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
-              style: const TextStyle(
-                color: Color(0xFF6E7A93),
-                fontSize: 11.5,
-              ),
+              style: const TextStyle(color: Color(0xFF6E7A93), fontSize: 11.5),
             ),
           ),
         ],
@@ -283,7 +256,10 @@ class _LocationSearchFieldState extends State<LocationSearchField> {
               padding: const EdgeInsets.symmetric(horizontal: 4),
               child: Text(
                 widget.helperText!,
-                style: const TextStyle(color: Color(0xFFB3541E), fontSize: 11.5),
+                style: const TextStyle(
+                  color: Color(0xFFB3541E),
+                  fontSize: 11.5,
+                ),
               ),
             ),
           ],
@@ -336,11 +312,6 @@ class _QuickActionRow extends StatelessWidget {
   }
 }
 
-/// Shared results-list chrome for a [TripStopLocation] search dropdown —
-/// used by [LocationSearchField] itself (Photon-backed) and reused as-is
-/// by Create Trip's Google-Places-backed stop picker, so both search
-/// experiences look identical regardless of which backend found the
-/// results.
 class LocationResultsDropdown extends StatelessWidget {
   const LocationResultsDropdown({
     super.key,
@@ -402,7 +373,10 @@ class LocationResultsDropdown extends StatelessWidget {
             Expanded(
               child: Text(
                 error!,
-                style: const TextStyle(color: Color(0xFF6E7A93), fontSize: 12.5),
+                style: const TextStyle(
+                  color: Color(0xFF6E7A93),
+                  fontSize: 12.5,
+                ),
               ),
             ),
           ],
@@ -428,7 +402,11 @@ class LocationResultsDropdown extends StatelessWidget {
         return ListTile(
           dense: true,
           visualDensity: VisualDensity.compact,
-          leading: Icon(r.categoryIcon, size: 18, color: const Color(0xFF11998E)),
+          leading: Icon(
+            r.categoryIcon,
+            size: 18,
+            color: const Color(0xFF11998E),
+          ),
           title: Text(
             r.name,
             maxLines: 1,

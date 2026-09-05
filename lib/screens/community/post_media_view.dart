@@ -3,13 +3,6 @@ import 'package:video_player/video_player.dart';
 
 import '../../theme/app_theme.dart';
 
-/// Renders a post's attached photo or video from its Storage URL, sized to
-/// its own aspect ratio (scaled to the card's width) rather than forced
-/// into a fixed-height crop — whatever the poster cropped (for a photo) or
-/// recorded (for a video) is exactly what shows here. Falls back to a
-/// fixed-ratio placeholder while loading/on error, since real dimensions
-/// aren't known yet, and to a static icon if video playback has no backend
-/// on this platform/build (video_player has no desktop implementation).
 class PostMediaView extends StatelessWidget {
   const PostMediaView({
     super.key,
@@ -21,11 +14,6 @@ class PostMediaView extends StatelessWidget {
   final String url;
   final String mediaType;
 
-  /// When set, renders as a fixed [boxSize] x [boxSize] square cropped to
-  /// cover — for a multi-attachment post's carousel, where every tile
-  /// needs the same size regardless of its own aspect ratio. `null` (the
-  /// default, and a single-attachment post's only tile) keeps the normal
-  /// behavior described above: sized to the media's own aspect ratio.
   final double? boxSize;
 
   @override
@@ -176,15 +164,12 @@ class _NetworkVideoState extends State<_NetworkVideo> {
     );
     final size = widget.boxSize;
     if (size == null) {
-      // Sized to the video's own aspect ratio rather than cropped/
-      // stretched into a preset box — VideoPlayer fills whatever box it's
-      // given, so matching the box to `controller.value.aspectRatio` is
-      // enough on its own, no FittedBox/cover needed.
-      return AspectRatio(aspectRatio: controller.value.aspectRatio, child: overlay);
+      return AspectRatio(
+        aspectRatio: controller.value.aspectRatio,
+        child: overlay,
+      );
     }
-    // A carousel tile needs every item the same size regardless of its own
-    // aspect ratio, so this crops to cover instead: fit the video at its
-    // natural size, then let the fixed SizedBox clip whatever spills over.
+
     return SizedBox(
       width: size,
       height: size,

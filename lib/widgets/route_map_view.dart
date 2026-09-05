@@ -8,14 +8,8 @@ import 'current_location_marker.dart';
 const _osmTileUrl = 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
 const _osmUserAgent = 'com.example.travelplanner';
 
-/// Kuala Lumpur — used to center the map when neither [RouteMapView.source]
-/// nor [RouteMapView.destination] is known yet.
 const _malaysiaFallbackCenter = LatLng(3.1390, 101.6869);
 
-/// west,south,east,north — a loose box around all of Malaysia (mirrors
-/// the same bbox used elsewhere for Photon search/`StopMapPicker`), so
-/// none of this app's maps can be panned/zoomed out to see other
-/// countries.
 final _malaysiaBounds = LatLngBounds(
   const LatLng(0.5, 99.5),
   const LatLng(7.5, 119.5),
@@ -23,27 +17,6 @@ final _malaysiaBounds = LatLngBounds(
 
 const _closeZoom = 16.0;
 
-/// Read-only OpenStreetMap view (via flutter_map), constrained to
-/// Malaysia. Renders whichever of [source]/[destination] are known — so
-/// the same widget instance can stay mounted for the Transport screen's
-/// single persistent map area across its whole lifecycle: an empty/
-/// current-location view before both endpoints are picked, then source+
-/// destination markers, then a route polyline once one is available.
-/// Also reused by the full route-details view and the Home dashboard's
-/// map, where a plain search result is "plotted" the same way.
-///
-/// The inner `FlutterMap` is keyed off [source]/[destination]/the
-/// polyline's start+end, so a meaningful change (GPS resolves, a new
-/// place is searched, a different route is selected) tears down and
-/// remounts it with a fresh `initialCenter`/`initialCameraFit` rather
-/// than nudging the already-mounted map via `MapController`.
-/// flutter_map's tile layer only reliably reloads tiles for a new
-/// viewport when the map is (re)built with that viewport from the
-/// start — moving an existing controller straight after a rebuild can
-/// leave the tiles blank until the traveler manually pans/zooms.
-/// Panning/zooming the traveler does themselves (with the same points
-/// still in effect) doesn't change the key, so their manual view isn't
-/// reset by unrelated rebuilds.
 class RouteMapView extends StatelessWidget {
   const RouteMapView({
     super.key,
@@ -61,25 +34,14 @@ class RouteMapView extends StatelessWidget {
   final List<LatLng> polylinePoints;
   final Color polylineColor;
 
-  /// Fixed height for the map. Pass null to instead fill whatever space
-  /// the parent gives it (e.g. inside an `Expanded`) — a plain
-  /// `SizedBox(height: double.infinity)` isn't safe to lay out.
   final double? height;
   final double borderRadius;
 
-  /// When true, [source] is rendered as the pulsing "you are here" dot
-  /// ([CurrentLocationMarker]) instead of the plain origin pin — for
-  /// screens where `source` really is the traveler's live GPS position
-  /// rather than a route's starting point.
   final bool sourceIsCurrentLocation;
 
   String _pointKey(LatLng p) =>
       '${p.latitude.toStringAsFixed(5)},${p.longitude.toStringAsFixed(5)}';
 
-  /// A cheap signature of "what should the camera be framing" — the
-  /// full polyline is represented by just its length + endpoints rather
-  /// than scanned point-by-point, since only a materially different
-  /// route (not e.g. a rebuild with the same one) should force a remount.
   String get _cameraKey {
     final parts = <String>[
       if (source != null) 's:${_pointKey(source!)}',
@@ -92,9 +54,12 @@ class RouteMapView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final validSource = source != null && isValidLatLng(source!) ? source : null;
-    final validDestination =
-        destination != null && isValidLatLng(destination!) ? destination : null;
+    final validSource = source != null && isValidLatLng(source!)
+        ? source
+        : null;
+    final validDestination = destination != null && isValidLatLng(destination!)
+        ? destination
+        : null;
     final validPolylinePoints = polylinePoints.where(isValidLatLng).toList();
 
     final points = [?validSource, ?validDestination, ...validPolylinePoints];
@@ -141,8 +106,7 @@ class RouteMapView extends StatelessWidget {
                 point: validSource,
                 width: sourceIsCurrentLocation ? 54 : 34,
                 height: sourceIsCurrentLocation ? 54 : 34,
-                // A circular GPS dot is centered on its coordinate, while
-                // a pin must be anchored at its tip.
+
                 alignment: sourceIsCurrentLocation
                     ? Alignment.center
                     : Alignment.bottomCenter,
@@ -159,9 +123,7 @@ class RouteMapView extends StatelessWidget {
                 point: validDestination,
                 width: 40,
                 height: 40,
-                // Keep the location's coordinate at the pin tip rather than
-                // the centre of the icon, which is especially visible when
-                // zoomed out.
+
                 alignment: Alignment.bottomCenter,
                 child: const Icon(
                   Icons.location_on_rounded,

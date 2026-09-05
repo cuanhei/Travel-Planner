@@ -7,11 +7,6 @@ import '../../utils/time_ago.dart';
 import '../../widgets/user_avatar.dart';
 import 'post_media_view.dart';
 
-/// Cover-gradient key options a post can be tagged with, keyed by the text
-/// value stored in `posts.cover_gradient` — no longer rendered anywhere
-/// (a post with no photo/video just shows no cover), but the column is
-/// still `not null` on `posts`, so [AddPostScreen] still picks one of
-/// these keys to submit.
 const communityGradients = <String, List<Color>>{
   'horizon': AppColors.horizon,
   'dusk': AppColors.dusk,
@@ -19,36 +14,21 @@ const communityGradients = <String, List<Color>>{
   'lagoon': AppColors.lagoon,
 };
 
-/// Reaction types a post can carry, keyed to the emoji shown for each —
-/// matches the `reaction_type` check constraint on `post_likes`. Order here
-/// is the order they appear in both the picker and the summary chips.
 const _reactionEmojis = <String, String>{
   'like': '👍',
   'love': '❤️',
   'wow': '😮',
 };
 
-/// Explicit color-emoji styling for the reaction emoji above:
-/// - `fontFamilyFallback` forces a real color-emoji font — without it,
-///   some renderers (seen on both Flutter web and Android) fall back to a
-///   plain monochrome glyph for characters like ❤️ (which has both a
-///   text-style and an emoji-style form) instead of its full-color form.
-/// - `color: Colors.black` pins full opacity. Text without an explicit
-///   color inherits the ambient `DefaultTextStyle`, and in [_openPicker]
-///   that ancestor is a `PopupMenuItem` deliberately marked
-///   `enabled: false` (so it doesn't itself intercept taps meant for the
-///   emoji buttons inside it) — Flutter renders disabled menu items with
-///   a dimmed, translucent text style, which otherwise washes out even a
-///   correctly-colored emoji glyph. The color's RGB is irrelevant to a
-///   true color-glyph emoji (that comes from the font), only its opacity
-///   matters here.
 const _emojiTextStyle = TextStyle(
   color: Colors.black,
-  fontFamilyFallback: ['Noto Color Emoji', 'Apple Color Emoji', 'Segoe UI Emoji'],
+  fontFamilyFallback: [
+    'Noto Color Emoji',
+    'Apple Color Emoji',
+    'Segoe UI Emoji',
+  ],
 );
 
-/// One Community post card — author, place, caption, cover, reactions, and
-/// the comment action row. Used by the feed (`CommunityTab`).
 class PostCard extends StatelessWidget {
   const PostCard({
     super.key,
@@ -61,19 +41,11 @@ class PostCard extends StatelessWidget {
 
   final CommunityPost post;
 
-  /// Called with the reaction type to set ('like'/'love'/'wow'), or `null`
-  /// to clear the current user's reaction.
   final ValueChanged<String?> onReact;
   final VoidCallback onComment;
 
-  /// Opens the post for editing. Only ever passed by callers that also
-  /// checked `post.authorId` against the signed-in user — this widget does
-  /// the same check itself below to decide whether to show the edit icon
-  /// at all, so a `null` [onEdit] on someone else's post never matters.
   final VoidCallback? onEdit;
 
-  /// Deletes the post — only shown alongside [onEdit], same ownership
-  /// check.
   final VoidCallback? onDelete;
 
   @override
@@ -217,12 +189,6 @@ class PostCard extends StatelessWidget {
   }
 }
 
-/// A post's attached photos/videos — [media] itself is capped at
-/// [CommunityService.maxPostMedia] by [AddPostScreen]. A single attachment
-/// renders exactly as before (its own aspect ratio, scaled to the card's
-/// width); two or three become a swipeable, equally-sized-tile carousel
-/// with a dot indicator, since a `PageView` needs one fixed height for
-/// every page regardless of each attachment's own aspect ratio.
 class _PostMediaGallery extends StatefulWidget {
   const _PostMediaGallery({required this.media});
 
@@ -259,9 +225,7 @@ class _PostMediaGalleryState extends State<_PostMediaGallery> {
           borderRadius: BorderRadius.circular(16),
           child: AspectRatio(
             aspectRatio: 1,
-            // The square side length, read via LayoutBuilder rather than
-            // handed a magic `double.infinity` — PostMediaView needs a
-            // concrete pixel size to crop each tile to cover.
+
             child: LayoutBuilder(
               builder: (context, constraints) => PageView.builder(
                 controller: _pageController,
@@ -300,8 +264,6 @@ class _PostMediaGalleryState extends State<_PostMediaGallery> {
   }
 }
 
-/// Small read-only "👍 3 ❤️ 1" row summarizing every reaction type that has
-/// at least one count, in [_reactionEmojis] order.
 class _ReactionSummary extends StatelessWidget {
   const _ReactionSummary({required this.counts});
 
@@ -318,7 +280,10 @@ class _ReactionSummary extends StatelessWidget {
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Text(entry.value, style: _emojiTextStyle.copyWith(fontSize: 13)),
+                  Text(
+                    entry.value,
+                    style: _emojiTextStyle.copyWith(fontSize: 13),
+                  ),
                   const SizedBox(width: 3),
                   Text(
                     '${counts[entry.key]}',
@@ -336,19 +301,6 @@ class _ReactionSummary extends StatelessWidget {
   }
 }
 
-/// The tappable reaction control: shows the user's current reaction (emoji
-/// + name) or a neutral "React" prompt when they haven't reacted. A plain
-/// tap toggles the default 👍 on/off; a long-press opens a small emoji
-/// picker (like/love/wow) at the touch point to pick — or switch to — a
-/// specific reaction.
-///
-/// Tracks its own display locally and updates it the instant you tap,
-/// rather than waiting for [myReaction] to round-trip back through the
-/// feed/post stream — Realtime propagation for `post_likes` changes isn't
-/// reliable enough yet to drive this from props alone (see
-/// CommunityService.setReaction). [didUpdateWidget] still adopts a fresh
-/// [myReaction] if one arrives (e.g. once Realtime is fixed, or the
-/// reaction was changed from another device).
 class _ReactionButton extends StatefulWidget {
   const _ReactionButton({required this.myReaction, required this.onReact});
 
@@ -431,12 +383,9 @@ class _ReactionButtonState extends State<_ReactionButton> {
         : 'React';
 
     return GestureDetector(
-      // A plain tap is a simple on/off toggle: react 👍 if you haven't,
-      // clear whatever reaction you have if you already did. Picking a
-      // *different* reaction type is what long-press is for (below) — that
-      // already sets it directly in one tap, no need to clear first.
       onTap: () => _react(active ? null : 'like'),
-      onLongPressStart: (details) => _openPicker(context, details.globalPosition),
+      onLongPressStart: (details) =>
+          _openPicker(context, details.globalPosition),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -463,7 +412,11 @@ class _ReactionButtonState extends State<_ReactionButton> {
 }
 
 class _PostAction extends StatelessWidget {
-  const _PostAction({required this.icon, required this.label, required this.onTap});
+  const _PostAction({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+  });
 
   final IconData icon;
   final String label;

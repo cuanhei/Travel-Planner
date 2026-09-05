@@ -6,9 +6,6 @@ import '../../theme/app_theme.dart';
 import '../../utils/chat_time.dart';
 import '../../widgets/detail_header.dart';
 
-/// Full activity feed for a trip's group — currently just membership
-/// changes (joined/left), the same events Group Chat shows inline as
-/// system messages, opened from its "⋮" > History menu entry.
 class GroupActivityLogScreen extends StatelessWidget {
   const GroupActivityLogScreen({super.key, required this.tripId});
 

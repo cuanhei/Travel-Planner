@@ -2,8 +2,6 @@ import 'package:flutter/material.dart';
 
 import '../theme/app_theme.dart';
 
-/// Shadowed rounded card container used throughout interior screens for
-/// list rows, info panels, and grouped content.
 class SimpleCard extends StatelessWidget {
   const SimpleCard({
     super.key,

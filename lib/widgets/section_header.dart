@@ -3,8 +3,6 @@ import 'package:flutter/material.dart';
 import '../services/locale_service.dart';
 import '../theme/app_theme.dart';
 
-/// A section title with an optional "See all" action, used to introduce
-/// horizontal carousels and list sections across the dashboard and tabs.
 class SectionHeader extends StatelessWidget {
   const SectionHeader({
     super.key,

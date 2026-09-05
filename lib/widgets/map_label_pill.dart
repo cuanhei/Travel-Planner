@@ -1,7 +1,5 @@
 import 'package:flutter/material.dart';
 
-/// Small white label chip overlaid on the app's stylized map surfaces,
-/// e.g. "Tap pins to select" or "You are here · Komtar, George Town".
 class MapLabelPill extends StatelessWidget {
   const MapLabelPill({super.key, required this.text});
 

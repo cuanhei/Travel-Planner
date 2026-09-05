@@ -16,11 +16,6 @@ const _stopMarkerRed = Color(0xFFE53935);
 const _stopMarkerBlue = Color(0xFF1E88E5);
 const _focusZoom = 16.0;
 
-/// Read-only map of every stop already saved to one trip — NOT the
-/// Transport module's routing/navigation map. No route calculation, no
-/// polylines, no external place search: this only plots
-/// [TripStopLocation]s already stored for [tripId] and lets the traveler
-/// find one by name among them.
 class TripMapScreen extends StatefulWidget {
   const TripMapScreen({super.key, required this.tripId});
 
@@ -39,13 +34,8 @@ class _TripMapScreenState extends State<TripMapScreen> {
   bool _loading = true;
   String? _error;
 
-  /// Marker color/popup state — set either by picking a stop from the
-  /// search dropdown or by tapping its marker directly on the map.
   TripStopLocation? _selectedMapStop;
 
-  /// Non-null only right after a *search* selection — drives the map
-  /// zooming to that stop. A direct marker tap updates [_selectedMapStop]
-  /// without touching this, since the tapped marker is already visible.
   LatLng? _cameraFocus;
 
   String _searchQuery = '';
@@ -115,8 +105,6 @@ class _TripMapScreenState extends State<TripMapScreen> {
   }
 
   void _selectFromMarker(TripStopLocation stop) {
-    // Tapping the active marker again is an explicit deselect action.
-    // Reuse the normal clear path so a prior search focus is cleared too.
     if (_selectedMapStop == stop) {
       _clearSearch();
       return;
@@ -190,8 +178,7 @@ class _TripMapScreenState extends State<TripMapScreen> {
                                         focusNode: _searchFocusNode,
                                         onChanged: _onQueryChanged,
                                         onClear: _clearSearch,
-                                        hasSelection:
-                                            _selectedMapStop != null,
+                                        hasSelection: _selectedMapStop != null,
                                       ),
                                       if (_showDropdown &&
                                           _selectedMapStop == null) ...[
@@ -233,9 +220,6 @@ class _TripStopsMap extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // A saved stop is always plotted from the values stored in the database:
-    // `LatLng` takes latitude first and longitude second. Discard malformed
-    // data here instead of letting one bad row skew the initial camera fit.
     final plottedStops = [
       for (final stop in stops)
         if (isValidLatLng(LatLng(stop.latitude, stop.longitude))) stop,
@@ -248,11 +232,6 @@ class _TripStopsMap extends StatelessWidget {
         ? cameraFocus
         : null;
 
-    // Keyed on whether/where the camera should be focused, so selecting
-    // a stop via search (or clearing back to "fit everything") remounts
-    // the map with a correct initial camera — flutter_map's tile layer
-    // doesn't reliably reload tiles for a new viewport when nudged via
-    // MapController alone after the map is already mounted.
     final cameraKey = focus != null
         ? 'focus:${focus.latitude.toStringAsFixed(5)},${focus.longitude.toStringAsFixed(5)}'
         : 'all:${points.map((p) => '${p.latitude.toStringAsFixed(5)},${p.longitude.toStringAsFixed(5)}').join('|')}';
@@ -261,8 +240,7 @@ class _TripStopsMap extends StatelessWidget {
       key: ValueKey(cameraKey),
       options: MapOptions(
         initialCenter: focus ?? bounds?.center ?? malaysiaFallbackCenter,
-        // Only actually used when initialCameraFit is null (falls back to
-        // the fit's own computed zoom otherwise).
+
         initialZoom: focus != null || bounds == null || points.length == 1
             ? _focusZoom
             : 12,
@@ -273,13 +251,7 @@ class _TripStopsMap extends StatelessWidget {
                 maxZoom: _focusZoom,
               )
             : null,
-        // No explicit minZoom here on purpose: MapOptions.minZoom acts as a
-        // hard floor on CameraFit.bounds's own computed zoom (it's clamped
-        // up to at least minZoom), so a fixed floor previously fought the
-        // "fit every stop" goal above whenever stops were spread wider than
-        // that floor allowed, clipping some out of the initial view.
-        // CameraConstraint.contain below already stops the camera from
-        // zooming/panning out past Malaysia, so no extra floor is needed.
+
         cameraConstraint: CameraConstraint.contain(bounds: malaysiaBounds),
         interactionOptions: const InteractionOptions(
           flags: InteractiveFlag.all & ~InteractiveFlag.rotate,
@@ -295,10 +267,7 @@ class _TripStopsMap extends StatelessWidget {
             for (final (index, stop) in plottedStops.indexed)
               Marker(
                 point: LatLng(stop.latitude, stop.longitude),
-                // A compact circular marker has its geographic coordinate at
-                // its exact centre. Unlike a tall pin/label widget, its
-                // visual position therefore cannot appear to drift as the
-                // camera zoom changes.
+
                 width: 38,
                 height: 38,
                 alignment: Alignment.center,
@@ -335,8 +304,6 @@ class _TripStopMarker extends StatelessWidget {
       clipBehavior: Clip.none,
       alignment: Alignment.center,
       children: [
-        // The label deliberately overflows the fixed-size marker. That keeps
-        // the marker's centre locked to the saved latitude/longitude.
         if (isSelected)
           Positioned(
             left: -72,
@@ -437,7 +404,11 @@ class _TripStopSearchField extends StatelessWidget {
         ),
         child: Row(
           children: [
-            const Icon(Icons.search_rounded, color: Color(0xFF6E7A93), size: 20),
+            const Icon(
+              Icons.search_rounded,
+              color: Color(0xFF6E7A93),
+              size: 20,
+            ),
             const SizedBox(width: 10),
             Expanded(
               child: TextField(
@@ -613,4 +584,3 @@ class _NoStopsState extends StatelessWidget {
     );
   }
 }
-

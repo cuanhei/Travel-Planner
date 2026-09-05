@@ -1,12 +1,5 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 
-/// Maps a raw Supabase [AuthException] to a short, user-facing message.
-///
-/// Supabase's `message` strings are written for developers (e.g. "Invalid
-/// login credentials"), and its `code` field (documented at
-/// https://supabase.com/docs/guides/auth/debugging/error-codes) is stable
-/// across message wording changes, so switch on that first and fall back to
-/// pattern-matching the message, then the raw message itself.
 String friendlyAuthError(AuthException e) {
   switch (e.code) {
     case 'user_already_exists':
@@ -59,9 +52,6 @@ String friendlyAuthError(AuthException e) {
   return e.message;
 }
 
-/// True for a wrong-password/wrong-credentials error, regardless of the
-/// exact message wording (which changes across Supabase versions — the
-/// `code` field doesn't).
 bool isInvalidCredentials(AuthException e) =>
     e.code == 'invalid_credentials' ||
     e.message.toLowerCase().contains('invalid login credentials');

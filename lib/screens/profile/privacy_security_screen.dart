@@ -12,11 +12,6 @@ import '../auth_screen.dart';
 import 'login_activity_screen.dart';
 import 'view_profile_screen.dart';
 
-/// Privacy preferences are UI-only; Two-Factor Authentication is wired to
-/// real Supabase email-OTP 2FA (see `AuthService`'s `emailTwoFactorEnabled`/
-/// `setEmailTwoFactorEnabled`/`*LoginEmailCode*` methods and
-/// `EmailTwoFactorScreen`) — a 6-digit code is emailed at sign-in whenever
-/// the user has turned this on.
 class PrivacySecurityScreen extends StatefulWidget {
   const PrivacySecurityScreen({super.key});
 
@@ -69,11 +64,7 @@ class _PrivacySecurityScreenState extends State<PrivacySecurityScreen> {
       await AuthService.instance.setEmailTwoFactorEnabled(enable);
       if (!mounted) return;
       setState(() => _twoFactorEnabled = enable);
-      _showSnack(
-        enable
-            ? tr('auth_2fa_now_on')
-            : tr('auth_2fa_now_off'),
-      );
+      _showSnack(enable ? tr('auth_2fa_now_on') : tr('auth_2fa_now_off'));
     } on AuthException catch (e) {
       _showSnack(friendlyAuthError(e), error: true);
     } catch (_) {
@@ -217,9 +208,7 @@ class _PrivacySecurityScreenState extends State<PrivacySecurityScreen> {
                     title: tr('auth_login_activity_title'),
                     subtitle: tr('auth_login_activity_subtitle'),
                     onTap: () => Navigator.of(context).push(
-                      MaterialPageRoute(
-                        builder: (_) => LoginActivityScreen(),
-                      ),
+                      MaterialPageRoute(builder: (_) => LoginActivityScreen()),
                     ),
                   ),
                   const SizedBox(height: 20),

@@ -15,25 +15,13 @@ import '../explore/explore_tab.dart' show categories;
 import 'crop_image_screen.dart';
 import 'post_card.dart' show communityGradients;
 
-/// Accepted formats for a post's photo/video attachments. [FileType.media]
-/// already restricts the native picker to images/videos, but that filter
-/// isn't guaranteed on every platform, so the extension is checked again
-/// against these explicit allow-lists before a pick is accepted.
 const _imageExtensions = {'jpg', 'jpeg', 'png', 'gif', 'webp', 'heic', 'heif'};
 const _videoExtensions = {'mp4', 'mov', 'webm', 'm4v', 'avi', 'mkv', '3gp'};
 
-/// Image formats the `image` package (behind `crop_your_image`) can decode.
-/// HEIC/HEIF are accepted for posting but skip the crop step — Flutter
-/// itself can't preview them either without a platform-specific codec.
 const _croppableExtensions = {'jpg', 'jpeg', 'png', 'gif', 'webp'};
 
-/// Where a post's media came from — offered as a chooser sheet on mobile
-/// (camera photo, camera video, or gallery); desktop/web skip straight to
-/// gallery since `image_picker` has no camera implementation there.
 enum _MediaSource { camera, cameraVideo, gallery }
 
-/// One picked file, normalized to bytes regardless of which of the three
-/// [_MediaSource]s it came from.
 typedef _PickedMedia = ({
   Uint8List bytes,
   String extension,
@@ -41,16 +29,6 @@ typedef _PickedMedia = ({
   bool isVideo,
 });
 
-/// "New post" composer for the Community feed — caption, location, a
-/// category (sets the icon), and up to [CommunityService.maxPostMedia]
-/// photos/videos, with a live preview of the resulting post card. Posts to
-/// `posts` on submit; a post with no photo/video falls back to a gradient
-/// cover (see [communityGradients]).
-///
-/// Doubles as the editor when [existingPost] is passed (only ever by the
-/// post's own author — [PostCard] only shows the edit affordance when
-/// `post.authorId` matches the signed-in user): fields are pre-filled and
-/// [CommunityService.updatePost] is called instead of [addPost] on submit.
 class AddPostScreen extends StatefulWidget {
   const AddPostScreen({super.key, this.existingPost});
 
@@ -72,9 +50,6 @@ class _AddPostScreenState extends State<AddPostScreen> {
 
   bool get _isEditing => widget.existingPost != null;
 
-  /// Whether leaving now would lose something — an untouched "New Post"
-  /// (or an edit where nothing was actually changed) can close silently,
-  /// anything else prompts via [_confirmDiscard].
   bool get _hasUnsavedChanges {
     final existing = widget.existingPost;
     if (existing == null) {
@@ -97,10 +72,6 @@ class _AddPostScreenState extends State<AddPostScreen> {
     return true;
   }
 
-  /// "Discard changes?" prompt shown when the back button/gesture fires
-  /// while [_hasUnsavedChanges] — doesn't gate [_submit]'s own
-  /// `Navigator.pop`, since that's an imperative pop (bypasses `PopScope`
-  /// entirely, unlike the back button's `maybePop`).
   Future<bool> _confirmDiscard() async {
     final confirmed = await showDialog<bool>(
       context: context,
@@ -140,8 +111,6 @@ class _AddPostScreenState extends State<AddPostScreen> {
 
   Map<String, dynamic>? _myProfile;
 
-  /// Freshly picked media, local and not yet uploaded — parallel lists
-  /// (index `i` is one attachment: bytes/extension/type/filename).
   final List<Uint8List> _mediaBytesList = [];
   final List<String> _mediaExtensions = [];
   final List<String> _mediaTypes = [];
@@ -149,21 +118,12 @@ class _AddPostScreenState extends State<AddPostScreen> {
   bool _pickingMedia = false;
   String? _mediaError;
 
-  /// The post's media at load time, in edit mode — individually removable
-  /// via [_removeExistingMedia], separately from freshly picked
-  /// [_mediaBytesList]. Empty in create mode, where there's nothing to
-  /// start from.
   late final List<PostMedia> _existingMedia = List.of(
     widget.existingPost?.media ?? const [],
   );
 
   int get _totalMediaCount => _existingMedia.length + _mediaBytesList.length;
 
-  /// Picks a source (camera photo/video, or gallery — or straight to
-  /// gallery where there's no camera to offer), normalizes whatever comes
-  /// back to bytes via [_captureFromCamera]/[_pickFromGallery], then routes
-  /// a croppable image through [CropImageScreen] before appending it to
-  /// the attachment list.
   Future<void> _pickMedia() async {
     if (_totalMediaCount >= _maxMedia) return;
 
@@ -219,8 +179,6 @@ class _AddPostScreenState extends State<AddPostScreen> {
     }
   }
 
-  /// Camera capture via `image_picker` — a photo (always JPEG) or a video,
-  /// per [isVideo].
   Future<_PickedMedia?> _captureFromCamera({required bool isVideo}) async {
     final picker = ImagePicker();
     if (isVideo) {
@@ -247,8 +205,6 @@ class _AddPostScreenState extends State<AddPostScreen> {
     );
   }
 
-  /// Gallery pick via `file_picker` — the original single-picker flow, now
-  /// just one of [_MediaSource]'s options rather than the only one.
   Future<_PickedMedia?> _pickFromGallery() async {
     final file = await FilePicker.pickFile(type: FileType.media);
     if (file == null) return null;
@@ -684,13 +640,6 @@ class _PostPreview extends StatelessWidget {
   }
 }
 
-/// Horizontal row of picked-media thumbnails (each removable) plus a
-/// trailing "add" tile, for [AddPostScreen]'s photo/video attachments.
-/// [existingMedia] (network, edit mode only) come first, then the freshly
-/// picked, local [newBytes]/[newTypes]/[newFileNames] — each with its own
-/// remove callback since they're removed from different lists. A video
-/// tile (existing or new) shows a filename/icon card rather than a live
-/// decode, matching the single-attachment picker this replaced.
 class _MediaPicker extends StatelessWidget {
   const _MediaPicker({
     required this.existingMedia,
@@ -925,9 +874,6 @@ class _InputBox extends StatelessWidget {
   }
 }
 
-/// Bottom sheet offering "Take Photo" / "Record Video" / "Choose from
-/// Gallery", shown before [_AddPostScreenState._pickMedia] opens the
-/// camera or the file picker.
 class _MediaSourceSheet extends StatelessWidget {
   const _MediaSourceSheet();
 

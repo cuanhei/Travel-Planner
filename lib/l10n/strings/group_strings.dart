@@ -1,5 +1,3 @@
-/// Group Travel module translations (Group Dashboard, Shared Itinerary,
-/// Group Chat, Voting). Keys are prefixed `group_`.
 const Map<String, Map<String, String>> groupStrings = {
   'en': {
     'group_dashboard_title': 'Group Travel',
@@ -41,7 +39,8 @@ const Map<String, Map<String, String>> groupStrings = {
     'group_join_trip_title': 'Join a Trip',
     'group_join_trip_subtitle': "Enter a friend's invite code",
     'group_invite_code_label': 'Invite Code',
-    'group_invite_code_ask': 'Ask the trip organizer for their 6-character code',
+    'group_invite_code_ask':
+        'Ask the trip organizer for their 6-character code',
     'group_joined_snackbar': 'Joined Penang Adventure!',
     'group_join_trip_button': 'Join Trip',
     'group_edit_poll_title': 'Edit Poll',
@@ -64,7 +63,8 @@ const Map<String, Map<String, String>> groupStrings = {
     'group_new_poll_button': 'New Poll',
     'group_votes_suffix': 'votes',
     'group_remove_member_prefix': 'Remove',
-    'group_remove_member_confirm_body': "They'll be removed from the group and lose access to this trip.",
+    'group_remove_member_confirm_body':
+        "They'll be removed from the group and lose access to this trip.",
     'group_remove_button': 'Remove',
     'group_chat_action_subtitle': 'Chat with your travel group',
     'group_member_singular': 'member',
@@ -74,8 +74,10 @@ const Map<String, Map<String, String>> groupStrings = {
     'group_reason_hint_optional': 'Let them know why (optional)',
     'group_decline_button': 'Decline',
     'group_invite_step3_title': 'You approve their request',
-    'group_invite_step3_subtitle': "They appear here as a join request — approve it and they're in the group.",
-    'group_request_sent_snackbar': 'Request sent! Waiting for the organizer to approve.',
+    'group_invite_step3_subtitle':
+        "They appear here as a join request — approve it and they're in the group.",
+    'group_request_sent_snackbar':
+        'Request sent! Waiting for the organizer to approve.',
     'group_your_requests_title': 'Your Requests',
     'group_status_approved': 'Approved',
     'group_status_declined': 'Declined',
@@ -93,8 +95,10 @@ const Map<String, Map<String, String>> groupStrings = {
     'group_action_voting_subtitle': '1 tinjauan terbuka',
     'group_chat_subtitle': 'Pengembaraan Pulau Pinang',
     'group_message_hint': 'Hantar mesej kepada kumpulan…',
-    'group_msg_gurney_day': 'Patutkah kita ke Gurney Drive pada hari ke-2 atau hari ke-3?',
-    'group_msg_day2_reason': 'Hari ke-2 lebih sesuai, kurang sesak pada hari bekerja',
+    'group_msg_gurney_day':
+        'Patutkah kita ke Gurney Drive pada hari ke-2 atau hari ke-3?',
+    'group_msg_day2_reason':
+        'Hari ke-2 lebih sesuai, kurang sesak pada hari bekerja',
     'group_msg_sounds_good': 'Bagus, sedang kemas kini itinerari sekarang 👍',
     'group_msg_chew_jetty': 'Bolehkah kita tambah Chew Jetty di suatu tempat?',
     'group_invite_title': 'Jemput Ahli',
@@ -121,7 +125,8 @@ const Map<String, Map<String, String>> groupStrings = {
     'group_join_trip_title': 'Sertai Perjalanan',
     'group_join_trip_subtitle': 'Masukkan kod jemputan rakan anda',
     'group_invite_code_label': 'Kod Jemputan',
-    'group_invite_code_ask': 'Minta penganjur perjalanan untuk kod 6-aksara mereka',
+    'group_invite_code_ask':
+        'Minta penganjur perjalanan untuk kod 6-aksara mereka',
     'group_joined_snackbar': 'Berjaya menyertai Pengembaraan Pulau Pinang!',
     'group_join_trip_button': 'Sertai Perjalanan',
     'group_edit_poll_title': 'Edit Tinjauan',
@@ -138,13 +143,16 @@ const Map<String, Map<String, String>> groupStrings = {
     'group_delete_poll_title': 'Padam tinjauan ini?',
     'group_delete_poll_content_suffix': 'akan dibuang untuk kumpulan.',
     'group_delete_poll_button': 'Padam Tinjauan',
-    'group_voting_subtitle': 'Buat keputusan bersama tentang pilihan perjalanan',
+    'group_voting_subtitle':
+        'Buat keputusan bersama tentang pilihan perjalanan',
     'group_empty_polls_title': 'Belum ada tinjauan',
-    'group_empty_polls_subtitle': 'Mulakan tinjauan untuk membuat keputusan bersama.',
+    'group_empty_polls_subtitle':
+        'Mulakan tinjauan untuk membuat keputusan bersama.',
     'group_new_poll_button': 'Tinjauan Baharu',
     'group_votes_suffix': 'undi',
     'group_remove_member_prefix': 'Alih Keluar',
-    'group_remove_member_confirm_body': 'Mereka akan dialih keluar daripada kumpulan dan kehilangan akses kepada perjalanan ini.',
+    'group_remove_member_confirm_body':
+        'Mereka akan dialih keluar daripada kumpulan dan kehilangan akses kepada perjalanan ini.',
     'group_remove_button': 'Alih Keluar',
     'group_chat_action_subtitle': 'Berbual dengan kumpulan perjalanan anda',
     'group_member_singular': 'ahli',
@@ -154,8 +162,10 @@ const Map<String, Map<String, String>> groupStrings = {
     'group_reason_hint_optional': 'Beritahu mereka sebabnya (pilihan)',
     'group_decline_button': 'Tolak',
     'group_invite_step3_title': 'Anda meluluskan permintaan mereka',
-    'group_invite_step3_subtitle': 'Mereka muncul di sini sebagai permintaan menyertai — luluskan dan mereka akan berada dalam kumpulan.',
-    'group_request_sent_snackbar': 'Permintaan dihantar! Menunggu kelulusan penganjur.',
+    'group_invite_step3_subtitle':
+        'Mereka muncul di sini sebagai permintaan menyertai — luluskan dan mereka akan berada dalam kumpulan.',
+    'group_request_sent_snackbar':
+        'Permintaan dihantar! Menunggu kelulusan penganjur.',
     'group_your_requests_title': 'Permintaan Anda',
     'group_status_approved': 'Diluluskan',
     'group_status_declined': 'Ditolak',
@@ -454,7 +464,8 @@ const Map<String, Map<String, String>> groupStrings = {
     'group_new_poll_button': 'โพลใหม่',
     'group_votes_suffix': 'โหวต',
     'group_remove_member_prefix': 'นำออก',
-    'group_remove_member_confirm_body': 'พวกเขาจะถูกนำออกจากกลุ่มและสูญเสียสิทธิ์เข้าถึงทริปนี้',
+    'group_remove_member_confirm_body':
+        'พวกเขาจะถูกนำออกจากกลุ่มและสูญเสียสิทธิ์เข้าถึงทริปนี้',
     'group_remove_button': 'นำออก',
     'group_chat_action_subtitle': 'แชทกับกลุ่มเดินทางของคุณ',
     'group_member_singular': 'สมาชิก',
@@ -464,7 +475,8 @@ const Map<String, Map<String, String>> groupStrings = {
     'group_reason_hint_optional': 'บอกเหตุผลให้พวกเขาทราบ (ไม่บังคับ)',
     'group_decline_button': 'ปฏิเสธ',
     'group_invite_step3_title': 'คุณอนุมัติคำขอของพวกเขา',
-    'group_invite_step3_subtitle': 'พวกเขาจะปรากฏที่นี่เป็นคำขอเข้าร่วม — อนุมัติแล้วพวกเขาจะอยู่ในกลุ่ม',
+    'group_invite_step3_subtitle':
+        'พวกเขาจะปรากฏที่นี่เป็นคำขอเข้าร่วม — อนุมัติแล้วพวกเขาจะอยู่ในกลุ่ม',
     'group_request_sent_snackbar': 'ส่งคำขอแล้ว! กำลังรอผู้จัดการอนุมัติ',
     'group_your_requests_title': 'คำขอของคุณ',
     'group_status_approved': 'อนุมัติแล้ว',
@@ -483,7 +495,8 @@ const Map<String, Map<String, String>> groupStrings = {
     'group_action_voting_subtitle': '1 cuộc bình chọn đang mở',
     'group_chat_subtitle': 'Penang Adventure',
     'group_message_hint': 'Nhắn tin cho nhóm…',
-    'group_msg_gurney_day': 'Chúng ta nên đi Gurney Drive vào ngày 2 hay ngày 3?',
+    'group_msg_gurney_day':
+        'Chúng ta nên đi Gurney Drive vào ngày 2 hay ngày 3?',
     'group_msg_day2_reason': 'Ngày 2 tốt hơn, ít đông vào ngày thường',
     'group_msg_sounds_good': 'Nghe hay đấy, mình đang cập nhật lịch trình 👍',
     'group_msg_chew_jetty': 'Chúng ta có thể thêm Chew Jetty vào đâu đó không?',
@@ -534,7 +547,8 @@ const Map<String, Map<String, String>> groupStrings = {
     'group_new_poll_button': 'Cuộc Bình chọn Mới',
     'group_votes_suffix': 'phiếu bầu',
     'group_remove_member_prefix': 'Xóa',
-    'group_remove_member_confirm_body': 'Họ sẽ bị xóa khỏi nhóm và mất quyền truy cập vào chuyến đi này.',
+    'group_remove_member_confirm_body':
+        'Họ sẽ bị xóa khỏi nhóm và mất quyền truy cập vào chuyến đi này.',
     'group_remove_button': 'Xóa',
     'group_chat_action_subtitle': 'Trò chuyện với nhóm du lịch của bạn',
     'group_member_singular': 'thành viên',
@@ -544,8 +558,10 @@ const Map<String, Map<String, String>> groupStrings = {
     'group_reason_hint_optional': 'Cho họ biết lý do (không bắt buộc)',
     'group_decline_button': 'Từ chối',
     'group_invite_step3_title': 'Bạn phê duyệt yêu cầu của họ',
-    'group_invite_step3_subtitle': 'Họ sẽ xuất hiện ở đây dưới dạng yêu cầu tham gia — phê duyệt để họ vào nhóm.',
-    'group_request_sent_snackbar': 'Đã gửi yêu cầu! Đang chờ người tổ chức phê duyệt.',
+    'group_invite_step3_subtitle':
+        'Họ sẽ xuất hiện ở đây dưới dạng yêu cầu tham gia — phê duyệt để họ vào nhóm.',
+    'group_request_sent_snackbar':
+        'Đã gửi yêu cầu! Đang chờ người tổ chức phê duyệt.',
     'group_your_requests_title': 'Yêu Cầu Của Bạn',
     'group_status_approved': 'Đã duyệt',
     'group_status_declined': 'Đã từ chối',
@@ -563,10 +579,13 @@ const Map<String, Map<String, String>> groupStrings = {
     'group_action_voting_subtitle': '1 polling terbuka',
     'group_chat_subtitle': 'Penang Adventure',
     'group_message_hint': 'Kirim pesan ke grup…',
-    'group_msg_gurney_day': 'Sebaiknya kita ke Gurney Drive di hari ke-2 atau hari ke-3?',
+    'group_msg_gurney_day':
+        'Sebaiknya kita ke Gurney Drive di hari ke-2 atau hari ke-3?',
     'group_msg_day2_reason': 'Hari ke-2 lebih baik, lebih sepi di hari kerja',
-    'group_msg_sounds_good': 'Kedengarannya bagus, sedang memperbarui itinerari sekarang 👍',
-    'group_msg_chew_jetty': 'Bisakah kita tambahkan Chew Jetty di suatu tempat?',
+    'group_msg_sounds_good':
+        'Kedengarannya bagus, sedang memperbarui itinerari sekarang 👍',
+    'group_msg_chew_jetty':
+        'Bisakah kita tambahkan Chew Jetty di suatu tempat?',
     'group_invite_title': 'Undang Anggota',
     'group_invite_subtitle_prefix': 'Tambahkan seseorang ke',
     'group_invite_code_badge': 'KODE UNDANGAN GRUP',
@@ -583,14 +602,16 @@ const Map<String, Map<String, String>> groupStrings = {
     'group_step1_subtitle':
         'Kirim ke teman Anda dengan cara apa pun yang Anda suka — chat, teks, atau langsung.',
     'group_step2_title': 'Mereka memasukkannya di aplikasi',
-    'group_step2_subtitle': 'Dari "Gabung Perjalanan", mereka mengetik kode 6 karakter.',
+    'group_step2_subtitle':
+        'Dari "Gabung Perjalanan", mereka mengetik kode 6 karakter.',
     'group_step3_title': 'Mereka ditambahkan secara otomatis',
     'group_step3_subtitle':
         'Teman Anda akan muncul di grup dan dapat melihat itinerari bersama.',
     'group_join_trip_title': 'Gabung Perjalanan',
     'group_join_trip_subtitle': 'Masukkan kode undangan teman Anda',
     'group_invite_code_label': 'Kode Undangan',
-    'group_invite_code_ask': 'Minta kode 6 karakter dari penyelenggara perjalanan',
+    'group_invite_code_ask':
+        'Minta kode 6 karakter dari penyelenggara perjalanan',
     'group_joined_snackbar': 'Bergabung dengan Penang Adventure!',
     'group_join_trip_button': 'Gabung Perjalanan',
     'group_edit_poll_title': 'Edit Polling',
@@ -609,11 +630,13 @@ const Map<String, Map<String, String>> groupStrings = {
     'group_delete_poll_button': 'Hapus Polling',
     'group_voting_subtitle': 'Putuskan bersama pilihan perjalanan',
     'group_empty_polls_title': 'Belum ada polling',
-    'group_empty_polls_subtitle': 'Mulai polling untuk memutuskan sesuatu bersama.',
+    'group_empty_polls_subtitle':
+        'Mulai polling untuk memutuskan sesuatu bersama.',
     'group_new_poll_button': 'Polling Baru',
     'group_votes_suffix': 'suara',
     'group_remove_member_prefix': 'Hapus',
-    'group_remove_member_confirm_body': 'Mereka akan dihapus dari grup dan kehilangan akses ke perjalanan ini.',
+    'group_remove_member_confirm_body':
+        'Mereka akan dihapus dari grup dan kehilangan akses ke perjalanan ini.',
     'group_remove_button': 'Hapus',
     'group_chat_action_subtitle': 'Mengobrol dengan grup perjalanan Anda',
     'group_member_singular': 'anggota',
@@ -623,8 +646,10 @@ const Map<String, Map<String, String>> groupStrings = {
     'group_reason_hint_optional': 'Beri tahu alasannya (opsional)',
     'group_decline_button': 'Tolak',
     'group_invite_step3_title': 'Anda menyetujui permintaan mereka',
-    'group_invite_step3_subtitle': 'Mereka akan muncul di sini sebagai permintaan bergabung — setujui dan mereka akan masuk grup.',
-    'group_request_sent_snackbar': 'Permintaan terkirim! Menunggu persetujuan penyelenggara.',
+    'group_invite_step3_subtitle':
+        'Mereka akan muncul di sini sebagai permintaan bergabung — setujui dan mereka akan masuk grup.',
+    'group_request_sent_snackbar':
+        'Permintaan terkirim! Menunggu persetujuan penyelenggara.',
     'group_your_requests_title': 'Permintaan Anda',
     'group_status_approved': 'Disetujui',
     'group_status_declined': 'Ditolak',
@@ -642,9 +667,12 @@ const Map<String, Map<String, String>> groupStrings = {
     'group_action_voting_subtitle': '1 खुला पोल',
     'group_chat_subtitle': 'पेनांग एडवेंचर',
     'group_message_hint': 'समूह को संदेश भेजें…',
-    'group_msg_gurney_day': 'क्या हमें गर्नी ड्राइव दिन 2 या दिन 3 को करना चाहिए?',
-    'group_msg_day2_reason': 'दिन 2 बेहतर रहेगा, सप्ताह के दिनों में भीड़ कम होती है',
-    'group_msg_sounds_good': 'अच्छा लगा, अभी यात्रा कार्यक्रम अपडेट कर रहा हूँ 👍',
+    'group_msg_gurney_day':
+        'क्या हमें गर्नी ड्राइव दिन 2 या दिन 3 को करना चाहिए?',
+    'group_msg_day2_reason':
+        'दिन 2 बेहतर रहेगा, सप्ताह के दिनों में भीड़ कम होती है',
+    'group_msg_sounds_good':
+        'अच्छा लगा, अभी यात्रा कार्यक्रम अपडेट कर रहा हूँ 👍',
     'group_msg_chew_jetty': 'क्या हम कहीं चेव जेट्टी भी जोड़ सकते हैं?',
     'group_invite_title': 'सदस्य आमंत्रित करें',
     'group_invite_subtitle_prefix': 'किसी को जोड़ें',
@@ -662,7 +690,8 @@ const Map<String, Map<String, String>> groupStrings = {
     'group_step1_subtitle':
         'इसे अपने दोस्त को जैसे चाहें भेजें — चैट, टेक्स्ट, या व्यक्तिगत रूप से।',
     'group_step2_title': 'वे इसे ऐप में दर्ज करते हैं',
-    'group_step2_subtitle': '"यात्रा में शामिल हों" से, वे 6-अक्षर का कोड टाइप करते हैं।',
+    'group_step2_subtitle':
+        '"यात्रा में शामिल हों" से, वे 6-अक्षर का कोड टाइप करते हैं।',
     'group_step3_title': 'वे स्वतः जुड़ जाते हैं',
     'group_step3_subtitle':
         'आपका दोस्त समूह में दिखाई देगा और साझा यात्रा कार्यक्रम देख सकेगा।',
@@ -688,11 +717,13 @@ const Map<String, Map<String, String>> groupStrings = {
     'group_delete_poll_button': 'पोल हटाएं',
     'group_voting_subtitle': 'यात्रा के विकल्पों पर मिलकर निर्णय लें',
     'group_empty_polls_title': 'अभी तक कोई पोल नहीं',
-    'group_empty_polls_subtitle': 'साथ मिलकर निर्णय लेने के लिए एक पोल शुरू करें।',
+    'group_empty_polls_subtitle':
+        'साथ मिलकर निर्णय लेने के लिए एक पोल शुरू करें।',
     'group_new_poll_button': 'नया पोल',
     'group_votes_suffix': 'वोट',
     'group_remove_member_prefix': 'हटाएं',
-    'group_remove_member_confirm_body': 'उन्हें समूह से हटा दिया जाएगा और वे इस यात्रा तक पहुंच खो देंगे।',
+    'group_remove_member_confirm_body':
+        'उन्हें समूह से हटा दिया जाएगा और वे इस यात्रा तक पहुंच खो देंगे।',
     'group_remove_button': 'हटाएं',
     'group_chat_action_subtitle': 'अपने यात्रा समूह के साथ चैट करें',
     'group_member_singular': 'सदस्य',
@@ -702,8 +733,10 @@ const Map<String, Map<String, String>> groupStrings = {
     'group_reason_hint_optional': 'उन्हें कारण बताएं (वैकल्पिक)',
     'group_decline_button': 'अस्वीकार करें',
     'group_invite_step3_title': 'आप उनके अनुरोध को स्वीकृत करते हैं',
-    'group_invite_step3_subtitle': 'वे यहां शामिल होने के अनुरोध के रूप में दिखाई देंगे — स्वीकृत करें और वे समूह में शामिल हो जाएंगे।',
-    'group_request_sent_snackbar': 'अनुरोध भेजा गया! आयोजक की स्वीकृति की प्रतीक्षा है।',
+    'group_invite_step3_subtitle':
+        'वे यहां शामिल होने के अनुरोध के रूप में दिखाई देंगे — स्वीकृत करें और वे समूह में शामिल हो जाएंगे।',
+    'group_request_sent_snackbar':
+        'अनुरोध भेजा गया! आयोजक की स्वीकृति की प्रतीक्षा है।',
     'group_your_requests_title': 'आपके अनुरोध',
     'group_status_approved': 'स्वीकृत',
     'group_status_declined': 'अस्वीकृत',
@@ -721,9 +754,12 @@ const Map<String, Map<String, String>> groupStrings = {
     'group_action_voting_subtitle': '1 திறந்த கருத்துக்கணிப்பு',
     'group_chat_subtitle': 'பினாங்கு அட்வென்ச்சர்',
     'group_message_hint': 'குழுவிற்கு செய்தி அனுப்பு…',
-    'group_msg_gurney_day': 'நாம் Gurney Drive-க்கு 2ஆம் நாளா அல்லது 3ஆம் நாளா செல்ல வேண்டும்?',
-    'group_msg_day2_reason': '2ஆம் நாள் சிறப்பாக இருக்கும், வார நாட்களில் கூட்டம் குறைவு',
-    'group_msg_sounds_good': 'நல்லது, இப்போது பயணத் திட்டத்தைப் புதுப்பிக்கிறேன் 👍',
+    'group_msg_gurney_day':
+        'நாம் Gurney Drive-க்கு 2ஆம் நாளா அல்லது 3ஆம் நாளா செல்ல வேண்டும்?',
+    'group_msg_day2_reason':
+        '2ஆம் நாள் சிறப்பாக இருக்கும், வார நாட்களில் கூட்டம் குறைவு',
+    'group_msg_sounds_good':
+        'நல்லது, இப்போது பயணத் திட்டத்தைப் புதுப்பிக்கிறேன் 👍',
     'group_msg_chew_jetty': 'Chew Jetty-ஐயும் எங்காவது சேர்க்க முடியுமா?',
     'group_invite_title': 'உறுப்பினரை அழை',
     'group_invite_subtitle_prefix': 'சேர்க்க',
@@ -749,7 +785,8 @@ const Map<String, Map<String, String>> groupStrings = {
     'group_join_trip_title': 'பயணத்தில் சேர்',
     'group_join_trip_subtitle': 'உங்கள் நண்பரின் அழைப்பு குறியீட்டை உள்ளிடவும்',
     'group_invite_code_label': 'அழைப்பு குறியீடு',
-    'group_invite_code_ask': 'பயண ஏற்பாட்டாளரிடம் அவர்களின் 6-எழுத்து குறியீட்டைக் கேளுங்கள்',
+    'group_invite_code_ask':
+        'பயண ஏற்பாட்டாளரிடம் அவர்களின் 6-எழுத்து குறியீட்டைக் கேளுங்கள்',
     'group_joined_snackbar': 'பினாங்கு அட்வென்ச்சரில் சேர்ந்தீர்கள்!',
     'group_join_trip_button': 'பயணத்தில் சேர்',
     'group_edit_poll_title': 'கருத்துக்கணிப்பைத் திருத்து',
@@ -768,22 +805,29 @@ const Map<String, Map<String, String>> groupStrings = {
     'group_delete_poll_button': 'கருத்துக்கணிப்பை நீக்கு',
     'group_voting_subtitle': 'பயண தேர்வுகளை ஒன்றாக முடிவு செய்யுங்கள்',
     'group_empty_polls_title': 'இன்னும் கருத்துக்கணிப்புகள் இல்லை',
-    'group_empty_polls_subtitle': 'ஒன்றாக முடிவு செய்ய ஒரு கருத்துக்கணிப்பைத் தொடங்குங்கள்.',
+    'group_empty_polls_subtitle':
+        'ஒன்றாக முடிவு செய்ய ஒரு கருத்துக்கணிப்பைத் தொடங்குங்கள்.',
     'group_new_poll_button': 'புதிய கருத்துக்கணிப்பு',
     'group_votes_suffix': 'வாக்குகள்',
     'group_remove_member_prefix': 'அகற்று',
-    'group_remove_member_confirm_body': 'அவர்கள் குழுவிலிருந்து அகற்றப்படுவார்கள் மற்றும் இந்த பயணத்திற்கான அணுகலை இழப்பார்கள்.',
+    'group_remove_member_confirm_body':
+        'அவர்கள் குழுவிலிருந்து அகற்றப்படுவார்கள் மற்றும் இந்த பயணத்திற்கான அணுகலை இழப்பார்கள்.',
     'group_remove_button': 'அகற்று',
     'group_chat_action_subtitle': 'உங்கள் பயணக் குழுவுடன் அரட்டையடிக்கவும்',
     'group_member_singular': 'உறுப்பினர்',
     'group_member_plural': 'உறுப்பினர்கள்',
     'group_no_messages_yet': 'இன்னும் செய்திகள் இல்லை — வணக்கம் சொல்லுங்கள்!',
-    'group_decline_request_from_prefix': 'இவரிடமிருந்து வந்த கோரிக்கையை நிராகரிக்கவும்:',
-    'group_reason_hint_optional': 'காரணத்தை அவர்களுக்குத் தெரியப்படுத்துங்கள் (விருப்பம்)',
+    'group_decline_request_from_prefix':
+        'இவரிடமிருந்து வந்த கோரிக்கையை நிராகரிக்கவும்:',
+    'group_reason_hint_optional':
+        'காரணத்தை அவர்களுக்குத் தெரியப்படுத்துங்கள் (விருப்பம்)',
     'group_decline_button': 'நிராகரி',
-    'group_invite_step3_title': 'நீங்கள் அவர்களின் கோரிக்கையை அங்கீகரிக்கிறீர்கள்',
-    'group_invite_step3_subtitle': 'அவர்கள் இங்கே இணைவதற்கான கோரிக்கையாகத் தோன்றுவார்கள் — அங்கீகரித்தால் அவர்கள் குழுவில் இருப்பார்கள்.',
-    'group_request_sent_snackbar': 'கோரிக்கை அனுப்பப்பட்டது! ஏற்பாட்டாளரின் ஒப்புதலுக்காக காத்திருக்கிறது.',
+    'group_invite_step3_title':
+        'நீங்கள் அவர்களின் கோரிக்கையை அங்கீகரிக்கிறீர்கள்',
+    'group_invite_step3_subtitle':
+        'அவர்கள் இங்கே இணைவதற்கான கோரிக்கையாகத் தோன்றுவார்கள் — அங்கீகரித்தால் அவர்கள் குழுவில் இருப்பார்கள்.',
+    'group_request_sent_snackbar':
+        'கோரிக்கை அனுப்பப்பட்டது! ஏற்பாட்டாளரின் ஒப்புதலுக்காக காத்திருக்கிறது.',
     'group_your_requests_title': 'உங்கள் கோரிக்கைகள்',
     'group_status_approved': 'அங்கீகரிக்கப்பட்டது',
     'group_status_declined': 'நிராகரிக்கப்பட்டது',
@@ -801,7 +845,8 @@ const Map<String, Map<String, String>> groupStrings = {
     'group_action_voting_subtitle': 'استطلاع واحد مفتوح',
     'group_chat_subtitle': 'مغامرة بينانج',
     'group_message_hint': 'راسل المجموعة…',
-    'group_msg_gurney_day': 'هل نذهب إلى غيرني درايف في اليوم الثاني أم الثالث؟',
+    'group_msg_gurney_day':
+        'هل نذهب إلى غيرني درايف في اليوم الثاني أم الثالث؟',
     'group_msg_day2_reason': 'اليوم الثاني أفضل، ازدحام أقل في أيام الأسبوع',
     'group_msg_sounds_good': 'يبدو جيدًا، أقوم بتحديث خط الرحلة الآن 👍',
     'group_msg_chew_jetty': 'هل يمكننا إضافة تشو جيتي في مكان ما؟',
@@ -821,7 +866,8 @@ const Map<String, Map<String, String>> groupStrings = {
     'group_step1_subtitle':
         'أرسله لصديقك بالطريقة التي تفضلها — محادثة أو رسالة نصية أو شخصيًا.',
     'group_step2_title': 'يقومون بإدخاله في التطبيق',
-    'group_step2_subtitle': 'من "الانضمام إلى رحلة"، يكتبون الرمز المكون من 6 أحرف.',
+    'group_step2_subtitle':
+        'من "الانضمام إلى رحلة"، يكتبون الرمز المكون من 6 أحرف.',
     'group_step3_title': 'تتم إضافتهم تلقائيًا',
     'group_step3_subtitle':
         'سيظهر صديقك في المجموعة ويمكنه رؤية خط الرحلة المشترك.',
@@ -851,7 +897,8 @@ const Map<String, Map<String, String>> groupStrings = {
     'group_new_poll_button': 'استطلاع جديد',
     'group_votes_suffix': 'صوت',
     'group_remove_member_prefix': 'إزالة',
-    'group_remove_member_confirm_body': 'سيتم إزالتهم من المجموعة وفقدان الوصول إلى هذه الرحلة.',
+    'group_remove_member_confirm_body':
+        'سيتم إزالتهم من المجموعة وفقدان الوصول إلى هذه الرحلة.',
     'group_remove_button': 'إزالة',
     'group_chat_action_subtitle': 'الدردشة مع مجموعة سفرك',
     'group_member_singular': 'عضو',
@@ -861,7 +908,8 @@ const Map<String, Map<String, String>> groupStrings = {
     'group_reason_hint_optional': 'أخبرهم بالسبب (اختياري)',
     'group_decline_button': 'رفض',
     'group_invite_step3_title': 'أنت توافق على طلبهم',
-    'group_invite_step3_subtitle': 'سيظهرون هنا كطلب انضمام — وافق عليه وسينضمون إلى المجموعة.',
+    'group_invite_step3_subtitle':
+        'سيظهرون هنا كطلب انضمام — وافق عليه وسينضمون إلى المجموعة.',
     'group_request_sent_snackbar': 'تم إرسال الطلب! في انتظار موافقة المنظم.',
     'group_your_requests_title': 'طلباتك',
     'group_status_approved': 'تمت الموافقة',
@@ -880,7 +928,8 @@ const Map<String, Map<String, String>> groupStrings = {
     'group_action_voting_subtitle': '1 encuesta abierta',
     'group_chat_subtitle': 'Penang Adventure',
     'group_message_hint': 'Enviar mensaje al grupo…',
-    'group_msg_gurney_day': '¿Deberíamos ir a Gurney Drive el día 2 o el día 3?',
+    'group_msg_gurney_day':
+        '¿Deberíamos ir a Gurney Drive el día 2 o el día 3?',
     'group_msg_day2_reason': 'El día 2 es mejor, hay menos gente entre semana',
     'group_msg_sounds_good': 'Suena bien, actualizando el itinerario ahora 👍',
     'group_msg_chew_jetty': '¿Podemos añadir Chew Jetty en algún momento?',
@@ -900,14 +949,16 @@ const Map<String, Map<String, String>> groupStrings = {
     'group_step1_subtitle':
         'Envíaselo a tu amigo como prefieras: chat, mensaje de texto o en persona.',
     'group_step2_title': 'Lo ingresan en la app',
-    'group_step2_subtitle': 'Desde "Unirse a un Viaje", escriben el código de 6 caracteres.',
+    'group_step2_subtitle':
+        'Desde "Unirse a un Viaje", escriben el código de 6 caracteres.',
     'group_step3_title': 'Se añaden automáticamente',
     'group_step3_subtitle':
         'Tu amigo aparecerá en el grupo y podrá ver el itinerario compartido.',
     'group_join_trip_title': 'Unirse a un Viaje',
     'group_join_trip_subtitle': 'Introduce el código de invitación de tu amigo',
     'group_invite_code_label': 'Código de Invitación',
-    'group_invite_code_ask': 'Pide al organizador del viaje su código de 6 caracteres',
+    'group_invite_code_ask':
+        'Pide al organizador del viaje su código de 6 caracteres',
     'group_joined_snackbar': '¡Te uniste a Penang Adventure!',
     'group_join_trip_button': 'Unirse al Viaje',
     'group_edit_poll_title': 'Editar Encuesta',
@@ -926,11 +977,13 @@ const Map<String, Map<String, String>> groupStrings = {
     'group_delete_poll_button': 'Eliminar Encuesta',
     'group_voting_subtitle': 'Decidan juntos las opciones del viaje',
     'group_empty_polls_title': 'Aún no hay encuestas',
-    'group_empty_polls_subtitle': 'Inicia una encuesta para decidir algo juntos.',
+    'group_empty_polls_subtitle':
+        'Inicia una encuesta para decidir algo juntos.',
     'group_new_poll_button': 'Nueva Encuesta',
     'group_votes_suffix': 'votos',
     'group_remove_member_prefix': 'Eliminar',
-    'group_remove_member_confirm_body': 'Serán eliminados del grupo y perderán el acceso a este viaje.',
+    'group_remove_member_confirm_body':
+        'Serán eliminados del grupo y perderán el acceso a este viaje.',
     'group_remove_button': 'Eliminar',
     'group_chat_action_subtitle': 'Chatea con tu grupo de viaje',
     'group_member_singular': 'miembro',
@@ -940,8 +993,10 @@ const Map<String, Map<String, String>> groupStrings = {
     'group_reason_hint_optional': 'Diles por qué (opcional)',
     'group_decline_button': 'Rechazar',
     'group_invite_step3_title': 'Apruebas su solicitud',
-    'group_invite_step3_subtitle': 'Aparecerán aquí como una solicitud de unión — apruébala y estarán en el grupo.',
-    'group_request_sent_snackbar': '¡Solicitud enviada! Esperando la aprobación del organizador.',
+    'group_invite_step3_subtitle':
+        'Aparecerán aquí como una solicitud de unión — apruébala y estarán en el grupo.',
+    'group_request_sent_snackbar':
+        '¡Solicitud enviada! Esperando la aprobación del organizador.',
     'group_your_requests_title': 'Tus Solicitudes',
     'group_status_approved': 'Aprobada',
     'group_status_declined': 'Rechazada',
@@ -959,9 +1014,11 @@ const Map<String, Map<String, String>> groupStrings = {
     'group_action_voting_subtitle': '1 sondage ouvert',
     'group_chat_subtitle': 'Penang Adventure',
     'group_message_hint': 'Envoyer un message au groupe…',
-    'group_msg_gurney_day': 'Devrions-nous faire Gurney Drive le jour 2 ou le jour 3 ?',
+    'group_msg_gurney_day':
+        'Devrions-nous faire Gurney Drive le jour 2 ou le jour 3 ?',
     'group_msg_day2_reason': 'Le jour 2 est mieux, moins de monde en semaine',
-    'group_msg_sounds_good': "Bonne idée, je mets à jour l'itinéraire maintenant 👍",
+    'group_msg_sounds_good':
+        "Bonne idée, je mets à jour l'itinéraire maintenant 👍",
     'group_msg_chew_jetty': 'Peut-on ajouter Chew Jetty quelque part ?',
     'group_invite_title': 'Inviter un Membre',
     'group_invite_subtitle_prefix': 'Ajouter quelqu\'un à',
@@ -987,7 +1044,8 @@ const Map<String, Map<String, String>> groupStrings = {
     'group_join_trip_title': 'Rejoindre un Voyage',
     'group_join_trip_subtitle': "Entrez le code d'invitation de votre ami",
     'group_invite_code_label': "Code d'Invitation",
-    'group_invite_code_ask': "Demandez à l'organisateur du voyage son code à 6 caractères",
+    'group_invite_code_ask':
+        "Demandez à l'organisateur du voyage son code à 6 caractères",
     'group_joined_snackbar': 'Vous avez rejoint Penang Adventure !',
     'group_join_trip_button': 'Rejoindre le Voyage',
     'group_edit_poll_title': 'Modifier le Sondage',
@@ -1010,7 +1068,8 @@ const Map<String, Map<String, String>> groupStrings = {
     'group_new_poll_button': 'Nouveau Sondage',
     'group_votes_suffix': 'votes',
     'group_remove_member_prefix': 'Retirer',
-    'group_remove_member_confirm_body': "Cette personne sera retirée du groupe et perdra l'accès à ce voyage.",
+    'group_remove_member_confirm_body':
+        "Cette personne sera retirée du groupe et perdra l'accès à ce voyage.",
     'group_remove_button': 'Retirer',
     'group_chat_action_subtitle': 'Discutez avec votre groupe de voyage',
     'group_member_singular': 'membre',
@@ -1020,8 +1079,10 @@ const Map<String, Map<String, String>> groupStrings = {
     'group_reason_hint_optional': 'Indiquez-leur pourquoi (facultatif)',
     'group_decline_button': 'Refuser',
     'group_invite_step3_title': 'Vous approuvez leur demande',
-    'group_invite_step3_subtitle': "Ils apparaissent ici comme une demande d'adhésion — approuvez-la et ils rejoindront le groupe.",
-    'group_request_sent_snackbar': "Demande envoyée ! En attente de l'approbation de l'organisateur.",
+    'group_invite_step3_subtitle':
+        "Ils apparaissent ici comme une demande d'adhésion — approuvez-la et ils rejoindront le groupe.",
+    'group_request_sent_snackbar':
+        "Demande envoyée ! En attente de l'approbation de l'organisateur.",
     'group_your_requests_title': 'Vos Demandes',
     'group_status_approved': 'Approuvée',
     'group_status_declined': 'Refusée',
@@ -1039,7 +1100,8 @@ const Map<String, Map<String, String>> groupStrings = {
     'group_action_voting_subtitle': '1 offene Umfrage',
     'group_chat_subtitle': 'Penang Adventure',
     'group_message_hint': 'Nachricht an die Gruppe…',
-    'group_msg_gurney_day': 'Sollten wir Gurney Drive an Tag 2 oder Tag 3 machen?',
+    'group_msg_gurney_day':
+        'Sollten wir Gurney Drive an Tag 2 oder Tag 3 machen?',
     'group_msg_day2_reason': 'Tag 2 ist besser, unter der Woche weniger voll',
     'group_msg_sounds_good': 'Klingt gut, aktualisiere gerade den Reiseplan 👍',
     'group_msg_chew_jetty': 'Können wir Chew Jetty irgendwo hinzufügen?',
@@ -1067,7 +1129,8 @@ const Map<String, Map<String, String>> groupStrings = {
     'group_join_trip_title': 'Reise beitreten',
     'group_join_trip_subtitle': 'Einladungscode deines Freundes eingeben',
     'group_invite_code_label': 'Einladungscode',
-    'group_invite_code_ask': 'Frage den Reiseorganisator nach seinem 6-stelligen Code',
+    'group_invite_code_ask':
+        'Frage den Reiseorganisator nach seinem 6-stelligen Code',
     'group_joined_snackbar': 'Penang Adventure beigetreten!',
     'group_join_trip_button': 'Reise beitreten',
     'group_edit_poll_title': 'Umfrage bearbeiten',
@@ -1086,11 +1149,13 @@ const Map<String, Map<String, String>> groupStrings = {
     'group_delete_poll_button': 'Umfrage löschen',
     'group_voting_subtitle': 'Entscheidet gemeinsam über Reiseoptionen',
     'group_empty_polls_title': 'Noch keine Umfragen',
-    'group_empty_polls_subtitle': 'Starte eine Umfrage, um gemeinsam zu entscheiden.',
+    'group_empty_polls_subtitle':
+        'Starte eine Umfrage, um gemeinsam zu entscheiden.',
     'group_new_poll_button': 'Neue Umfrage',
     'group_votes_suffix': 'Stimmen',
     'group_remove_member_prefix': 'Entfernen',
-    'group_remove_member_confirm_body': 'Diese Person wird aus der Gruppe entfernt und verliert den Zugriff auf diese Reise.',
+    'group_remove_member_confirm_body':
+        'Diese Person wird aus der Gruppe entfernt und verliert den Zugriff auf diese Reise.',
     'group_remove_button': 'Entfernen',
     'group_chat_action_subtitle': 'Chatte mit deiner Reisegruppe',
     'group_member_singular': 'Mitglied',
@@ -1100,8 +1165,10 @@ const Map<String, Map<String, String>> groupStrings = {
     'group_reason_hint_optional': 'Teile ihnen den Grund mit (optional)',
     'group_decline_button': 'Ablehnen',
     'group_invite_step3_title': 'Du genehmigst ihre Anfrage',
-    'group_invite_step3_subtitle': 'Sie erscheinen hier als Beitrittsanfrage — genehmige sie und sie sind in der Gruppe.',
-    'group_request_sent_snackbar': 'Anfrage gesendet! Warten auf die Genehmigung des Organisators.',
+    'group_invite_step3_subtitle':
+        'Sie erscheinen hier als Beitrittsanfrage — genehmige sie und sie sind in der Gruppe.',
+    'group_request_sent_snackbar':
+        'Anfrage gesendet! Warten auf die Genehmigung des Organisators.',
     'group_your_requests_title': 'Deine Anfragen',
     'group_status_approved': 'Genehmigt',
     'group_status_declined': 'Abgelehnt',
@@ -1139,14 +1206,16 @@ const Map<String, Map<String, String>> groupStrings = {
     'group_step1_subtitle':
         'Envie para seu amigo da forma que preferir — chat, mensagem ou pessoalmente.',
     'group_step2_title': 'Eles inserem no app',
-    'group_step2_subtitle': 'Em "Entrar em uma Viagem", eles digitam o código de 6 caracteres.',
+    'group_step2_subtitle':
+        'Em "Entrar em uma Viagem", eles digitam o código de 6 caracteres.',
     'group_step3_title': 'Eles são adicionados automaticamente',
     'group_step3_subtitle':
         'Seu amigo aparecerá no grupo e poderá ver o itinerário compartilhado.',
     'group_join_trip_title': 'Entrar em uma Viagem',
     'group_join_trip_subtitle': 'Insira o código de convite do seu amigo',
     'group_invite_code_label': 'Código de Convite',
-    'group_invite_code_ask': 'Peça ao organizador da viagem o código de 6 caracteres',
+    'group_invite_code_ask':
+        'Peça ao organizador da viagem o código de 6 caracteres',
     'group_joined_snackbar': 'Você entrou em Penang Adventure!',
     'group_join_trip_button': 'Entrar na Viagem',
     'group_edit_poll_title': 'Editar Enquete',
@@ -1165,11 +1234,13 @@ const Map<String, Map<String, String>> groupStrings = {
     'group_delete_poll_button': 'Excluir Enquete',
     'group_voting_subtitle': 'Decidam juntos as opções da viagem',
     'group_empty_polls_title': 'Ainda não há enquetes',
-    'group_empty_polls_subtitle': 'Inicie uma enquete para decidir algo juntos.',
+    'group_empty_polls_subtitle':
+        'Inicie uma enquete para decidir algo juntos.',
     'group_new_poll_button': 'Nova Enquete',
     'group_votes_suffix': 'votos',
     'group_remove_member_prefix': 'Remover',
-    'group_remove_member_confirm_body': 'Eles serão removidos do grupo e perderão o acesso a esta viagem.',
+    'group_remove_member_confirm_body':
+        'Eles serão removidos do grupo e perderão o acesso a esta viagem.',
     'group_remove_button': 'Remover',
     'group_chat_action_subtitle': 'Converse com seu grupo de viagem',
     'group_member_singular': 'membro',
@@ -1179,8 +1250,10 @@ const Map<String, Map<String, String>> groupStrings = {
     'group_reason_hint_optional': 'Diga a eles o motivo (opcional)',
     'group_decline_button': 'Recusar',
     'group_invite_step3_title': 'Você aprova a solicitação deles',
-    'group_invite_step3_subtitle': 'Eles aparecerão aqui como uma solicitação de entrada — aprove e eles estarão no grupo.',
-    'group_request_sent_snackbar': 'Solicitação enviada! Aguardando a aprovação do organizador.',
+    'group_invite_step3_subtitle':
+        'Eles aparecerão aqui como uma solicitação de entrada — aprove e eles estarão no grupo.',
+    'group_request_sent_snackbar':
+        'Solicitação enviada! Aguardando a aprovação do organizador.',
     'group_your_requests_title': 'Suas Solicitações',
     'group_status_approved': 'Aprovada',
     'group_status_declined': 'Recusada',
@@ -1198,7 +1271,8 @@ const Map<String, Map<String, String>> groupStrings = {
     'group_action_voting_subtitle': '1 открытый опрос',
     'group_chat_subtitle': 'Penang Adventure',
     'group_message_hint': 'Сообщение группе…',
-    'group_msg_gurney_day': 'Стоит ли ехать на Gurney Drive на 2-й или 3-й день?',
+    'group_msg_gurney_day':
+        'Стоит ли ехать на Gurney Drive на 2-й или 3-й день?',
     'group_msg_day2_reason': '2-й день лучше, меньше людей в будни',
     'group_msg_sounds_good': 'Отлично, обновляю маршрут прямо сейчас 👍',
     'group_msg_chew_jetty': 'Можем ли мы добавить Chew Jetty куда-нибудь?',
@@ -1226,7 +1300,8 @@ const Map<String, Map<String, String>> groupStrings = {
     'group_join_trip_title': 'Присоединиться к Поездке',
     'group_join_trip_subtitle': 'Введите код приглашения друга',
     'group_invite_code_label': 'Код Приглашения',
-    'group_invite_code_ask': 'Спросите у организатора поездки его 6-значный код',
+    'group_invite_code_ask':
+        'Спросите у организатора поездки его 6-значный код',
     'group_joined_snackbar': 'Вы присоединились к Penang Adventure!',
     'group_join_trip_button': 'Присоединиться к Поездке',
     'group_edit_poll_title': 'Изменить Опрос',
@@ -1249,7 +1324,8 @@ const Map<String, Map<String, String>> groupStrings = {
     'group_new_poll_button': 'Новый Опрос',
     'group_votes_suffix': 'голосов',
     'group_remove_member_prefix': 'Удалить',
-    'group_remove_member_confirm_body': 'Их удалят из группы, и они потеряют доступ к этой поездке.',
+    'group_remove_member_confirm_body':
+        'Их удалят из группы, и они потеряют доступ к этой поездке.',
     'group_remove_button': 'Удалить',
     'group_chat_action_subtitle': 'Общайтесь со своей туристической группой',
     'group_member_singular': 'участник',
@@ -1259,8 +1335,10 @@ const Map<String, Map<String, String>> groupStrings = {
     'group_reason_hint_optional': 'Сообщите причину (необязательно)',
     'group_decline_button': 'Отклонить',
     'group_invite_step3_title': 'Вы одобряете их запрос',
-    'group_invite_step3_subtitle': 'Они появятся здесь как запрос на присоединение — одобрите, и они войдут в группу.',
-    'group_request_sent_snackbar': 'Запрос отправлен! Ожидание одобрения организатора.',
+    'group_invite_step3_subtitle':
+        'Они появятся здесь как запрос на присоединение — одобрите, и они войдут в группу.',
+    'group_request_sent_snackbar':
+        'Запрос отправлен! Ожидание одобрения организатора.',
     'group_your_requests_title': 'Ваши запросы',
     'group_status_approved': 'Одобрено',
     'group_status_declined': 'Отклонено',

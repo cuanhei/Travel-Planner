@@ -7,8 +7,6 @@ import '../explore/explore_tab.dart' show Place, places;
 import 'location_map_picker.dart';
 import 'trip_data.dart';
 
-/// Result of [StopFormScreen]: either a saved (added/edited) stop, or a
-/// request to delete the stop being edited.
 class StopFormResult {
   const StopFormResult.save(TripStop savedStop)
     : stop = savedStop,
@@ -21,14 +19,6 @@ class StopFormResult {
 
 enum _ArrangeMode { auto, manual }
 
-/// UI-only form for adding a new trip stop or editing an existing one.
-///
-/// Adding mirrors the Create Trip flow: search or tap a pin on the
-/// stylized map (or add a custom location) to pick the place, then
-/// choose whether the system auto-arranges it into the itinerary or the
-/// traveler sets the day and time manually. Editing keeps a simpler
-/// name/day/time/category form. Either way, days that have already
-/// passed can't be selected.
 class StopFormScreen extends StatefulWidget {
   const StopFormScreen({
     super.key,
@@ -39,23 +29,14 @@ class StopFormScreen extends StatefulWidget {
     this.existingStops = const [],
   });
 
-  /// Stop being edited, or null when adding a new one.
   final TripStop? initial;
 
-  /// Highest day number currently in the schedule — bounds the day
-  /// selector, since a new stop may start at most one day past the last.
   final int dayCount;
 
-  /// The trip's current day (1-based). Days before this have already
-  /// passed and can't be scheduled.
   final int currentDay;
 
-  /// Day to preselect when adding — e.g. whichever day tab the traveler
-  /// was viewing in Edit Schedule. Ignored when editing an existing stop.
   final int? preferredDay;
 
-  /// The trip's other stops, used to render the "pick a time slot"
-  /// timeline when arranging a new stop manually.
   final List<TripStop> existingStops;
 
   bool get isEditing => initial != null;
@@ -65,7 +46,6 @@ class StopFormScreen extends StatefulWidget {
 }
 
 class _StopFormScreenState extends State<StopFormScreen> {
-  // Edit mode only.
   late final _nameController = TextEditingController(
     text: widget.initial?.name ?? '',
   );
@@ -75,39 +55,34 @@ class _StopFormScreenState extends State<StopFormScreen> {
             .indexWhere((c) => c.icon == widget.initial!.icon)
             .clamp(0, stopCategories.length - 1);
 
-  // Add mode only.
   final _searchController = TextEditingController();
   String _query = '';
   Place? _selectedPlace;
   _ArrangeMode _arrangeMode = _ArrangeMode.auto;
 
-  // Shared.
-  late int _day = _clampToCurrentDay(
-    widget.initial?.day ?? _defaultDay,
-  );
+  late int _day = _clampToCurrentDay(widget.initial?.day ?? _defaultDay);
   late TimeOfDay _time =
       widget.initial?.time ?? const TimeOfDay(hour: 10, minute: 0);
-  late Duration _duration = widget.initial?.duration ?? const Duration(hours: 1);
+  late Duration _duration =
+      widget.initial?.duration ?? const Duration(hours: 1);
 
   int get _defaultDay {
-    if (widget.preferredDay != null) return _clampToCurrentDay(widget.preferredDay!);
-    return widget.dayCount >= widget.currentDay ? widget.dayCount : widget.currentDay;
+    if (widget.preferredDay != null)
+      return _clampToCurrentDay(widget.preferredDay!);
+    return widget.dayCount >= widget.currentDay
+        ? widget.dayCount
+        : widget.currentDay;
   }
 
   int _clampToCurrentDay(int day) =>
       day < widget.currentDay ? widget.currentDay : day;
 
-  int get _maxDay =>
-      (widget.dayCount + 1) > widget.currentDay
+  int get _maxDay => (widget.dayCount + 1) > widget.currentDay
       ? widget.dayCount + 1
       : widget.currentDay;
 
   static int _minutesOf(TimeOfDay t) => t.hour * 60 + t.minute;
 
-  /// This day's other activities, earliest first, excluding the stop
-  /// being edited — used by the "pick a time slot" list so the
-  /// traveler can see the day at a glance and choose a slot instead of
-  /// guessing an exact time.
   List<TripStop> get _daySchedule {
     final list = widget.existingStops
         .where((s) => s.day == _day && s.id != widget.initial?.id)
@@ -125,8 +100,9 @@ class _StopFormScreenState extends State<StopFormScreen> {
     super.dispose();
   }
 
-  bool get _canSave =>
-      widget.isEditing ? _nameController.text.trim().isNotEmpty : _selectedPlace != null;
+  bool get _canSave => widget.isEditing
+      ? _nameController.text.trim().isNotEmpty
+      : _selectedPlace != null;
 
   void _togglePlace(Place place) {
     setState(() {
@@ -565,7 +541,9 @@ class _SelectedPlaceChip extends StatelessWidget {
         decoration: BoxDecoration(
           color: context.colors.card,
           borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: context.colors.muted.withValues(alpha: 0.2)),
+          border: Border.all(
+            color: context.colors.muted.withValues(alpha: 0.2),
+          ),
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
@@ -685,17 +663,6 @@ class _ArrangeOption extends StatelessWidget {
   }
 }
 
-/// Shows the selected day's existing stops as a mini timeline, with
-/// tappable gaps before/between/after them so the traveler can drop the
-/// new stop exactly where it belongs instead of guessing an exact time.
-/// Lists the day's other activities so the traveler can pick a slot by
-/// tapping one, instead of guessing an exact time — used by both the
-/// add-stop and edit-stop flows.
-/// Google Calendar–style day grid: hour gridlines down the left, the
-/// day's other activities plotted as blocks at their scheduled time,
-/// and an accent line marking the currently selected time. Tapping
-/// anywhere on the grid (empty space or an existing block) sets the
-/// time to that position, snapped to the nearest 15 minutes.
 class _TimelineSlotPicker extends StatefulWidget {
   const _TimelineSlotPicker({
     required this.day,
@@ -723,8 +690,10 @@ class _TimelineSlotPickerState extends State<_TimelineSlotPicker> {
   static const _totalMinutes = (_endHour - _startHour) * 60;
 
   late final _scrollController = ScrollController(
-    initialScrollOffset:
-        (_minutesFromStart(widget.selectedTime) - 120).clamp(0, _totalMinutes.toDouble()),
+    initialScrollOffset: (_minutesFromStart(widget.selectedTime) - 120).clamp(
+      0,
+      _totalMinutes.toDouble(),
+    ),
   );
 
   @override
@@ -734,7 +703,8 @@ class _TimelineSlotPickerState extends State<_TimelineSlotPicker> {
   }
 
   double _minutesFromStart(TimeOfDay t) =>
-      (((t.hour - _startHour) * 60 + t.minute).clamp(0, _totalMinutes)) * _pxPerMinute;
+      (((t.hour - _startHour) * 60 + t.minute).clamp(0, _totalMinutes)) *
+      _pxPerMinute;
 
   TimeOfDay _timeFromOffset(double dy) {
     final clamped = dy.clamp(0, _totalMinutes - 1);
@@ -796,7 +766,9 @@ class _TimelineSlotPickerState extends State<_TimelineSlotPicker> {
                           Expanded(
                             child: Container(
                               height: 1,
-                              color: context.colors.muted.withValues(alpha: 0.15),
+                              color: context.colors.muted.withValues(
+                                alpha: 0.15,
+                              ),
                             ),
                           ),
                         ],
@@ -883,8 +855,10 @@ class _TimelineSlotPickerState extends State<_TimelineSlotPicker> {
                           const SizedBox(width: 6),
                           Expanded(
                             child: Container(
-                              height: (widget.selectedDuration.inMinutes * _pxPerMinute)
-                                  .clamp(20, double.infinity),
+                              height:
+                                  (widget.selectedDuration.inMinutes *
+                                          _pxPerMinute)
+                                      .clamp(20, double.infinity),
                               padding: const EdgeInsets.symmetric(
                                 horizontal: 8,
                                 vertical: 4,
@@ -892,7 +866,10 @@ class _TimelineSlotPickerState extends State<_TimelineSlotPicker> {
                               decoration: BoxDecoration(
                                 color: AppColors.accent.withValues(alpha: 0.22),
                                 borderRadius: BorderRadius.circular(8),
-                                border: Border.all(color: AppColors.accent, width: 1.5),
+                                border: Border.all(
+                                  color: AppColors.accent,
+                                  width: 1.5,
+                                ),
                               ),
                               alignment: Alignment.topLeft,
                               child: Text(
@@ -919,7 +896,6 @@ class _TimelineSlotPickerState extends State<_TimelineSlotPicker> {
   }
 }
 
-/// Quick-pick chips for how long the traveler plans to stay at a stop.
 class _DurationSelector extends StatelessWidget {
   const _DurationSelector({required this.duration, required this.onChanged});
 
@@ -1038,9 +1014,6 @@ class _TimeBox extends StatelessWidget {
   }
 }
 
-/// Day chip row for scheduling a stop. Days before [currentDay] have
-/// already passed and are shown locked — tapping one explains why
-/// instead of selecting it.
 class _DaySelector extends StatelessWidget {
   const _DaySelector({
     required this.day,
@@ -1109,7 +1082,9 @@ class _DaySelector extends StatelessWidget {
                           color: selected ? Colors.white : context.colors.ink,
                           fontWeight: FontWeight.w600,
                           fontSize: 13,
-                          decoration: passed ? TextDecoration.lineThrough : null,
+                          decoration: passed
+                              ? TextDecoration.lineThrough
+                              : null,
                         ),
                       ),
                     ],

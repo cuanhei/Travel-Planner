@@ -19,9 +19,6 @@ List<({String question, String answer})> _faqs() => [
   (question: tr('auth_faq_q5'), answer: tr('auth_faq_a5')),
 ];
 
-/// Help center: an FAQ list, a "Contact Support" action that opens Gmail's
-/// web compose page addressed to the support inbox, and a history of past
-/// [SupportTicket] threads (see `support_service.dart`).
 class HelpCenterScreen extends StatefulWidget {
   const HelpCenterScreen({super.key});
 
@@ -66,7 +63,9 @@ class _HelpCenterScreenState extends State<HelpCenterScreen> {
         SnackBar(
           behavior: SnackBarBehavior.floating,
           backgroundColor: Colors.redAccent,
-          content: Text('${tr('auth_couldnt_open_gmail_prefix')} $_supportEmail'),
+          content: Text(
+            '${tr('auth_couldnt_open_gmail_prefix')} $_supportEmail',
+          ),
         ),
       );
     }
@@ -84,8 +83,18 @@ class _HelpCenterScreenState extends State<HelpCenterScreen> {
 
   String _formatDate(DateTime date) {
     const months = [
-      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec',
     ];
     return '${months[date.month - 1]} ${date.day}';
   }
@@ -218,8 +227,7 @@ class _HelpCenterScreenState extends State<HelpCenterScreen> {
                   FutureBuilder<List<SupportTicket>>(
                     future: _tickets,
                     builder: (context, snapshot) {
-                      if (snapshot.connectionState ==
-                          ConnectionState.waiting) {
+                      if (snapshot.connectionState == ConnectionState.waiting) {
                         return const Padding(
                           padding: EdgeInsets.symmetric(vertical: 12),
                           child: Center(
@@ -247,7 +255,8 @@ class _HelpCenterScreenState extends State<HelpCenterScreen> {
                               (t) => ListTileCard(
                                 icon: Icons.chat_bubble_outline_rounded,
                                 title: t.subject,
-                                subtitle: '${tr('auth_sent_prefix')} ${_formatDate(t.createdAt)}',
+                                subtitle:
+                                    '${tr('auth_sent_prefix')} ${_formatDate(t.createdAt)}',
                                 onTap: () => _openTicket(t),
                               ),
                             )

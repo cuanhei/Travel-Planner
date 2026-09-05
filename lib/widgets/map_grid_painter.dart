@@ -1,7 +1,5 @@
 import 'package:flutter/material.dart';
 
-/// Faint grid backdrop used by the app's stylized (non-SDK) map
-/// surfaces — no real map/geo API involved, purely decorative.
 class MapGridPainter extends CustomPainter {
   const MapGridPainter();
 

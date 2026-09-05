@@ -11,8 +11,6 @@ import '../../utils/chat_time.dart';
 import '../../widgets/detail_header.dart';
 import 'direct_chat_screen.dart';
 
-/// "Say hi!" preview text, or a one-line summary of an attachment, for
-/// [DirectMessageInboxScreen]'s per-conversation row.
 String _previewFor(DirectMessage? message) {
   if (message == null) return 'Say hi!';
   final attachment = message.attachment;
@@ -25,9 +23,6 @@ String _previewFor(DirectMessage? message) {
   return message.body ?? '';
 }
 
-/// List of the trip's other members, each showing your most recent
-/// exchange with them and an unread-count badge — the entry point for
-/// starting or continuing a private 1:1 conversation.
 class DirectMessageInboxScreen extends StatefulWidget {
   const DirectMessageInboxScreen({super.key, required this.tripId});
 

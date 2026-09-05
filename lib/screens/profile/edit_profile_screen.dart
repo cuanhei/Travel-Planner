@@ -24,17 +24,23 @@ const _maxAvatarBytes = 5 * 1024 * 1024;
 const _allowedAvatarExtensions = {'jpg', 'jpeg', 'png', 'webp'};
 
 const _monthNames = [
-  'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-  'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+  'Jan',
+  'Feb',
+  'Mar',
+  'Apr',
+  'May',
+  'Jun',
+  'Jul',
+  'Aug',
+  'Sep',
+  'Oct',
+  'Nov',
+  'Dec',
 ];
 
 String _formatDate(DateTime d) =>
     '${d.day} ${_monthNames[d.month - 1]} ${d.year}';
 
-/// Profile editor for name, phone, and bio (backed by `public.profiles`),
-/// plus a profile-photo uploader (click or drag-and-drop) backed by
-/// Supabase Storage. Email is read-only here — it's the login credential,
-/// changing it needs its own confirmation flow.
 class EditProfileScreen extends StatefulWidget {
   const EditProfileScreen({super.key});
 
@@ -43,10 +49,16 @@ class EditProfileScreen extends StatefulWidget {
 }
 
 class _EditProfileScreenState extends State<EditProfileScreen> {
-  late final _nameController = TextEditingController(text: _initialProfile?.fullName ?? '');
+  late final _nameController = TextEditingController(
+    text: _initialProfile?.fullName ?? '',
+  );
   late final TextEditingController _phoneController;
-  late final _bioController = TextEditingController(text: _initialProfile?.bio ?? '');
-  late final _addressController = TextEditingController(text: _initialProfile?.address ?? '');
+  late final _bioController = TextEditingController(
+    text: _initialProfile?.bio ?? '',
+  );
+  late final _addressController = TextEditingController(
+    text: _initialProfile?.address ?? '',
+  );
   late final String _email = _initialProfile?.email ?? '';
   late Country _selectedCountry;
   late DateTime? _dateOfBirth = _initialProfile?.dateOfBirth;
@@ -60,7 +72,8 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   bool _dragHover = false;
   bool _justAutosaved = false;
   late bool _avatarMode =
-      ProfileAvatarState.decode(_initialProfile?.avatarUrl).mode == ProfileAvatarMode.avatarDesign;
+      ProfileAvatarState.decode(_initialProfile?.avatarUrl).mode ==
+      ProfileAvatarMode.avatarDesign;
 
   Timer? _autosaveDebounce;
   Timer? _savedBadgeTimer;
@@ -77,11 +90,6 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     _addressController.addListener(_scheduleAutosave);
   }
 
-  /// Persists name/phone/bio edits automatically, shortly after the user
-  /// stops typing — so a change is never lost just because they navigated
-  /// away without pressing "Save Changes". Silent: only saves when the
-  /// fields are currently valid, and never shows an error toast (the
-  /// explicit Save button still does that if they tap it on invalid input).
   void _scheduleAutosave() {
     _autosaveDebounce?.cancel();
     _autosaveDebounce = Timer(const Duration(milliseconds: 900), _autosave);
@@ -89,7 +97,8 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
 
   Future<void> _autosave() async {
     if (Validators.name(_nameController.text) != null) return;
-    if (Validators.phone(_phoneController.text, _selectedCountry) != null) return;
+    if (Validators.phone(_phoneController.text, _selectedCountry) != null)
+      return;
 
     final localNumber = _phoneController.text.trim();
     final fullPhone = localNumber.isEmpty
@@ -119,10 +128,6 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     });
   }
 
-  /// Splits a stored phone like "+60 12-345 6789" into its country (matched
-  /// by dial code) and the remaining local number, so the picker and text
-  /// field can be repopulated separately. Defaults to Malaysia when there's
-  /// no stored phone yet or its dial code isn't recognized.
   (Country, String) _splitPhone(String? stored) {
     final value = stored?.trim() ?? '';
     if (value.isEmpty) return (countries.first, '');
@@ -138,8 +143,6 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
 
   @override
   void dispose() {
-    // Flush a pending debounced edit rather than losing it — fire-and-forget
-    // since the widget is going away and can no longer setState.
     if (_autosaveDebounce?.isActive ?? false) _autosave();
     _autosaveDebounce?.cancel();
     _savedBadgeTimer?.cancel();
@@ -157,7 +160,10 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
       _showMessage(nameError);
       return;
     }
-    final phoneError = Validators.phone(_phoneController.text, _selectedCountry);
+    final phoneError = Validators.phone(
+      _phoneController.text,
+      _selectedCountry,
+    );
     if (phoneError != null) {
       _showMessage(phoneError);
       return;
@@ -180,11 +186,6 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
         address: _addressController.text,
       );
 
-      // Persist the Photo/Avatar tab toggle: it only switches which
-      // already-saved avatar is *shown* locally until Save Changes is
-      // tapped, matching how every other field on this screen behaves.
-      // Only switches when the target already has content — flipping to
-      // an empty tab (nothing uploaded/designed yet) is a no-op.
       final targetMode = _avatarMode
           ? ProfileAvatarMode.avatarDesign
           : ProfileAvatarMode.photo;
@@ -332,11 +333,17 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                           _AvatarModePanel(
                             onDesign: () async {
                               final current = ProfileAvatarState.decode(
-                                ProfileService.instance.current.value?.avatarUrl,
+                                ProfileService
+                                    .instance
+                                    .current
+                                    .value
+                                    ?.avatarUrl,
                               ).design;
                               await Navigator.of(context).push(
                                 MaterialPageRoute(
-                                  builder: (_) => AvatarCreatorScreen(initialConfig: current),
+                                  builder: (_) => AvatarCreatorScreen(
+                                    initialConfig: current,
+                                  ),
                                 ),
                               );
                             },
@@ -347,7 +354,8 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                             onFileDropped: _uploadFile,
                             uploading: _uploadingAvatar,
                             dragHover: _dragHover,
-                            onDragHoverChanged: (v) => setState(() => _dragHover = v),
+                            onDragHoverChanged: (v) =>
+                                setState(() => _dragHover = v),
                           ),
                       ],
                     ),
@@ -357,7 +365,10 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                     Text(
                       tr('auth_change_photo_hint'),
                       textAlign: TextAlign.center,
-                      style: TextStyle(color: context.colors.muted, fontSize: 12),
+                      style: TextStyle(
+                        color: context.colors.muted,
+                        fontSize: 12,
+                      ),
                     ),
                   const SizedBox(height: 28),
                   _FieldLabel(tr('auth_full_name')),
@@ -376,7 +387,10 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                     padding: const EdgeInsets.only(top: 6, left: 4),
                     child: Text(
                       tr('auth_email_locked_note'),
-                      style: TextStyle(color: context.colors.muted, fontSize: 11.5),
+                      style: TextStyle(
+                        color: context.colors.muted,
+                        fontSize: 11.5,
+                      ),
                     ),
                   ),
                   const SizedBox(height: 18),
@@ -396,7 +410,9 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                     keyboardType: TextInputType.phone,
                     inputFormatters: [
                       FilteringTextInputFormatter.digitsOnly,
-                      LengthLimitingTextInputFormatter(_selectedCountry.maxPhoneDigits),
+                      LengthLimitingTextInputFormatter(
+                        _selectedCountry.maxPhoneDigits,
+                      ),
                     ],
                   ),
                   const SizedBox(height: 24),
@@ -603,10 +619,6 @@ class _InputBox extends StatelessWidget {
   final bool readOnly;
   final List<TextInputFormatter>? inputFormatters;
 
-  /// True only for the genuinely uneditable email field. [readOnly] alone
-  /// (e.g. Date of Birth) just means "no keyboard, tap opens a picker
-  /// instead" — that field is still editable, so it gets a pencil like any
-  /// other, not the lock reserved for [locked].
   final bool locked;
 
   @override
@@ -623,7 +635,8 @@ class _InputBox extends StatelessWidget {
         color: locked ? context.colors.muted : context.colors.ink,
       ),
       decoration: InputDecoration(
-        prefixIcon: prefix ??
+        prefixIcon:
+            prefix ??
             (maxLines == 1 && icon != null
                 ? Icon(icon, color: context.colors.muted, size: 20)
                 : null),
@@ -633,9 +646,7 @@ class _InputBox extends StatelessWidget {
           size: locked ? 18 : 16,
         ),
         filled: true,
-        fillColor: locked
-            ? context.colors.surface
-            : context.colors.card,
+        fillColor: locked ? context.colors.surface : context.colors.card,
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(16),
           borderSide: BorderSide.none,
@@ -733,7 +744,13 @@ class _PhotoAvatarToggle extends StatelessWidget {
     );
   }
 
-  Widget _seg(BuildContext context, String label, IconData icon, bool active, VoidCallback onTap) {
+  Widget _seg(
+    BuildContext context,
+    String label,
+    IconData icon,
+    bool active,
+    VoidCallback onTap,
+  ) {
     return GestureDetector(
       onTap: onTap,
       child: AnimatedContainer(
@@ -746,7 +763,11 @@ class _PhotoAvatarToggle extends StatelessWidget {
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(icon, size: 15, color: active ? Colors.white : context.colors.muted),
+            Icon(
+              icon,
+              size: 15,
+              color: active ? Colors.white : context.colors.muted,
+            ),
             const SizedBox(width: 6),
             Text(
               label,
@@ -793,13 +814,21 @@ class _AvatarModePanel extends StatelessWidget {
               alignment: Alignment.center,
               child: config != null
                   ? AvatarPreview(config: config, width: 120, height: 150)
-                  : Icon(Icons.face_outlined, size: 48, color: context.colors.muted),
+                  : Icon(
+                      Icons.face_outlined,
+                      size: 48,
+                      color: context.colors.muted,
+                    ),
             ),
             const SizedBox(height: 12),
             TextButton.icon(
               onPressed: onDesign,
               icon: const Icon(Icons.brush_rounded, size: 18),
-              label: Text(config != null ? tr('avatar_edit_button') : tr('avatar_design_button')),
+              label: Text(
+                config != null
+                    ? tr('avatar_edit_button')
+                    : tr('avatar_design_button'),
+              ),
               style: TextButton.styleFrom(
                 foregroundColor: AppColors.accent,
                 textStyle: const TextStyle(fontWeight: FontWeight.w700),

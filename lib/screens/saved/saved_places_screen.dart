@@ -8,9 +8,6 @@ import '../../theme/app_theme.dart';
 import '../../widgets/detail_header.dart';
 import '../explore/explore_place_details_screen.dart';
 
-/// Bookmarked places — live per-user list backed by `saved_places`
-/// (bookmarked from the "🔖" button on Explore's place details screen),
-/// grouped as a simple grid.
 class SavedPlacesScreen extends StatefulWidget {
   const SavedPlacesScreen({super.key});
 
@@ -136,9 +133,7 @@ class _SavedPlaceCard extends StatelessWidget {
             Stack(
               children: [
                 ClipRRect(
-                  borderRadius: BorderRadius.vertical(
-                    top: Radius.circular(20),
-                  ),
+                  borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
                   child: SizedBox(
                     height: 100,
                     width: double.infinity,
@@ -214,8 +209,6 @@ class _SavedPlaceCard extends StatelessWidget {
     decoration: const BoxDecoration(
       gradient: LinearGradient(colors: _placeholderGradient),
     ),
-    child: Center(
-      child: Icon(nearbyPlace.icon, color: Colors.white, size: 30),
-    ),
+    child: Center(child: Icon(nearbyPlace.icon, color: Colors.white, size: 30)),
   );
 }

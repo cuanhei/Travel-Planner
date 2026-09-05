@@ -2,9 +2,6 @@ import 'package:flutter/material.dart';
 
 import '../../services/supabase_config.dart';
 
-/// One choice in Group Chat's "Change Background" picker. An empty
-/// [colors] list means "no wallpaper" — just the theme's own surface
-/// color, so it stays correct in both light and dark mode.
 class ChatBackground {
   const ChatBackground(this.key, this.label, this.colors);
 
@@ -31,14 +28,6 @@ ChatBackground chatBackgroundByKey(String? key) => chatBackgrounds.firstWhere(
   orElse: () => chatBackgrounds.first,
 );
 
-/// Backgrounds are a personal preference — never visible to anyone
-/// else in the chat — but saved server-side (`chat_background_preferences`)
-/// rather than to on-device storage, so it survives a reinstall and
-/// follows the signed-in user to another device too. [conversationId]
-/// scopes the choice to one chat: a trip's Group Chat can just use its
-/// trip id, while a Direct Message uses something that also identifies
-/// the other participant (e.g. `'$tripId/dm/$otherUserId'`) so each DM
-/// keeps its own background.
 Future<String?> loadChatBackgroundKey(String conversationId) async {
   final uid = SupabaseConfig.client.auth.currentUser?.id;
   if (uid == null) return null;

@@ -7,13 +7,6 @@ import '../../services/trip_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/detail_header.dart';
 
-/// Local emergency numbers for the current trip's stops, grouped by state
-/// (resolved from each stop's saved coordinates — see
-/// [EmergencyContactsService]) rather than listed per stop, so e.g. Penang
-/// Hill, Chew Jetty, and Batu Ferringhi — all in Penang — collapse into a
-/// single "Penang" tab instead of repeating the same numbers three times.
-/// Switching tabs (e.g. Penang → Kedah) switches which state's numbers are
-/// shown.
 class EmergencyContactsScreen extends StatefulWidget {
   const EmergencyContactsScreen({super.key, required this.tripId});
 
@@ -30,21 +23,11 @@ class _EmergencyContactsScreenState extends State<EmergencyContactsScreen> {
 
   int _selectedIndex = 0;
 
-  /// State label per stop, keyed by [TripStopLocation]'s own value
-  /// equality (lat/lng/osmId) — populated lazily as stops arrive, so a
-  /// stop is only reverse-geocoded once even as the stream re-emits.
   final _stateByStop = <TripStopLocation, String?>{};
   final _resolving = <TripStopLocation>{};
 
-  /// Created once in [initState], not inline in [build] — a fresh
-  /// `Stream` instance on every build would give `StreamBuilder` a
-  /// changed `stream` identity each time, forcing it to tear down and
-  /// resubscribe from scratch. Since [_resolveState] calls `setState` as
-  /// each stop's geocode result lands, an inline stream would restart the
-  /// whole fetch on every single one of those — which can keep resetting
-  /// to "loading" indefinitely instead of ever settling.
-  late final Stream<List<TripStopLocation>> _stopsStream =
-      _tripService.watchTripStops(widget.tripId);
+  late final Stream<List<TripStopLocation>> _stopsStream = _tripService
+      .watchTripStops(widget.tripId);
 
   Future<void> _resolveState(TripStopLocation stop) async {
     if (_stateByStop.containsKey(stop) || _resolving.contains(stop)) return;
@@ -80,9 +63,7 @@ class _EmergencyContactsScreenState extends State<EmergencyContactsScreen> {
                   if (stops.isEmpty) {
                     return _EmptyState(colors: context.colors);
                   }
-                  // Kick off (idempotent) resolution for whichever
-                  // stops don't have a cached state yet, without
-                  // blocking this build.
+
                   WidgetsBinding.instance.addPostFrameCallback((_) {
                     for (final stop in stops) {
                       _resolveState(stop);
@@ -99,21 +80,11 @@ class _EmergencyContactsScreenState extends State<EmergencyContactsScreen> {
   }
 
   Widget _buildBody(BuildContext context, List<TripStopLocation> stops) {
-    // Wait for every stop's state to resolve before grouping — building
-    // groups incrementally as each one trickles in would make chips merge
-    // and reorder under the traveler mid-scroll (e.g. a "Chew Jetty" chip
-    // disappearing into "Penang" once its lookup finally lands).
     final allResolved = stops.every(_stateByStop.containsKey);
     if (!allResolved) {
       return const Center(child: CircularProgressIndicator());
     }
 
-    // Stops sharing a state (e.g. Penang Hill, Chew Jetty, and Batu
-    // Ferringhi all resolving to "Penang") collapse into one chip/tab
-    // showing that state's numbers once, instead of repeating them per
-    // stop. A stop whose state couldn't be resolved is dropped entirely
-    // rather than lumped into a catch-all "Other" tab — nothing useful to
-    // show for it beyond the national numbers every other tab already has.
     final groups = <String, List<TripStopLocation>>{};
     for (final stop in stops) {
       final state = _stateByStop[stop];
@@ -261,11 +232,6 @@ class _EmergencyContactsScreenState extends State<EmergencyContactsScreen> {
     );
   }
 
-  /// Opens the device's phone dialer pre-filled with [rawNumber] via a
-  /// `tel:` URI — non-digit formatting (spaces, dashes) is stripped since
-  /// dialers expect a plain number (a leading `+` for international
-  /// numbers is kept). Shows an error instead of failing silently if the
-  /// platform has no dialer to hand off to (e.g. desktop/web).
   Future<void> _call(
     BuildContext context,
     String label,
@@ -290,10 +256,6 @@ class _EmergencyContactsScreenState extends State<EmergencyContactsScreen> {
   }
 }
 
-/// Shown when [TripService.watchTripStops]'s stream errors — e.g. a
-/// Realtime subscribe failure — instead of leaving the loading spinner
-/// running forever, which is indistinguishable from "still loading" to
-/// the traveler.
 class _ErrorState extends StatelessWidget {
   const _ErrorState({required this.colors});
 

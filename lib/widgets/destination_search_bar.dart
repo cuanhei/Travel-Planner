@@ -4,9 +4,6 @@ import '../screens/search_destination_screen.dart';
 import '../services/locale_service.dart';
 import '../theme/app_theme.dart';
 
-/// Tappable search bar that opens [SearchDestinationScreen] — shared by
-/// the Home dashboard and the Explore tab so both start the same
-/// destination search flow.
 class DestinationSearchBar extends StatelessWidget {
   const DestinationSearchBar({super.key});
 

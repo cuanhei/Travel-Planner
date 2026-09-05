@@ -1,5 +1,3 @@
-/// Community module translations (Community Feed, Review Details, Add
-/// Review, Comments). Keys are prefixed `community_`.
 const Map<String, Map<String, String>> communityStrings = {
   'en': {
     'community_subtitle': 'Travel stories from fellow explorers',
@@ -185,12 +183,9 @@ const Map<String, Map<String, String>> communityStrings = {
     'community_place_chew_jetty': '姓周桥，乔治市',
     'community_place_gurney_hawker': '峇都丁宜路小贩中心',
     'community_place_penang_hill': '槟城山',
-    'community_caption_chew_jetty':
-        '高脚屋上的日落美得不真实 😍 傍晚时分来真的很值得，人也少很多。',
-    'community_caption_gurney':
-        '这里的炒粿条一流，我又加点了一份，完全不后悔。记得带现金，大部分摊位不收卡。',
-    'community_caption_penang_hill':
-        '缆车排队很长，但山顶的景色完全值得。建议清晨前往，避开人群和炎热。',
+    'community_caption_chew_jetty': '高脚屋上的日落美得不真实 😍 傍晚时分来真的很值得，人也少很多。',
+    'community_caption_gurney': '这里的炒粿条一流，我又加点了一份，完全不后悔。记得带现金，大部分摊位不收卡。',
+    'community_caption_penang_hill': '缆车排队很长，但山顶的景色完全值得。建议清晨前往，避开人群和炎热。',
     'community_time_2h_ago': '2小时前',
     'community_time_5h_ago': '5小时前',
     'community_time_1d_ago': '1天前',
@@ -268,14 +263,10 @@ const Map<String, Map<String, String>> communityStrings = {
     'community_review_date_1_week_ago': '1週間前',
     'community_review_date_3_weeks_ago': '3週間前',
     'community_review_date_1_month_ago': '1ヶ月前',
-    'community_review_text_1':
-        '本当に絶景。最高の光を見るなら夕方に。最高の時間でした！',
-    'community_review_text_2':
-        '素晴らしい場所、週末は少し混みますがそれでも価値があります。',
-    'community_review_text_3':
-        '旅全体のハイライトの一つ。写真撮影に強くおすすめします。',
-    'community_review_text_4':
-        '全体的に良い体験でしたが、案内表示はもう少し改善の余地があります。',
+    'community_review_text_1': '本当に絶景。最高の光を見るなら夕方に。最高の時間でした！',
+    'community_review_text_2': '素晴らしい場所、週末は少し混みますがそれでも価値があります。',
+    'community_review_text_3': '旅全体のハイライトの一つ。写真撮影に強くおすすめします。',
+    'community_review_text_4': '全体的に良い体験でしたが、案内表示はもう少し改善の余地があります。',
   },
   'ko': {
     'community_subtitle': '동료 여행자들의 여행 이야기',
@@ -336,13 +327,10 @@ const Map<String, Map<String, String>> communityStrings = {
     'community_review_date_1_week_ago': '1주 전',
     'community_review_date_3_weeks_ago': '3주 전',
     'community_review_date_1_month_ago': '1개월 전',
-    'community_review_text_1':
-        '정말 놀라워요, 노을 질 때 가면 빛이 최고예요. 순간순간이 다 좋았어요!',
+    'community_review_text_1': '정말 놀라워요, 노을 질 때 가면 빛이 최고예요. 순간순간이 다 좋았어요!',
     'community_review_text_2': '좋은 곳이에요, 주말엔 좀 붐비지만 그래도 가볼 만해요.',
-    'community_review_text_3':
-        '이번 여행 전체에서 손꼽히는 하이라이트였어요. 사진 찍기에 강추.',
-    'community_review_text_4':
-        '전반적으로 좋은 경험이었지만 표지판은 좀 더 개선되면 좋겠어요.',
+    'community_review_text_3': '이번 여행 전체에서 손꼽히는 하이라이트였어요. 사진 찍기에 강추.',
+    'community_review_text_4': '전반적으로 좋은 경험이었지만 표지판은 좀 더 개선되면 좋겠어요.',
   },
   'th': {
     'community_subtitle': 'เรื่องราวการเดินทางจากนักสำรวจคนอื่น ๆ',
@@ -687,8 +675,10 @@ const Map<String, Map<String, String>> communityStrings = {
     'community_comment_you': 'நீங்கள்',
     'community_time_now': 'இப்போது',
     'community_comment_1': 'இதை இப்போதே எனது பட்டியலில் சேர்க்கிறேன்!',
-    'community_comment_2': 'கடந்த மாதம் அங்கு சென்றேன், முழுக்க மதிப்புள்ளது 🙌',
-    'community_comment_3': 'கூட்டத்தைத் தவிர்க்க எவ்வளவு சீக்கிரம் சென்றீர்கள்?',
+    'community_comment_2':
+        'கடந்த மாதம் அங்கு சென்றேன், முழுக்க மதிப்புள்ளது 🙌',
+    'community_comment_3':
+        'கூட்டத்தைத் தவிர்க்க எவ்வளவு சீக்கிரம் சென்றீர்கள்?',
     'community_review_date_2_days_ago': '2 நாட்களுக்கு முன்பு',
     'community_review_date_1_week_ago': '1 வாரத்திற்கு முன்பு',
     'community_review_date_3_weeks_ago': '3 வாரங்களுக்கு முன்பு',
@@ -1140,8 +1130,7 @@ const Map<String, Map<String, String>> communityStrings = {
     'community_comment_1': 'Добавляю это в свой список прямо сейчас!',
     'community_comment_2':
         'Ездил туда в прошлом месяце, однозначно того стоит 🙌',
-    'community_comment_3':
-        'Во сколько вы поехали, чтобы избежать толпы?',
+    'community_comment_3': 'Во сколько вы поехали, чтобы избежать толпы?',
     'community_review_date_2_days_ago': '2 дня назад',
     'community_review_date_1_week_ago': '1 неделю назад',
     'community_review_date_3_weeks_ago': '3 недели назад',

@@ -9,9 +9,6 @@ import '../../theme/app_theme.dart';
 import '../../widgets/detail_header.dart';
 import 'poll_form_screen.dart';
 
-/// Live group decision-making polls (e.g. picking a restaurant or
-/// activity), backed by Supabase Realtime — create new polls, vote,
-/// edit a poll's question/options, or delete it.
 class VotingScreen extends StatefulWidget {
   const VotingScreen({super.key, required this.tripId});
 
@@ -81,8 +78,7 @@ class _VotingScreenState extends State<VotingScreen> {
                         itemBuilder: (context, index) {
                           final poll = polls[index];
                           final totalVotes = poll.totalVotes;
-                          // The organizer can manage any poll; anyone
-                          // else only the one they created themselves.
+
                           final canManage =
                               isOrganizer || poll.createdBy == myUid;
                           return Container(
@@ -295,11 +291,18 @@ class _EmptyState extends StatelessWidget {
                 borderRadius: BorderRadius.circular(14),
                 onTap: onCreate,
                 child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 18,
+                    vertical: 12,
+                  ),
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      const Icon(Icons.add_rounded, color: Colors.white, size: 18),
+                      const Icon(
+                        Icons.add_rounded,
+                        color: Colors.white,
+                        size: 18,
+                      ),
                       const SizedBox(width: 6),
                       Text(
                         tr('group_new_poll_button'),

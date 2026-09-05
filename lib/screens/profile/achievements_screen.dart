@@ -5,11 +5,6 @@ import '../../services/locale_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/detail_header.dart';
 
-/// Badges and milestones — all locked by default, unlocked live from the
-/// signed-in user's real Trip/Budget/Group activity (see
-/// `achievement_service.dart`). A few (Explorer, Foodie, Reviewer) have
-/// no backing data anywhere in the app yet, so they stay locked with a
-/// "Coming soon" note rather than faking an unlock.
 class AchievementsScreen extends StatefulWidget {
   const AchievementsScreen({super.key});
 
@@ -68,7 +63,8 @@ class _AchievementsScreenState extends State<AchievementsScreen> {
                       final earned = b.isEarned?.call(stats) ?? false;
                       final hint = earned
                           ? null
-                          : (b.progress?.call(stats) ?? tr('common_coming_soon'));
+                          : (b.progress?.call(stats) ??
+                                tr('common_coming_soon'));
                       return _BadgeTile(badge: b, earned: earned, hint: hint);
                     },
                   );
@@ -111,8 +107,9 @@ class _BadgeTile extends StatelessWidget {
             width: 48,
             height: 48,
             decoration: BoxDecoration(
-              color: (earned ? badge.color : context.colors.muted)
-                  .withValues(alpha: earned ? 0.15 : 0.08),
+              color: (earned ? badge.color : context.colors.muted).withValues(
+                alpha: earned ? 0.15 : 0.08,
+              ),
               shape: BoxShape.circle,
             ),
             alignment: Alignment.center,

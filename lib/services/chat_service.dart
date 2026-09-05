@@ -10,7 +10,6 @@ import '../models/reaction_event.dart';
 import 'chat_media_service.dart';
 import 'supabase_config.dart';
 
-/// Backend for the trip's group chat.
 class ChatService {
   ChatService({SupabaseClient? client})
     : _client = client ?? SupabaseConfig.client;
@@ -25,8 +24,6 @@ class ChatService {
         .from('group_messages')
         .stream(primaryKey: ['id'])
         .eq('trip_id', tripId)
-        // Oldest-first: `order()` defaults to descending, which put the
-        // newest message at the top of the plain top-to-bottom ListView.
         .order('created_at', ascending: true)
         .asyncMap((rows) async {
           final userIds = rows
@@ -41,12 +38,7 @@ class ChatService {
           final profileById = {
             for (final p in profiles as List) p['id'] as String: p,
           };
-          // Nicknames are per-trip (trip_members.nickname), not part of
-          // the profile — a sender's Group Chat name prefers their own
-          // nickname for this trip when they've set one. Best-effort:
-          // if this lookup fails (e.g. migration 0016 not applied yet
-          // on this database), messages should still show with their
-          // plain profile name rather than the whole chat going blank.
+
           var nicknameByUserId = <String, String>{};
           try {
             final members = await _client
@@ -59,9 +51,7 @@ class ChatService {
                 if (m['nickname'] != null)
                   m['user_id'] as String: m['nickname'] as String,
             };
-          } catch (_) {
-            // Fall through with no nicknames resolved.
-          }
+          } catch (_) {}
           final rowById = {for (final r in rows) r['id'] as String: r};
           String nameFor(String userId) {
             final profile = profileById[userId];
@@ -74,11 +64,7 @@ class ChatService {
           ) {
             final userId = r['user_id'] as String;
             final profile = profileById[userId]!;
-            // Explicitly typed: an untyped `{...profile, if (...) ...}`
-            // literal infers as Map<dynamic, dynamic> here (the `if`
-            // collection-element defeats the spread's own Map<String,
-            // dynamic> type), which then fails GroupMessage.fromMap's
-            // `as Map<String, dynamic>` cast on every single message.
+
             final mergedProfile = <String, dynamic>{
               ...profile,
               if (nicknameByUserId[userId] != null)
@@ -129,9 +115,6 @@ class ChatService {
     });
   }
 
-  /// Uploads a photo/video file for this trip's chat and returns its
-  /// public URL, ready to pass into [sendMessage] as part of a
-  /// [ChatAttachment].
   Future<String> uploadAttachment({
     required String tripId,
     required Uint8List bytes,
@@ -146,7 +129,6 @@ class ChatService {
     );
   }
 
-  /// Sender-only: changes [messageId]'s text, marking it as edited.
   Future<void> editMessage({
     required String messageId,
     required String body,
@@ -161,9 +143,6 @@ class ChatService {
         .eq('id', messageId);
   }
 
-  /// Sender-only: "delete for everyone" — clears the body/attachment
-  /// and marks it deleted, rather than removing the row, so the chat
-  /// can still show a placeholder in its place for every member.
   Future<void> deleteMessage(String messageId) async {
     await _client
         .from('group_messages')
@@ -177,9 +156,6 @@ class ChatService {
         .eq('id', messageId);
   }
 
-  /// Pins [messageId] as the trip's one pinned message (unpinning
-  /// whatever was pinned before), or unpins entirely when null. Any
-  /// trip member can do this, not just the message's own sender.
   Future<void> setPinnedMessage({
     required String tripId,
     String? messageId,
@@ -190,10 +166,6 @@ class ChatService {
     );
   }
 
-  /// Live read receipts for every message in [tripId], grouped by
-  /// message id then by the member who read it. A separate stream
-  /// (rather than embedded in [watchMessages]) since realtime streams
-  /// don't support joins and the two update independently anyway.
   Stream<Map<String, Map<String, DateTime>>> watchReadReceipts(String tripId) {
     return _client
         .from('group_message_reads')
@@ -210,10 +182,6 @@ class ChatService {
         });
   }
 
-  /// Records that the signed-in member has now seen each of
-  /// [messageIds] — safe to call repeatedly (e.g. every time the chat's
-  /// message list changes while the screen is open); already-read
-  /// messages are silently skipped rather than overwriting `read_at`.
   Future<void> markMessagesRead({
     required String tripId,
     required List<String> messageIds,
@@ -231,9 +199,6 @@ class ChatService {
         );
   }
 
-  /// Live reactions for every message in [tripId], grouped by message
-  /// id then by the member who reacted — `message_id` -> (`user_id` ->
-  /// emoji).
   Stream<Map<String, Map<String, String>>> watchReactions(String tripId) {
     return _client
         .from('group_message_reactions')
@@ -251,11 +216,6 @@ class ChatService {
         });
   }
 
-  /// Same reactions as [watchReactions], but as a flat list of events
-  /// with `createdAt` — used to tell a genuinely new reaction from one
-  /// that already existed, for the "so-and-so reacted to your message"
-  /// toast. [watchReactions] itself drops the timestamp since none of
-  /// its callers (rendering reaction pills) need it.
   Stream<List<ReactionEvent>> watchReactionEvents(String tripId) {
     return _client
         .from('group_message_reactions')
@@ -264,8 +224,6 @@ class ChatService {
         .map((rows) => rows.map(ReactionEvent.fromMap).toList());
   }
 
-  /// Sets (replacing any previous one) the signed-in member's reaction
-  /// on [messageId].
   Future<void> setReaction({
     required String tripId,
     required String messageId,
@@ -279,7 +237,6 @@ class ChatService {
     }, onConflict: 'message_id,user_id');
   }
 
-  /// Removes the signed-in member's reaction on [messageId], if any.
   Future<void> removeReaction(String messageId) async {
     await _client
         .from('group_message_reactions')
@@ -287,14 +244,6 @@ class ChatService {
         .eq('message_id', messageId)
         .eq('user_id', _uid);
   }
-
-  // ---- Typing indicator ----------------------------------------------
-  //
-  // Purely ephemeral — Realtime Broadcast, nothing written to the
-  // database. One channel per trip, shared by [sendTyping] and
-  // [watchTyping] on a given [ChatService] instance (a chat screen
-  // keeps its own instance for its whole lifetime, same as every other
-  // stream here).
 
   RealtimeChannel? _typingChannel;
   String? _typingChannelTripId;
@@ -318,9 +267,6 @@ class ChatService {
     }
   }
 
-  /// Broadcasts that the signed-in member is typing in [tripId]'s chat.
-  /// Call this occasionally while the composer has text (the caller
-  /// debounces), not on every keystroke.
   void sendTyping(String tripId) {
     _ensureTypingSubscribed(tripId);
     _typingChannelFor(
@@ -328,10 +274,6 @@ class ChatService {
     ).sendBroadcastMessage(event: 'typing', payload: {'user_id': _uid});
   }
 
-  /// User ids of other members currently typing — a live event stream
-  /// (each id arrives every time they broadcast, not just once), so the
-  /// UI is expected to time an id back out a few seconds after its last
-  /// event rather than wait for an explicit "stopped typing" signal.
   Stream<String> watchTyping(String tripId) {
     final controller = StreamController<String>.broadcast();
     final channel = _typingChannelFor(tripId);

@@ -1,6 +1,3 @@
-/// A planned spending category for a trip, backed by `budget_categories`.
-/// Icon/color are a purely visual concern owned by the UI (matched by
-/// [label]) — the backend only tracks the label and planned amount.
 class BudgetCategoryData {
   const BudgetCategoryData({
     required this.id,

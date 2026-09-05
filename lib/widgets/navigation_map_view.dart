@@ -9,11 +9,6 @@ const _osmTileUrl = 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
 const _osmUserAgent = 'com.example.travelplanner';
 const _followZoom = 17.0;
 
-/// Live OpenStreetMap view for turn-by-turn navigation: the traveler's
-/// live GPS position (reusing [CurrentLocationMarker]), the current
-/// step's target stop, and its polyline. Follows the traveler by
-/// default; a manual pan/zoom disengages follow mode and reveals a
-/// recenter button, per the "allow the user to recenter" requirement.
 class NavigationMapView extends StatefulWidget {
   const NavigationMapView({
     super.key,
@@ -66,10 +61,12 @@ class _NavigationMapViewState extends State<NavigationMapView> {
 
   @override
   Widget build(BuildContext context) {
-    final user = widget.userPosition != null && isValidLatLng(widget.userPosition!)
+    final user =
+        widget.userPosition != null && isValidLatLng(widget.userPosition!)
         ? widget.userPosition
         : null;
-    final target = widget.targetPosition != null && isValidLatLng(widget.targetPosition!)
+    final target =
+        widget.targetPosition != null && isValidLatLng(widget.targetPosition!)
         ? widget.targetPosition
         : null;
     final polylinePoints = widget.polylinePoints.where(isValidLatLng).toList();
@@ -78,8 +75,7 @@ class _NavigationMapViewState extends State<NavigationMapView> {
         FlutterMap(
           mapController: _mapController,
           options: MapOptions(
-            initialCenter:
-                user ?? target ?? const LatLng(3.1390, 101.6869),
+            initialCenter: user ?? target ?? const LatLng(3.1390, 101.6869),
             initialZoom: _followZoom,
             onPositionChanged: (camera, hasGesture) {
               if (hasGesture && _following) {

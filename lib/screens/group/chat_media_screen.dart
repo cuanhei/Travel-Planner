@@ -5,10 +5,6 @@ import '../../theme/app_theme.dart';
 import '../../widgets/detail_header.dart';
 import 'chat_media_viewer_screen.dart';
 
-/// Grid of every photo/video sent in a conversation — tapping one opens
-/// a swipeable, WhatsApp-style viewer (left/right arrows, plus
-/// swiping) starting at that item, over every other photo/video in the
-/// grid.
 class ChatMediaScreen extends StatelessWidget {
   const ChatMediaScreen({
     super.key,
@@ -18,7 +14,6 @@ class ChatMediaScreen extends StatelessWidget {
 
   final String subtitle;
 
-  /// Newest first.
   final List<ChatAttachment> attachments;
 
   @override

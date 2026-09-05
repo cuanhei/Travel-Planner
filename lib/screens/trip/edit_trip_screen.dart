@@ -6,10 +6,6 @@ import '../../theme/app_theme.dart';
 import '../../widgets/detail_header.dart';
 import '../../widgets/gradient_button.dart';
 
-/// Trip editor for a trip's name and description only — starting/ending
-/// location, dates, and day-by-day stops/timing are all set once at
-/// Create Trip and aren't editable here; budget/group-size tracking live
-/// in their own dedicated modules.
 class EditTripScreen extends StatefulWidget {
   const EditTripScreen({super.key, required this.trip});
 
@@ -54,9 +50,7 @@ class _EditTripScreenState extends State<EditTripScreen> {
     setState(() => _saving = true);
     try {
       final trip = widget.trip;
-      // updateTrip sets every field it's given, rather than merging — so
-      // everything set once at Create Trip and not editable here
-      // (location/dates) is passed straight through unchanged.
+
       await _tripService.updateTrip(
         tripId: trip.id,
         name: name,

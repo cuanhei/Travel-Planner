@@ -1,4 +1,3 @@
-/// A single review of a place, joined from `reviews` + `profiles`.
 class PlaceReview {
   const PlaceReview({
     required this.id,

@@ -7,8 +7,6 @@ import '../../theme/app_theme.dart';
 import '../../widgets/detail_header.dart';
 import '../trip/trip_details_screen.dart';
 
-/// Cycled by list index purely for visual variety — trips don't store a
-/// cover color/icon of their own (mirrors `TripsTab`'s own cycling).
 const _historyGradients = [
   AppColors.horizon,
   AppColors.lagoon,
@@ -28,10 +26,6 @@ List<Color> _gradientFor(int index) =>
 
 IconData _iconFor(int index) => _historyIcons[index % _historyIcons.length];
 
-/// Past trips — real data (`TripStatus.past`, same as `TripsTab`'s
-/// "Past" filter), shown as a timeline, most recently ended first.
-/// Previously 4 fixed mock entries that all opened the same demo trip
-/// regardless of which was tapped.
 class TravelHistoryScreen extends StatefulWidget {
   const TravelHistoryScreen({super.key});
 
@@ -129,8 +123,9 @@ class _TravelHistoryScreenState extends State<TravelHistoryScreen> {
                                         margin: EdgeInsets.symmetric(
                                           vertical: 4,
                                         ),
-                                        color: context.colors.muted
-                                            .withValues(alpha: 0.2),
+                                        color: context.colors.muted.withValues(
+                                          alpha: 0.2,
+                                        ),
                                       ),
                                     ),
                                 ],
@@ -198,8 +193,7 @@ class _TravelHistoryScreenState extends State<TravelHistoryScreen> {
                                                     overflow:
                                                         TextOverflow.ellipsis,
                                                     style: TextStyle(
-                                                      color:
-                                                          context.colors.ink,
+                                                      color: context.colors.ink,
                                                       fontWeight:
                                                           FontWeight.w700,
                                                       fontSize: 13.5,

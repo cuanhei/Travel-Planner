@@ -1,5 +1,3 @@
-/// Utilities module translations (Packing List, Currency Converter,
-/// Translator, Emergency Contacts). Keys are prefixed `utilities_`.
 const Map<String, Map<String, String>> utilitiesStrings = {
   'en': {
     'utilities_currency_converter_title': 'Currency Converter',
@@ -18,8 +16,7 @@ const Map<String, Map<String, String>> utilitiesStrings = {
     'utilities_of': 'of',
     'utilities_packed': 'packed',
     'utilities_empty_packing_title': 'Nothing on your list yet',
-    'utilities_empty_packing_subtitle':
-        'Add the first thing you need to pack.',
+    'utilities_empty_packing_subtitle': 'Add the first thing you need to pack.',
     'utilities_add_item': 'Add Item',
     'utilities_edit_item_title': 'Edit Item',
     'utilities_edit_item_subtitle': 'Update this packing list item',
@@ -45,8 +42,7 @@ const Map<String, Map<String, String>> utilitiesStrings = {
     'utilities_packing_list_card_subtitle': 'Auto-generated checklist',
     'utilities_currency_converter_card_subtitle': 'Exchange rates',
     'utilities_translator_card_subtitle': 'Common travel phrases',
-    'utilities_emergency_contacts_card_subtitle':
-        'Local emergency information',
+    'utilities_emergency_contacts_card_subtitle': 'Local emergency information',
     'utilities_category_clothing': 'Clothing',
     'utilities_category_toiletries': 'Toiletries',
     'utilities_category_electronics': 'Electronics',
@@ -71,8 +67,7 @@ const Map<String, Map<String, String>> utilitiesStrings = {
     'utilities_item_umbrella': 'Umbrella',
     'utilities_item_waterproof_bag': 'Waterproof bag',
     'utilities_item_laundry_bag': 'Laundry bag',
-    'utilities_suggestion_note_wet_season':
-        'Your dates fall in the wet season',
+    'utilities_suggestion_note_wet_season': 'Your dates fall in the wet season',
     'utilities_suggestion_note_highland':
         'Temperatures drop at higher elevation',
     'utilities_suggestion_note_long_trip': 'For a longer trip',
@@ -108,7 +103,8 @@ const Map<String, Map<String, String>> utilitiesStrings = {
     'utilities_add_item': 'Tambah Item',
     'utilities_edit_item_title': 'Edit Item',
     'utilities_edit_item_subtitle': 'Kemas kini item senarai pembungkusan ini',
-    'utilities_add_item_subtitle': 'Tambah sesuatu ke senarai pembungkusan anda',
+    'utilities_add_item_subtitle':
+        'Tambah sesuatu ke senarai pembungkusan anda',
     'utilities_field_item': 'Item',
     'utilities_field_category': 'Kategori',
     'utilities_hint_item': 'cth. Cermin mata hitam',
@@ -130,8 +126,7 @@ const Map<String, Map<String, String>> utilitiesStrings = {
     'utilities_packing_list_card_subtitle': 'Senarai semak automatik',
     'utilities_currency_converter_card_subtitle': 'Kadar pertukaran',
     'utilities_translator_card_subtitle': 'Frasa perjalanan biasa',
-    'utilities_emergency_contacts_card_subtitle':
-        'Maklumat kecemasan tempatan',
+    'utilities_emergency_contacts_card_subtitle': 'Maklumat kecemasan tempatan',
     'utilities_category_clothing': 'Pakaian',
     'utilities_category_toiletries': 'Alat Mandian',
     'utilities_category_electronics': 'Elektronik',
@@ -336,9 +331,11 @@ const Map<String, Map<String, String>> utilitiesStrings = {
   },
   'th': {
     'utilities_currency_converter_title': 'ตัวแปลงสกุลเงิน',
-    'utilities_currency_converter_subtitle': 'อัตราแลกเปลี่ยนสำหรับอ้างอิงเท่านั้น',
+    'utilities_currency_converter_subtitle':
+        'อัตราแลกเปลี่ยนสำหรับอ้างอิงเท่านั้น',
     'utilities_emergency_contacts_title': 'ผู้ติดต่อฉุกเฉิน',
-    'utilities_emergency_contacts_subtitle': 'หมายเลขท้องถิ่นสำหรับปีนัง มาเลเซีย',
+    'utilities_emergency_contacts_subtitle':
+        'หมายเลขท้องถิ่นสำหรับปีนัง มาเลเซีย',
     'utilities_contact_police': 'ตำรวจ',
     'utilities_contact_ambulance': 'รถพยาบาล',
     'utilities_contact_fire': 'หน่วยดับเพลิง',
@@ -363,7 +360,8 @@ const Map<String, Map<String, String>> utilitiesStrings = {
     'utilities_save_changes': 'บันทึกการเปลี่ยนแปลง',
     'utilities_remove_item': 'ลบรายการ',
     'utilities_remove_item_confirm_title': 'ลบรายการนี้หรือไม่?',
-    'utilities_remove_item_confirm_suffix': 'จะถูกลบออกจากรายการของที่ต้องแพ็กของคุณ',
+    'utilities_remove_item_confirm_suffix':
+        'จะถูกลบออกจากรายการของที่ต้องแพ็กของคุณ',
     'utilities_remove': 'ลบ',
     'utilities_translator_title': 'นักแปล',
     'utilities_translator_subtitle': 'อังกฤษ → มาเลย์',
@@ -412,8 +410,7 @@ const Map<String, Map<String, String>> utilitiesStrings = {
     'utilities_of': 'trong',
     'utilities_packed': 'đã đóng gói',
     'utilities_empty_packing_title': 'Danh sách của bạn chưa có gì',
-    'utilities_empty_packing_subtitle':
-        'Thêm thứ đầu tiên bạn cần mang theo.',
+    'utilities_empty_packing_subtitle': 'Thêm thứ đầu tiên bạn cần mang theo.',
     'utilities_add_item': 'Thêm Mục',
     'utilities_edit_item_title': 'Sửa Mục',
     'utilities_edit_item_subtitle': 'Cập nhật mục này trong danh sách đồ đạc',
@@ -501,7 +498,8 @@ const Map<String, Map<String, String>> utilitiesStrings = {
     'utilities_translation_preview_suffix': '(pratinjau terjemahan)',
     'utilities_home_title': 'Utilitas Perjalanan',
     'utilities_home_subtitle': 'Alat berguna untuk perjalanan Anda',
-    'utilities_packing_list_card_subtitle': 'Daftar periksa yang dibuat otomatis',
+    'utilities_packing_list_card_subtitle':
+        'Daftar periksa yang dibuat otomatis',
     'utilities_currency_converter_card_subtitle': 'Kurs tukar',
     'utilities_translator_card_subtitle': 'Frasa perjalanan umum',
     'utilities_emergency_contacts_card_subtitle': 'Informasi darurat lokal',
@@ -553,7 +551,8 @@ const Map<String, Map<String, String>> utilitiesStrings = {
     'utilities_save_changes': 'परिवर्तन सहेजें',
     'utilities_remove_item': 'आइटम हटाएं',
     'utilities_remove_item_confirm_title': 'इस आइटम को हटाएं?',
-    'utilities_remove_item_confirm_suffix': 'आपकी पैकिंग सूची से हटा दिया जाएगा।',
+    'utilities_remove_item_confirm_suffix':
+        'आपकी पैकिंग सूची से हटा दिया जाएगा।',
     'utilities_remove': 'हटाएं',
     'utilities_translator_title': 'अनुवादक',
     'utilities_translator_subtitle': 'अंग्रेज़ी → बहासा मलेशिया',
@@ -589,7 +588,8 @@ const Map<String, Map<String, String>> utilitiesStrings = {
     'utilities_currency_converter_title': 'நாணய மாற்றி',
     'utilities_currency_converter_subtitle': 'விகிதங்கள் குறிப்புக்கு மட்டுமே',
     'utilities_emergency_contacts_title': 'அவசர தொடர்புகள்',
-    'utilities_emergency_contacts_subtitle': 'பினாங்கு, மலேசியாவின் உள்ளூர் எண்கள்',
+    'utilities_emergency_contacts_subtitle':
+        'பினாங்கு, மலேசியாவின் உள்ளூர் எண்கள்',
     'utilities_contact_police': 'காவல்துறை',
     'utilities_contact_ambulance': 'ஆம்புலன்ஸ்',
     'utilities_contact_fire': 'தீயணைப்பு படை',
@@ -627,7 +627,8 @@ const Map<String, Map<String, String>> utilitiesStrings = {
     'utilities_translation_preview_suffix': '(மொழிபெயர்ப்பு முன்னோட்டம்)',
     'utilities_home_title': 'பயண கருவிகள்',
     'utilities_home_subtitle': 'உங்கள் பயணத்திற்கான பயனுள்ள கருவிகள்',
-    'utilities_packing_list_card_subtitle': 'தானாக உருவாக்கப்பட்ட சரிபார்ப்புப் பட்டியல்',
+    'utilities_packing_list_card_subtitle':
+        'தானாக உருவாக்கப்பட்ட சரிபார்ப்புப் பட்டியல்',
     'utilities_currency_converter_card_subtitle': 'மாற்று விகிதங்கள்',
     'utilities_translator_card_subtitle': 'பொதுவான பயண சொற்றொடர்கள்',
     'utilities_emergency_contacts_card_subtitle': 'உள்ளூர் அவசர தகவல்',
@@ -780,7 +781,8 @@ const Map<String, Map<String, String>> utilitiesStrings = {
   },
   'fr': {
     'utilities_currency_converter_title': 'Convertisseur de Devises',
-    'utilities_currency_converter_subtitle': 'Taux à titre indicatif uniquement',
+    'utilities_currency_converter_subtitle':
+        'Taux à titre indicatif uniquement',
     'utilities_emergency_contacts_title': "Contacts d'Urgence",
     'utilities_emergency_contacts_subtitle':
         'Numéros locaux pour Penang, Malaisie',
@@ -801,7 +803,8 @@ const Map<String, Map<String, String>> utilitiesStrings = {
     'utilities_edit_item_title': "Modifier l'Article",
     'utilities_edit_item_subtitle':
         'Mettre à jour cet article de la liste de bagages',
-    'utilities_add_item_subtitle': 'Ajoutez quelque chose à votre liste de bagages',
+    'utilities_add_item_subtitle':
+        'Ajoutez quelque chose à votre liste de bagages',
     'utilities_field_item': 'Article',
     'utilities_field_category': 'Catégorie',
     'utilities_hint_item': 'ex. Lunettes de soleil',
@@ -888,7 +891,8 @@ const Map<String, Map<String, String>> utilitiesStrings = {
     'utilities_packing_list_card_subtitle': 'Automatisch erstellte Checkliste',
     'utilities_currency_converter_card_subtitle': 'Wechselkurse',
     'utilities_translator_card_subtitle': 'Gebräuchliche Reise-Redewendungen',
-    'utilities_emergency_contacts_card_subtitle': 'Örtliche Notfallinformationen',
+    'utilities_emergency_contacts_card_subtitle':
+        'Örtliche Notfallinformationen',
     'utilities_category_clothing': 'Kleidung',
     'utilities_category_toiletries': 'Kulturbeutel',
     'utilities_category_electronics': 'Elektronik',
@@ -1018,7 +1022,8 @@ const Map<String, Map<String, String>> utilitiesStrings = {
     'utilities_packing_list_card_subtitle': 'Автоматически созданный список',
     'utilities_currency_converter_card_subtitle': 'Обменные курсы',
     'utilities_translator_card_subtitle': 'Частые дорожные фразы',
-    'utilities_emergency_contacts_card_subtitle': 'Местная экстренная информация',
+    'utilities_emergency_contacts_card_subtitle':
+        'Местная экстренная информация',
     'utilities_category_clothing': 'Одежда',
     'utilities_category_toiletries': 'Туалетные принадлежности',
     'utilities_category_electronics': 'Электроника',

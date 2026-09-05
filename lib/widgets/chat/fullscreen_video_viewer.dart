@@ -2,10 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:media_kit/media_kit.dart';
 import 'package:media_kit_video/media_kit_video.dart';
 
-/// Full-screen playback for a chat video message. Uses media_kit
-/// (rather than the official video_player plugin) because it's the one
-/// video package with a real Windows desktop backend — this app also
-/// builds for Windows, where video_player has no implementation at all.
 class FullscreenVideoViewer extends StatefulWidget {
   const FullscreenVideoViewer({super.key, required this.url});
 

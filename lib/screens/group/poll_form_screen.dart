@@ -9,15 +9,11 @@ import '../../widgets/gradient_button.dart';
 const _maxOptions = 6;
 const _minOptions = 2;
 
-/// Form for creating a new group poll or editing/deleting an existing
-/// one — a question plus 2–6 options. Writes straight to Supabase;
-/// [VotingScreen] picks up the change via its realtime stream.
 class PollFormScreen extends StatefulWidget {
   const PollFormScreen({super.key, required this.tripId, this.initial});
 
   final String tripId;
 
-  /// Poll being edited, or null when creating a new one.
   final Poll? initial;
 
   bool get isEditing => initial != null;
@@ -49,9 +45,6 @@ class _PollFormScreenState extends State<PollFormScreen> {
     super.dispose();
   }
 
-  /// Whether the form differs from where it started — an empty question
-  /// and no options when creating, or the original question/options
-  /// when editing. Drives the discard-changes confirmation on back.
   bool get _hasChanges {
     final initialQuestion = widget.initial?.question ?? '';
     if (_questionController.text.trim() != initialQuestion.trim()) {

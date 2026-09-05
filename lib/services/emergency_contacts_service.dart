@@ -4,8 +4,6 @@ import 'package:latlong2/latlong.dart';
 import '../models/trip_stop_location.dart';
 import 'photon_service.dart';
 
-/// A single emergency service entry — a label, a dialable number, and the
-/// icon/color the Emergency Contacts screen renders it with.
 typedef EmergencyContact = ({
   String label,
   String number,
@@ -13,11 +11,6 @@ typedef EmergencyContact = ({
   Color color,
 });
 
-/// [EmergencyContactsService.contactsForState]'s result: the numbers to
-/// show and the state they're for. [hasStateSpecificNumbers] is false
-/// when [stateLabel] has no curated entries beyond the national three
-/// (see [EmergencyContactsService] for why that's not treated as an
-/// error — the national numbers are still fully correct everywhere).
 class ResolvedEmergencyContacts {
   const ResolvedEmergencyContacts({
     required this.stateLabel,
@@ -30,24 +23,6 @@ class ResolvedEmergencyContacts {
   final bool hasStateSpecificNumbers;
 }
 
-/// Police/Ambulance/Fire (Bomba) numbers per Malaysian state, keyed to
-/// wherever a trip's stop actually is — each stop's saved coordinates are
-/// reverse-geocoded (via [PhotonService], the same one Weather uses) to a
-/// state, so which numbers the Emergency Contacts screen shows follows
-/// the traveler's itinerary (George Town → Penang's numbers, Alor Setar →
-/// Kedah's, etc.) rather than a live GPS fix.
-///
-/// 999/994 always work and always connect to the right place — what
-/// [_stateExtras] adds on top is each state/federal territory's own
-/// direct-line numbers for its main government hospital (verified against
-/// each hospital's own moh.gov.my page), state police contingent HQ
-/// (verified against rmp.gov.my's own directory), and state Fire & Rescue
-/// HQ (verified against bomba.gov.my/each department's own page) — for
-/// when a traveler wants that facility specifically rather than the
-/// national dispatch line. Penang also has a verified Tourist Police
-/// number. An unrecognized state (or one Photon fails to resolve) just
-/// gets the national three rather than a plausible-looking but unverified
-/// number.
 class EmergencyContactsService {
   EmergencyContactsService({PhotonService? photonService})
     : _photon = photonService ?? PhotonService();
@@ -75,9 +50,6 @@ class EmergencyContactsService {
     ),
   ];
 
-  /// Verified, state-specific numbers beyond the national three — kept
-  /// deliberately small rather than inventing plausible-looking numbers
-  /// for states this hasn't actually verified.
   static const _stateExtras = <String, List<EmergencyContact>>{
     'Penang': [
       (
@@ -407,9 +379,6 @@ class EmergencyContactsService {
     ],
   };
 
-  /// Maps Photon/OSM's state name — often the Malay official form, e.g.
-  /// "Pulau Pinang" — to the display name used in [_stateExtras] and
-  /// shown in the UI.
   static const _stateNameAliases = {
     'Pulau Pinang': 'Penang',
     'W.P. Kuala Lumpur': 'Kuala Lumpur',
@@ -419,9 +388,6 @@ class EmergencyContactsService {
     'Melaka': 'Malacca',
   };
 
-  /// Reverse-geocodes [stop]'s saved coordinates to its Malaysian state
-  /// name (e.g. "Penang", "Kedah"), or null if that fails or the point
-  /// has no resolvable state.
   Future<String?> stateForStop(TripStopLocation stop) async {
     try {
       final area = await _photon.reverseAdministrative(
@@ -435,9 +401,6 @@ class EmergencyContactsService {
     }
   }
 
-  /// Emergency contacts for [stateLabel] (as returned by [stateForStop])
-  /// — always the national three, plus any verified extras for that
-  /// state. `null`/unrecognized states just get the national three.
   ResolvedEmergencyContacts contactsForState(String? stateLabel) {
     final extras = stateLabel != null ? _stateExtras[stateLabel] : null;
     return ResolvedEmergencyContacts(

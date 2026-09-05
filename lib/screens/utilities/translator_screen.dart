@@ -5,9 +5,6 @@ import '../../services/translation_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/detail_header.dart';
 
-/// Free-text translator (via [TranslationService]'s live API call) with a
-/// from/to language picker, plus a common travel-phrases reference that's
-/// translated into the same from/to pair — see [_translatePhrases].
 class TranslatorScreen extends StatefulWidget {
   const TranslatorScreen({super.key});
 
@@ -27,11 +24,6 @@ class _TranslatorScreenState extends State<TranslatorScreen> {
   String _toLang = 'ms';
   List<TranslateLanguage> _languages = const [];
 
-  /// Canonical set of common travel phrases, in English — translated live
-  /// into whichever languages [_fromLang]/[_toLang] are currently set to
-  /// (see [_translatePhrases]), so changing the language pair above
-  /// changes what's shown here too, instead of this staying fixed to a
-  /// hardcoded English → Malay pair.
   static const _phrasesEn = [
     'Hello',
     'Thank you',
@@ -43,21 +35,11 @@ class _TranslatorScreenState extends State<TranslatorScreen> {
     'Goodbye',
   ];
 
-  /// [_phrasesEn] translated into [_fromLang]/[_toLang] — parallel lists,
-  /// same index order as [_phrasesEn]. `null` until the first translation
-  /// batch finishes; the *previous* pair's results are otherwise kept
-  /// visible while a new batch is in flight, rather than blanking the
-  /// section on every language change.
   List<String>? _phrasesFrom;
   List<String>? _phrasesTo;
   bool _phrasesLoading = false;
   String? _phrasesError;
 
-  /// Lingva's ISO 639-1 codes aren't always what a device's TTS engine
-  /// expects (e.g. plain `'ms'` vs the `'ms-MY'` locale tag) — this covers
-  /// the languages most relevant to a Malaysia travel app; anything else
-  /// falls back to the bare code, which some engines accept fine anyway
-  /// (and [_speak]'s error handling already covers voices that don't).
   static const _ttsLocales = {
     'en': 'en-US',
     'ms': 'ms-MY',
@@ -86,11 +68,6 @@ class _TranslatorScreenState extends State<TranslatorScreen> {
     _translatePhrases();
   }
 
-  /// Translates every entry in [_phrasesEn] into [_fromLang] and [_toLang]
-  /// — skipping the live call for whichever side is already English (or
-  /// "Detect language", which isn't a real target), since that's the
-  /// phrases' own source text. Called on load and after every language
-  /// change.
   Future<void> _translatePhrases() async {
     setState(() {
       _phrasesLoading = true;
@@ -126,8 +103,6 @@ class _TranslatorScreenState extends State<TranslatorScreen> {
     }
   }
 
-  /// The picker list's display name for [code] — falls back to the raw
-  /// code if [_languages] hasn't loaded yet.
   String _nameFor(String code) {
     for (final language in _languages) {
       if (language.code == code) return language.name;
@@ -211,12 +186,6 @@ class _TranslatorScreenState extends State<TranslatorScreen> {
     _translatePhrases();
   }
 
-  /// Reads [text] aloud via the device's text-to-speech engine, in
-  /// [langCode]'s language (a Lingva code like `'ms'`, mapped to a TTS
-  /// locale tag via [_ttsLocales]) — for a "Common Phrases" entry, always
-  /// [_toLang], so it matches whatever's actually shown there. Fails
-  /// silently into a snackbar rather than a crash if the device has no
-  /// voice installed for that language.
   Future<void> _speak(String text, String langCode) async {
     try {
       await _tts.stop();
@@ -451,8 +420,6 @@ class _TranslatorScreenState extends State<TranslatorScreen> {
   }
 }
 
-/// Tappable pill showing the currently picked language, opening
-/// [_LanguagePickerSheet] when tapped.
 class _LanguagePill extends StatelessWidget {
   const _LanguagePill({required this.label, required this.onTap});
 
@@ -497,9 +464,6 @@ class _LanguagePill extends StatelessWidget {
   }
 }
 
-/// Searchable bottom sheet listing every language [TranslationService]
-/// supports, for picking either side of a translation. Pops with the
-/// chosen language code.
 class _LanguagePickerSheet extends StatefulWidget {
   const _LanguagePickerSheet({
     required this.languages,
@@ -509,9 +473,6 @@ class _LanguagePickerSheet extends StatefulWidget {
 
   final List<TranslateLanguage> languages;
 
-  /// Whether to show "Detect language" (`auto`) at the top — only
-  /// meaningful for the "from" side; Lingva doesn't support `auto` as a
-  /// translation target.
   final bool includeDetect;
   final String selected;
 

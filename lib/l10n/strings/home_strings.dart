@@ -1,6 +1,3 @@
-/// Home dashboard module translations (greeting, upcoming-trip card,
-/// quick actions, weather card, destinations carousel, recent activity).
-/// Keys are prefixed `home_`.
 const Map<String, Map<String, String>> homeStrings = {
   'en': {
     'home_greeting': 'Good morning ☀️',
@@ -170,8 +167,7 @@ const Map<String, Map<String, String>> homeStrings = {
     'home_weather_loading': '現在地の天気を取得中…',
     'home_weather_retry': '再試行',
     'home_weather_no_forecast': '天気予報がありません。',
-    'home_weather_outside_malaysia':
-        '天気予報は、現在地がマレーシア国内にある場合のみ表示されます。',
+    'home_weather_outside_malaysia': '天気予報は、現在地がマレーシア国内にある場合のみ表示されます。',
     'home_location_services_off': '位置情報サービスがオフになっています。',
     'home_location_permission_denied_forever': '位置情報の許可が永久に拒否されています。',
     'home_location_permission_needed': '現地の天気を表示するには位置情報の許可が必要です。',
@@ -218,8 +214,7 @@ const Map<String, Map<String, String>> homeStrings = {
     'home_weather_loading': '현재 위치의 날씨를 가져오는 중…',
     'home_weather_retry': '다시 시도',
     'home_weather_no_forecast': '예보 정보가 없습니다.',
-    'home_weather_outside_malaysia':
-        '말레이시아에 있을 때만 현재 위치의 날씨 예보가 표시됩니다.',
+    'home_weather_outside_malaysia': '말레이시아에 있을 때만 현재 위치의 날씨 예보가 표시됩니다.',
     'home_location_services_off': '위치 서비스가 꺼져 있습니다.',
     'home_location_permission_denied_forever': '위치 권한이 영구적으로 거부되었습니다.',
     'home_location_permission_needed': '현지 날씨를 보려면 위치 권한이 필요합니다.',
@@ -270,7 +265,8 @@ const Map<String, Map<String, String>> homeStrings = {
     'home_weather_outside_malaysia':
         'พยากรณ์อากาศจะแสดงเฉพาะเมื่อคุณอยู่ในประเทศมาเลเซียเท่านั้น',
     'home_location_services_off': 'บริการตำแหน่งที่ตั้งถูกปิดอยู่',
-    'home_location_permission_denied_forever': 'การอนุญาตตำแหน่งที่ตั้งถูกปฏิเสธถาวร',
+    'home_location_permission_denied_forever':
+        'การอนุญาตตำแหน่งที่ตั้งถูกปฏิเสธถาวร',
     'home_location_permission_needed':
         'ต้องได้รับอนุญาตตำแหน่งที่ตั้งเพื่อดูสภาพอากาศในพื้นที่',
     'home_period_morning': 'เช้า',
@@ -279,7 +275,8 @@ const Map<String, Map<String, String>> homeStrings = {
     'home_malaysia_word': 'มาเลเซีย',
     'home_section_explore_destinations': 'สำรวจจุดหมายปลายทาง',
     'home_section_recent_activity': 'กิจกรรมล่าสุด',
-    'home_activity_added_queensbay': 'เพิ่ม Queensbay Mall ลงในแผนการเดินทางของคุณ',
+    'home_activity_added_queensbay':
+        'เพิ่ม Queensbay Mall ลงในแผนการเดินทางของคุณ',
     'home_activity_checked_in_komtar': 'เช็คอินที่ Komtar, George Town',
     'home_activity_rated_gurney': 'ให้คะแนน Gurney Drive & Plaza 4.5 ดาว',
     'home_time_2h_ago': '2 ชม.ที่แล้ว',
@@ -387,7 +384,8 @@ const Map<String, Map<String, String>> homeStrings = {
     'home_activity_added_queensbay':
         'Menambahkan Queensbay Mall ke itinerary Anda',
     'home_activity_checked_in_komtar': 'Check-in di Komtar, George Town',
-    'home_activity_rated_gurney': 'Memberi rating Gurney Drive & Plaza 4,5 bintang',
+    'home_activity_rated_gurney':
+        'Memberi rating Gurney Drive & Plaza 4,5 bintang',
     'home_time_2h_ago': '2j lalu',
     'home_time_1d_ago': '1h lalu',
     'home_time_2d_ago': '2h lalu',
@@ -409,7 +407,8 @@ const Map<String, Map<String, String>> homeStrings = {
     'home_greeting': 'सुप्रभात ☀️',
     'home_hi': 'नमस्ते',
     'home_upcoming_trip_badge': 'आगामी यात्रा',
-    'home_no_trip_subtitle': 'अपनी अगली यात्रा की योजना बनाएं और यह यहां दिखाई देगी।',
+    'home_no_trip_subtitle':
+        'अपनी अगली यात्रा की योजना बनाएं और यह यहां दिखाई देगी।',
     'home_create_trip_cta': 'अभी यात्रा बनाएं!',
     'home_demo_destination': 'पेनांग, मलेशिया',
     'home_demo_route': 'कोमटार → गर्नी → क्वींसबे',
@@ -490,8 +489,10 @@ const Map<String, Map<String, String>> homeStrings = {
     'home_section_recent_activity': 'சமீபத்திய செயல்பாடு',
     'home_activity_added_queensbay':
         'Queensbay Mall உங்கள் பயணத் திட்டத்தில் சேர்க்கப்பட்டது',
-    'home_activity_checked_in_komtar': 'Komtar, George Town-இல் செக்-இன் செய்யப்பட்டது',
-    'home_activity_rated_gurney': 'Gurney Drive & Plaza-க்கு 4.5 நட்சத்திரம் அளிக்கப்பட்டது',
+    'home_activity_checked_in_komtar':
+        'Komtar, George Town-இல் செக்-இன் செய்யப்பட்டது',
+    'home_activity_rated_gurney':
+        'Gurney Drive & Plaza-க்கு 4.5 நட்சத்திரம் அளிக்கப்பட்டது',
     'home_time_2h_ago': '2 மணி நேரம் முன்பு',
     'home_time_1d_ago': '1 நாள் முன்பு',
     'home_time_2d_ago': '2 நாட்கள் முன்பு',
@@ -537,7 +538,8 @@ const Map<String, Map<String, String>> homeStrings = {
     'home_malaysia_word': 'ماليزيا',
     'home_section_explore_destinations': 'استكشف الوجهات',
     'home_section_recent_activity': 'النشاط الأخير',
-    'home_activity_added_queensbay': 'تمت إضافة Queensbay Mall إلى خط سير رحلتك',
+    'home_activity_added_queensbay':
+        'تمت إضافة Queensbay Mall إلى خط سير رحلتك',
     'home_activity_checked_in_komtar': 'تم تسجيل الوصول في Komtar، جورج تاون',
     'home_activity_rated_gurney': 'تم تقييم Gurney Drive & Plaza بـ 4.5 نجوم',
     'home_time_2h_ago': 'قبل ساعتين',
@@ -577,7 +579,8 @@ const Map<String, Map<String, String>> homeStrings = {
     'home_weather_outside_malaysia':
         'El pronóstico del tiempo solo se muestra para tu ubicación actual '
         'si estás en Malasia.',
-    'home_location_services_off': 'Los servicios de ubicación están desactivados.',
+    'home_location_services_off':
+        'Los servicios de ubicación están desactivados.',
     'home_location_permission_denied_forever':
         'El permiso de ubicación fue denegado de forma permanente.',
     'home_location_permission_needed':
@@ -588,8 +591,7 @@ const Map<String, Map<String, String>> homeStrings = {
     'home_malaysia_word': 'Malasia',
     'home_section_explore_destinations': 'Explorar Destinos',
     'home_section_recent_activity': 'Actividad Reciente',
-    'home_activity_added_queensbay':
-        'Agregaste Queensbay Mall a tu itinerario',
+    'home_activity_added_queensbay': 'Agregaste Queensbay Mall a tu itinerario',
     'home_activity_checked_in_komtar':
         'Registraste tu llegada a Komtar, George Town',
     'home_activity_rated_gurney':
@@ -644,12 +646,10 @@ const Map<String, Map<String, String>> homeStrings = {
     'home_malaysia_word': 'Malaisie',
     'home_section_explore_destinations': 'Explorer des Destinations',
     'home_section_recent_activity': 'Activité Récente',
-    'home_activity_added_queensbay':
-        'Queensbay Mall ajouté à votre itinéraire',
+    'home_activity_added_queensbay': 'Queensbay Mall ajouté à votre itinéraire',
     'home_activity_checked_in_komtar':
         'Enregistrement effectué à Komtar, George Town',
-    'home_activity_rated_gurney':
-        'Gurney Drive & Plaza noté 4,5 étoiles',
+    'home_activity_rated_gurney': 'Gurney Drive & Plaza noté 4,5 étoiles',
     'home_time_2h_ago': 'il y a 2h',
     'home_time_1d_ago': 'il y a 1j',
     'home_time_2d_ago': 'il y a 2j',
@@ -701,8 +701,7 @@ const Map<String, Map<String, String>> homeStrings = {
     'home_section_recent_activity': 'Letzte Aktivitäten',
     'home_activity_added_queensbay':
         'Queensbay Mall zu deinem Reiseplan hinzugefügt',
-    'home_activity_checked_in_komtar':
-        'Bei Komtar, George Town eingecheckt',
+    'home_activity_checked_in_komtar': 'Bei Komtar, George Town eingecheckt',
     'home_activity_rated_gurney':
         'Gurney Drive & Plaza mit 4,5 Sternen bewertet',
     'home_time_2h_ago': 'vor 2 Std.',
@@ -726,7 +725,8 @@ const Map<String, Map<String, String>> homeStrings = {
     'home_greeting': 'Bom dia ☀️',
     'home_hi': 'Olá',
     'home_upcoming_trip_badge': 'PRÓXIMA VIAGEM',
-    'home_no_trip_subtitle': 'Planeje sua próxima aventura e ela aparecerá aqui.',
+    'home_no_trip_subtitle':
+        'Planeje sua próxima aventura e ela aparecerá aqui.',
     'home_create_trip_cta': 'Crie uma viagem agora!',
     'home_demo_destination': 'Penang, Malásia',
     'home_demo_route': 'Komtar → Gurney → Queensbay',
@@ -742,7 +742,8 @@ const Map<String, Map<String, String>> homeStrings = {
     'home_weather_outside_malaysia':
         'A previsão do tempo só é exibida para sua localização atual se '
         'você estiver na Malásia.',
-    'home_location_services_off': 'Os serviços de localização estão desativados.',
+    'home_location_services_off':
+        'Os serviços de localização estão desativados.',
     'home_location_permission_denied_forever':
         'A permissão de localização foi negada permanentemente.',
     'home_location_permission_needed':
@@ -807,12 +808,9 @@ const Map<String, Map<String, String>> homeStrings = {
     'home_malaysia_word': 'Малайзия',
     'home_section_explore_destinations': 'Популярные Направления',
     'home_section_recent_activity': 'Недавняя Активность',
-    'home_activity_added_queensbay':
-        'Queensbay Mall добавлен в ваш маршрут',
-    'home_activity_checked_in_komtar':
-        'Отметка в Komtar, Джорджтаун',
-    'home_activity_rated_gurney':
-        'Gurney Drive & Plaza оценён на 4,5 звезды',
+    'home_activity_added_queensbay': 'Queensbay Mall добавлен в ваш маршрут',
+    'home_activity_checked_in_komtar': 'Отметка в Komtar, Джорджтаун',
+    'home_activity_rated_gurney': 'Gurney Drive & Plaza оценён на 4,5 звезды',
     'home_time_2h_ago': '2 ч назад',
     'home_time_1d_ago': '1 д назад',
     'home_time_2d_ago': '2 д назад',

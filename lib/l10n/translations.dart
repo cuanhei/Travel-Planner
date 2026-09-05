@@ -11,10 +11,6 @@ import 'strings/trip_strings.dart';
 import 'strings/utilities_strings.dart';
 import 'strings/weather_strings.dart';
 
-/// Every module contributes its own `Map<languageCode, Map<key, text>>` —
-/// keeping modules in separate files means each can be translated
-/// independently without merge conflicts. This just combines them all by
-/// language code for `tr()` (see `locale_service.dart`) to look up.
 final Map<String, Map<String, String>> translations = _merge([
   commonStrings,
   authStrings,

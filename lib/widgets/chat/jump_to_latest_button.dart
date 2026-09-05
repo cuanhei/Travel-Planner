@@ -2,9 +2,6 @@ import 'package:flutter/material.dart';
 
 import '../../theme/app_theme.dart';
 
-/// WhatsApp-style "scroll to the newest message" button — floats above
-/// the composer, bottom-right, and only appears once the user has
-/// scrolled away from the bottom of the chat.
 class JumpToLatestButton extends StatelessWidget {
   const JumpToLatestButton({super.key, required this.show, this.onTap});
 

@@ -4,9 +4,6 @@ import '../../models/chat_attachment.dart';
 import 'fullscreen_image_viewer.dart';
 import 'fullscreen_video_viewer.dart';
 
-/// Renders a [ChatAttachment] inside a chat bubble — a tappable
-/// thumbnail for a photo or video, opening a full-screen viewer. Shared
-/// by Group Chat and Direct Message screens.
 class ChatAttachmentView extends StatelessWidget {
   const ChatAttachmentView({super.key, required this.attachment});
 

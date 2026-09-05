@@ -5,15 +5,8 @@ import '../../services/locale_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/detail_header.dart';
 
-/// Every currency selectable in this converter — fetched from Frankfurter
-/// in one call, all relative to the first entry (see [CurrencyService]).
 const _currencies = ['USD', 'MYR', 'SGD', 'EUR', 'GBP', 'JPY', 'CNY'];
 
-/// Currency converter backed by live ECB reference rates (via
-/// [CurrencyService]) rather than fixed numbers baked into the app —
-/// rates are fetched once per screen visit (or on manual refresh), not
-/// re-fetched on every keystroke/currency swap, since converting
-/// between any pair in [_currencies] only needs that one snapshot.
 class CurrencyConverterScreen extends StatefulWidget {
   const CurrencyConverterScreen({super.key});
 
@@ -269,7 +262,11 @@ class _ErrorState extends StatelessWidget {
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      const Icon(Icons.refresh_rounded, color: Colors.white, size: 18),
+                      const Icon(
+                        Icons.refresh_rounded,
+                        color: Colors.white,
+                        size: 18,
+                      ),
                       const SizedBox(width: 6),
                       const Text(
                         'Retry',

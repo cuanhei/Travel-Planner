@@ -16,11 +16,6 @@ import '../../widgets/gradient_button.dart';
 import '../../widgets/user_avatar.dart';
 import 'view_profile_screen.dart';
 
-/// Turns a raw Supabase error into a message worth showing the user.
-/// `PGRST205` specifically means the `emergency_contacts` table hasn't
-/// been created yet on this project (see
-/// `supabase/migrations/0009_create_emergency_contacts.sql`) — everything
-/// else falls back to a generic retry message.
 String _friendlyError(Object e) {
   if (e is PostgrestException && e.code == 'PGRST205') {
     return tr('auth_emergency_contact_not_setup');
@@ -28,16 +23,11 @@ String _friendlyError(Object e) {
   return tr('common_error_generic');
 }
 
-/// The signed-in user's own emergency contacts (family/friends they add
-/// themselves) — full CRUD, backed by Supabase. Distinct from the
-/// Utilities module's static list of official numbers (police, ambulance,
-/// etc.), which stays as-is and isn't editable.
 class EmergencyContactScreen extends StatefulWidget {
   const EmergencyContactScreen({super.key});
 
   @override
-  State<EmergencyContactScreen> createState() =>
-      _EmergencyContactScreenState();
+  State<EmergencyContactScreen> createState() => _EmergencyContactScreenState();
 }
 
 class _EmergencyContactScreenState extends State<EmergencyContactScreen> {
@@ -52,11 +42,6 @@ class _EmergencyContactScreenState extends State<EmergencyContactScreen> {
     _load();
   }
 
-  /// Re-fetches contacts and, for each one, re-checks whether its phone
-  /// number now belongs to a signed-up TravelPlanner account — so a
-  /// contact who wasn't a member when added automatically picks up their
-  /// live profile photo/name/link the next time this screen loads, with
-  /// no need to re-add them.
   Future<void> _load() async {
     setState(() {
       _loading = true;
@@ -70,9 +55,6 @@ class _EmergencyContactScreenState extends State<EmergencyContactScreen> {
           contacts.map((c) => c.phone).toList(),
         );
       } catch (e) {
-        // Fails open: if the matching RPC errors (e.g. its migration
-        // hasn't been applied yet), the contact list still shows — just
-        // without the "signed-up user" linking for this load.
         debugPrint('findByPhones failed, skipping profile linking: $e');
       }
       if (mounted) {
@@ -151,7 +133,10 @@ class _EmergencyContactScreenState extends State<EmergencyContactScreen> {
               subtitle: tr('auth_emergency_contact_screen_subtitle'),
               trailing: IconButton(
                 onPressed: () => _openForm(),
-                icon: Icon(Icons.person_add_alt_1_rounded, color: context.colors.ink),
+                icon: Icon(
+                  Icons.person_add_alt_1_rounded,
+                  color: context.colors.ink,
+                ),
               ),
             ),
             Expanded(child: _buildBody()),
@@ -184,12 +169,14 @@ class _EmergencyContactScreenState extends State<EmergencyContactScreen> {
           onTap: matchedProfile == null
               ? () => _openForm(existing: contact)
               : () => Navigator.of(context).push(
-                    MaterialPageRoute(
-                      builder: (_) =>
-                          ViewProfileScreen(userId: matchedProfile.id),
-                    ),
+                  MaterialPageRoute(
+                    builder: (_) =>
+                        ViewProfileScreen(userId: matchedProfile.id),
                   ),
-          onEdit: matchedProfile == null ? null : () => _openForm(existing: contact),
+                ),
+          onEdit: matchedProfile == null
+              ? null
+              : () => _openForm(existing: contact),
           onDelete: () => _delete(contact),
         );
       },
@@ -295,12 +282,6 @@ class _ContactCard extends StatelessWidget {
   final VoidCallback onTap;
   final VoidCallback onDelete;
 
-  /// Set when [contact]'s phone number matches a signed-up TravelPlanner
-  /// account — re-checked on every load (see
-  /// `_EmergencyContactScreenState._load`), so this appears automatically
-  /// once that person signs up, with no need to re-add them. When set,
-  /// [onTap] opens their profile ([ViewProfileScreen]) instead of the
-  /// edit-contact sheet, so [onEdit] is offered separately.
   final UserProfile? matchedProfile;
   final VoidCallback? onEdit;
 
@@ -478,10 +459,6 @@ class _ContactFormSheet extends StatefulWidget {
   State<_ContactFormSheet> createState() => _ContactFormSheetState();
 }
 
-/// Splits a stored phone like "+60 12-345 6789" into its country (matched
-/// by dial code) and the remaining local number, so the picker and text
-/// field can be repopulated separately. Defaults to Malaysia when there's
-/// no stored phone yet or its dial code isn't recognized.
 (Country, String) _splitPhone(String? stored) {
   final value = stored?.trim() ?? '';
   if (value.isEmpty) return (countries.first, '');
@@ -636,12 +613,16 @@ class _ContactFormSheetState extends State<_ContactFormSheet> {
                 keyboardType: TextInputType.phone,
                 inputFormatters: [
                   FilteringTextInputFormatter.digitsOnly,
-                  LengthLimitingTextInputFormatter(_selectedCountry.maxPhoneDigits),
+                  LengthLimitingTextInputFormatter(
+                    _selectedCountry.maxPhoneDigits,
+                  ),
                 ],
               ),
               SizedBox(height: 24),
               GradientButton(
-                label: _isEditing ? tr('auth_save_changes') : tr('auth_add_contact'),
+                label: _isEditing
+                    ? tr('auth_save_changes')
+                    : tr('auth_add_contact'),
                 icon: Icons.check_rounded,
                 onPressed: _save,
                 loading: _saving,
@@ -680,7 +661,8 @@ class _Field extends StatelessWidget {
       style: TextStyle(fontWeight: FontWeight.w600, color: context.colors.ink),
       decoration: InputDecoration(
         labelText: label,
-        prefixIcon: prefix ??
+        prefixIcon:
+            prefix ??
             (icon != null
                 ? Icon(icon, color: context.colors.muted, size: 20)
                 : null),

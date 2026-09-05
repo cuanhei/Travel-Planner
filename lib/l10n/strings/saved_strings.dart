@@ -1,5 +1,3 @@
-/// Saved module translations (Saved Places, Saved Trips). Keys are
-/// prefixed `saved_`.
 const Map<String, Map<String, String>> savedStrings = {
   'en': {
     'saved_places_title': 'Saved Places',

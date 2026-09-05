@@ -7,9 +7,6 @@ import '../theme/app_theme.dart';
 import '../utils/validators.dart';
 import '../widgets/gradient_button.dart';
 
-/// Requests a Supabase password-reset email, then shows a confirmation
-/// state. Tapping the link in that email lands back in the app and (see
-/// `main.dart`) opens the Reset Password screen automatically.
 class ForgotPasswordScreen extends StatefulWidget {
   const ForgotPasswordScreen({super.key});
 

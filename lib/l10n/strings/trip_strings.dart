@@ -1,6 +1,3 @@
-/// Trip Planner module translations (Create Trip, AI Planner, Trip
-/// Details, Edit Schedule, Daily Timeline, Map View). Keys are prefixed
-/// `trip_`.
 const Map<String, Map<String, String>> tripStrings = {
   'en': {
     'trip_cancel': 'Cancel',
@@ -19,7 +16,8 @@ const Map<String, Map<String, String>> tripStrings = {
     'trip_status_completed': 'Completed',
     'trip_no_upcoming_trips': 'No upcoming trips yet',
     'trip_create_trip_title': 'Create Trip',
-    'trip_create_trip_subtitle': "Name it, pick your spots, we'll plan the rest",
+    'trip_create_trip_subtitle':
+        "Name it, pick your spots, we'll plan the rest",
     'trip_section_trip_details': 'Trip Details',
     'trip_field_trip_name': 'Trip Name',
     'trip_field_description_optional': 'Description (optional)',
@@ -32,7 +30,8 @@ const Map<String, Map<String, String>> tripStrings = {
     'trip_field_travel_dates': 'Travel Dates',
     'trip_section_locations': 'Locations',
     'trip_selected_word': 'selected',
-    'trip_locations_hint': 'Search for a place you want to visit, or tap directly on the map to add it to your trip.',
+    'trip_locations_hint':
+        'Search for a place you want to visit, or tap directly on the map to add it to your trip.',
     'trip_no_locations_picked': 'No locations picked yet.',
     'trip_plan_my_trip': 'Plan My Trip',
     'trip_traveler_singular': 'traveler',
@@ -44,7 +43,8 @@ const Map<String, Map<String, String>> tripStrings = {
     'trip_edit_trip_subtitle': "Update this trip's details",
     'trip_delete_trip_button': 'Delete Trip',
     'trip_delete_trip_confirm_title': 'Delete this trip?',
-    'trip_delete_trip_confirm_body_suffix': 'and its entire itinerary will be permanently deleted.',
+    'trip_delete_trip_confirm_body_suffix':
+        'and its entire itinerary will be permanently deleted.',
     'trip_updated_snackbar': 'Trip updated',
     'trip_deleted_snackbar': 'Trip deleted',
     'trip_added_prefix': 'Added',
@@ -73,7 +73,8 @@ const Map<String, Map<String, String>> tripStrings = {
     'trip_transport_rapid_bus': 'Rapid Penang Bus',
     'trip_transport_ehailing': 'E-hailing (Grab)',
     'trip_optimized_itinerary_title': 'Optimized Itinerary',
-    'trip_optimized_itinerary_subtitle': 'Ordered by route, weather, and transport',
+    'trip_optimized_itinerary_subtitle':
+        'Ordered by route, weather, and transport',
     'trip_save_trip_button': 'Save Trip',
     'trip_saved_to_my_trips_suffix': 'saved to My Trips!',
     'trip_trip_saved_generic': 'Trip saved to My Trips!',
@@ -93,10 +94,12 @@ const Map<String, Map<String, String>> tripStrings = {
     'trip_add_stop_subtitle': 'Search or tap a pin, then arrange it',
     'trip_remove_stop_button': 'Remove Stop',
     'trip_field_location': 'Location',
-    'trip_no_location_picked': 'No location picked yet — search, tap a pin, or add your own.',
+    'trip_no_location_picked':
+        'No location picked yet — search, tap a pin, or add your own.',
     'trip_field_arrangement': 'Arrangement',
     'trip_auto_arrange_title': 'Auto-arrange',
-    'trip_auto_arrange_desc': 'Fit this stop into the itinerary automatically, based on route and weather.',
+    'trip_auto_arrange_desc':
+        'Fit this stop into the itinerary automatically, based on route and weather.',
     'trip_arrange_manually_title': 'Arrange manually',
     'trip_arrange_manually_desc': 'Choose the exact day and time yourself.',
     'trip_field_how_long': 'How Long Will You Stay?',
@@ -107,11 +110,13 @@ const Map<String, Map<String, String>> tripStrings = {
     'trip_place_name_hint': 'e.g. Chew Jetty',
     'trip_search_places_hint': 'Search places…',
     'trip_this_stop_label': 'This stop',
-    'trip_auto_arrange_preview_prefix': 'The system will slot this in around Day',
+    'trip_auto_arrange_preview_prefix':
+        'The system will slot this in around Day',
     'trip_auto_arrange_preview_suffix': 'matched to a good weather window.',
     'trip_day_passed_snackbar_suffix': 'has already passed',
     'trip_days_before_passed_prefix': 'Days before Day',
-    'trip_days_before_passed_suffix': "have already passed and can't be selected.",
+    'trip_days_before_passed_suffix':
+        "have already passed and can't be selected.",
     'trip_day1_passed': "Day 1 has already passed and can't be selected.",
     'trip_category_sightseeing': 'Sightseeing',
     'trip_category_shopping': 'Shopping',
@@ -147,13 +152,15 @@ const Map<String, Map<String, String>> tripStrings = {
     'trip_no_stops_scheduled_prefix': 'No stops scheduled for Day',
     'trip_no_stops_scheduled_suffix': 'yet.',
     'trip_override_order_title': 'Override planned order?',
-    'trip_override_order_body': 'Your stops were sequenced to minimize travel time and match each stop to its best forecasted weather. Overriding the order may no longer be optimized and could lead to a less enjoyable trip — for example, an outdoor stop landing during rain.',
+    'trip_override_order_body':
+        'Your stops were sequenced to minimize travel time and match each stop to its best forecasted weather. Overriding the order may no longer be optimized and could lead to a less enjoyable trip — for example, an outdoor stop landing during rain.',
     'trip_keep_original_order': 'Keep Original Order',
     'trip_override_anyway': 'Override Anyway',
     'trip_updated_custom_order': 'Trip updated — custom order saved',
     'trip_completed_badge_caps': 'COMPLETED',
     'trip_custom_order_applied': 'Custom order applied',
-    'trip_custom_order_desc': 'This sequence may not be optimized and could lead to a worse experience if the weather changes.',
+    'trip_custom_order_desc':
+        'This sequence may not be optimized and could lead to a worse experience if the weather changes.',
     'trip_reset_optimized_order': 'Reset to optimized order',
     'trip_section_trip_tools': 'Trip Tools',
     'trip_section_activity': 'Activity',
@@ -235,7 +242,8 @@ const Map<String, Map<String, String>> tripStrings = {
     'trip_search_trip_stops_hint': 'Search trip stops…',
     'trip_no_matching_stops': 'No matching stops',
     'trip_no_stops_added_yet': 'No stops added yet',
-    'trip_add_stops_to_see_map': 'Add stops to this trip to see them on the map.',
+    'trip_add_stops_to_see_map':
+        'Add stops to this trip to see them on the map.',
     'trip_could_not_load_trip_stops': 'Could not load trip stops.',
     'trip_custom_stop_description': 'A custom stop you added yourself.',
     'trip_budget_varies': 'Varies',
@@ -271,7 +279,8 @@ const Map<String, Map<String, String>> tripStrings = {
     'trip_status_completed': 'Selesai',
     'trip_no_upcoming_trips': 'Belum ada perjalanan akan datang',
     'trip_create_trip_title': 'Cipta Perjalanan',
-    'trip_create_trip_subtitle': 'Namakannya, pilih lokasi anda, kami akan rancang selebihnya',
+    'trip_create_trip_subtitle':
+        'Namakannya, pilih lokasi anda, kami akan rancang selebihnya',
     'trip_section_trip_details': 'Butiran Perjalanan',
     'trip_field_trip_name': 'Nama Perjalanan',
     'trip_field_description_optional': 'Penerangan (pilihan)',
@@ -284,7 +293,8 @@ const Map<String, Map<String, String>> tripStrings = {
     'trip_field_travel_dates': 'Tarikh Perjalanan',
     'trip_section_locations': 'Lokasi',
     'trip_selected_word': 'dipilih',
-    'trip_locations_hint': 'Cari tempat yang anda ingin lawati, atau ketik terus pada peta untuk menambahkannya ke perjalanan anda.',
+    'trip_locations_hint':
+        'Cari tempat yang anda ingin lawati, atau ketik terus pada peta untuk menambahkannya ke perjalanan anda.',
     'trip_no_locations_picked': 'Belum ada lokasi dipilih.',
     'trip_plan_my_trip': 'Rancang Perjalanan Saya',
     'trip_traveler_singular': 'pengembara',
@@ -296,13 +306,15 @@ const Map<String, Map<String, String>> tripStrings = {
     'trip_edit_trip_subtitle': 'Kemas kini butiran perjalanan ini',
     'trip_delete_trip_button': 'Padam Perjalanan',
     'trip_delete_trip_confirm_title': 'Padam perjalanan ini?',
-    'trip_delete_trip_confirm_body_suffix': 'dan seluruh itinerarinya akan dipadam secara kekal.',
+    'trip_delete_trip_confirm_body_suffix':
+        'dan seluruh itinerarinya akan dipadam secara kekal.',
     'trip_updated_snackbar': 'Perjalanan dikemas kini',
     'trip_deleted_snackbar': 'Perjalanan dipadam',
     'trip_added_prefix': 'Ditambah',
     'trip_to_word': 'ke',
     'trip_add_to_trip_title': 'Tambah ke Perjalanan',
-    'trip_choose_trip_hint': 'Pilih perjalanan mana untuk menambah perhentian ini',
+    'trip_choose_trip_hint':
+        'Pilih perjalanan mana untuk menambah perhentian ini',
     'trip_map_no_matches': 'Tiada padanan — tambah sendiri',
     'trip_map_tap_pins': 'Ketik pin untuk memilih',
     'trip_map_search_hint': 'Cari tempat untuk menyematkannya…',
@@ -320,12 +332,14 @@ const Map<String, Map<String, String>> tripStrings = {
     'trip_weather_rain_showers': 'Hujan Renyai',
     'trip_reason_clear_weather': 'Dijadualkan untuk cuaca cerah',
     'trip_reason_rain_possible': 'Kemungkinan hujan — bawa jaket ringan',
-    'trip_reason_indoor_flexible': 'Pilihan mesra dalaman, fleksibel mengikut cuaca',
+    'trip_reason_indoor_flexible':
+        'Pilihan mesra dalaman, fleksibel mengikut cuaca',
     'trip_transport_walk': 'Berjalan Kaki',
     'trip_transport_rapid_bus': 'Bas Rapid Penang',
     'trip_transport_ehailing': 'E-hailing (Grab)',
     'trip_optimized_itinerary_title': 'Itinerari Dioptimumkan',
-    'trip_optimized_itinerary_subtitle': 'Disusun mengikut laluan, cuaca dan pengangkutan',
+    'trip_optimized_itinerary_subtitle':
+        'Disusun mengikut laluan, cuaca dan pengangkutan',
     'trip_save_trip_button': 'Simpan Perjalanan',
     'trip_saved_to_my_trips_suffix': 'disimpan ke Perjalanan Saya!',
     'trip_trip_saved_generic': 'Perjalanan disimpan ke Perjalanan Saya!',
@@ -338,17 +352,20 @@ const Map<String, Map<String, String>> tripStrings = {
     'trip_planning_stops_suffix': 'perhentian anda',
     'trip_planning_word': 'Merancang',
     'trip_remove_stop_confirm_title': 'Alih keluar perhentian ini?',
-    'trip_remove_stop_confirm_suffix': 'akan dialih keluar daripada itinerari anda.',
+    'trip_remove_stop_confirm_suffix':
+        'akan dialih keluar daripada itinerari anda.',
     'trip_edit_stop_title': 'Edit Perhentian',
     'trip_add_stop_title': 'Tambah Perhentian',
     'trip_edit_stop_subtitle': 'Kemas kini butiran perhentian ini',
     'trip_add_stop_subtitle': 'Cari atau ketik pin, kemudian susun',
     'trip_remove_stop_button': 'Alih Keluar Perhentian',
     'trip_field_location': 'Lokasi',
-    'trip_no_location_picked': 'Belum ada lokasi dipilih — cari, ketik pin, atau tambah sendiri.',
+    'trip_no_location_picked':
+        'Belum ada lokasi dipilih — cari, ketik pin, atau tambah sendiri.',
     'trip_field_arrangement': 'Susunan',
     'trip_auto_arrange_title': 'Susun Automatik',
-    'trip_auto_arrange_desc': 'Sesuaikan perhentian ini secara automatik ke dalam itinerari, berdasarkan laluan dan cuaca.',
+    'trip_auto_arrange_desc':
+        'Sesuaikan perhentian ini secara automatik ke dalam itinerari, berdasarkan laluan dan cuaca.',
     'trip_arrange_manually_title': 'Susun secara manual',
     'trip_arrange_manually_desc': 'Pilih hari dan masa yang tepat sendiri.',
     'trip_field_how_long': 'Berapa Lama Anda Akan Tinggal?',
@@ -359,8 +376,10 @@ const Map<String, Map<String, String>> tripStrings = {
     'trip_place_name_hint': 'cth. Chew Jetty',
     'trip_search_places_hint': 'Cari tempat…',
     'trip_this_stop_label': 'Perhentian ini',
-    'trip_auto_arrange_preview_prefix': 'Sistem akan menempatkan ini pada sekitar Hari',
-    'trip_auto_arrange_preview_suffix': 'sepadan dengan tempoh cuaca yang baik.',
+    'trip_auto_arrange_preview_prefix':
+        'Sistem akan menempatkan ini pada sekitar Hari',
+    'trip_auto_arrange_preview_suffix':
+        'sepadan dengan tempoh cuaca yang baik.',
     'trip_day_passed_snackbar_suffix': 'telah berlalu',
     'trip_days_before_passed_prefix': 'Hari sebelum Hari',
     'trip_days_before_passed_suffix': 'telah berlalu dan tidak boleh dipilih.',
@@ -379,7 +398,8 @@ const Map<String, Map<String, String>> tripStrings = {
     'trip_section_past_trips': 'Perjalanan Lepas',
     'trip_no_trips_named_prefix': 'Tiada perjalanan bernama',
     'trip_try_different_name': 'Cuba nama perjalanan lain.',
-    'trip_tap_plus_hint': 'Ketik + untuk mula merancang pengembaraan seterusnya.',
+    'trip_tap_plus_hint':
+        'Ketik + untuk mula merancang pengembaraan seterusnya.',
     'trip_mode_choose': 'Pilih pengangkutan',
     'trip_mode_public_transport': 'Pengangkutan awam',
     'trip_mode_ehailing': 'E-hailing',
@@ -389,23 +409,28 @@ const Map<String, Map<String, String>> tripStrings = {
     'trip_done_badge': 'Selesai',
     'trip_complete_button': 'Lengkap',
     'trip_transport_dialog_title': 'Bagaimana anda mahu ke sana?',
-    'trip_transport_dialog_subtitle': 'Pilih cara untuk ke perhentian seterusnya',
+    'trip_transport_dialog_subtitle':
+        'Pilih cara untuk ke perhentian seterusnya',
     'trip_desc_public_transport': 'Lihat pilihan bas langsung dan arah',
     'trip_desc_ehailing': 'Tempah perjalanan Grab atau teksi',
     'trip_desc_walking': 'Percuma, dan senaman kaki yang baik',
     'trip_min_transport_suffix': 'minit perjalanan',
     'trip_day_locked_suffix': 'sudah selesai — lihat sahaja',
-    'trip_edit_schedule_subtitle': 'Ketik perhentian untuk edit, seret untuk susun semula',
+    'trip_edit_schedule_subtitle':
+        'Ketik perhentian untuk edit, seret untuk susun semula',
     'trip_no_stops_scheduled_prefix': 'Tiada perhentian dijadualkan untuk Hari',
     'trip_no_stops_scheduled_suffix': 'lagi.',
     'trip_override_order_title': 'Batalkan susunan yang dirancang?',
-    'trip_override_order_body': 'Perhentian anda disusun untuk meminimumkan masa perjalanan dan menyesuaikan setiap perhentian dengan cuaca terbaik yang diramalkan. Mengatasi susunan mungkin tidak lagi optimum dan boleh menyebabkan perjalanan kurang menyeronokkan — contohnya, perhentian luar berlaku semasa hujan.',
+    'trip_override_order_body':
+        'Perhentian anda disusun untuk meminimumkan masa perjalanan dan menyesuaikan setiap perhentian dengan cuaca terbaik yang diramalkan. Mengatasi susunan mungkin tidak lagi optimum dan boleh menyebabkan perjalanan kurang menyeronokkan — contohnya, perhentian luar berlaku semasa hujan.',
     'trip_keep_original_order': 'Kekalkan Susunan Asal',
     'trip_override_anyway': 'Tetap Atasi',
-    'trip_updated_custom_order': 'Perjalanan dikemas kini — susunan tersuai disimpan',
+    'trip_updated_custom_order':
+        'Perjalanan dikemas kini — susunan tersuai disimpan',
     'trip_completed_badge_caps': 'SELESAI',
     'trip_custom_order_applied': 'Susunan tersuai digunakan',
-    'trip_custom_order_desc': 'Susunan ini mungkin tidak optimum dan boleh menyebabkan pengalaman lebih buruk jika cuaca berubah.',
+    'trip_custom_order_desc':
+        'Susunan ini mungkin tidak optimum dan boleh menyebabkan pengalaman lebih buruk jika cuaca berubah.',
     'trip_reset_optimized_order': 'Set semula ke susunan optimum',
     'trip_section_trip_tools': 'Alat Perjalanan',
     'trip_section_activity': 'Aktiviti',
@@ -474,9 +499,11 @@ const Map<String, Map<String, String>> tripStrings = {
     'trip_back_to_prefix': 'Kembali ke',
     'trip_stop_singular': 'perhentian',
     'trip_optimized_route_suffix': 'laluan dioptimumkan',
-    'trip_planned_day_by_day': 'Dirancang hari demi hari, berdasarkan lokasi berhampiran setiap hotel',
+    'trip_planned_day_by_day':
+        'Dirancang hari demi hari, berdasarkan lokasi berhampiran setiap hotel',
     'trip_search_failed_prefix': 'Carian gagal',
-    'trip_turn_on_location_services': 'Hidupkan perkhidmatan lokasi untuk menggunakan ini.',
+    'trip_turn_on_location_services':
+        'Hidupkan perkhidmatan lokasi untuk menggunakan ini.',
     'trip_my_location': 'Lokasi saya',
     'trip_could_not_get_location_prefix': 'Tidak dapat mendapatkan lokasi anda',
     'trip_search_place_komtar_hint': 'Cari tempat, cth. Komtar…',
@@ -487,15 +514,20 @@ const Map<String, Map<String, String>> tripStrings = {
     'trip_search_trip_stops_hint': 'Cari perhentian perjalanan…',
     'trip_no_matching_stops': 'Tiada perhentian sepadan',
     'trip_no_stops_added_yet': 'Belum ada perhentian ditambah',
-    'trip_add_stops_to_see_map': 'Tambah perhentian pada perjalanan ini untuk melihatnya pada peta.',
-    'trip_could_not_load_trip_stops': 'Tidak dapat memuatkan perhentian perjalanan.',
-    'trip_custom_stop_description': 'Perhentian tersuai yang anda tambah sendiri.',
+    'trip_add_stops_to_see_map':
+        'Tambah perhentian pada perjalanan ini untuk melihatnya pada peta.',
+    'trip_could_not_load_trip_stops':
+        'Tidak dapat memuatkan perhentian perjalanan.',
+    'trip_custom_stop_description':
+        'Perhentian tersuai yang anda tambah sendiri.',
     'trip_budget_varies': 'Berbeza-beza',
     'trip_activity_breakfast_hotel_title': 'Sarapan di hotel',
     'trip_activity_breakfast_hotel_subtitle': 'Mulakan hari dengan bertenaga',
-    'trip_activity_lunch_komtar_title': 'Makan tengah hari di gerai makanan Komtar',
+    'trip_activity_lunch_komtar_title':
+        'Makan tengah hari di gerai makanan Komtar',
     'trip_activity_lunch_komtar_subtitle': 'Makanan penjaja Penang tempatan',
-    'trip_activity_stroll_street_art_title': 'Bersiar melihat seni jalanan George Town',
+    'trip_activity_stroll_street_art_title':
+        'Bersiar melihat seni jalanan George Town',
     'trip_activity_stroll_street_art_subtitle': 'Masa lapang meneroka mural',
     'trip_activity_breakfast_nearby_title': 'Sarapan berdekatan',
     'trip_activity_breakfast_nearby_subtitle': 'Kopitiam tempatan',
@@ -651,7 +683,8 @@ const Map<String, Map<String, String>> tripStrings = {
     'trip_no_stops_scheduled_prefix': '第',
     'trip_no_stops_scheduled_suffix': '天尚未安排任何站点。',
     'trip_override_order_title': '覆盖计划顺序？',
-    'trip_override_order_body': '您的站点已按最短交通时间和最佳天气预报进行排序。覆盖此顺序可能不再是最优的，并可能导致行程体验变差 — 例如，户外站点恰逢下雨。',
+    'trip_override_order_body':
+        '您的站点已按最短交通时间和最佳天气预报进行排序。覆盖此顺序可能不再是最优的，并可能导致行程体验变差 — 例如，户外站点恰逢下雨。',
     'trip_keep_original_order': '保留原始顺序',
     'trip_override_anyway': '仍要覆盖',
     'trip_updated_custom_order': '行程已更新 — 自定义顺序已保存',
@@ -689,8 +722,7 @@ const Map<String, Map<String, String>> tripStrings = {
     'trip_search_place_malaysia_hint': '搜索马来西亚的地点…',
     'trip_getting_location': '正在获取您的位置…',
     'trip_location_services_off': '定位服务已关闭。',
-    'trip_location_permission_denied_forever_settings':
-        '定位权限已被永久拒绝。请在设置中启用。',
+    'trip_location_permission_denied_forever_settings': '定位权限已被永久拒绝。请在设置中启用。',
     'trip_location_permission_denied': '定位权限被拒绝。',
     'trip_location_unable_retrieve': '无法获取您的当前位置。',
     'trip_field_travel_dates_time': '出行日期和时间',
@@ -900,7 +932,8 @@ const Map<String, Map<String, String>> tripStrings = {
     'trip_no_stops_scheduled_prefix': '',
     'trip_no_stops_scheduled_suffix': '日目にはまだ立ち寄り先が予定されていません。',
     'trip_override_order_title': '計画された順序を上書きしますか？',
-    'trip_override_order_body': '立ち寄り先は、移動時間を最小限に抑え、予報された最適な天候に合わせて順序付けされています。順序を上書きすると最適でなくなり、屋外の立ち寄り先が雨の日に重なるなど、旅行が楽しくなくなる可能性があります。',
+    'trip_override_order_body':
+        '立ち寄り先は、移動時間を最小限に抑え、予報された最適な天候に合わせて順序付けされています。順序を上書きすると最適でなくなり、屋外の立ち寄り先が雨の日に重なるなど、旅行が楽しくなくなる可能性があります。',
     'trip_keep_original_order': '元の順序を維持',
     'trip_override_anyway': 'それでも上書きする',
     'trip_updated_custom_order': '旅行を更新しました — カスタム順序を保存しました',
@@ -943,8 +976,7 @@ const Map<String, Map<String, String>> tripStrings = {
     'trip_location_permission_denied': '位置情報の許可が拒否されました。',
     'trip_location_unable_retrieve': '現在地を取得できませんでした。',
     'trip_field_travel_dates_time': '旅行日程と時間',
-    'trip_locations_hint_map':
-        '地図で実際の場所を検索 — 「コムタ」や「チュー・ジェティ」などで試してください。',
+    'trip_locations_hint_map': '地図で実際の場所を検索 — 「コムタ」や「チュー・ジェティ」などで試してください。',
     'trip_select_a_city': '都市を選択',
     'trip_search_city_state_hint': '都市または州を検索…',
     'trip_could_not_load_cities_prefix': '都市を読み込めませんでした',
@@ -961,8 +993,7 @@ const Map<String, Map<String, String>> tripStrings = {
     'trip_interest_attraction': '観光スポット',
     'trip_could_not_create_trip_prefix': '旅行を作成できませんでした',
     'trip_review_schedule_title': 'スケジュールを確認',
-    'trip_review_schedule_subtitle':
-        '旅行を作成する前に最適化されたルートを確認してください',
+    'trip_review_schedule_subtitle': '旅行を作成する前に最適化されたルートを確認してください',
     'trip_confirm_create_trip': '確認して旅行を作成',
     'trip_my_trip_default': 'マイ旅行',
     'trip_created_generic': '旅行を作成しました！',
@@ -1151,7 +1182,8 @@ const Map<String, Map<String, String>> tripStrings = {
     'trip_no_stops_scheduled_prefix': '',
     'trip_no_stops_scheduled_suffix': '일차에 예정된 정류지가 아직 없습니다.',
     'trip_override_order_title': '계획된 순서를 재정의하시겠습니까?',
-    'trip_override_order_body': '정류지는 이동 시간을 최소화하고 예보된 최적의 날씨에 맞춰 순서가 정해졌습니다. 순서를 재정의하면 더 이상 최적화되지 않을 수 있으며, 예를 들어 야외 정류지가 비 오는 날과 겹치는 등 덜 즐거운 여행이 될 수 있습니다.',
+    'trip_override_order_body':
+        '정류지는 이동 시간을 최소화하고 예보된 최적의 날씨에 맞춰 순서가 정해졌습니다. 순서를 재정의하면 더 이상 최적화되지 않을 수 있으며, 예를 들어 야외 정류지가 비 오는 날과 겹치는 등 덜 즐거운 여행이 될 수 있습니다.',
     'trip_keep_original_order': '원래 순서 유지',
     'trip_override_anyway': '그래도 재정의',
     'trip_updated_custom_order': '여행이 업데이트됨 — 사용자 지정 순서가 저장됨',
@@ -1194,8 +1226,7 @@ const Map<String, Map<String, String>> tripStrings = {
     'trip_location_permission_denied': '위치 권한이 거부되었습니다.',
     'trip_location_unable_retrieve': '현재 위치를 가져올 수 없습니다.',
     'trip_field_travel_dates_time': '여행 날짜 및 시간',
-    'trip_locations_hint_map':
-        '지도에서 실제 장소 검색 — "콤타르" 또는 "추 제티"를 시도해보세요.',
+    'trip_locations_hint_map': '지도에서 실제 장소 검색 — "콤타르" 또는 "추 제티"를 시도해보세요.',
     'trip_select_a_city': '도시 선택',
     'trip_search_city_state_hint': '도시 또는 주 검색…',
     'trip_could_not_load_cities_prefix': '도시를 불러올 수 없습니다',
@@ -1212,8 +1243,7 @@ const Map<String, Map<String, String>> tripStrings = {
     'trip_interest_attraction': '명소',
     'trip_could_not_create_trip_prefix': '여행을 생성할 수 없습니다',
     'trip_review_schedule_title': '일정 검토',
-    'trip_review_schedule_subtitle':
-        '여행을 만들기 전에 최적화된 경로를 검토하세요',
+    'trip_review_schedule_subtitle': '여행을 만들기 전에 최적화된 경로를 검토하세요',
     'trip_confirm_create_trip': '확인하고 여행 만들기',
     'trip_my_trip_default': '내 여행',
     'trip_created_generic': '여행이 생성되었습니다!',
@@ -1274,7 +1304,8 @@ const Map<String, Map<String, String>> tripStrings = {
     'trip_status_completed': 'เสร็จสิ้น',
     'trip_no_upcoming_trips': 'ยังไม่มีทริปที่จะมาถึง',
     'trip_create_trip_title': 'สร้างทริป',
-    'trip_create_trip_subtitle': 'ตั้งชื่อ เลือกสถานที่ ที่เหลือให้เราวางแผนให้',
+    'trip_create_trip_subtitle':
+        'ตั้งชื่อ เลือกสถานที่ ที่เหลือให้เราวางแผนให้',
     'trip_section_trip_details': 'รายละเอียดทริป',
     'trip_field_trip_name': 'ชื่อทริป',
     'trip_field_description_optional': 'คำอธิบาย (ไม่บังคับ)',
@@ -1287,7 +1318,8 @@ const Map<String, Map<String, String>> tripStrings = {
     'trip_field_travel_dates': 'วันที่เดินทาง',
     'trip_section_locations': 'สถานที่',
     'trip_selected_word': 'ที่เลือกไว้',
-    'trip_locations_hint': 'ค้นหาสถานที่ที่คุณต้องการไป หรือแตะบนแผนที่โดยตรงเพื่อเพิ่มลงในทริปของคุณ',
+    'trip_locations_hint':
+        'ค้นหาสถานที่ที่คุณต้องการไป หรือแตะบนแผนที่โดยตรงเพื่อเพิ่มลงในทริปของคุณ',
     'trip_no_locations_picked': 'ยังไม่ได้เลือกสถานที่',
     'trip_plan_my_trip': 'วางแผนทริปของฉัน',
     'trip_traveler_singular': 'คน',
@@ -1299,7 +1331,8 @@ const Map<String, Map<String, String>> tripStrings = {
     'trip_edit_trip_subtitle': 'อัปเดตรายละเอียดของทริปนี้',
     'trip_delete_trip_button': 'ลบทริป',
     'trip_delete_trip_confirm_title': 'ลบทริปนี้หรือไม่?',
-    'trip_delete_trip_confirm_body_suffix': 'และกำหนดการทั้งหมดจะถูกลบอย่างถาวร',
+    'trip_delete_trip_confirm_body_suffix':
+        'และกำหนดการทั้งหมดจะถูกลบอย่างถาวร',
     'trip_updated_snackbar': 'อัปเดตทริปแล้ว',
     'trip_deleted_snackbar': 'ลบทริปแล้ว',
     'trip_added_prefix': 'เพิ่ม',
@@ -1328,7 +1361,8 @@ const Map<String, Map<String, String>> tripStrings = {
     'trip_transport_rapid_bus': 'รถบัส Rapid Penang',
     'trip_transport_ehailing': 'เรียกรถผ่านแอป (Grab)',
     'trip_optimized_itinerary_title': 'แผนการเดินทางที่ปรับให้เหมาะสมแล้ว',
-    'trip_optimized_itinerary_subtitle': 'จัดเรียงตามเส้นทาง สภาพอากาศ และการเดินทาง',
+    'trip_optimized_itinerary_subtitle':
+        'จัดเรียงตามเส้นทาง สภาพอากาศ และการเดินทาง',
     'trip_save_trip_button': 'บันทึกทริป',
     'trip_saved_to_my_trips_suffix': 'บันทึกลงในทริปของฉันแล้ว!',
     'trip_trip_saved_generic': 'บันทึกทริปลงในทริปของฉันแล้ว!',
@@ -1348,10 +1382,12 @@ const Map<String, Map<String, String>> tripStrings = {
     'trip_add_stop_subtitle': 'ค้นหาหรือแตะหมุด แล้วจัดวาง',
     'trip_remove_stop_button': 'นำจุดแวะออก',
     'trip_field_location': 'สถานที่',
-    'trip_no_location_picked': 'ยังไม่ได้เลือกสถานที่ — ค้นหา แตะหมุด หรือเพิ่มเอง',
+    'trip_no_location_picked':
+        'ยังไม่ได้เลือกสถานที่ — ค้นหา แตะหมุด หรือเพิ่มเอง',
     'trip_field_arrangement': 'การจัดวาง',
     'trip_auto_arrange_title': 'จัดวางอัตโนมัติ',
-    'trip_auto_arrange_desc': 'จัดจุดแวะนี้เข้ากับกำหนดการโดยอัตโนมัติ ตามเส้นทางและสภาพอากาศ',
+    'trip_auto_arrange_desc':
+        'จัดจุดแวะนี้เข้ากับกำหนดการโดยอัตโนมัติ ตามเส้นทางและสภาพอากาศ',
     'trip_arrange_manually_title': 'จัดวางด้วยตนเอง',
     'trip_arrange_manually_desc': 'เลือกวันและเวลาที่แน่นอนด้วยตนเอง',
     'trip_field_how_long': 'คุณจะอยู่ที่นี่นานแค่ไหน?',
@@ -1402,13 +1438,15 @@ const Map<String, Map<String, String>> tripStrings = {
     'trip_no_stops_scheduled_prefix': 'ยังไม่มีจุดแวะที่กำหนดไว้สำหรับวันที่',
     'trip_no_stops_scheduled_suffix': '',
     'trip_override_order_title': 'แทนที่ลำดับที่วางแผนไว้หรือไม่?',
-    'trip_override_order_body': 'จุดแวะของคุณถูกจัดลำดับเพื่อลดเวลาเดินทางให้น้อยที่สุด และให้แต่ละจุดแวะตรงกับสภาพอากาศที่คาดการณ์ไว้ดีที่สุด การแทนที่ลำดับอาจไม่เหมาะสมที่สุดอีกต่อไป และอาจทำให้ทริปสนุกน้อยลง เช่น จุดแวะกลางแจ้งตรงกับวันที่ฝนตก',
+    'trip_override_order_body':
+        'จุดแวะของคุณถูกจัดลำดับเพื่อลดเวลาเดินทางให้น้อยที่สุด และให้แต่ละจุดแวะตรงกับสภาพอากาศที่คาดการณ์ไว้ดีที่สุด การแทนที่ลำดับอาจไม่เหมาะสมที่สุดอีกต่อไป และอาจทำให้ทริปสนุกน้อยลง เช่น จุดแวะกลางแจ้งตรงกับวันที่ฝนตก',
     'trip_keep_original_order': 'คงลำดับเดิมไว้',
     'trip_override_anyway': 'แทนที่ต่อไป',
     'trip_updated_custom_order': 'อัปเดตทริปแล้ว — บันทึกลำดับที่กำหนดเองแล้ว',
     'trip_completed_badge_caps': 'เสร็จสิ้น',
     'trip_custom_order_applied': 'ใช้ลำดับที่กำหนดเองแล้ว',
-    'trip_custom_order_desc': 'ลำดับนี้อาจไม่เหมาะสมที่สุด และอาจทำให้ประสบการณ์แย่ลงหากสภาพอากาศเปลี่ยนแปลง',
+    'trip_custom_order_desc':
+        'ลำดับนี้อาจไม่เหมาะสมที่สุด และอาจทำให้ประสบการณ์แย่ลงหากสภาพอากาศเปลี่ยนแปลง',
     'trip_reset_optimized_order': 'รีเซ็ตเป็นลำดับที่ปรับให้เหมาะสม',
     'trip_section_trip_tools': 'เครื่องมือทริป',
     'trip_section_activity': 'กิจกรรม',
@@ -1476,7 +1514,8 @@ const Map<String, Map<String, String>> tripStrings = {
     'trip_back_to_prefix': 'กลับไปที่',
     'trip_stop_singular': 'จุดแวะ',
     'trip_optimized_route_suffix': 'เส้นทางที่ปรับให้เหมาะสม',
-    'trip_planned_day_by_day': 'วางแผนทีละวัน โดยอิงจากบริเวณใกล้เคียงแต่ละโรงแรม',
+    'trip_planned_day_by_day':
+        'วางแผนทีละวัน โดยอิงจากบริเวณใกล้เคียงแต่ละโรงแรม',
     'trip_search_failed_prefix': 'การค้นหาล้มเหลว',
     'trip_turn_on_location_services': 'เปิดบริการตำแหน่งที่ตั้งเพื่อใช้สิ่งนี้',
     'trip_my_location': 'ตำแหน่งของฉัน',
@@ -1498,7 +1537,8 @@ const Map<String, Map<String, String>> tripStrings = {
     'trip_activity_lunch_komtar_title': 'อาหารกลางวันที่ศูนย์อาหารคอมตาร์',
     'trip_activity_lunch_komtar_subtitle': 'อาหารข้างทางท้องถิ่นของปีนัง',
     'trip_activity_stroll_street_art_title': 'เดินชมศิลปะข้างถนนจอร์จทาวน์',
-    'trip_activity_stroll_street_art_subtitle': 'เวลาว่างสำรวจภาพจิตรกรรมฝาผนัง',
+    'trip_activity_stroll_street_art_subtitle':
+        'เวลาว่างสำรวจภาพจิตรกรรมฝาผนัง',
     'trip_activity_breakfast_nearby_title': 'อาหารเช้าใกล้เคียง',
     'trip_activity_breakfast_nearby_subtitle': 'ร้านโกปิเตี๊ยมท้องถิ่น',
     'trip_activity_dinner_gurney_title': 'อาหารเย็นที่แผงขายอาหารเกอร์นีย์',
@@ -1525,7 +1565,8 @@ const Map<String, Map<String, String>> tripStrings = {
     'trip_status_completed': 'Đã hoàn thành',
     'trip_no_upcoming_trips': 'Chưa có chuyến đi sắp tới',
     'trip_create_trip_title': 'Tạo chuyến đi',
-    'trip_create_trip_subtitle': 'Đặt tên, chọn địa điểm, chúng tôi sẽ lo phần còn lại',
+    'trip_create_trip_subtitle':
+        'Đặt tên, chọn địa điểm, chúng tôi sẽ lo phần còn lại',
     'trip_section_trip_details': 'Chi tiết chuyến đi',
     'trip_field_trip_name': 'Tên chuyến đi',
     'trip_field_description_optional': 'Mô tả (không bắt buộc)',
@@ -1538,7 +1579,8 @@ const Map<String, Map<String, String>> tripStrings = {
     'trip_field_travel_dates': 'Ngày đi',
     'trip_section_locations': 'Địa điểm',
     'trip_selected_word': 'đã chọn',
-    'trip_locations_hint': 'Tìm kiếm địa điểm bạn muốn ghé thăm, hoặc chạm trực tiếp trên bản đồ để thêm vào chuyến đi của bạn.',
+    'trip_locations_hint':
+        'Tìm kiếm địa điểm bạn muốn ghé thăm, hoặc chạm trực tiếp trên bản đồ để thêm vào chuyến đi của bạn.',
     'trip_no_locations_picked': 'Chưa chọn địa điểm nào.',
     'trip_plan_my_trip': 'Lên kế hoạch chuyến đi',
     'trip_traveler_singular': 'người',
@@ -1550,7 +1592,8 @@ const Map<String, Map<String, String>> tripStrings = {
     'trip_edit_trip_subtitle': 'Cập nhật chi tiết chuyến đi này',
     'trip_delete_trip_button': 'Xóa chuyến đi',
     'trip_delete_trip_confirm_title': 'Xóa chuyến đi này?',
-    'trip_delete_trip_confirm_body_suffix': 'và toàn bộ lịch trình sẽ bị xóa vĩnh viễn.',
+    'trip_delete_trip_confirm_body_suffix':
+        'và toàn bộ lịch trình sẽ bị xóa vĩnh viễn.',
     'trip_updated_snackbar': 'Đã cập nhật chuyến đi',
     'trip_deleted_snackbar': 'Đã xóa chuyến đi',
     'trip_added_prefix': 'Đã thêm',
@@ -1574,12 +1617,14 @@ const Map<String, Map<String, String>> tripStrings = {
     'trip_weather_rain_showers': 'Mưa rào',
     'trip_reason_clear_weather': 'Được lên lịch vào ngày thời tiết đẹp',
     'trip_reason_rain_possible': 'Có thể có mưa — mang theo áo khoác nhẹ',
-    'trip_reason_indoor_flexible': 'Phù hợp trong nhà, linh hoạt theo thời tiết',
+    'trip_reason_indoor_flexible':
+        'Phù hợp trong nhà, linh hoạt theo thời tiết',
     'trip_transport_walk': 'Đi bộ',
     'trip_transport_rapid_bus': 'Xe buýt Rapid Penang',
     'trip_transport_ehailing': 'Gọi xe công nghệ (Grab)',
     'trip_optimized_itinerary_title': 'Lịch trình đã tối ưu',
-    'trip_optimized_itinerary_subtitle': 'Sắp xếp theo lộ trình, thời tiết và phương tiện di chuyển',
+    'trip_optimized_itinerary_subtitle':
+        'Sắp xếp theo lộ trình, thời tiết và phương tiện di chuyển',
     'trip_save_trip_button': 'Lưu chuyến đi',
     'trip_saved_to_my_trips_suffix': 'đã được lưu vào Chuyến đi của tôi!',
     'trip_trip_saved_generic': 'Đã lưu chuyến đi vào Chuyến đi của tôi!',
@@ -1599,10 +1644,12 @@ const Map<String, Map<String, String>> tripStrings = {
     'trip_add_stop_subtitle': 'Tìm kiếm hoặc chạm vào ghim, sau đó sắp xếp',
     'trip_remove_stop_button': 'Xóa điểm dừng',
     'trip_field_location': 'Địa điểm',
-    'trip_no_location_picked': 'Chưa chọn địa điểm nào — tìm kiếm, chạm vào ghim, hoặc tự thêm.',
+    'trip_no_location_picked':
+        'Chưa chọn địa điểm nào — tìm kiếm, chạm vào ghim, hoặc tự thêm.',
     'trip_field_arrangement': 'Cách sắp xếp',
     'trip_auto_arrange_title': 'Tự động sắp xếp',
-    'trip_auto_arrange_desc': 'Tự động đưa điểm dừng này vào lịch trình, dựa trên lộ trình và thời tiết.',
+    'trip_auto_arrange_desc':
+        'Tự động đưa điểm dừng này vào lịch trình, dựa trên lộ trình và thời tiết.',
     'trip_arrange_manually_title': 'Sắp xếp thủ công',
     'trip_arrange_manually_desc': 'Tự chọn ngày và giờ chính xác.',
     'trip_field_how_long': 'Bạn sẽ ở lại bao lâu?',
@@ -1633,7 +1680,8 @@ const Map<String, Map<String, String>> tripStrings = {
     'trip_section_past_trips': 'Chuyến đi trước đây',
     'trip_no_trips_named_prefix': 'Không có chuyến đi nào tên',
     'trip_try_different_name': 'Hãy thử tên chuyến đi khác.',
-    'trip_tap_plus_hint': 'Chạm + để bắt đầu lên kế hoạch cho chuyến phiêu lưu tiếp theo.',
+    'trip_tap_plus_hint':
+        'Chạm + để bắt đầu lên kế hoạch cho chuyến phiêu lưu tiếp theo.',
     'trip_mode_choose': 'Chọn phương tiện',
     'trip_mode_public_transport': 'Phương tiện công cộng',
     'trip_mode_ehailing': 'Gọi xe công nghệ',
@@ -1643,23 +1691,30 @@ const Map<String, Map<String, String>> tripStrings = {
     'trip_done_badge': 'Xong',
     'trip_complete_button': 'Hoàn thành',
     'trip_transport_dialog_title': 'Bạn muốn đến đó bằng cách nào?',
-    'trip_transport_dialog_subtitle': 'Chọn cách di chuyển đến điểm dừng tiếp theo',
-    'trip_desc_public_transport': 'Xem các tùy chọn xe buýt trực tiếp và chỉ đường',
+    'trip_transport_dialog_subtitle':
+        'Chọn cách di chuyển đến điểm dừng tiếp theo',
+    'trip_desc_public_transport':
+        'Xem các tùy chọn xe buýt trực tiếp và chỉ đường',
     'trip_desc_ehailing': 'Đặt xe Grab hoặc taxi',
     'trip_desc_walking': 'Miễn phí, và giúp giãn gân cốt',
     'trip_min_transport_suffix': 'phút di chuyển',
     'trip_day_locked_suffix': 'đã hoàn thành — chỉ xem',
-    'trip_edit_schedule_subtitle': 'Chạm vào điểm dừng để chỉnh sửa, kéo để sắp xếp lại',
-    'trip_no_stops_scheduled_prefix': 'Chưa có điểm dừng nào được lên lịch cho Ngày',
+    'trip_edit_schedule_subtitle':
+        'Chạm vào điểm dừng để chỉnh sửa, kéo để sắp xếp lại',
+    'trip_no_stops_scheduled_prefix':
+        'Chưa có điểm dừng nào được lên lịch cho Ngày',
     'trip_no_stops_scheduled_suffix': '.',
     'trip_override_order_title': 'Ghi đè thứ tự đã lên kế hoạch?',
-    'trip_override_order_body': 'Các điểm dừng của bạn được sắp xếp để giảm thiểu thời gian di chuyển và phù hợp với thời tiết dự báo tốt nhất cho từng điểm dừng. Việc ghi đè thứ tự có thể không còn tối ưu và có thể khiến chuyến đi kém thú vị hơn — ví dụ, một điểm dừng ngoài trời rơi vào lúc trời mưa.',
+    'trip_override_order_body':
+        'Các điểm dừng của bạn được sắp xếp để giảm thiểu thời gian di chuyển và phù hợp với thời tiết dự báo tốt nhất cho từng điểm dừng. Việc ghi đè thứ tự có thể không còn tối ưu và có thể khiến chuyến đi kém thú vị hơn — ví dụ, một điểm dừng ngoài trời rơi vào lúc trời mưa.',
     'trip_keep_original_order': 'Giữ thứ tự ban đầu',
     'trip_override_anyway': 'Vẫn ghi đè',
-    'trip_updated_custom_order': 'Đã cập nhật chuyến đi — đã lưu thứ tự tùy chỉnh',
+    'trip_updated_custom_order':
+        'Đã cập nhật chuyến đi — đã lưu thứ tự tùy chỉnh',
     'trip_completed_badge_caps': 'ĐÃ HOÀN THÀNH',
     'trip_custom_order_applied': 'Đã áp dụng thứ tự tùy chỉnh',
-    'trip_custom_order_desc': 'Thứ tự này có thể không tối ưu và có thể dẫn đến trải nghiệm tệ hơn nếu thời tiết thay đổi.',
+    'trip_custom_order_desc':
+        'Thứ tự này có thể không tối ưu và có thể dẫn đến trải nghiệm tệ hơn nếu thời tiết thay đổi.',
     'trip_reset_optimized_order': 'Đặt lại về thứ tự tối ưu',
     'trip_section_trip_tools': 'Công cụ chuyến đi',
     'trip_section_activity': 'Hoạt động',
@@ -1695,8 +1750,7 @@ const Map<String, Map<String, String>> tripStrings = {
         'Quyền truy cập vị trí đã bị từ chối vĩnh viễn. Hãy bật trong Cài '
         'đặt.',
     'trip_location_permission_denied': 'Quyền truy cập vị trí bị từ chối.',
-    'trip_location_unable_retrieve':
-        'Không thể lấy vị trí hiện tại của bạn.',
+    'trip_location_unable_retrieve': 'Không thể lấy vị trí hiện tại của bạn.',
     'trip_field_travel_dates_time': 'Ngày & Giờ Đi',
     'trip_locations_hint_map':
         'Tìm địa điểm thực trên bản đồ — thử "Komtar" hoặc "Chew Jetty".',
@@ -1729,9 +1783,11 @@ const Map<String, Map<String, String>> tripStrings = {
     'trip_back_to_prefix': 'Quay lại',
     'trip_stop_singular': 'điểm dừng',
     'trip_optimized_route_suffix': 'lộ trình tối ưu',
-    'trip_planned_day_by_day': 'Được lên kế hoạch từng ngày, dựa trên vị trí gần mỗi khách sạn',
+    'trip_planned_day_by_day':
+        'Được lên kế hoạch từng ngày, dựa trên vị trí gần mỗi khách sạn',
     'trip_search_failed_prefix': 'Tìm kiếm thất bại',
-    'trip_turn_on_location_services': 'Bật dịch vụ định vị để sử dụng tính năng này.',
+    'trip_turn_on_location_services':
+        'Bật dịch vụ định vị để sử dụng tính năng này.',
     'trip_my_location': 'Vị trí của tôi',
     'trip_could_not_get_location_prefix': 'Không thể lấy vị trí của bạn',
     'trip_search_place_komtar_hint': 'Tìm một địa điểm, ví dụ: Komtar…',
@@ -1742,16 +1798,22 @@ const Map<String, Map<String, String>> tripStrings = {
     'trip_search_trip_stops_hint': 'Tìm điểm dừng của chuyến đi…',
     'trip_no_matching_stops': 'Không có điểm dừng phù hợp',
     'trip_no_stops_added_yet': 'Chưa có điểm dừng nào được thêm',
-    'trip_add_stops_to_see_map': 'Thêm điểm dừng vào chuyến đi này để xem trên bản đồ.',
-    'trip_could_not_load_trip_stops': 'Không thể tải các điểm dừng của chuyến đi.',
+    'trip_add_stops_to_see_map':
+        'Thêm điểm dừng vào chuyến đi này để xem trên bản đồ.',
+    'trip_could_not_load_trip_stops':
+        'Không thể tải các điểm dừng của chuyến đi.',
     'trip_custom_stop_description': 'Điểm dừng tùy chỉnh do bạn tự thêm vào.',
     'trip_budget_varies': 'Thay đổi',
     'trip_activity_breakfast_hotel_title': 'Ăn sáng tại khách sạn',
-    'trip_activity_breakfast_hotel_subtitle': 'Bắt đầu ngày mới tràn đầy năng lượng',
+    'trip_activity_breakfast_hotel_subtitle':
+        'Bắt đầu ngày mới tràn đầy năng lượng',
     'trip_activity_lunch_komtar_title': 'Ăn trưa tại khu ẩm thực Komtar',
-    'trip_activity_lunch_komtar_subtitle': 'Ẩm thực đường phố Penang địa phương',
-    'trip_activity_stroll_street_art_title': 'Dạo quanh ngắm nghệ thuật đường phố George Town',
-    'trip_activity_stroll_street_art_subtitle': 'Thời gian tự do khám phá tranh tường',
+    'trip_activity_lunch_komtar_subtitle':
+        'Ẩm thực đường phố Penang địa phương',
+    'trip_activity_stroll_street_art_title':
+        'Dạo quanh ngắm nghệ thuật đường phố George Town',
+    'trip_activity_stroll_street_art_subtitle':
+        'Thời gian tự do khám phá tranh tường',
     'trip_activity_breakfast_nearby_title': 'Ăn sáng gần đó',
     'trip_activity_breakfast_nearby_subtitle': 'Quán kopitiam địa phương',
     'trip_activity_dinner_gurney_title': 'Ăn tối tại các quầy ẩm thực Gurney',
@@ -1778,7 +1840,8 @@ const Map<String, Map<String, String>> tripStrings = {
     'trip_status_completed': 'Selesai',
     'trip_no_upcoming_trips': 'Belum ada perjalanan mendatang',
     'trip_create_trip_title': 'Buat Perjalanan',
-    'trip_create_trip_subtitle': 'Beri nama, pilih lokasi, sisanya biar kami yang rencanakan',
+    'trip_create_trip_subtitle':
+        'Beri nama, pilih lokasi, sisanya biar kami yang rencanakan',
     'trip_section_trip_details': 'Detail Perjalanan',
     'trip_field_trip_name': 'Nama Perjalanan',
     'trip_field_description_optional': 'Deskripsi (opsional)',
@@ -1791,7 +1854,8 @@ const Map<String, Map<String, String>> tripStrings = {
     'trip_field_travel_dates': 'Tanggal Perjalanan',
     'trip_section_locations': 'Lokasi',
     'trip_selected_word': 'dipilih',
-    'trip_locations_hint': 'Cari tempat yang ingin Anda kunjungi, atau ketuk langsung pada peta untuk menambahkannya ke perjalanan Anda.',
+    'trip_locations_hint':
+        'Cari tempat yang ingin Anda kunjungi, atau ketuk langsung pada peta untuk menambahkannya ke perjalanan Anda.',
     'trip_no_locations_picked': 'Belum ada lokasi yang dipilih.',
     'trip_plan_my_trip': 'Rencanakan Perjalanan Saya',
     'trip_traveler_singular': 'wisatawan',
@@ -1803,13 +1867,15 @@ const Map<String, Map<String, String>> tripStrings = {
     'trip_edit_trip_subtitle': 'Perbarui detail perjalanan ini',
     'trip_delete_trip_button': 'Hapus Perjalanan',
     'trip_delete_trip_confirm_title': 'Hapus perjalanan ini?',
-    'trip_delete_trip_confirm_body_suffix': 'beserta seluruh itinerarinya akan dihapus secara permanen.',
+    'trip_delete_trip_confirm_body_suffix':
+        'beserta seluruh itinerarinya akan dihapus secara permanen.',
     'trip_updated_snackbar': 'Perjalanan diperbarui',
     'trip_deleted_snackbar': 'Perjalanan dihapus',
     'trip_added_prefix': 'Menambahkan',
     'trip_to_word': 'ke',
     'trip_add_to_trip_title': 'Tambahkan ke Perjalanan',
-    'trip_choose_trip_hint': 'Pilih perjalanan mana yang akan ditambahkan lokasi ini',
+    'trip_choose_trip_hint':
+        'Pilih perjalanan mana yang akan ditambahkan lokasi ini',
     'trip_map_no_matches': 'Tidak ada yang cocok — tambahkan sendiri',
     'trip_map_tap_pins': 'Ketuk pin untuk memilih',
     'trip_map_search_hint': 'Cari tempat untuk disematkan…',
@@ -1827,12 +1893,14 @@ const Map<String, Map<String, String>> tripStrings = {
     'trip_weather_rain_showers': 'Hujan Ringan',
     'trip_reason_clear_weather': 'Dijadwalkan saat cuaca cerah',
     'trip_reason_rain_possible': 'Kemungkinan hujan — bawa jaket ringan',
-    'trip_reason_indoor_flexible': 'Cocok di dalam ruangan, fleksibel terhadap cuaca',
+    'trip_reason_indoor_flexible':
+        'Cocok di dalam ruangan, fleksibel terhadap cuaca',
     'trip_transport_walk': 'Jalan Kaki',
     'trip_transport_rapid_bus': 'Bus Rapid Penang',
     'trip_transport_ehailing': 'Ojek/Taksi Online (Grab)',
     'trip_optimized_itinerary_title': 'Itinerari Teroptimasi',
-    'trip_optimized_itinerary_subtitle': 'Diurutkan berdasarkan rute, cuaca, dan transportasi',
+    'trip_optimized_itinerary_subtitle':
+        'Diurutkan berdasarkan rute, cuaca, dan transportasi',
     'trip_save_trip_button': 'Simpan Perjalanan',
     'trip_saved_to_my_trips_suffix': 'disimpan ke Perjalanan Saya!',
     'trip_trip_saved_generic': 'Perjalanan disimpan ke Perjalanan Saya!',
@@ -1852,10 +1920,12 @@ const Map<String, Map<String, String>> tripStrings = {
     'trip_add_stop_subtitle': 'Cari atau ketuk pin, lalu atur',
     'trip_remove_stop_button': 'Hapus Lokasi',
     'trip_field_location': 'Lokasi',
-    'trip_no_location_picked': 'Belum ada lokasi yang dipilih — cari, ketuk pin, atau tambahkan sendiri.',
+    'trip_no_location_picked':
+        'Belum ada lokasi yang dipilih — cari, ketuk pin, atau tambahkan sendiri.',
     'trip_field_arrangement': 'Pengaturan',
     'trip_auto_arrange_title': 'Atur otomatis',
-    'trip_auto_arrange_desc': 'Sesuaikan lokasi ini secara otomatis ke dalam itinerari, berdasarkan rute dan cuaca.',
+    'trip_auto_arrange_desc':
+        'Sesuaikan lokasi ini secara otomatis ke dalam itinerari, berdasarkan rute dan cuaca.',
     'trip_arrange_manually_title': 'Atur manual',
     'trip_arrange_manually_desc': 'Pilih hari dan waktu yang tepat sendiri.',
     'trip_field_how_long': 'Berapa Lama Anda Akan Tinggal?',
@@ -1866,8 +1936,10 @@ const Map<String, Map<String, String>> tripStrings = {
     'trip_place_name_hint': 'mis. Chew Jetty',
     'trip_search_places_hint': 'Cari tempat…',
     'trip_this_stop_label': 'Lokasi ini',
-    'trip_auto_arrange_preview_prefix': 'Sistem akan menempatkan ini sekitar Hari',
-    'trip_auto_arrange_preview_suffix': 'sesuai dengan periode cuaca yang baik.',
+    'trip_auto_arrange_preview_prefix':
+        'Sistem akan menempatkan ini sekitar Hari',
+    'trip_auto_arrange_preview_suffix':
+        'sesuai dengan periode cuaca yang baik.',
     'trip_day_passed_snackbar_suffix': 'sudah berlalu',
     'trip_days_before_passed_prefix': 'Hari sebelum Hari',
     'trip_days_before_passed_suffix': 'sudah berlalu dan tidak dapat dipilih.',
@@ -1886,7 +1958,8 @@ const Map<String, Map<String, String>> tripStrings = {
     'trip_section_past_trips': 'Perjalanan Lalu',
     'trip_no_trips_named_prefix': 'Tidak ada perjalanan bernama',
     'trip_try_different_name': 'Coba nama perjalanan lain.',
-    'trip_tap_plus_hint': 'Ketuk + untuk mulai merencanakan petualangan Anda selanjutnya.',
+    'trip_tap_plus_hint':
+        'Ketuk + untuk mulai merencanakan petualangan Anda selanjutnya.',
     'trip_mode_choose': 'Pilih transportasi',
     'trip_mode_public_transport': 'Transportasi umum',
     'trip_mode_ehailing': 'Ojek/Taksi online',
@@ -1896,23 +1969,28 @@ const Map<String, Map<String, String>> tripStrings = {
     'trip_done_badge': 'Selesai',
     'trip_complete_button': 'Selesai',
     'trip_transport_dialog_title': 'Bagaimana Anda ingin ke sana?',
-    'trip_transport_dialog_subtitle': 'Pilih cara bepergian ke lokasi berikutnya',
+    'trip_transport_dialog_subtitle':
+        'Pilih cara bepergian ke lokasi berikutnya',
     'trip_desc_public_transport': 'Lihat opsi bus langsung dan arah',
     'trip_desc_ehailing': 'Pesan Grab atau taksi',
     'trip_desc_walking': 'Gratis, dan olahraga kaki yang baik',
     'trip_min_transport_suffix': 'menit perjalanan',
     'trip_day_locked_suffix': 'sudah selesai — hanya lihat',
-    'trip_edit_schedule_subtitle': 'Ketuk lokasi untuk mengedit, seret untuk mengatur ulang',
+    'trip_edit_schedule_subtitle':
+        'Ketuk lokasi untuk mengedit, seret untuk mengatur ulang',
     'trip_no_stops_scheduled_prefix': 'Belum ada lokasi terjadwal untuk Hari',
     'trip_no_stops_scheduled_suffix': '.',
     'trip_override_order_title': 'Timpa urutan yang direncanakan?',
-    'trip_override_order_body': 'Lokasi Anda diurutkan untuk meminimalkan waktu perjalanan dan menyesuaikan setiap lokasi dengan perkiraan cuaca terbaik. Menimpa urutan mungkin tidak lagi optimal dan dapat menyebabkan perjalanan kurang menyenangkan — misalnya, lokasi luar ruangan bertepatan dengan hujan.',
+    'trip_override_order_body':
+        'Lokasi Anda diurutkan untuk meminimalkan waktu perjalanan dan menyesuaikan setiap lokasi dengan perkiraan cuaca terbaik. Menimpa urutan mungkin tidak lagi optimal dan dapat menyebabkan perjalanan kurang menyenangkan — misalnya, lokasi luar ruangan bertepatan dengan hujan.',
     'trip_keep_original_order': 'Pertahankan Urutan Asli',
     'trip_override_anyway': 'Tetap Timpa',
-    'trip_updated_custom_order': 'Perjalanan diperbarui — urutan kustom disimpan',
+    'trip_updated_custom_order':
+        'Perjalanan diperbarui — urutan kustom disimpan',
     'trip_completed_badge_caps': 'SELESAI',
     'trip_custom_order_applied': 'Urutan kustom diterapkan',
-    'trip_custom_order_desc': 'Urutan ini mungkin tidak optimal dan dapat menyebabkan pengalaman lebih buruk jika cuaca berubah.',
+    'trip_custom_order_desc':
+        'Urutan ini mungkin tidak optimal dan dapat menyebabkan pengalaman lebih buruk jika cuaca berubah.',
     'trip_reset_optimized_order': 'Atur ulang ke urutan optimal',
     'trip_section_trip_tools': 'Alat Perjalanan',
     'trip_section_activity': 'Aktivitas',
@@ -1981,9 +2059,11 @@ const Map<String, Map<String, String>> tripStrings = {
     'trip_back_to_prefix': 'Kembali ke',
     'trip_stop_singular': 'lokasi',
     'trip_optimized_route_suffix': 'rute yang dioptimalkan',
-    'trip_planned_day_by_day': 'Direncanakan hari demi hari, berdasarkan lokasi dekat setiap hotel',
+    'trip_planned_day_by_day':
+        'Direncanakan hari demi hari, berdasarkan lokasi dekat setiap hotel',
     'trip_search_failed_prefix': 'Pencarian gagal',
-    'trip_turn_on_location_services': 'Aktifkan layanan lokasi untuk menggunakan ini.',
+    'trip_turn_on_location_services':
+        'Aktifkan layanan lokasi untuk menggunakan ini.',
     'trip_my_location': 'Lokasi saya',
     'trip_could_not_get_location_prefix': 'Tidak dapat memperoleh lokasi Anda',
     'trip_search_place_komtar_hint': 'Cari tempat, mis. Komtar…',
@@ -1994,15 +2074,18 @@ const Map<String, Map<String, String>> tripStrings = {
     'trip_search_trip_stops_hint': 'Cari lokasi perjalanan…',
     'trip_no_matching_stops': 'Tidak ada lokasi yang cocok',
     'trip_no_stops_added_yet': 'Belum ada lokasi ditambahkan',
-    'trip_add_stops_to_see_map': 'Tambahkan lokasi ke perjalanan ini untuk melihatnya di peta.',
+    'trip_add_stops_to_see_map':
+        'Tambahkan lokasi ke perjalanan ini untuk melihatnya di peta.',
     'trip_could_not_load_trip_stops': 'Tidak dapat memuat lokasi perjalanan.',
-    'trip_custom_stop_description': 'Lokasi khusus yang Anda tambahkan sendiri.',
+    'trip_custom_stop_description':
+        'Lokasi khusus yang Anda tambahkan sendiri.',
     'trip_budget_varies': 'Bervariasi',
     'trip_activity_breakfast_hotel_title': 'Sarapan di hotel',
     'trip_activity_breakfast_hotel_subtitle': 'Mulai hari dengan berenergi',
     'trip_activity_lunch_komtar_title': 'Makan siang di food court Komtar',
     'trip_activity_lunch_komtar_subtitle': 'Makanan kaki lima khas Penang',
-    'trip_activity_stroll_street_art_title': 'Berjalan menikmati seni jalanan George Town',
+    'trip_activity_stroll_street_art_title':
+        'Berjalan menikmati seni jalanan George Town',
     'trip_activity_stroll_street_art_subtitle': 'Waktu bebas menjelajahi mural',
     'trip_activity_breakfast_nearby_title': 'Sarapan di dekat sini',
     'trip_activity_breakfast_nearby_subtitle': 'Kopitiam lokal',
@@ -2030,7 +2113,8 @@ const Map<String, Map<String, String>> tripStrings = {
     'trip_status_completed': 'पूर्ण',
     'trip_no_upcoming_trips': 'अभी तक कोई आगामी यात्रा नहीं',
     'trip_create_trip_title': 'यात्रा बनाएं',
-    'trip_create_trip_subtitle': 'नाम दें, अपने स्थान चुनें, बाकी हम योजना बनाएंगे',
+    'trip_create_trip_subtitle':
+        'नाम दें, अपने स्थान चुनें, बाकी हम योजना बनाएंगे',
     'trip_section_trip_details': 'यात्रा विवरण',
     'trip_field_trip_name': 'यात्रा का नाम',
     'trip_field_description_optional': 'विवरण (वैकल्पिक)',
@@ -2043,7 +2127,8 @@ const Map<String, Map<String, String>> tripStrings = {
     'trip_field_travel_dates': 'यात्रा तिथियां',
     'trip_section_locations': 'स्थान',
     'trip_selected_word': 'चयनित',
-    'trip_locations_hint': 'उस स्थान की खोज करें जहां आप जाना चाहते हैं, या इसे अपनी यात्रा में जोड़ने के लिए सीधे मानचित्र पर टैप करें।',
+    'trip_locations_hint':
+        'उस स्थान की खोज करें जहां आप जाना चाहते हैं, या इसे अपनी यात्रा में जोड़ने के लिए सीधे मानचित्र पर टैप करें।',
     'trip_no_locations_picked': 'अभी तक कोई स्थान नहीं चुना गया।',
     'trip_plan_my_trip': 'मेरी यात्रा की योजना बनाएं',
     'trip_traveler_singular': 'यात्री',
@@ -2055,7 +2140,8 @@ const Map<String, Map<String, String>> tripStrings = {
     'trip_edit_trip_subtitle': 'इस यात्रा का विवरण अपडेट करें',
     'trip_delete_trip_button': 'यात्रा हटाएं',
     'trip_delete_trip_confirm_title': 'क्या इस यात्रा को हटाएं?',
-    'trip_delete_trip_confirm_body_suffix': 'और इसका पूरा कार्यक्रम स्थायी रूप से हटा दिया जाएगा।',
+    'trip_delete_trip_confirm_body_suffix':
+        'और इसका पूरा कार्यक्रम स्थायी रूप से हटा दिया जाएगा।',
     'trip_updated_snackbar': 'यात्रा अपडेट की गई',
     'trip_deleted_snackbar': 'यात्रा हटाई गई',
     'trip_added_prefix': 'जोड़ा गया',
@@ -2079,12 +2165,14 @@ const Map<String, Map<String, String>> tripStrings = {
     'trip_weather_rain_showers': 'बौछारें',
     'trip_reason_clear_weather': 'साफ मौसम के लिए निर्धारित',
     'trip_reason_rain_possible': 'बारिश संभव है — हल्का जैकेट साथ रखें',
-    'trip_reason_indoor_flexible': 'इनडोर के लिए उपयुक्त, मौसम के अनुकूल विकल्प',
+    'trip_reason_indoor_flexible':
+        'इनडोर के लिए उपयुक्त, मौसम के अनुकूल विकल्प',
     'trip_transport_walk': 'पैदल',
     'trip_transport_rapid_bus': 'रैपिड पेनांग बस',
     'trip_transport_ehailing': 'ई-हेलिंग (Grab)',
     'trip_optimized_itinerary_title': 'अनुकूलित यात्रा कार्यक्रम',
-    'trip_optimized_itinerary_subtitle': 'मार्ग, मौसम और परिवहन के अनुसार क्रमबद्ध',
+    'trip_optimized_itinerary_subtitle':
+        'मार्ग, मौसम और परिवहन के अनुसार क्रमबद्ध',
     'trip_save_trip_button': 'यात्रा सहेजें',
     'trip_saved_to_my_trips_suffix': 'मेरी यात्राओं में सहेजा गया!',
     'trip_trip_saved_generic': 'यात्रा मेरी यात्राओं में सहेजी गई!',
@@ -2097,17 +2185,20 @@ const Map<String, Map<String, String>> tripStrings = {
     'trip_planning_stops_suffix': 'पड़ाव यात्रा की योजना बनाई जा रही है',
     'trip_planning_word': 'योजना बनाई जा रही है',
     'trip_remove_stop_confirm_title': 'इस पड़ाव को हटाएं?',
-    'trip_remove_stop_confirm_suffix': 'आपके यात्रा कार्यक्रम से हटा दिया जाएगा।',
+    'trip_remove_stop_confirm_suffix':
+        'आपके यात्रा कार्यक्रम से हटा दिया जाएगा।',
     'trip_edit_stop_title': 'पड़ाव संपादित करें',
     'trip_add_stop_title': 'पड़ाव जोड़ें',
     'trip_edit_stop_subtitle': 'इस पड़ाव का विवरण अपडेट करें',
     'trip_add_stop_subtitle': 'खोजें या पिन पर टैप करें, फिर व्यवस्थित करें',
     'trip_remove_stop_button': 'पड़ाव हटाएं',
     'trip_field_location': 'स्थान',
-    'trip_no_location_picked': 'अभी तक कोई स्थान नहीं चुना गया — खोजें, पिन पर टैप करें, या स्वयं जोड़ें।',
+    'trip_no_location_picked':
+        'अभी तक कोई स्थान नहीं चुना गया — खोजें, पिन पर टैप करें, या स्वयं जोड़ें।',
     'trip_field_arrangement': 'व्यवस्था',
     'trip_auto_arrange_title': 'स्वतः व्यवस्थित करें',
-    'trip_auto_arrange_desc': 'मार्ग और मौसम के आधार पर, इस पड़ाव को स्वचालित रूप से यात्रा कार्यक्रम में फिट करें।',
+    'trip_auto_arrange_desc':
+        'मार्ग और मौसम के आधार पर, इस पड़ाव को स्वचालित रूप से यात्रा कार्यक्रम में फिट करें।',
     'trip_arrange_manually_title': 'मैन्युअल रूप से व्यवस्थित करें',
     'trip_arrange_manually_desc': 'स्वयं सटीक दिन और समय चुनें।',
     'trip_field_how_long': 'आप कितनी देर रुकेंगे?',
@@ -2122,7 +2213,8 @@ const Map<String, Map<String, String>> tripStrings = {
     'trip_auto_arrange_preview_suffix': 'के आसपास, अच्छे मौसम के अनुरूप रखेगा।',
     'trip_day_passed_snackbar_suffix': 'पहले ही बीत चुका है',
     'trip_days_before_passed_prefix': 'दिन',
-    'trip_days_before_passed_suffix': 'से पहले के दिन पहले ही बीत चुके हैं और चुने नहीं जा सकते।',
+    'trip_days_before_passed_suffix':
+        'से पहले के दिन पहले ही बीत चुके हैं और चुने नहीं जा सकते।',
     'trip_day1_passed': 'दिन 1 पहले ही बीत चुका है और चुना नहीं जा सकता।',
     'trip_category_sightseeing': 'सैर-सपाटा',
     'trip_category_shopping': 'खरीदारी',
@@ -2138,7 +2230,8 @@ const Map<String, Map<String, String>> tripStrings = {
     'trip_section_past_trips': 'पिछली यात्राएं',
     'trip_no_trips_named_prefix': 'इस नाम की कोई यात्रा नहीं',
     'trip_try_different_name': 'कोई भिन्न यात्रा नाम आज़माएं।',
-    'trip_tap_plus_hint': 'अपने अगले साहसिक कार्य की योजना बनाने के लिए + टैप करें।',
+    'trip_tap_plus_hint':
+        'अपने अगले साहसिक कार्य की योजना बनाने के लिए + टैप करें।',
     'trip_mode_choose': 'परिवहन चुनें',
     'trip_mode_public_transport': 'सार्वजनिक परिवहन',
     'trip_mode_ehailing': 'ई-हेलिंग',
@@ -2148,23 +2241,28 @@ const Map<String, Map<String, String>> tripStrings = {
     'trip_done_badge': 'पूर्ण',
     'trip_complete_button': 'पूर्ण करें',
     'trip_transport_dialog_title': 'आप वहां कैसे जाना चाहते हैं?',
-    'trip_transport_dialog_subtitle': 'अगले पड़ाव तक यात्रा करने का तरीका चुनें',
+    'trip_transport_dialog_subtitle':
+        'अगले पड़ाव तक यात्रा करने का तरीका चुनें',
     'trip_desc_public_transport': 'लाइव बस विकल्प और दिशा-निर्देश देखें',
     'trip_desc_ehailing': 'Grab या टैक्सी बुक करें',
     'trip_desc_walking': 'मुफ़्त, और पैरों के लिए अच्छा व्यायाम',
     'trip_min_transport_suffix': 'मिनट परिवहन',
     'trip_day_locked_suffix': 'पहले ही पूर्ण हो चुका है — केवल देखें',
-    'trip_edit_schedule_subtitle': 'संपादित करने के लिए पड़ाव पर टैप करें, पुनः क्रमबद्ध करने के लिए खींचें',
+    'trip_edit_schedule_subtitle':
+        'संपादित करने के लिए पड़ाव पर टैप करें, पुनः क्रमबद्ध करने के लिए खींचें',
     'trip_no_stops_scheduled_prefix': 'दिन',
-    'trip_no_stops_scheduled_suffix': 'के लिए अभी तक कोई पड़ाव निर्धारित नहीं है।',
+    'trip_no_stops_scheduled_suffix':
+        'के लिए अभी तक कोई पड़ाव निर्धारित नहीं है।',
     'trip_override_order_title': 'नियोजित क्रम को अधिलेखित करें?',
-    'trip_override_order_body': 'आपके पड़ावों को यात्रा समय कम करने और प्रत्येक पड़ाव को उसके सर्वोत्तम पूर्वानुमानित मौसम से मिलाने के लिए क्रमबद्ध किया गया था। क्रम को अधिलेखित करने से यह अब अनुकूलित नहीं रहेगा और यात्रा कम आनंददायक हो सकती है — उदाहरण के लिए, बारिश के दौरान एक आउटडोर पड़ाव आ सकता है।',
+    'trip_override_order_body':
+        'आपके पड़ावों को यात्रा समय कम करने और प्रत्येक पड़ाव को उसके सर्वोत्तम पूर्वानुमानित मौसम से मिलाने के लिए क्रमबद्ध किया गया था। क्रम को अधिलेखित करने से यह अब अनुकूलित नहीं रहेगा और यात्रा कम आनंददायक हो सकती है — उदाहरण के लिए, बारिश के दौरान एक आउटडोर पड़ाव आ सकता है।',
     'trip_keep_original_order': 'मूल क्रम रखें',
     'trip_override_anyway': 'फिर भी अधिलेखित करें',
     'trip_updated_custom_order': 'यात्रा अपडेट की गई — कस्टम क्रम सहेजा गया',
     'trip_completed_badge_caps': 'पूर्ण',
     'trip_custom_order_applied': 'कस्टम क्रम लागू किया गया',
-    'trip_custom_order_desc': 'यह क्रम अनुकूलित नहीं हो सकता है और मौसम बदलने पर अनुभव खराब हो सकता है।',
+    'trip_custom_order_desc':
+        'यह क्रम अनुकूलित नहीं हो सकता है और मौसम बदलने पर अनुभव खराब हो सकता है।',
     'trip_reset_optimized_order': 'अनुकूलित क्रम पर रीसेट करें',
     'trip_section_trip_tools': 'यात्रा उपकरण',
     'trip_section_activity': 'गतिविधि',
@@ -2234,9 +2332,11 @@ const Map<String, Map<String, String>> tripStrings = {
     'trip_back_to_prefix': 'वापस',
     'trip_stop_singular': 'पड़ाव',
     'trip_optimized_route_suffix': 'अनुकूलित मार्ग',
-    'trip_planned_day_by_day': 'प्रत्येक होटल के पास के आधार पर, दिन-प्रतिदिन योजना बनाई गई',
+    'trip_planned_day_by_day':
+        'प्रत्येक होटल के पास के आधार पर, दिन-प्रतिदिन योजना बनाई गई',
     'trip_search_failed_prefix': 'खोज विफल रही',
-    'trip_turn_on_location_services': 'इसका उपयोग करने के लिए स्थान सेवाएं चालू करें।',
+    'trip_turn_on_location_services':
+        'इसका उपयोग करने के लिए स्थान सेवाएं चालू करें।',
     'trip_my_location': 'मेरा स्थान',
     'trip_could_not_get_location_prefix': 'आपका स्थान प्राप्त नहीं हो सका',
     'trip_search_place_komtar_hint': 'कोई स्थान खोजें, जैसे: कोमटार…',
@@ -2247,16 +2347,20 @@ const Map<String, Map<String, String>> tripStrings = {
     'trip_search_trip_stops_hint': 'यात्रा पड़ाव खोजें…',
     'trip_no_matching_stops': 'कोई मेल खाता पड़ाव नहीं',
     'trip_no_stops_added_yet': 'अभी तक कोई पड़ाव नहीं जोड़ा गया',
-    'trip_add_stops_to_see_map': 'उन्हें मानचित्र पर देखने के लिए इस यात्रा में पड़ाव जोड़ें।',
+    'trip_add_stops_to_see_map':
+        'उन्हें मानचित्र पर देखने के लिए इस यात्रा में पड़ाव जोड़ें।',
     'trip_could_not_load_trip_stops': 'यात्रा के पड़ाव लोड नहीं हो सके।',
     'trip_custom_stop_description': 'एक कस्टम पड़ाव जिसे आपने स्वयं जोड़ा है।',
     'trip_budget_varies': 'भिन्न होता है',
     'trip_activity_breakfast_hotel_title': 'होटल में नाश्ता',
-    'trip_activity_breakfast_hotel_subtitle': 'ऊर्जा से भरपूर दिन की शुरुआत करें',
+    'trip_activity_breakfast_hotel_subtitle':
+        'ऊर्जा से भरपूर दिन की शुरुआत करें',
     'trip_activity_lunch_komtar_title': 'कोमटार फूड कोर्ट में दोपहर का भोजन',
     'trip_activity_lunch_komtar_subtitle': 'स्थानीय पेनांग हॉकर भोजन',
-    'trip_activity_stroll_street_art_title': 'जॉर्ज टाउन की स्ट्रीट आर्ट की सैर',
-    'trip_activity_stroll_street_art_subtitle': 'भित्ति चित्रों को देखने का खाली समय',
+    'trip_activity_stroll_street_art_title':
+        'जॉर्ज टाउन की स्ट्रीट आर्ट की सैर',
+    'trip_activity_stroll_street_art_subtitle':
+        'भित्ति चित्रों को देखने का खाली समय',
     'trip_activity_breakfast_nearby_title': 'पास में नाश्ता',
     'trip_activity_breakfast_nearby_subtitle': 'स्थानीय कोपितियम',
     'trip_activity_dinner_gurney_title': 'गर्नी के फूड स्टॉल पर रात का भोजन',
@@ -2283,7 +2387,8 @@ const Map<String, Map<String, String>> tripStrings = {
     'trip_status_completed': 'முடிந்தது',
     'trip_no_upcoming_trips': 'இதுவரை வரவிருக்கும் பயணங்கள் இல்லை',
     'trip_create_trip_title': 'பயணத்தை உருவாக்கு',
-    'trip_create_trip_subtitle': 'பெயரிடுங்கள், உங்கள் இடங்களைத் தேர்வு செய்யுங்கள், மீதியை நாங்கள் திட்டமிடுவோம்',
+    'trip_create_trip_subtitle':
+        'பெயரிடுங்கள், உங்கள் இடங்களைத் தேர்வு செய்யுங்கள், மீதியை நாங்கள் திட்டமிடுவோம்',
     'trip_section_trip_details': 'பயண விவரங்கள்',
     'trip_field_trip_name': 'பயணத்தின் பெயர்',
     'trip_field_description_optional': 'விளக்கம் (விருப்பத்தேர்வு)',
@@ -2296,25 +2401,29 @@ const Map<String, Map<String, String>> tripStrings = {
     'trip_field_travel_dates': 'பயண தேதிகள்',
     'trip_section_locations': 'இடங்கள்',
     'trip_selected_word': 'தேர்ந்தெடுக்கப்பட்டது',
-    'trip_locations_hint': 'நீங்கள் பார்வையிட விரும்பும் இடத்தைத் தேடுங்கள், அல்லது அதை உங்கள் பயணத்தில் சேர்க்க வரைபடத்தில் நேரடியாகத் தட்டவும்.',
+    'trip_locations_hint':
+        'நீங்கள் பார்வையிட விரும்பும் இடத்தைத் தேடுங்கள், அல்லது அதை உங்கள் பயணத்தில் சேர்க்க வரைபடத்தில் நேரடியாகத் தட்டவும்.',
     'trip_no_locations_picked': 'இதுவரை எந்த இடமும் தேர்ந்தெடுக்கப்படவில்லை.',
     'trip_plan_my_trip': 'எனது பயணத்தைத் திட்டமிடு',
     'trip_traveler_singular': 'பயணி',
     'trip_traveler_plural': 'பயணிகள்',
     'trip_create_new_trip_for': 'இதற்கு புதிய பயணத்தை உருவாக்கு',
-    'trip_create_trip_first': 'முதலில் பயணத்தை உருவாக்கவும், பின்னர் சேர்க்கவும்',
+    'trip_create_trip_first':
+        'முதலில் பயணத்தை உருவாக்கவும், பின்னர் சேர்க்கவும்',
     'trip_to_it_suffix': 'அதில்.',
     'trip_edit_trip_title': 'பயணத்தைத் திருத்து',
     'trip_edit_trip_subtitle': 'இந்த பயணத்தின் விவரங்களைப் புதுப்பிக்கவும்',
     'trip_delete_trip_button': 'பயணத்தை நீக்கு',
     'trip_delete_trip_confirm_title': 'இந்த பயணத்தை நீக்கவா?',
-    'trip_delete_trip_confirm_body_suffix': 'மற்றும் அதன் முழு பயணத் திட்டமும் நிரந்தரமாக நீக்கப்படும்.',
+    'trip_delete_trip_confirm_body_suffix':
+        'மற்றும் அதன் முழு பயணத் திட்டமும் நிரந்தரமாக நீக்கப்படும்.',
     'trip_updated_snackbar': 'பயணம் புதுப்பிக்கப்பட்டது',
     'trip_deleted_snackbar': 'பயணம் நீக்கப்பட்டது',
     'trip_added_prefix': 'சேர்க்கப்பட்டது',
     'trip_to_word': 'இல்',
     'trip_add_to_trip_title': 'பயணத்தில் சேர்',
-    'trip_choose_trip_hint': 'இந்த நிறுத்தத்தை எந்த பயணத்தில் சேர்க்க வேண்டும் என்பதைத் தேர்ந்தெடுக்கவும்',
+    'trip_choose_trip_hint':
+        'இந்த நிறுத்தத்தை எந்த பயணத்தில் சேர்க்க வேண்டும் என்பதைத் தேர்ந்தெடுக்கவும்',
     'trip_map_no_matches': 'பொருத்தங்கள் இல்லை — நீங்களே சேர்க்கவும்',
     'trip_map_tap_pins': 'தேர்ந்தெடுக்க பின்களைத் தட்டவும்',
     'trip_map_search_hint': 'பின் செய்ய இடத்தைத் தேடுங்கள்…',
@@ -2331,38 +2440,47 @@ const Map<String, Map<String, String>> tripStrings = {
     'trip_weather_partly_cloudy': 'ஓரளவு மேகமூட்டம்',
     'trip_weather_rain_showers': 'மழை தூறல்',
     'trip_reason_clear_weather': 'தெளிவான வானிலைக்கு திட்டமிடப்பட்டது',
-    'trip_reason_rain_possible': 'மழை வரலாம் — லேசான ஜாக்கெட் எடுத்துச் செல்லுங்கள்',
-    'trip_reason_indoor_flexible': 'உட்புற வசதி, வானிலைக்கு ஏற்ப மாறக்கூடிய தேர்வு',
+    'trip_reason_rain_possible':
+        'மழை வரலாம் — லேசான ஜாக்கெட் எடுத்துச் செல்லுங்கள்',
+    'trip_reason_indoor_flexible':
+        'உட்புற வசதி, வானிலைக்கு ஏற்ப மாறக்கூடிய தேர்வு',
     'trip_transport_walk': 'நடை',
     'trip_transport_rapid_bus': 'ராபிட் பினாங்கு பேருந்து',
     'trip_transport_ehailing': 'இ-ஹெய்லிங் (Grab)',
     'trip_optimized_itinerary_title': 'உகந்த பயணத் திட்டம்',
-    'trip_optimized_itinerary_subtitle': 'பாதை, வானிலை மற்றும் போக்குவரத்தின் அடிப்படையில் வரிசைப்படுத்தப்பட்டது',
+    'trip_optimized_itinerary_subtitle':
+        'பாதை, வானிலை மற்றும் போக்குவரத்தின் அடிப்படையில் வரிசைப்படுத்தப்பட்டது',
     'trip_save_trip_button': 'பயணத்தைச் சேமி',
     'trip_saved_to_my_trips_suffix': 'எனது பயணங்களில் சேமிக்கப்பட்டது!',
     'trip_trip_saved_generic': 'பயணம் எனது பயணங்களில் சேமிக்கப்பட்டது!',
     'trip_added_for_you': 'உங்களுக்காக சேர்க்கப்பட்டது',
     'trip_step_weather': 'வானிலை முன்னறிவிப்பை சரிபார்க்கிறது…',
     'trip_step_transport': 'கிடைக்கும் பொது போக்குவரத்தைக் கண்டறிகிறது…',
-    'trip_step_optimizing': 'நிறுத்தங்களுக்கு இடையேயான பாதையை மேம்படுத்துகிறது…',
+    'trip_step_optimizing':
+        'நிறுத்தங்களுக்கு இடையேயான பாதையை மேம்படுத்துகிறது…',
     'trip_step_balancing': 'உங்கள் தினசரி அட்டவணையை சமநிலைப்படுத்துகிறது…',
     'trip_planning_stops_prefix': 'உங்கள்',
     'trip_planning_stops_suffix': 'நிறுத்தப் பயணத்தைத் திட்டமிடுகிறது',
     'trip_planning_word': 'திட்டமிடுகிறது',
     'trip_remove_stop_confirm_title': 'இந்த நிறுத்தத்தை அகற்றவா?',
-    'trip_remove_stop_confirm_suffix': 'உங்கள் பயணத் திட்டத்திலிருந்து அகற்றப்படும்.',
+    'trip_remove_stop_confirm_suffix':
+        'உங்கள் பயணத் திட்டத்திலிருந்து அகற்றப்படும்.',
     'trip_edit_stop_title': 'நிறுத்தத்தைத் திருத்து',
     'trip_add_stop_title': 'நிறுத்தத்தைச் சேர்',
     'trip_edit_stop_subtitle': 'இந்த நிறுத்தத்தின் விவரங்களைப் புதுப்பிக்கவும்',
-    'trip_add_stop_subtitle': 'தேடு அல்லது பின்னைத் தட்டவும், பின் ஏற்பாடு செய்யவும்',
+    'trip_add_stop_subtitle':
+        'தேடு அல்லது பின்னைத் தட்டவும், பின் ஏற்பாடு செய்யவும்',
     'trip_remove_stop_button': 'நிறுத்தத்தை அகற்று',
     'trip_field_location': 'இடம்',
-    'trip_no_location_picked': 'இதுவரை இடம் தேர்ந்தெடுக்கப்படவில்லை — தேடுங்கள், பின்னைத் தட்டுங்கள், அல்லது நீங்களே சேர்க்கவும்.',
+    'trip_no_location_picked':
+        'இதுவரை இடம் தேர்ந்தெடுக்கப்படவில்லை — தேடுங்கள், பின்னைத் தட்டுங்கள், அல்லது நீங்களே சேர்க்கவும்.',
     'trip_field_arrangement': 'ஏற்பாடு',
     'trip_auto_arrange_title': 'தானியங்கி ஏற்பாடு',
-    'trip_auto_arrange_desc': 'பாதை மற்றும் வானிலையின் அடிப்படையில், இந்த நிறுத்தத்தை தானாகவே பயணத் திட்டத்தில் பொருத்தவும்.',
+    'trip_auto_arrange_desc':
+        'பாதை மற்றும் வானிலையின் அடிப்படையில், இந்த நிறுத்தத்தை தானாகவே பயணத் திட்டத்தில் பொருத்தவும்.',
     'trip_arrange_manually_title': 'கைமுறையாக ஏற்பாடு செய்',
-    'trip_arrange_manually_desc': 'சரியான நாள் மற்றும் நேரத்தை நீங்களே தேர்ந்தெடுக்கவும்.',
+    'trip_arrange_manually_desc':
+        'சரியான நாள் மற்றும் நேரத்தை நீங்களே தேர்ந்தெடுக்கவும்.',
     'trip_field_how_long': 'எவ்வளவு நேரம் தங்கப் போகிறீர்கள்?',
     'trip_field_pick_time_slot': 'நேர இடைவெளியைத் தேர்ந்தெடு',
     'trip_field_time': 'நேரம்',
@@ -2372,10 +2490,12 @@ const Map<String, Map<String, String>> tripStrings = {
     'trip_search_places_hint': 'இடங்களைத் தேடு…',
     'trip_this_stop_label': 'இந்த நிறுத்தம்',
     'trip_auto_arrange_preview_prefix': 'கணினி இதை தோராயமாக நாள்',
-    'trip_auto_arrange_preview_suffix': 'அன்று, நல்ல வானிலை நேரத்திற்கு ஏற்ப வைக்கும்.',
+    'trip_auto_arrange_preview_suffix':
+        'அன்று, நல்ல வானிலை நேரத்திற்கு ஏற்ப வைக்கும்.',
     'trip_day_passed_snackbar_suffix': 'ஏற்கனவே கடந்துவிட்டது',
     'trip_days_before_passed_prefix': 'நாள்',
-    'trip_days_before_passed_suffix': 'க்கு முந்தைய நாட்கள் ஏற்கனவே கடந்துவிட்டன, தேர்ந்தெடுக்க முடியாது.',
+    'trip_days_before_passed_suffix':
+        'க்கு முந்தைய நாட்கள் ஏற்கனவே கடந்துவிட்டன, தேர்ந்தெடுக்க முடியாது.',
     'trip_day1_passed': 'நாள் 1 ஏற்கனவே கடந்துவிட்டது, தேர்ந்தெடுக்க முடியாது.',
     'trip_category_sightseeing': 'சுற்றுலா',
     'trip_category_shopping': 'ஷாப்பிங்',
@@ -2400,24 +2520,32 @@ const Map<String, Map<String, String>> tripStrings = {
     'trip_daily_timeline_subtitle': 'உங்கள் தினசரி அட்டவணை',
     'trip_done_badge': 'முடிந்தது',
     'trip_complete_button': 'முடி',
-    'trip_transport_dialog_title': 'நீங்கள் அங்கு எப்படி செல்ல விரும்புகிறீர்கள்?',
-    'trip_transport_dialog_subtitle': 'அடுத்த நிறுத்தத்திற்கு பயணிக்கும் வழியைத் தேர்ந்தெடுக்கவும்',
-    'trip_desc_public_transport': 'நேரடி பேருந்து விருப்பங்கள் மற்றும் திசைகளைப் பார்க்கவும்',
+    'trip_transport_dialog_title':
+        'நீங்கள் அங்கு எப்படி செல்ல விரும்புகிறீர்கள்?',
+    'trip_transport_dialog_subtitle':
+        'அடுத்த நிறுத்தத்திற்கு பயணிக்கும் வழியைத் தேர்ந்தெடுக்கவும்',
+    'trip_desc_public_transport':
+        'நேரடி பேருந்து விருப்பங்கள் மற்றும் திசைகளைப் பார்க்கவும்',
     'trip_desc_ehailing': 'Grab அல்லது டாக்ஸி முன்பதிவு செய்யுங்கள்',
     'trip_desc_walking': 'இலவசம், மற்றும் கால்களுக்கு நல்ல பயிற்சி',
     'trip_min_transport_suffix': 'நிமிட பயணம்',
     'trip_day_locked_suffix': 'ஏற்கனவே முடிந்தது — பார்வைக்கு மட்டும்',
-    'trip_edit_schedule_subtitle': 'திருத்த நிறுத்தத்தைத் தட்டவும், மறுவரிசைப்படுத்த இழுக்கவும்',
+    'trip_edit_schedule_subtitle':
+        'திருத்த நிறுத்தத்தைத் தட்டவும், மறுவரிசைப்படுத்த இழுக்கவும்',
     'trip_no_stops_scheduled_prefix': 'நாள்',
-    'trip_no_stops_scheduled_suffix': 'க்கு இன்னும் நிறுத்தங்கள் திட்டமிடப்படவில்லை.',
+    'trip_no_stops_scheduled_suffix':
+        'க்கு இன்னும் நிறுத்தங்கள் திட்டமிடப்படவில்லை.',
     'trip_override_order_title': 'திட்டமிட்ட வரிசையை மேலெழுத வேண்டுமா?',
-    'trip_override_order_body': 'பயண நேரத்தைக் குறைக்கவும், ஒவ்வொரு நிறுத்தத்தையும் அதன் சிறந்த முன்னறிவிக்கப்பட்ட வானிலையுடன் பொருத்தவும் உங்கள் நிறுத்தங்கள் வரிசைப்படுத்தப்பட்டன. வரிசையை மேலெழுதுவது இனி உகந்ததாக இருக்காது மற்றும் குறைவான மகிழ்ச்சியான பயணத்திற்கு வழிவகுக்கலாம் — எடுத்துக்காட்டாக, மழையின் போது ஒரு வெளிப்புற நிறுத்தம் வரலாம்.',
+    'trip_override_order_body':
+        'பயண நேரத்தைக் குறைக்கவும், ஒவ்வொரு நிறுத்தத்தையும் அதன் சிறந்த முன்னறிவிக்கப்பட்ட வானிலையுடன் பொருத்தவும் உங்கள் நிறுத்தங்கள் வரிசைப்படுத்தப்பட்டன. வரிசையை மேலெழுதுவது இனி உகந்ததாக இருக்காது மற்றும் குறைவான மகிழ்ச்சியான பயணத்திற்கு வழிவகுக்கலாம் — எடுத்துக்காட்டாக, மழையின் போது ஒரு வெளிப்புற நிறுத்தம் வரலாம்.',
     'trip_keep_original_order': 'அசல் வரிசையை வைத்திரு',
     'trip_override_anyway': 'எப்படியும் மேலெழுது',
-    'trip_updated_custom_order': 'பயணம் புதுப்பிக்கப்பட்டது — தனிப்பயன் வரிசை சேமிக்கப்பட்டது',
+    'trip_updated_custom_order':
+        'பயணம் புதுப்பிக்கப்பட்டது — தனிப்பயன் வரிசை சேமிக்கப்பட்டது',
     'trip_completed_badge_caps': 'முடிந்தது',
     'trip_custom_order_applied': 'தனிப்பயன் வரிசை பயன்படுத்தப்பட்டது',
-    'trip_custom_order_desc': 'இந்த வரிசை உகந்ததாக இல்லாமல் இருக்கலாம், வானிலை மாறினால் அனுபவம் மோசமடையலாம்.',
+    'trip_custom_order_desc':
+        'இந்த வரிசை உகந்ததாக இல்லாமல் இருக்கலாம், வானிலை மாறினால் அனுபவம் மோசமடையலாம்.',
     'trip_reset_optimized_order': 'உகந்த வரிசைக்கு மீட்டமை',
     'trip_section_trip_tools': 'பயண கருவிகள்',
     'trip_section_activity': 'செயல்பாடு',
@@ -2488,11 +2616,14 @@ const Map<String, Map<String, String>> tripStrings = {
     'trip_back_to_prefix': 'திரும்பு',
     'trip_stop_singular': 'நிறுத்தம்',
     'trip_optimized_route_suffix': 'உகந்த வழி',
-    'trip_planned_day_by_day': 'ஒவ்வொரு ஹோட்டலுக்கு அருகிலும் அடிப்படையாகக் கொண்டு, நாள் வாரியாக திட்டமிடப்பட்டது',
+    'trip_planned_day_by_day':
+        'ஒவ்வொரு ஹோட்டலுக்கு அருகிலும் அடிப்படையாகக் கொண்டு, நாள் வாரியாக திட்டமிடப்பட்டது',
     'trip_search_failed_prefix': 'தேடல் தோல்வியடைந்தது',
-    'trip_turn_on_location_services': 'இதைப் பயன்படுத்த இருப்பிட சேவைகளை இயக்கவும்.',
+    'trip_turn_on_location_services':
+        'இதைப் பயன்படுத்த இருப்பிட சேவைகளை இயக்கவும்.',
     'trip_my_location': 'எனது இருப்பிடம்',
-    'trip_could_not_get_location_prefix': 'உங்கள் இருப்பிடத்தைப் பெற முடியவில்லை',
+    'trip_could_not_get_location_prefix':
+        'உங்கள் இருப்பிடத்தைப் பெற முடியவில்லை',
     'trip_search_place_komtar_hint': 'ஒரு இடத்தைத் தேடுங்கள், எ.கா. கோம்டார்…',
     'trip_select_stops_title': 'நிறுத்தங்களைத் தேர்ந்தெடுக்கவும்',
     'trip_stops_added_suffix': 'சேர்க்கப்பட்டது',
@@ -2501,7 +2632,8 @@ const Map<String, Map<String, String>> tripStrings = {
     'trip_search_trip_stops_hint': 'பயண நிறுத்தங்களைத் தேடுங்கள்…',
     'trip_no_matching_stops': 'பொருந்தும் நிறுத்தங்கள் இல்லை',
     'trip_no_stops_added_yet': 'இன்னும் நிறுத்தங்கள் சேர்க்கப்படவில்லை',
-    'trip_add_stops_to_see_map': 'வரைபடத்தில் காண இந்தப் பயணத்தில் நிறுத்தங்களைச் சேர்க்கவும்.',
+    'trip_add_stops_to_see_map':
+        'வரைபடத்தில் காண இந்தப் பயணத்தில் நிறுத்தங்களைச் சேர்க்கவும்.',
     'trip_could_not_load_trip_stops': 'பயண நிறுத்தங்களை ஏற்ற முடியவில்லை.',
     'trip_custom_stop_description': 'நீங்களே சேர்த்த தனிப்பயன் நிறுத்தம்.',
     'trip_budget_varies': 'மாறுபடும்',
@@ -2510,7 +2642,8 @@ const Map<String, Map<String, String>> tripStrings = {
     'trip_activity_lunch_komtar_title': 'கோம்டார் உணவு நிலையத்தில் மதிய உணவு',
     'trip_activity_lunch_komtar_subtitle': 'உள்ளூர் பினாங்கு உணவு',
     'trip_activity_stroll_street_art_title': 'ஜார்ஜ் டவுன் தெரு கலையை உலாவுதல்',
-    'trip_activity_stroll_street_art_subtitle': 'சுவரோவியங்களை ஆராயும் ஓய்வு நேரம்',
+    'trip_activity_stroll_street_art_subtitle':
+        'சுவரோவியங்களை ஆராயும் ஓய்வு நேரம்',
     'trip_activity_breakfast_nearby_title': 'அருகில் காலை உணவு',
     'trip_activity_breakfast_nearby_subtitle': 'உள்ளூர் கோப்பிதியம்',
     'trip_activity_dinner_gurney_title': 'கர்னி உணவு கடைகளில் இரவு உணவு',
@@ -2550,7 +2683,8 @@ const Map<String, Map<String, String>> tripStrings = {
     'trip_field_travel_dates': 'تواريخ السفر',
     'trip_section_locations': 'الأماكن',
     'trip_selected_word': 'محدد',
-    'trip_locations_hint': 'ابحث عن مكان تريد زيارته، أو اضغط مباشرة على الخريطة لإضافته إلى رحلتك.',
+    'trip_locations_hint':
+        'ابحث عن مكان تريد زيارته، أو اضغط مباشرة على الخريطة لإضافته إلى رحلتك.',
     'trip_no_locations_picked': 'لم يتم اختيار أي مكان بعد.',
     'trip_plan_my_trip': 'خطط لرحلتي',
     'trip_traveler_singular': 'مسافر',
@@ -2562,7 +2696,8 @@ const Map<String, Map<String, String>> tripStrings = {
     'trip_edit_trip_subtitle': 'تحديث تفاصيل هذه الرحلة',
     'trip_delete_trip_button': 'حذف الرحلة',
     'trip_delete_trip_confirm_title': 'هل تريد حذف هذه الرحلة؟',
-    'trip_delete_trip_confirm_body_suffix': 'وسيتم حذف برنامج الرحلة بأكمله نهائيًا.',
+    'trip_delete_trip_confirm_body_suffix':
+        'وسيتم حذف برنامج الرحلة بأكمله نهائيًا.',
     'trip_updated_snackbar': 'تم تحديث الرحلة',
     'trip_deleted_snackbar': 'تم حذف الرحلة',
     'trip_added_prefix': 'تمت إضافة',
@@ -2611,10 +2746,12 @@ const Map<String, Map<String, String>> tripStrings = {
     'trip_add_stop_subtitle': 'ابحث أو اضغط على دبوس، ثم رتّب',
     'trip_remove_stop_button': 'إزالة المحطة',
     'trip_field_location': 'الموقع',
-    'trip_no_location_picked': 'لم يتم اختيار موقع بعد — ابحث، أو اضغط على دبوس، أو أضف موقعك الخاص.',
+    'trip_no_location_picked':
+        'لم يتم اختيار موقع بعد — ابحث، أو اضغط على دبوس، أو أضف موقعك الخاص.',
     'trip_field_arrangement': 'الترتيب',
     'trip_auto_arrange_title': 'ترتيب تلقائي',
-    'trip_auto_arrange_desc': 'أدرج هذه المحطة تلقائيًا في برنامج الرحلة، بناءً على المسار والطقس.',
+    'trip_auto_arrange_desc':
+        'أدرج هذه المحطة تلقائيًا في برنامج الرحلة، بناءً على المسار والطقس.',
     'trip_arrange_manually_title': 'ترتيب يدوي',
     'trip_arrange_manually_desc': 'اختر اليوم والوقت المحددين بنفسك.',
     'trip_field_how_long': 'كم من الوقت ستبقى؟',
@@ -2661,17 +2798,20 @@ const Map<String, Map<String, String>> tripStrings = {
     'trip_desc_walking': 'مجانًا، وتمرين جيد للساقين',
     'trip_min_transport_suffix': 'دقيقة انتقال',
     'trip_day_locked_suffix': 'مكتمل بالفعل — للعرض فقط',
-    'trip_edit_schedule_subtitle': 'اضغط على محطة للتعديل، واسحب لإعادة الترتيب',
+    'trip_edit_schedule_subtitle':
+        'اضغط على محطة للتعديل، واسحب لإعادة الترتيب',
     'trip_no_stops_scheduled_prefix': 'لا توجد محطات مجدولة لليوم',
     'trip_no_stops_scheduled_suffix': 'بعد.',
     'trip_override_order_title': 'تجاوز الترتيب المخطط؟',
-    'trip_override_order_body': 'تم ترتيب محطاتك لتقليل وقت السفر ومطابقة كل محطة مع أفضل طقس متوقع لها. قد لا يكون تجاوز الترتيب هو الأمثل بعد الآن وقد يؤدي إلى رحلة أقل متعة — على سبيل المثال، وقوع محطة خارجية أثناء هطول المطر.',
+    'trip_override_order_body':
+        'تم ترتيب محطاتك لتقليل وقت السفر ومطابقة كل محطة مع أفضل طقس متوقع لها. قد لا يكون تجاوز الترتيب هو الأمثل بعد الآن وقد يؤدي إلى رحلة أقل متعة — على سبيل المثال، وقوع محطة خارجية أثناء هطول المطر.',
     'trip_keep_original_order': 'الاحتفاظ بالترتيب الأصلي',
     'trip_override_anyway': 'تجاوز على أي حال',
     'trip_updated_custom_order': 'تم تحديث الرحلة — تم حفظ الترتيب المخصص',
     'trip_completed_badge_caps': 'مكتمل',
     'trip_custom_order_applied': 'تم تطبيق الترتيب المخصص',
-    'trip_custom_order_desc': 'قد لا يكون هذا الترتيب هو الأمثل وقد يؤدي إلى تجربة أسوأ إذا تغير الطقس.',
+    'trip_custom_order_desc':
+        'قد لا يكون هذا الترتيب هو الأمثل وقد يؤدي إلى تجربة أسوأ إذا تغير الطقس.',
     'trip_reset_optimized_order': 'إعادة التعيين إلى الترتيب الأمثل',
     'trip_section_trip_tools': 'أدوات الرحلة',
     'trip_section_activity': 'النشاط',
@@ -2751,7 +2891,8 @@ const Map<String, Map<String, String>> tripStrings = {
     'trip_search_trip_stops_hint': 'ابحث عن محطات الرحلة…',
     'trip_no_matching_stops': 'لا توجد محطات مطابقة',
     'trip_no_stops_added_yet': 'لم تتم إضافة أي محطات بعد',
-    'trip_add_stops_to_see_map': 'أضف محطات إلى هذه الرحلة لرؤيتها على الخريطة.',
+    'trip_add_stops_to_see_map':
+        'أضف محطات إلى هذه الرحلة لرؤيتها على الخريطة.',
     'trip_could_not_load_trip_stops': 'تعذر تحميل محطات الرحلة.',
     'trip_custom_stop_description': 'محطة مخصصة أضفتها بنفسك.',
     'trip_budget_varies': 'متغير',
@@ -2759,7 +2900,8 @@ const Map<String, Map<String, String>> tripStrings = {
     'trip_activity_breakfast_hotel_subtitle': 'ابدأ يومك بحيوية',
     'trip_activity_lunch_komtar_title': 'الغداء في ساحة طعام كومتار',
     'trip_activity_lunch_komtar_subtitle': 'أطعمة الباعة المحلية في بينانج',
-    'trip_activity_stroll_street_art_title': 'نزهة لمشاهدة فن الشوارع في جورج تاون',
+    'trip_activity_stroll_street_art_title':
+        'نزهة لمشاهدة فن الشوارع في جورج تاون',
     'trip_activity_stroll_street_art_subtitle': 'وقت حر لاستكشاف الجداريات',
     'trip_activity_breakfast_nearby_title': 'الإفطار في مكان قريب',
     'trip_activity_breakfast_nearby_subtitle': 'مقهى كوبيتيام محلي',
@@ -2787,7 +2929,8 @@ const Map<String, Map<String, String>> tripStrings = {
     'trip_status_completed': 'Completado',
     'trip_no_upcoming_trips': 'Aún no hay viajes próximos',
     'trip_create_trip_title': 'Crear viaje',
-    'trip_create_trip_subtitle': 'Ponle un nombre, elige tus lugares, nosotros planificamos el resto',
+    'trip_create_trip_subtitle':
+        'Ponle un nombre, elige tus lugares, nosotros planificamos el resto',
     'trip_section_trip_details': 'Detalles del viaje',
     'trip_field_trip_name': 'Nombre del viaje',
     'trip_field_description_optional': 'Descripción (opcional)',
@@ -2800,7 +2943,8 @@ const Map<String, Map<String, String>> tripStrings = {
     'trip_field_travel_dates': 'Fechas del viaje',
     'trip_section_locations': 'Lugares',
     'trip_selected_word': 'seleccionados',
-    'trip_locations_hint': 'Busca un lugar que quieras visitar, o toca directamente en el mapa para añadirlo a tu viaje.',
+    'trip_locations_hint':
+        'Busca un lugar que quieras visitar, o toca directamente en el mapa para añadirlo a tu viaje.',
     'trip_no_locations_picked': 'Aún no se ha elegido ningún lugar.',
     'trip_plan_my_trip': 'Planificar mi viaje',
     'trip_traveler_singular': 'viajero',
@@ -2812,7 +2956,8 @@ const Map<String, Map<String, String>> tripStrings = {
     'trip_edit_trip_subtitle': 'Actualiza los detalles de este viaje',
     'trip_delete_trip_button': 'Eliminar viaje',
     'trip_delete_trip_confirm_title': '¿Eliminar este viaje?',
-    'trip_delete_trip_confirm_body_suffix': 'y todo su itinerario se eliminarán permanentemente.',
+    'trip_delete_trip_confirm_body_suffix':
+        'y todo su itinerario se eliminarán permanentemente.',
     'trip_updated_snackbar': 'Viaje actualizado',
     'trip_deleted_snackbar': 'Viaje eliminado',
     'trip_added_prefix': 'Se añadió',
@@ -2836,12 +2981,14 @@ const Map<String, Map<String, String>> tripStrings = {
     'trip_weather_rain_showers': 'Chubascos',
     'trip_reason_clear_weather': 'Programado para clima despejado',
     'trip_reason_rain_possible': 'Posible lluvia — lleva una chaqueta ligera',
-    'trip_reason_indoor_flexible': 'Ideal para interiores, opción flexible según el clima',
+    'trip_reason_indoor_flexible':
+        'Ideal para interiores, opción flexible según el clima',
     'trip_transport_walk': 'Caminar',
     'trip_transport_rapid_bus': 'Autobús Rapid Penang',
     'trip_transport_ehailing': 'Servicio de transporte (Grab)',
     'trip_optimized_itinerary_title': 'Itinerario optimizado',
-    'trip_optimized_itinerary_subtitle': 'Ordenado por ruta, clima y transporte',
+    'trip_optimized_itinerary_subtitle':
+        'Ordenado por ruta, clima y transporte',
     'trip_save_trip_button': 'Guardar viaje',
     'trip_saved_to_my_trips_suffix': 'se guardó en Mis viajes!',
     'trip_trip_saved_generic': '¡Viaje guardado en Mis viajes!',
@@ -2861,10 +3008,12 @@ const Map<String, Map<String, String>> tripStrings = {
     'trip_add_stop_subtitle': 'Busca o toca un pin, luego organízalo',
     'trip_remove_stop_button': 'Quitar parada',
     'trip_field_location': 'Ubicación',
-    'trip_no_location_picked': 'Aún no se ha elegido ninguna ubicación — busca, toca un pin o añade la tuya.',
+    'trip_no_location_picked':
+        'Aún no se ha elegido ninguna ubicación — busca, toca un pin o añade la tuya.',
     'trip_field_arrangement': 'Organización',
     'trip_auto_arrange_title': 'Organizar automáticamente',
-    'trip_auto_arrange_desc': 'Encaja esta parada en el itinerario automáticamente, según la ruta y el clima.',
+    'trip_auto_arrange_desc':
+        'Encaja esta parada en el itinerario automáticamente, según la ruta y el clima.',
     'trip_arrange_manually_title': 'Organizar manualmente',
     'trip_arrange_manually_desc': 'Elige tú mismo el día y la hora exactos.',
     'trip_field_how_long': '¿Cuánto tiempo te vas a quedar?',
@@ -2875,11 +3024,14 @@ const Map<String, Map<String, String>> tripStrings = {
     'trip_place_name_hint': 'p. ej. Chew Jetty',
     'trip_search_places_hint': 'Buscar lugares…',
     'trip_this_stop_label': 'Esta parada',
-    'trip_auto_arrange_preview_prefix': 'El sistema colocará esto alrededor del día',
-    'trip_auto_arrange_preview_suffix': 'ajustado a una buena ventana de clima.',
+    'trip_auto_arrange_preview_prefix':
+        'El sistema colocará esto alrededor del día',
+    'trip_auto_arrange_preview_suffix':
+        'ajustado a una buena ventana de clima.',
     'trip_day_passed_snackbar_suffix': 'ya ha pasado',
     'trip_days_before_passed_prefix': 'Los días antes del día',
-    'trip_days_before_passed_suffix': 'ya han pasado y no se pueden seleccionar.',
+    'trip_days_before_passed_suffix':
+        'ya han pasado y no se pueden seleccionar.',
     'trip_day1_passed': 'El día 1 ya ha pasado y no se puede seleccionar.',
     'trip_category_sightseeing': 'Turismo',
     'trip_category_shopping': 'Compras',
@@ -2895,7 +3047,8 @@ const Map<String, Map<String, String>> tripStrings = {
     'trip_section_past_trips': 'Viajes pasados',
     'trip_no_trips_named_prefix': 'No hay viajes llamados',
     'trip_try_different_name': 'Prueba con otro nombre de viaje.',
-    'trip_tap_plus_hint': 'Toca + para empezar a planificar tu próxima aventura.',
+    'trip_tap_plus_hint':
+        'Toca + para empezar a planificar tu próxima aventura.',
     'trip_mode_choose': 'Elegir transporte',
     'trip_mode_public_transport': 'Transporte público',
     'trip_mode_ehailing': 'Servicio de transporte',
@@ -2906,22 +3059,28 @@ const Map<String, Map<String, String>> tripStrings = {
     'trip_complete_button': 'Completar',
     'trip_transport_dialog_title': '¿Cómo quieres llegar allí?',
     'trip_transport_dialog_subtitle': 'Elige cómo viajar a la siguiente parada',
-    'trip_desc_public_transport': 'Consulta opciones de autobús en vivo y direcciones',
+    'trip_desc_public_transport':
+        'Consulta opciones de autobús en vivo y direcciones',
     'trip_desc_ehailing': 'Reserva un Grab o un taxi',
     'trip_desc_walking': 'Gratis, y un buen ejercicio para las piernas',
     'trip_min_transport_suffix': 'min de trayecto',
     'trip_day_locked_suffix': 'ya está completo — solo lectura',
-    'trip_edit_schedule_subtitle': 'Toca una parada para editar, arrastra para reordenar',
-    'trip_no_stops_scheduled_prefix': 'Aún no hay paradas programadas para el día',
+    'trip_edit_schedule_subtitle':
+        'Toca una parada para editar, arrastra para reordenar',
+    'trip_no_stops_scheduled_prefix':
+        'Aún no hay paradas programadas para el día',
     'trip_no_stops_scheduled_suffix': '.',
     'trip_override_order_title': '¿Anular el orden planificado?',
-    'trip_override_order_body': 'Tus paradas se ordenaron para minimizar el tiempo de viaje y ajustar cada una al mejor clima previsto. Anular el orden puede dejar de ser óptimo y provocar un viaje menos agradable — por ejemplo, una parada al aire libre coincidiendo con lluvia.',
+    'trip_override_order_body':
+        'Tus paradas se ordenaron para minimizar el tiempo de viaje y ajustar cada una al mejor clima previsto. Anular el orden puede dejar de ser óptimo y provocar un viaje menos agradable — por ejemplo, una parada al aire libre coincidiendo con lluvia.',
     'trip_keep_original_order': 'Mantener orden original',
     'trip_override_anyway': 'Anular de todos modos',
-    'trip_updated_custom_order': 'Viaje actualizado — orden personalizado guardado',
+    'trip_updated_custom_order':
+        'Viaje actualizado — orden personalizado guardado',
     'trip_completed_badge_caps': 'COMPLETADO',
     'trip_custom_order_applied': 'Orden personalizado aplicado',
-    'trip_custom_order_desc': 'Es posible que este orden no sea óptimo y podría empeorar la experiencia si cambia el clima.',
+    'trip_custom_order_desc':
+        'Es posible que este orden no sea óptimo y podría empeorar la experiencia si cambia el clima.',
     'trip_reset_optimized_order': 'Restablecer al orden optimizado',
     'trip_section_trip_tools': 'Herramientas del viaje',
     'trip_section_activity': 'Actividad',
@@ -2991,9 +3150,11 @@ const Map<String, Map<String, String>> tripStrings = {
     'trip_back_to_prefix': 'Volver a',
     'trip_stop_singular': 'parada',
     'trip_optimized_route_suffix': 'ruta optimizada',
-    'trip_planned_day_by_day': 'Planeado día a día, según la cercanía a cada hotel',
+    'trip_planned_day_by_day':
+        'Planeado día a día, según la cercanía a cada hotel',
     'trip_search_failed_prefix': 'Error en la búsqueda',
-    'trip_turn_on_location_services': 'Activa los servicios de ubicación para usar esto.',
+    'trip_turn_on_location_services':
+        'Activa los servicios de ubicación para usar esto.',
     'trip_my_location': 'Mi ubicación',
     'trip_could_not_get_location_prefix': 'No se pudo obtener tu ubicación',
     'trip_search_place_komtar_hint': 'Busca un lugar, p. ej. Komtar…',
@@ -3004,16 +3165,22 @@ const Map<String, Map<String, String>> tripStrings = {
     'trip_search_trip_stops_hint': 'Buscar paradas del viaje…',
     'trip_no_matching_stops': 'No hay paradas coincidentes',
     'trip_no_stops_added_yet': 'Aún no se han añadido paradas',
-    'trip_add_stops_to_see_map': 'Añade paradas a este viaje para verlas en el mapa.',
-    'trip_could_not_load_trip_stops': 'No se pudieron cargar las paradas del viaje.',
-    'trip_custom_stop_description': 'Una parada personalizada que agregaste tú mismo.',
+    'trip_add_stops_to_see_map':
+        'Añade paradas a este viaje para verlas en el mapa.',
+    'trip_could_not_load_trip_stops':
+        'No se pudieron cargar las paradas del viaje.',
+    'trip_custom_stop_description':
+        'Una parada personalizada que agregaste tú mismo.',
     'trip_budget_varies': 'Varía',
     'trip_activity_breakfast_hotel_title': 'Desayuno en el hotel',
     'trip_activity_breakfast_hotel_subtitle': 'Empieza el día con energía',
-    'trip_activity_lunch_komtar_title': 'Almuerzo en el patio de comidas de Komtar',
+    'trip_activity_lunch_komtar_title':
+        'Almuerzo en el patio de comidas de Komtar',
     'trip_activity_lunch_komtar_subtitle': 'Comida callejera local de Penang',
-    'trip_activity_stroll_street_art_title': 'Paseo por el arte urbano de George Town',
-    'trip_activity_stroll_street_art_subtitle': 'Tiempo libre para explorar murales',
+    'trip_activity_stroll_street_art_title':
+        'Paseo por el arte urbano de George Town',
+    'trip_activity_stroll_street_art_subtitle':
+        'Tiempo libre para explorar murales',
     'trip_activity_breakfast_nearby_title': 'Desayuno cerca',
     'trip_activity_breakfast_nearby_subtitle': 'Kopitiam local',
     'trip_activity_dinner_gurney_title': 'Cena en los puestos de Gurney',
@@ -3040,7 +3207,8 @@ const Map<String, Map<String, String>> tripStrings = {
     'trip_status_completed': 'Terminé',
     'trip_no_upcoming_trips': "Aucun voyage à venir pour l'instant",
     'trip_create_trip_title': 'Créer un voyage',
-    'trip_create_trip_subtitle': 'Nommez-le, choisissez vos lieux, nous planifions le reste',
+    'trip_create_trip_subtitle':
+        'Nommez-le, choisissez vos lieux, nous planifions le reste',
     'trip_section_trip_details': 'Détails du voyage',
     'trip_field_trip_name': 'Nom du voyage',
     'trip_field_description_optional': 'Description (facultatif)',
@@ -3053,7 +3221,8 @@ const Map<String, Map<String, String>> tripStrings = {
     'trip_field_travel_dates': 'Dates du voyage',
     'trip_section_locations': 'Lieux',
     'trip_selected_word': 'sélectionné(s)',
-    'trip_locations_hint': "Recherchez un lieu que vous souhaitez visiter, ou touchez directement la carte pour l'ajouter à votre voyage.",
+    'trip_locations_hint':
+        "Recherchez un lieu que vous souhaitez visiter, ou touchez directement la carte pour l'ajouter à votre voyage.",
     'trip_no_locations_picked': "Aucun lieu sélectionné pour l'instant.",
     'trip_plan_my_trip': 'Planifier mon voyage',
     'trip_traveler_singular': 'voyageur',
@@ -3065,7 +3234,8 @@ const Map<String, Map<String, String>> tripStrings = {
     'trip_edit_trip_subtitle': 'Mettre à jour les détails de ce voyage',
     'trip_delete_trip_button': 'Supprimer le voyage',
     'trip_delete_trip_confirm_title': 'Supprimer ce voyage ?',
-    'trip_delete_trip_confirm_body_suffix': 'et tout son itinéraire seront supprimés définitivement.',
+    'trip_delete_trip_confirm_body_suffix':
+        'et tout son itinéraire seront supprimés définitivement.',
     'trip_updated_snackbar': 'Voyage mis à jour',
     'trip_deleted_snackbar': 'Voyage supprimé',
     'trip_added_prefix': 'Ajouté',
@@ -3089,12 +3259,14 @@ const Map<String, Map<String, String>> tripStrings = {
     'trip_weather_rain_showers': 'Averses',
     'trip_reason_clear_weather': 'Prévu par temps clair',
     'trip_reason_rain_possible': 'Pluie possible — prenez une veste légère',
-    'trip_reason_indoor_flexible': "Adapté aux espaces intérieurs, choix flexible selon la météo",
+    'trip_reason_indoor_flexible':
+        "Adapté aux espaces intérieurs, choix flexible selon la météo",
     'trip_transport_walk': 'Marche',
     'trip_transport_rapid_bus': 'Bus Rapid Penang',
     'trip_transport_ehailing': 'VTC (Grab)',
     'trip_optimized_itinerary_title': 'Itinéraire optimisé',
-    'trip_optimized_itinerary_subtitle': "Classé par itinéraire, météo et transport",
+    'trip_optimized_itinerary_subtitle':
+        "Classé par itinéraire, météo et transport",
     'trip_save_trip_button': 'Enregistrer le voyage',
     'trip_saved_to_my_trips_suffix': 'enregistré dans Mes voyages !',
     'trip_trip_saved_generic': 'Voyage enregistré dans Mes voyages !',
@@ -3111,15 +3283,19 @@ const Map<String, Map<String, String>> tripStrings = {
     'trip_edit_stop_title': "Modifier l'arrêt",
     'trip_add_stop_title': 'Ajouter un arrêt',
     'trip_edit_stop_subtitle': 'Mettre à jour les détails de cet arrêt',
-    'trip_add_stop_subtitle': 'Recherchez ou touchez une épingle, puis organisez',
+    'trip_add_stop_subtitle':
+        'Recherchez ou touchez une épingle, puis organisez',
     'trip_remove_stop_button': "Retirer l'arrêt",
     'trip_field_location': 'Lieu',
-    'trip_no_location_picked': "Aucun lieu sélectionné pour l'instant — recherchez, touchez une épingle, ou ajoutez le vôtre.",
+    'trip_no_location_picked':
+        "Aucun lieu sélectionné pour l'instant — recherchez, touchez une épingle, ou ajoutez le vôtre.",
     'trip_field_arrangement': 'Organisation',
     'trip_auto_arrange_title': 'Organisation automatique',
-    'trip_auto_arrange_desc': "Intègre automatiquement cet arrêt à l'itinéraire, selon le trajet et la météo.",
+    'trip_auto_arrange_desc':
+        "Intègre automatiquement cet arrêt à l'itinéraire, selon le trajet et la météo.",
     'trip_arrange_manually_title': 'Organiser manuellement',
-    'trip_arrange_manually_desc': "Choisissez vous-même le jour et l'heure exacts.",
+    'trip_arrange_manually_desc':
+        "Choisissez vous-même le jour et l'heure exacts.",
     'trip_field_how_long': 'Combien de temps allez-vous rester ?',
     'trip_field_pick_time_slot': 'Choisir un créneau horaire',
     'trip_field_time': 'Heure',
@@ -3129,11 +3305,14 @@ const Map<String, Map<String, String>> tripStrings = {
     'trip_search_places_hint': 'Rechercher des lieux…',
     'trip_this_stop_label': 'Cet arrêt',
     'trip_auto_arrange_preview_prefix': 'Le système placera ceci vers le jour',
-    'trip_auto_arrange_preview_suffix': 'en fonction d\'une bonne période météo.',
+    'trip_auto_arrange_preview_suffix':
+        'en fonction d\'une bonne période météo.',
     'trip_day_passed_snackbar_suffix': 'est déjà passé',
     'trip_days_before_passed_prefix': 'Les jours avant le jour',
-    'trip_days_before_passed_suffix': 'sont déjà passés et ne peuvent pas être sélectionnés.',
-    'trip_day1_passed': 'Le jour 1 est déjà passé et ne peut pas être sélectionné.',
+    'trip_days_before_passed_suffix':
+        'sont déjà passés et ne peuvent pas être sélectionnés.',
+    'trip_day1_passed':
+        'Le jour 1 est déjà passé et ne peut pas être sélectionné.',
     'trip_category_sightseeing': 'Visites touristiques',
     'trip_category_shopping': 'Shopping',
     'trip_category_food': 'Cuisine',
@@ -3158,23 +3337,29 @@ const Map<String, Map<String, String>> tripStrings = {
     'trip_done_badge': 'Fait',
     'trip_complete_button': 'Terminer',
     'trip_transport_dialog_title': 'Comment souhaitez-vous vous y rendre ?',
-    'trip_transport_dialog_subtitle': "Choisissez comment voyager jusqu'au prochain arrêt",
-    'trip_desc_public_transport': "Consultez les options de bus en direct et les itinéraires",
+    'trip_transport_dialog_subtitle':
+        "Choisissez comment voyager jusqu'au prochain arrêt",
+    'trip_desc_public_transport':
+        "Consultez les options de bus en direct et les itinéraires",
     'trip_desc_ehailing': 'Réservez un Grab ou un taxi',
     'trip_desc_walking': 'Gratuit, et un bon exercice pour les jambes',
     'trip_min_transport_suffix': 'min de trajet',
     'trip_day_locked_suffix': 'est déjà terminé — lecture seule',
-    'trip_edit_schedule_subtitle': "Touchez un arrêt pour modifier, faites glisser pour réorganiser",
+    'trip_edit_schedule_subtitle':
+        "Touchez un arrêt pour modifier, faites glisser pour réorganiser",
     'trip_no_stops_scheduled_prefix': 'Aucun arrêt prévu pour le jour',
     'trip_no_stops_scheduled_suffix': 'pour le moment.',
     'trip_override_order_title': "Remplacer l'ordre prévu ?",
-    'trip_override_order_body': "Vos arrêts ont été organisés pour minimiser le temps de trajet et adapter chaque arrêt à la meilleure météo prévue. Remplacer l'ordre peut ne plus être optimal et rendre le voyage moins agréable — par exemple, un arrêt en plein air tombant sous la pluie.",
+    'trip_override_order_body':
+        "Vos arrêts ont été organisés pour minimiser le temps de trajet et adapter chaque arrêt à la meilleure météo prévue. Remplacer l'ordre peut ne plus être optimal et rendre le voyage moins agréable — par exemple, un arrêt en plein air tombant sous la pluie.",
     'trip_keep_original_order': "Conserver l'ordre initial",
     'trip_override_anyway': 'Remplacer quand même',
-    'trip_updated_custom_order': 'Voyage mis à jour — ordre personnalisé enregistré',
+    'trip_updated_custom_order':
+        'Voyage mis à jour — ordre personnalisé enregistré',
     'trip_completed_badge_caps': 'TERMINÉ',
     'trip_custom_order_applied': 'Ordre personnalisé appliqué',
-    'trip_custom_order_desc': "Cet ordre peut ne pas être optimal et pourrait rendre l'expérience moins bonne si la météo change.",
+    'trip_custom_order_desc':
+        "Cet ordre peut ne pas être optimal et pourrait rendre l'expérience moins bonne si la météo change.",
     'trip_reset_optimized_order': "Réinitialiser à l'ordre optimisé",
     'trip_section_trip_tools': 'Outils de voyage',
     'trip_section_activity': 'Activité',
@@ -3246,11 +3431,14 @@ const Map<String, Map<String, String>> tripStrings = {
     'trip_back_to_prefix': 'Retour à',
     'trip_stop_singular': 'arrêt',
     'trip_optimized_route_suffix': 'itinéraire optimisé',
-    'trip_planned_day_by_day': 'Planifié jour par jour, en fonction de la proximité de chaque hôtel',
+    'trip_planned_day_by_day':
+        'Planifié jour par jour, en fonction de la proximité de chaque hôtel',
     'trip_search_failed_prefix': 'Échec de la recherche',
-    'trip_turn_on_location_services': 'Activez les services de localisation pour utiliser cette fonction.',
+    'trip_turn_on_location_services':
+        'Activez les services de localisation pour utiliser cette fonction.',
     'trip_my_location': 'Ma position',
-    'trip_could_not_get_location_prefix': 'Impossible d\'obtenir votre position',
+    'trip_could_not_get_location_prefix':
+        'Impossible d\'obtenir votre position',
     'trip_search_place_komtar_hint': 'Rechercher un lieu, ex. Komtar…',
     'trip_select_stops_title': 'Sélectionner les Arrêts',
     'trip_stops_added_suffix': 'ajoutés',
@@ -3259,16 +3447,23 @@ const Map<String, Map<String, String>> tripStrings = {
     'trip_search_trip_stops_hint': 'Rechercher les arrêts du voyage…',
     'trip_no_matching_stops': 'Aucun arrêt correspondant',
     'trip_no_stops_added_yet': 'Aucun arrêt ajouté pour le moment',
-    'trip_add_stops_to_see_map': 'Ajoutez des arrêts à ce voyage pour les voir sur la carte.',
-    'trip_could_not_load_trip_stops': "Impossible de charger les arrêts du voyage.",
-    'trip_custom_stop_description': 'Un arrêt personnalisé que vous avez ajouté vous-même.',
+    'trip_add_stops_to_see_map':
+        'Ajoutez des arrêts à ce voyage pour les voir sur la carte.',
+    'trip_could_not_load_trip_stops':
+        "Impossible de charger les arrêts du voyage.",
+    'trip_custom_stop_description':
+        'Un arrêt personnalisé que vous avez ajouté vous-même.',
     'trip_budget_varies': 'Varie',
     'trip_activity_breakfast_hotel_title': "Petit-déjeuner à l'hôtel",
-    'trip_activity_breakfast_hotel_subtitle': 'Commencez la journée en pleine forme',
-    'trip_activity_lunch_komtar_title': "Déjeuner à l'aire de restauration Komtar",
+    'trip_activity_breakfast_hotel_subtitle':
+        'Commencez la journée en pleine forme',
+    'trip_activity_lunch_komtar_title':
+        "Déjeuner à l'aire de restauration Komtar",
     'trip_activity_lunch_komtar_subtitle': 'Cuisine de rue locale de Penang',
-    'trip_activity_stroll_street_art_title': "Balade pour découvrir l'art urbain de George Town",
-    'trip_activity_stroll_street_art_subtitle': 'Temps libre pour explorer les fresques murales',
+    'trip_activity_stroll_street_art_title':
+        "Balade pour découvrir l'art urbain de George Town",
+    'trip_activity_stroll_street_art_subtitle':
+        'Temps libre pour explorer les fresques murales',
     'trip_activity_breakfast_nearby_title': 'Petit-déjeuner à proximité',
     'trip_activity_breakfast_nearby_subtitle': 'Kopitiam local',
     'trip_activity_dinner_gurney_title': 'Dîner aux stands de Gurney',
@@ -3295,7 +3490,8 @@ const Map<String, Map<String, String>> tripStrings = {
     'trip_status_completed': 'Abgeschlossen',
     'trip_no_upcoming_trips': 'Noch keine bevorstehenden Reisen',
     'trip_create_trip_title': 'Reise erstellen',
-    'trip_create_trip_subtitle': 'Benenne sie, wähle deine Orte, wir planen den Rest',
+    'trip_create_trip_subtitle':
+        'Benenne sie, wähle deine Orte, wir planen den Rest',
     'trip_section_trip_details': 'Reisedetails',
     'trip_field_trip_name': 'Reisename',
     'trip_field_description_optional': 'Beschreibung (optional)',
@@ -3308,7 +3504,8 @@ const Map<String, Map<String, String>> tripStrings = {
     'trip_field_travel_dates': 'Reisedaten',
     'trip_section_locations': 'Orte',
     'trip_selected_word': 'ausgewählt',
-    'trip_locations_hint': 'Suche nach einem Ort, den du besuchen möchtest, oder tippe direkt auf die Karte, um ihn zu deiner Reise hinzuzufügen.',
+    'trip_locations_hint':
+        'Suche nach einem Ort, den du besuchen möchtest, oder tippe direkt auf die Karte, um ihn zu deiner Reise hinzuzufügen.',
     'trip_no_locations_picked': 'Noch keine Orte ausgewählt.',
     'trip_plan_my_trip': 'Meine Reise planen',
     'trip_traveler_singular': 'Reisender',
@@ -3320,13 +3517,15 @@ const Map<String, Map<String, String>> tripStrings = {
     'trip_edit_trip_subtitle': 'Aktualisiere die Details dieser Reise',
     'trip_delete_trip_button': 'Reise löschen',
     'trip_delete_trip_confirm_title': 'Diese Reise löschen?',
-    'trip_delete_trip_confirm_body_suffix': 'und der gesamte Reiseplan werden dauerhaft gelöscht.',
+    'trip_delete_trip_confirm_body_suffix':
+        'und der gesamte Reiseplan werden dauerhaft gelöscht.',
     'trip_updated_snackbar': 'Reise aktualisiert',
     'trip_deleted_snackbar': 'Reise gelöscht',
     'trip_added_prefix': 'Hinzugefügt',
     'trip_to_word': 'zu',
     'trip_add_to_trip_title': 'Zur Reise hinzufügen',
-    'trip_choose_trip_hint': 'Wähle, zu welcher Reise dieser Stopp hinzugefügt werden soll',
+    'trip_choose_trip_hint':
+        'Wähle, zu welcher Reise dieser Stopp hinzugefügt werden soll',
     'trip_map_no_matches': 'Keine Treffer — füge ihn selbst hinzu',
     'trip_map_tap_pins': 'Tippe auf Pins, um auszuwählen',
     'trip_map_search_hint': 'Ort zum Markieren suchen…',
@@ -3349,13 +3548,15 @@ const Map<String, Map<String, String>> tripStrings = {
     'trip_transport_rapid_bus': 'Rapid-Penang-Bus',
     'trip_transport_ehailing': 'Mitfahrdienst (Grab)',
     'trip_optimized_itinerary_title': 'Optimierter Reiseplan',
-    'trip_optimized_itinerary_subtitle': 'Sortiert nach Route, Wetter und Transport',
+    'trip_optimized_itinerary_subtitle':
+        'Sortiert nach Route, Wetter und Transport',
     'trip_save_trip_button': 'Reise speichern',
     'trip_saved_to_my_trips_suffix': 'in Meine Reisen gespeichert!',
     'trip_trip_saved_generic': 'Reise in Meine Reisen gespeichert!',
     'trip_added_for_you': 'Für dich hinzugefügt',
     'trip_step_weather': 'Wettervorhersage wird geprüft…',
-    'trip_step_transport': 'Verfügbare öffentliche Verkehrsmittel werden gesucht…',
+    'trip_step_transport':
+        'Verfügbare öffentliche Verkehrsmittel werden gesucht…',
     'trip_step_optimizing': 'Route zwischen Stopps wird optimiert…',
     'trip_step_balancing': 'Dein Tagesplan wird ausbalanciert…',
     'trip_planning_stops_prefix': 'Deine Reise mit',
@@ -3369,10 +3570,12 @@ const Map<String, Map<String, String>> tripStrings = {
     'trip_add_stop_subtitle': 'Suche oder tippe auf einen Pin, dann anordnen',
     'trip_remove_stop_button': 'Stopp entfernen',
     'trip_field_location': 'Standort',
-    'trip_no_location_picked': 'Noch kein Standort ausgewählt — suchen, auf einen Pin tippen oder eigenen hinzufügen.',
+    'trip_no_location_picked':
+        'Noch kein Standort ausgewählt — suchen, auf einen Pin tippen oder eigenen hinzufügen.',
     'trip_field_arrangement': 'Anordnung',
     'trip_auto_arrange_title': 'Automatisch anordnen',
-    'trip_auto_arrange_desc': 'Fügt diesen Stopp basierend auf Route und Wetter automatisch in den Reiseplan ein.',
+    'trip_auto_arrange_desc':
+        'Fügt diesen Stopp basierend auf Route und Wetter automatisch in den Reiseplan ein.',
     'trip_arrange_manually_title': 'Manuell anordnen',
     'trip_arrange_manually_desc': 'Wähle Tag und Uhrzeit selbst genau aus.',
     'trip_field_how_long': 'Wie lange bleibst du?',
@@ -3387,8 +3590,10 @@ const Map<String, Map<String, String>> tripStrings = {
     'trip_auto_arrange_preview_suffix': 'passend zu einem guten Wetterfenster.',
     'trip_day_passed_snackbar_suffix': 'ist bereits vergangen',
     'trip_days_before_passed_prefix': 'Die Tage vor Tag',
-    'trip_days_before_passed_suffix': 'sind bereits vergangen und können nicht ausgewählt werden.',
-    'trip_day1_passed': 'Tag 1 ist bereits vergangen und kann nicht ausgewählt werden.',
+    'trip_days_before_passed_suffix':
+        'sind bereits vergangen und können nicht ausgewählt werden.',
+    'trip_day1_passed':
+        'Tag 1 ist bereits vergangen und kann nicht ausgewählt werden.',
     'trip_category_sightseeing': 'Sightseeing',
     'trip_category_shopping': 'Einkaufen',
     'trip_category_food': 'Essen',
@@ -3413,23 +3618,29 @@ const Map<String, Map<String, String>> tripStrings = {
     'trip_done_badge': 'Fertig',
     'trip_complete_button': 'Abschließen',
     'trip_transport_dialog_title': 'Wie möchtest du dorthin gelangen?',
-    'trip_transport_dialog_subtitle': 'Wähle, wie du zum nächsten Stopp reisen möchtest',
-    'trip_desc_public_transport': 'Live-Busoptionen und Wegbeschreibungen ansehen',
+    'trip_transport_dialog_subtitle':
+        'Wähle, wie du zum nächsten Stopp reisen möchtest',
+    'trip_desc_public_transport':
+        'Live-Busoptionen und Wegbeschreibungen ansehen',
     'trip_desc_ehailing': 'Buche eine Grab- oder Taxifahrt',
     'trip_desc_walking': 'Kostenlos, und gut für die Beine',
     'trip_min_transport_suffix': 'Min. Fahrzeit',
     'trip_day_locked_suffix': 'ist bereits abgeschlossen — nur Ansicht',
-    'trip_edit_schedule_subtitle': 'Tippe auf einen Stopp zum Bearbeiten, ziehen zum Neuanordnen',
+    'trip_edit_schedule_subtitle':
+        'Tippe auf einen Stopp zum Bearbeiten, ziehen zum Neuanordnen',
     'trip_no_stops_scheduled_prefix': 'Für Tag',
     'trip_no_stops_scheduled_suffix': 'sind noch keine Stopps geplant.',
     'trip_override_order_title': 'Geplante Reihenfolge überschreiben?',
-    'trip_override_order_body': 'Deine Stopps wurden angeordnet, um die Reisezeit zu minimieren und jeden Stopp mit dem besten vorhergesagten Wetter abzustimmen. Das Überschreiben der Reihenfolge ist möglicherweise nicht mehr optimal und könnte zu einer weniger angenehmen Reise führen — zum Beispiel, wenn ein Outdoor-Stopp bei Regen stattfindet.',
+    'trip_override_order_body':
+        'Deine Stopps wurden angeordnet, um die Reisezeit zu minimieren und jeden Stopp mit dem besten vorhergesagten Wetter abzustimmen. Das Überschreiben der Reihenfolge ist möglicherweise nicht mehr optimal und könnte zu einer weniger angenehmen Reise führen — zum Beispiel, wenn ein Outdoor-Stopp bei Regen stattfindet.',
     'trip_keep_original_order': 'Ursprüngliche Reihenfolge beibehalten',
     'trip_override_anyway': 'Trotzdem überschreiben',
-    'trip_updated_custom_order': 'Reise aktualisiert — benutzerdefinierte Reihenfolge gespeichert',
+    'trip_updated_custom_order':
+        'Reise aktualisiert — benutzerdefinierte Reihenfolge gespeichert',
     'trip_completed_badge_caps': 'ABGESCHLOSSEN',
     'trip_custom_order_applied': 'Benutzerdefinierte Reihenfolge angewendet',
-    'trip_custom_order_desc': 'Diese Reihenfolge ist möglicherweise nicht optimal und könnte bei einem Wetterwechsel zu einer schlechteren Erfahrung führen.',
+    'trip_custom_order_desc':
+        'Diese Reihenfolge ist möglicherweise nicht optimal und könnte bei einem Wetterwechsel zu einer schlechteren Erfahrung führen.',
     'trip_reset_optimized_order': 'Auf optimierte Reihenfolge zurücksetzen',
     'trip_section_trip_tools': 'Reisewerkzeuge',
     'trip_section_activity': 'Aktivität',
@@ -3473,8 +3684,7 @@ const Map<String, Map<String, String>> tripStrings = {
         'Jetty".',
     'trip_select_a_city': 'Stadt auswählen',
     'trip_search_city_state_hint': 'Stadt oder Bundesstaat suchen…',
-    'trip_could_not_load_cities_prefix':
-        'Städte konnten nicht geladen werden',
+    'trip_could_not_load_cities_prefix': 'Städte konnten nicht geladen werden',
     'trip_no_matching_city': 'Keine passende Stadt',
     'trip_select_travel_dates': 'Reisedaten auswählen',
     'trip_start_time': 'Startzeit',
@@ -3501,11 +3711,14 @@ const Map<String, Map<String, String>> tripStrings = {
     'trip_back_to_prefix': 'Zurück zu',
     'trip_stop_singular': 'Stopp',
     'trip_optimized_route_suffix': 'optimierte Route',
-    'trip_planned_day_by_day': 'Tag für Tag geplant, basierend auf der Nähe zu jedem Hotel',
+    'trip_planned_day_by_day':
+        'Tag für Tag geplant, basierend auf der Nähe zu jedem Hotel',
     'trip_search_failed_prefix': 'Suche fehlgeschlagen',
-    'trip_turn_on_location_services': 'Aktiviere die Standortdienste, um dies zu nutzen.',
+    'trip_turn_on_location_services':
+        'Aktiviere die Standortdienste, um dies zu nutzen.',
     'trip_my_location': 'Mein Standort',
-    'trip_could_not_get_location_prefix': 'Dein Standort konnte nicht ermittelt werden',
+    'trip_could_not_get_location_prefix':
+        'Dein Standort konnte nicht ermittelt werden',
     'trip_search_place_komtar_hint': 'Suche einen Ort, z. B. Komtar…',
     'trip_select_stops_title': 'Stopps Auswählen',
     'trip_stops_added_suffix': 'hinzugefügt',
@@ -3514,16 +3727,21 @@ const Map<String, Map<String, String>> tripStrings = {
     'trip_search_trip_stops_hint': 'Reisestopps suchen…',
     'trip_no_matching_stops': 'Keine passenden Stopps',
     'trip_no_stops_added_yet': 'Noch keine Stopps hinzugefügt',
-    'trip_add_stops_to_see_map': 'Füge dieser Reise Stopps hinzu, um sie auf der Karte zu sehen.',
-    'trip_could_not_load_trip_stops': 'Reisestopps konnten nicht geladen werden.',
-    'trip_custom_stop_description': 'Ein benutzerdefinierter Stopp, den du selbst hinzugefügt hast.',
+    'trip_add_stops_to_see_map':
+        'Füge dieser Reise Stopps hinzu, um sie auf der Karte zu sehen.',
+    'trip_could_not_load_trip_stops':
+        'Reisestopps konnten nicht geladen werden.',
+    'trip_custom_stop_description':
+        'Ein benutzerdefinierter Stopp, den du selbst hinzugefügt hast.',
     'trip_budget_varies': 'Variiert',
     'trip_activity_breakfast_hotel_title': 'Frühstück im Hotel',
     'trip_activity_breakfast_hotel_subtitle': 'Starte gestärkt in den Tag',
     'trip_activity_lunch_komtar_title': 'Mittagessen im Komtar-Food-Court',
     'trip_activity_lunch_komtar_subtitle': 'Lokales Penang-Hawker-Essen',
-    'trip_activity_stroll_street_art_title': 'Spaziergang durch die Street Art von George Town',
-    'trip_activity_stroll_street_art_subtitle': 'Freizeit zum Entdecken der Wandbilder',
+    'trip_activity_stroll_street_art_title':
+        'Spaziergang durch die Street Art von George Town',
+    'trip_activity_stroll_street_art_subtitle':
+        'Freizeit zum Entdecken der Wandbilder',
     'trip_activity_breakfast_nearby_title': 'Frühstück in der Nähe',
     'trip_activity_breakfast_nearby_subtitle': 'Lokales Kopitiam',
     'trip_activity_dinner_gurney_title': 'Abendessen an den Gurney-Ständen',
@@ -3550,7 +3768,8 @@ const Map<String, Map<String, String>> tripStrings = {
     'trip_status_completed': 'Concluída',
     'trip_no_upcoming_trips': 'Ainda não há viagens futuras',
     'trip_create_trip_title': 'Criar viagem',
-    'trip_create_trip_subtitle': 'Dê um nome, escolha seus locais, planejamos o resto',
+    'trip_create_trip_subtitle':
+        'Dê um nome, escolha seus locais, planejamos o resto',
     'trip_section_trip_details': 'Detalhes da viagem',
     'trip_field_trip_name': 'Nome da viagem',
     'trip_field_description_optional': 'Descrição (opcional)',
@@ -3563,7 +3782,8 @@ const Map<String, Map<String, String>> tripStrings = {
     'trip_field_travel_dates': 'Datas da viagem',
     'trip_section_locations': 'Locais',
     'trip_selected_word': 'selecionados',
-    'trip_locations_hint': 'Pesquise um local que deseja visitar ou toque diretamente no mapa para adicioná-lo à sua viagem.',
+    'trip_locations_hint':
+        'Pesquise um local que deseja visitar ou toque diretamente no mapa para adicioná-lo à sua viagem.',
     'trip_no_locations_picked': 'Nenhum local escolhido ainda.',
     'trip_plan_my_trip': 'Planejar minha viagem',
     'trip_traveler_singular': 'viajante',
@@ -3575,7 +3795,8 @@ const Map<String, Map<String, String>> tripStrings = {
     'trip_edit_trip_subtitle': 'Atualize os detalhes desta viagem',
     'trip_delete_trip_button': 'Excluir viagem',
     'trip_delete_trip_confirm_title': 'Excluir esta viagem?',
-    'trip_delete_trip_confirm_body_suffix': 'e todo o seu itinerário serão excluídos permanentemente.',
+    'trip_delete_trip_confirm_body_suffix':
+        'e todo o seu itinerário serão excluídos permanentemente.',
     'trip_updated_snackbar': 'Viagem atualizada',
     'trip_deleted_snackbar': 'Viagem excluída',
     'trip_added_prefix': 'Adicionado',
@@ -3599,12 +3820,14 @@ const Map<String, Map<String, String>> tripStrings = {
     'trip_weather_rain_showers': 'Pancadas de chuva',
     'trip_reason_clear_weather': 'Agendado para tempo claro',
     'trip_reason_rain_possible': 'Chuva possível — leve uma jaqueta leve',
-    'trip_reason_indoor_flexible': 'Adequado para ambientes internos, opção flexível quanto ao clima',
+    'trip_reason_indoor_flexible':
+        'Adequado para ambientes internos, opção flexível quanto ao clima',
     'trip_transport_walk': 'Caminhar',
     'trip_transport_rapid_bus': 'Ônibus Rapid Penang',
     'trip_transport_ehailing': 'Aplicativo de transporte (Grab)',
     'trip_optimized_itinerary_title': 'Itinerário otimizado',
-    'trip_optimized_itinerary_subtitle': 'Ordenado por rota, clima e transporte',
+    'trip_optimized_itinerary_subtitle':
+        'Ordenado por rota, clima e transporte',
     'trip_save_trip_button': 'Salvar viagem',
     'trip_saved_to_my_trips_suffix': 'salva em Minhas viagens!',
     'trip_trip_saved_generic': 'Viagem salva em Minhas viagens!',
@@ -3624,10 +3847,12 @@ const Map<String, Map<String, String>> tripStrings = {
     'trip_add_stop_subtitle': 'Pesquise ou toque em um pino, depois organize',
     'trip_remove_stop_button': 'Remover parada',
     'trip_field_location': 'Local',
-    'trip_no_location_picked': 'Nenhum local escolhido ainda — pesquise, toque em um pino ou adicione o seu.',
+    'trip_no_location_picked':
+        'Nenhum local escolhido ainda — pesquise, toque em um pino ou adicione o seu.',
     'trip_field_arrangement': 'Organização',
     'trip_auto_arrange_title': 'Organizar automaticamente',
-    'trip_auto_arrange_desc': 'Encaixa esta parada no itinerário automaticamente, com base na rota e no clima.',
+    'trip_auto_arrange_desc':
+        'Encaixa esta parada no itinerário automaticamente, com base na rota e no clima.',
     'trip_arrange_manually_title': 'Organizar manualmente',
     'trip_arrange_manually_desc': 'Escolha você mesmo o dia e a hora exatos.',
     'trip_field_how_long': 'Quanto tempo você vai ficar?',
@@ -3638,11 +3863,14 @@ const Map<String, Map<String, String>> tripStrings = {
     'trip_place_name_hint': 'ex. Chew Jetty',
     'trip_search_places_hint': 'Pesquisar locais…',
     'trip_this_stop_label': 'Esta parada',
-    'trip_auto_arrange_preview_prefix': 'O sistema encaixará isso por volta do Dia',
-    'trip_auto_arrange_preview_suffix': 'de acordo com uma boa janela de clima.',
+    'trip_auto_arrange_preview_prefix':
+        'O sistema encaixará isso por volta do Dia',
+    'trip_auto_arrange_preview_suffix':
+        'de acordo com uma boa janela de clima.',
     'trip_day_passed_snackbar_suffix': 'já passou',
     'trip_days_before_passed_prefix': 'Os dias antes do Dia',
-    'trip_days_before_passed_suffix': 'já passaram e não podem ser selecionados.',
+    'trip_days_before_passed_suffix':
+        'já passaram e não podem ser selecionados.',
     'trip_day1_passed': 'O Dia 1 já passou e não pode ser selecionado.',
     'trip_category_sightseeing': 'Passeios turísticos',
     'trip_category_shopping': 'Compras',
@@ -3658,7 +3886,8 @@ const Map<String, Map<String, String>> tripStrings = {
     'trip_section_past_trips': 'Viagens passadas',
     'trip_no_trips_named_prefix': 'Nenhuma viagem chamada',
     'trip_try_different_name': 'Tente um nome de viagem diferente.',
-    'trip_tap_plus_hint': 'Toque em + para começar a planejar sua próxima aventura.',
+    'trip_tap_plus_hint':
+        'Toque em + para começar a planejar sua próxima aventura.',
     'trip_mode_choose': 'Escolher transporte',
     'trip_mode_public_transport': 'Transporte público',
     'trip_mode_ehailing': 'Aplicativo de transporte',
@@ -3668,23 +3897,30 @@ const Map<String, Map<String, String>> tripStrings = {
     'trip_done_badge': 'Concluído',
     'trip_complete_button': 'Concluir',
     'trip_transport_dialog_title': 'Como você quer chegar lá?',
-    'trip_transport_dialog_subtitle': 'Escolha como viajar até a próxima parada',
-    'trip_desc_public_transport': 'Veja opções de ônibus em tempo real e direções',
+    'trip_transport_dialog_subtitle':
+        'Escolha como viajar até a próxima parada',
+    'trip_desc_public_transport':
+        'Veja opções de ônibus em tempo real e direções',
     'trip_desc_ehailing': 'Reserve um Grab ou táxi',
     'trip_desc_walking': 'Grátis, e um bom exercício para as pernas',
     'trip_min_transport_suffix': 'min de deslocamento',
     'trip_day_locked_suffix': 'já está concluído — somente visualização',
-    'trip_edit_schedule_subtitle': 'Toque em uma parada para editar, arraste para reordenar',
-    'trip_no_stops_scheduled_prefix': 'Ainda não há paradas agendadas para o Dia',
+    'trip_edit_schedule_subtitle':
+        'Toque em uma parada para editar, arraste para reordenar',
+    'trip_no_stops_scheduled_prefix':
+        'Ainda não há paradas agendadas para o Dia',
     'trip_no_stops_scheduled_suffix': '.',
     'trip_override_order_title': 'Substituir a ordem planejada?',
-    'trip_override_order_body': 'Suas paradas foram organizadas para minimizar o tempo de viagem e combinar cada parada com a melhor previsão do tempo. Substituir a ordem pode deixar de ser ideal e resultar em uma viagem menos agradável — por exemplo, uma parada ao ar livre coincidindo com chuva.',
+    'trip_override_order_body':
+        'Suas paradas foram organizadas para minimizar o tempo de viagem e combinar cada parada com a melhor previsão do tempo. Substituir a ordem pode deixar de ser ideal e resultar em uma viagem menos agradável — por exemplo, uma parada ao ar livre coincidindo com chuva.',
     'trip_keep_original_order': 'Manter ordem original',
     'trip_override_anyway': 'Substituir mesmo assim',
-    'trip_updated_custom_order': 'Viagem atualizada — ordem personalizada salva',
+    'trip_updated_custom_order':
+        'Viagem atualizada — ordem personalizada salva',
     'trip_completed_badge_caps': 'CONCLUÍDO',
     'trip_custom_order_applied': 'Ordem personalizada aplicada',
-    'trip_custom_order_desc': 'Esta ordem pode não ser ideal e pode levar a uma experiência pior se o clima mudar.',
+    'trip_custom_order_desc':
+        'Esta ordem pode não ser ideal e pode levar a uma experiência pior se o clima mudar.',
     'trip_reset_optimized_order': 'Redefinir para a ordem otimizada',
     'trip_section_trip_tools': 'Ferramentas de viagem',
     'trip_section_activity': 'Atividade',
@@ -3728,8 +3964,7 @@ const Map<String, Map<String, String>> tripStrings = {
         'Pesquise lugares reais no mapa — tente "Komtar" ou "Chew Jetty".',
     'trip_select_a_city': 'Selecione uma cidade',
     'trip_search_city_state_hint': 'Pesquisar cidade ou estado…',
-    'trip_could_not_load_cities_prefix':
-        'Não foi possível carregar as cidades',
+    'trip_could_not_load_cities_prefix': 'Não foi possível carregar as cidades',
     'trip_no_matching_city': 'Nenhuma cidade correspondente',
     'trip_select_travel_dates': 'Selecione as datas da viagem',
     'trip_start_time': 'Hora de Início',
@@ -3756,11 +3991,14 @@ const Map<String, Map<String, String>> tripStrings = {
     'trip_back_to_prefix': 'Voltar para',
     'trip_stop_singular': 'parada',
     'trip_optimized_route_suffix': 'rota otimizada',
-    'trip_planned_day_by_day': 'Planejado dia a dia, com base na proximidade de cada hotel',
+    'trip_planned_day_by_day':
+        'Planejado dia a dia, com base na proximidade de cada hotel',
     'trip_search_failed_prefix': 'Falha na busca',
-    'trip_turn_on_location_services': 'Ative os serviços de localização para usar isso.',
+    'trip_turn_on_location_services':
+        'Ative os serviços de localização para usar isso.',
     'trip_my_location': 'Minha localização',
-    'trip_could_not_get_location_prefix': 'Não foi possível obter sua localização',
+    'trip_could_not_get_location_prefix':
+        'Não foi possível obter sua localização',
     'trip_search_place_komtar_hint': 'Buscar um lugar, ex. Komtar…',
     'trip_select_stops_title': 'Selecionar Paradas',
     'trip_stops_added_suffix': 'adicionadas',
@@ -3769,16 +4007,21 @@ const Map<String, Map<String, String>> tripStrings = {
     'trip_search_trip_stops_hint': 'Buscar paradas da viagem…',
     'trip_no_matching_stops': 'Nenhuma parada correspondente',
     'trip_no_stops_added_yet': 'Ainda não há paradas adicionadas',
-    'trip_add_stops_to_see_map': 'Adicione paradas a esta viagem para vê-las no mapa.',
-    'trip_could_not_load_trip_stops': 'Não foi possível carregar as paradas da viagem.',
-    'trip_custom_stop_description': 'Uma parada personalizada que você mesmo adicionou.',
+    'trip_add_stops_to_see_map':
+        'Adicione paradas a esta viagem para vê-las no mapa.',
+    'trip_could_not_load_trip_stops':
+        'Não foi possível carregar as paradas da viagem.',
+    'trip_custom_stop_description':
+        'Uma parada personalizada que você mesmo adicionou.',
     'trip_budget_varies': 'Varia',
     'trip_activity_breakfast_hotel_title': 'Café da manhã no hotel',
     'trip_activity_breakfast_hotel_subtitle': 'Comece o dia com energia',
     'trip_activity_lunch_komtar_title': 'Almoço no food court do Komtar',
     'trip_activity_lunch_komtar_subtitle': 'Comida de rua local de Penang',
-    'trip_activity_stroll_street_art_title': 'Passeio pela arte de rua de George Town',
-    'trip_activity_stroll_street_art_subtitle': 'Tempo livre para explorar murais',
+    'trip_activity_stroll_street_art_title':
+        'Passeio pela arte de rua de George Town',
+    'trip_activity_stroll_street_art_subtitle':
+        'Tempo livre para explorar murais',
     'trip_activity_breakfast_nearby_title': 'Café da manhã por perto',
     'trip_activity_breakfast_nearby_subtitle': 'Kopitiam local',
     'trip_activity_dinner_gurney_title': 'Jantar nas barracas de Gurney',
@@ -3805,7 +4048,8 @@ const Map<String, Map<String, String>> tripStrings = {
     'trip_status_completed': 'Завершена',
     'trip_no_upcoming_trips': 'Пока нет предстоящих поездок',
     'trip_create_trip_title': 'Создать поездку',
-    'trip_create_trip_subtitle': 'Назовите её, выберите места, остальное спланируем мы',
+    'trip_create_trip_subtitle':
+        'Назовите её, выберите места, остальное спланируем мы',
     'trip_section_trip_details': 'Детали поездки',
     'trip_field_trip_name': 'Название поездки',
     'trip_field_description_optional': 'Описание (необязательно)',
@@ -3818,7 +4062,8 @@ const Map<String, Map<String, String>> tripStrings = {
     'trip_field_travel_dates': 'Даты поездки',
     'trip_section_locations': 'Места',
     'trip_selected_word': 'выбрано',
-    'trip_locations_hint': 'Найдите место, которое хотите посетить, или коснитесь карты напрямую, чтобы добавить его в поездку.',
+    'trip_locations_hint':
+        'Найдите место, которое хотите посетить, или коснитесь карты напрямую, чтобы добавить его в поездку.',
     'trip_no_locations_picked': 'Пока не выбрано ни одного места.',
     'trip_plan_my_trip': 'Спланировать мою поездку',
     'trip_traveler_singular': 'путешественник',
@@ -3830,7 +4075,8 @@ const Map<String, Map<String, String>> tripStrings = {
     'trip_edit_trip_subtitle': 'Обновите детали этой поездки',
     'trip_delete_trip_button': 'Удалить поездку',
     'trip_delete_trip_confirm_title': 'Удалить эту поездку?',
-    'trip_delete_trip_confirm_body_suffix': 'и весь её маршрут будут удалены безвозвратно.',
+    'trip_delete_trip_confirm_body_suffix':
+        'и весь её маршрут будут удалены безвозвратно.',
     'trip_updated_snackbar': 'Поездка обновлена',
     'trip_deleted_snackbar': 'Поездка удалена',
     'trip_added_prefix': 'Добавлено',
@@ -3854,12 +4100,14 @@ const Map<String, Map<String, String>> tripStrings = {
     'trip_weather_rain_showers': 'Ливни',
     'trip_reason_clear_weather': 'Запланировано на ясную погоду',
     'trip_reason_rain_possible': 'Возможен дождь — возьмите лёгкую куртку',
-    'trip_reason_indoor_flexible': 'Подходит для помещений, гибкий выбор по погоде',
+    'trip_reason_indoor_flexible':
+        'Подходит для помещений, гибкий выбор по погоде',
     'trip_transport_walk': 'Пешком',
     'trip_transport_rapid_bus': 'Автобус Rapid Penang',
     'trip_transport_ehailing': 'Заказ такси (Grab)',
     'trip_optimized_itinerary_title': 'Оптимизированный маршрут',
-    'trip_optimized_itinerary_subtitle': 'Упорядочено по маршруту, погоде и транспорту',
+    'trip_optimized_itinerary_subtitle':
+        'Упорядочено по маршруту, погоде и транспорту',
     'trip_save_trip_button': 'Сохранить поездку',
     'trip_saved_to_my_trips_suffix': 'сохранена в Моих поездках!',
     'trip_trip_saved_generic': 'Поездка сохранена в Моих поездках!',
@@ -3879,12 +4127,15 @@ const Map<String, Map<String, String>> tripStrings = {
     'trip_add_stop_subtitle': 'Найдите или нажмите на метку, затем разместите',
     'trip_remove_stop_button': 'Убрать остановку',
     'trip_field_location': 'Место',
-    'trip_no_location_picked': 'Место ещё не выбрано — найдите, нажмите на метку или добавьте своё.',
+    'trip_no_location_picked':
+        'Место ещё не выбрано — найдите, нажмите на метку или добавьте своё.',
     'trip_field_arrangement': 'Размещение',
     'trip_auto_arrange_title': 'Автоматическое размещение',
-    'trip_auto_arrange_desc': 'Автоматически вставляет эту остановку в маршрут на основе пути и погоды.',
+    'trip_auto_arrange_desc':
+        'Автоматически вставляет эту остановку в маршрут на основе пути и погоды.',
     'trip_arrange_manually_title': 'Разместить вручную',
-    'trip_arrange_manually_desc': 'Выберите точный день и время самостоятельно.',
+    'trip_arrange_manually_desc':
+        'Выберите точный день и время самостоятельно.',
     'trip_field_how_long': 'Как долго вы там пробудете?',
     'trip_field_pick_time_slot': 'Выберите временной интервал',
     'trip_field_time': 'Время',
@@ -3893,8 +4144,10 @@ const Map<String, Map<String, String>> tripStrings = {
     'trip_place_name_hint': 'напр. Chew Jetty',
     'trip_search_places_hint': 'Поиск мест…',
     'trip_this_stop_label': 'Эта остановка',
-    'trip_auto_arrange_preview_prefix': 'Система разместит это примерно на День',
-    'trip_auto_arrange_preview_suffix': 'в соответствии с благоприятным погодным окном.',
+    'trip_auto_arrange_preview_prefix':
+        'Система разместит это примерно на День',
+    'trip_auto_arrange_preview_suffix':
+        'в соответствии с благоприятным погодным окном.',
     'trip_day_passed_snackbar_suffix': 'уже прошёл',
     'trip_days_before_passed_prefix': 'Дни до Дня',
     'trip_days_before_passed_suffix': 'уже прошли, и их нельзя выбрать.',
@@ -3913,7 +4166,8 @@ const Map<String, Map<String, String>> tripStrings = {
     'trip_section_past_trips': 'Прошлые поездки',
     'trip_no_trips_named_prefix': 'Нет поездок с названием',
     'trip_try_different_name': 'Попробуйте другое название поездки.',
-    'trip_tap_plus_hint': 'Нажмите +, чтобы начать планировать следующее приключение.',
+    'trip_tap_plus_hint':
+        'Нажмите +, чтобы начать планировать следующее приключение.',
     'trip_mode_choose': 'Выбрать транспорт',
     'trip_mode_public_transport': 'Общественный транспорт',
     'trip_mode_ehailing': 'Заказ такси',
@@ -3923,23 +4177,29 @@ const Map<String, Map<String, String>> tripStrings = {
     'trip_done_badge': 'Готово',
     'trip_complete_button': 'Завершить',
     'trip_transport_dialog_title': 'Как вы хотите туда добраться?',
-    'trip_transport_dialog_subtitle': 'Выберите способ поездки до следующей остановки',
-    'trip_desc_public_transport': 'Смотрите варианты автобусов в реальном времени и маршруты',
+    'trip_transport_dialog_subtitle':
+        'Выберите способ поездки до следующей остановки',
+    'trip_desc_public_transport':
+        'Смотрите варианты автобусов в реальном времени и маршруты',
     'trip_desc_ehailing': 'Закажите Grab или такси',
     'trip_desc_walking': 'Бесплатно, и хорошая разминка для ног',
     'trip_min_transport_suffix': 'мин в пути',
     'trip_day_locked_suffix': 'уже завершён — только просмотр',
-    'trip_edit_schedule_subtitle': 'Нажмите на остановку, чтобы изменить, перетащите для изменения порядка',
+    'trip_edit_schedule_subtitle':
+        'Нажмите на остановку, чтобы изменить, перетащите для изменения порядка',
     'trip_no_stops_scheduled_prefix': 'На День',
     'trip_no_stops_scheduled_suffix': 'пока не запланировано остановок.',
     'trip_override_order_title': 'Переопределить запланированный порядок?',
-    'trip_override_order_body': 'Ваши остановки были упорядочены для минимизации времени в пути и соответствия каждой остановки лучшей прогнозируемой погоде. Переопределение порядка может оказаться не оптимальным и привести к менее приятной поездке — например, остановка на открытом воздухе может выпасть на дождь.',
+    'trip_override_order_body':
+        'Ваши остановки были упорядочены для минимизации времени в пути и соответствия каждой остановки лучшей прогнозируемой погоде. Переопределение порядка может оказаться не оптимальным и привести к менее приятной поездке — например, остановка на открытом воздухе может выпасть на дождь.',
     'trip_keep_original_order': 'Сохранить исходный порядок',
     'trip_override_anyway': 'Всё равно переопределить',
-    'trip_updated_custom_order': 'Поездка обновлена — пользовательский порядок сохранён',
+    'trip_updated_custom_order':
+        'Поездка обновлена — пользовательский порядок сохранён',
     'trip_completed_badge_caps': 'ЗАВЕРШЕНО',
     'trip_custom_order_applied': 'Применён пользовательский порядок',
-    'trip_custom_order_desc': 'Этот порядок может быть не оптимальным и может привести к худшему впечатлению при изменении погоды.',
+    'trip_custom_order_desc':
+        'Этот порядок может быть не оптимальным и может привести к худшему впечатлению при изменении погоды.',
     'trip_reset_optimized_order': 'Сбросить до оптимизированного порядка',
     'trip_section_trip_tools': 'Инструменты поездки',
     'trip_section_activity': 'Активность',
@@ -4009,11 +4269,14 @@ const Map<String, Map<String, String>> tripStrings = {
     'trip_back_to_prefix': 'Назад к',
     'trip_stop_singular': 'остановка',
     'trip_optimized_route_suffix': 'оптимизированный маршрут',
-    'trip_planned_day_by_day': 'Спланировано по дням, с учётом близости к каждому отелю',
+    'trip_planned_day_by_day':
+        'Спланировано по дням, с учётом близости к каждому отелю',
     'trip_search_failed_prefix': 'Ошибка поиска',
-    'trip_turn_on_location_services': 'Включите службы геолокации, чтобы использовать это.',
+    'trip_turn_on_location_services':
+        'Включите службы геолокации, чтобы использовать это.',
     'trip_my_location': 'Моё местоположение',
-    'trip_could_not_get_location_prefix': 'Не удалось определить ваше местоположение',
+    'trip_could_not_get_location_prefix':
+        'Не удалось определить ваше местоположение',
     'trip_search_place_komtar_hint': 'Поиск места, напр. Komtar…',
     'trip_select_stops_title': 'Выбрать остановки',
     'trip_stops_added_suffix': 'добавлено',
@@ -4022,16 +4285,20 @@ const Map<String, Map<String, String>> tripStrings = {
     'trip_search_trip_stops_hint': 'Поиск остановок поездки…',
     'trip_no_matching_stops': 'Нет подходящих остановок',
     'trip_no_stops_added_yet': 'Остановки ещё не добавлены',
-    'trip_add_stops_to_see_map': 'Добавьте остановки в эту поездку, чтобы увидеть их на карте.',
+    'trip_add_stops_to_see_map':
+        'Добавьте остановки в эту поездку, чтобы увидеть их на карте.',
     'trip_could_not_load_trip_stops': 'Не удалось загрузить остановки поездки.',
-    'trip_custom_stop_description': 'Пользовательская остановка, которую вы добавили сами.',
+    'trip_custom_stop_description':
+        'Пользовательская остановка, которую вы добавили сами.',
     'trip_budget_varies': 'Разное',
     'trip_activity_breakfast_hotel_title': 'Завтрак в отеле',
     'trip_activity_breakfast_hotel_subtitle': 'Начните день с зарядом энергии',
     'trip_activity_lunch_komtar_title': 'Обед в фуд-корте Komtar',
     'trip_activity_lunch_komtar_subtitle': 'Местная уличная еда Пенанга',
-    'trip_activity_stroll_street_art_title': 'Прогулка по стрит-арту Джорджтауна',
-    'trip_activity_stroll_street_art_subtitle': 'Свободное время для осмотра фресок',
+    'trip_activity_stroll_street_art_title':
+        'Прогулка по стрит-арту Джорджтауна',
+    'trip_activity_stroll_street_art_subtitle':
+        'Свободное время для осмотра фресок',
     'trip_activity_breakfast_nearby_title': 'Завтрак поблизости',
     'trip_activity_breakfast_nearby_subtitle': 'Местная копитиам',
     'trip_activity_dinner_gurney_title': 'Ужин у лотков Gurney',

@@ -7,8 +7,6 @@ import '../budget/budget_planner_screen.dart' show formatAmount;
 import 'create_trip_screen.dart';
 import 'trip_details_screen.dart';
 
-/// Cycled by trip index purely for visual variety — trips don't store a
-/// cover color/gradient of their own.
 const _tripGradients = [
   AppColors.horizon,
   AppColors.sunset,
@@ -29,17 +27,12 @@ const _statusFilters = [
   (status: TripStatus.past, label: 'Past', icon: Icons.history_rounded),
 ];
 
-/// Badge text shown on a trip card — distinct from the filter chip
-/// labels above ("Current" reads as "Ongoing" once it's on a card).
 String _badgeLabelFor(TripStatus status) => switch (status) {
   TripStatus.current => 'Ongoing',
   TripStatus.upcoming => 'Upcoming',
   TripStatus.past => 'Completed',
 };
 
-/// "Trips" bottom-nav tab: the signed-in user's own trips, bucketed into
-/// Current / Upcoming / Past. Includes a search box that filters trips by
-/// name, and the entry point for creating a new trip.
 class TripsTab extends StatefulWidget {
   const TripsTab({super.key});
 
@@ -60,10 +53,7 @@ class _TripsTabState extends State<TripsTab> {
   void initState() {
     super.initState();
     _load();
-    // Catches a trip created from anywhere other than this tab's own
-    // "Create Trip" button (Home dashboard, Add to Trip, ...) — this
-    // tab stays mounted in the bottom nav's IndexedStack the whole time,
-    // so there's no push/pop of its own to hook a reload onto for those.
+
     TripService.tripsChanged.addListener(_load);
   }
 
@@ -197,7 +187,11 @@ class _TripsTabState extends State<TripsTab> {
               else if (displayed.isEmpty)
                 _NoTripsInStatus(status: _selectedStatus)
               else
-                ..._tripCards(context, displayed, _badgeLabelFor(_selectedStatus)),
+                ..._tripCards(
+                  context,
+                  displayed,
+                  _badgeLabelFor(_selectedStatus),
+                ),
             ],
           );
         },
@@ -290,8 +284,6 @@ class _TripSearchField extends StatelessWidget {
   }
 }
 
-/// Current / Upcoming / Past category filter — single-select, mirrors
-/// [_CategoryChip]'s pill style from the Explore tab's category filter.
 class _StatusFilterChips extends StatelessWidget {
   const _StatusFilterChips({required this.selected, required this.onSelected});
 

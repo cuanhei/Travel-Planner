@@ -5,11 +5,6 @@ import '../../widgets/map_grid_painter.dart';
 import '../../widgets/map_label_pill.dart';
 import '../explore/explore_tab.dart' show Place, places;
 
-/// UI-only "map" for picking trip locations: no map SDK or geocoding
-/// API — known places are shown as pins at fixed positions over a
-/// stylized grid. An optional built-in search bar lets the traveler
-/// look up a known place (jumps straight to a pin) or type any other
-/// name to drop a custom pin at a deterministic spot on the map.
 class LocationMapPicker extends StatefulWidget {
   const LocationMapPicker({
     super.key,
@@ -24,13 +19,8 @@ class LocationMapPicker extends StatefulWidget {
   final ValueChanged<Place> onToggle;
   final VoidCallback onAddCustom;
 
-  /// Places shown as pins, e.g. filtered by a search query. Defaults to
-  /// every known place.
   final List<Place>? visiblePlaces;
 
-  /// Whether to render the built-in search bar. Screens that already
-  /// drive [visiblePlaces] with their own external search field (e.g.
-  /// the stop editor) should set this to false to avoid a duplicate.
   final bool showSearch;
 
   static const _coords = <String, (double top, double left)>{
@@ -42,10 +32,6 @@ class LocationMapPicker extends StatefulWidget {
     'Upside Down Museum': (0.58, 0.82),
   };
 
-  /// Resolves a pin position: known places use a hand-placed spot,
-  /// anything else (custom / searched-in stops) gets a deterministic
-  /// spread based on its name so it still lands somewhere sensible and
-  /// stable across rebuilds.
   static (double top, double left) coordFor(Place place) {
     final fixed = _coords[place.name];
     if (fixed != null) return fixed;
@@ -74,7 +60,10 @@ class _LocationMapPickerState extends State<LocationMapPicker> {
   List<Place> get _matches {
     if (_query.isEmpty) return const [];
     final q = _query.toLowerCase();
-    return _catalog.where((p) => p.name.toLowerCase().contains(q)).take(4).toList();
+    return _catalog
+        .where((p) => p.name.toLowerCase().contains(q))
+        .take(4)
+        .toList();
   }
 
   bool get _hasExactMatch =>
@@ -386,7 +375,6 @@ class _MapPinButton extends StatelessWidget {
   }
 }
 
-/// Builds a synthetic [Place] for a custom, non-catalog stop.
 Place buildCustomPlace(String name) {
   return Place(
     name: name,
@@ -402,7 +390,6 @@ Place buildCustomPlace(String name) {
   );
 }
 
-/// Prompts for a custom location name and returns a synthetic [Place].
 Future<Place?> showAddCustomLocationDialog(BuildContext context) {
   final controller = TextEditingController();
   return showDialog<Place>(

@@ -1,5 +1,3 @@
-/// One day's forecast for a MET Malaysia "Town" area, from the
-/// government's open API (`https://api.data.gov.my/weather/forecast`).
 class WeatherForecast {
   const WeatherForecast({
     required this.locationId,
@@ -17,11 +15,6 @@ class WeatherForecast {
   final String locationName;
   final DateTime date;
 
-  /// Raw Bahasa Melayu forecast text per period, exactly as MET Malaysia
-  /// publishes it (e.g. "Hujan", "Ribut petir", "Tiada Hujan") — kept
-  /// untranslated here; see `translateWeather`/`weatherIconFor` in
-  /// `lib/utils/weather_display.dart` for the English label/icon shown
-  /// in the UI.
   final String morningForecast;
   final String afternoonForecast;
   final String nightForecast;

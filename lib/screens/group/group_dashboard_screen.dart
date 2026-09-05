@@ -17,8 +17,6 @@ import 'group_chat_screen.dart';
 import 'invite_member_screen.dart';
 import 'voting_screen.dart';
 
-/// Group trip hub: members list and links to shared itinerary, chat,
-/// and voting. Backed live by Supabase.
 class GroupDashboardScreen extends StatefulWidget {
   const GroupDashboardScreen({super.key, required this.tripId});
 
@@ -399,8 +397,6 @@ class _ActionRow extends StatelessWidget {
   final String subtitle;
   final VoidCallback onTap;
 
-  /// Unread-message count shown as a small red circle, WhatsApp-style —
-  /// hidden entirely when 0.
   final int badgeCount;
 
   @override

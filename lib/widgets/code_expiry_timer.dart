@@ -5,10 +5,6 @@ import 'package:flutter/material.dart';
 import '../services/locale_service.dart';
 import '../theme/app_theme.dart';
 
-/// "Code expires in mm:ss" countdown shown under a 6-digit email-code
-/// input. Counts down from [duration] and calls [onExpired] once, the
-/// moment it hits zero. Pass a new [resetKey] (e.g. bump a counter each
-/// time a code is sent/resent) to restart the countdown.
 class CodeExpiryTimer extends StatefulWidget {
   const CodeExpiryTimer({
     super.key,

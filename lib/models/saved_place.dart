@@ -1,9 +1,5 @@
 import 'nearby_place.dart';
 
-/// A bookmarked place, backed by the `saved_places` table — one row per
-/// (user, Google Places place id) pair. Stores just enough of the
-/// place's identity to render the Saved Places grid and re-open its
-/// details without another Places API call.
 class SavedPlace {
   const SavedPlace({
     required this.id,
@@ -44,11 +40,6 @@ class SavedPlace {
     );
   }
 
-  /// Reconstructs enough of a [NearbyPlace] to reuse
-  /// `ExplorePlaceDetailsScreen` directly — fields Places-only data
-  /// would add (opening hours, price, editorial summary, business
-  /// status) are simply absent rather than re-fetched, since the
-  /// details screen already treats all of those as optional.
   NearbyPlace toNearbyPlace() => NearbyPlace(
     id: placeId,
     name: name,

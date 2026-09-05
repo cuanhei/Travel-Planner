@@ -4,8 +4,6 @@ import '../models/profile_avatar_state.dart';
 import '../theme/app_theme.dart';
 import 'avatar_preview.dart';
 
-/// Circular avatar: the user's uploaded photo when [avatarUrl] is set,
-/// otherwise a gradient circle with their name's first initial.
 class UserAvatar extends StatelessWidget {
   const UserAvatar({
     super.key,
@@ -48,7 +46,9 @@ class UserAvatar extends StatelessWidget {
       );
     }
 
-    final photoUrl = state.mode == ProfileAvatarMode.photo ? state.photoUrl : null;
+    final photoUrl = state.mode == ProfileAvatarMode.photo
+        ? state.photoUrl
+        : null;
     final initial = name.isNotEmpty ? name[0].toUpperCase() : '?';
     final hasImage = photoUrl != null && photoUrl.isNotEmpty;
     return Container(
@@ -65,10 +65,7 @@ class UserAvatar extends StatelessWidget {
               ),
         border: Border.all(color: Colors.white, width: borderWidth),
         image: hasImage
-            ? DecorationImage(
-                image: NetworkImage(photoUrl),
-                fit: BoxFit.cover,
-              )
+            ? DecorationImage(image: NetworkImage(photoUrl), fit: BoxFit.cover)
             : null,
         boxShadow: [
           BoxShadow(

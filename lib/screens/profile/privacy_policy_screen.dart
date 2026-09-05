@@ -65,10 +65,6 @@ const _sections = <(String, String)>[
   ),
 ];
 
-/// Static Privacy Policy text, reached from Settings → About → "Privacy
-/// Policy". Mirrors the actual behavior of the public/private profile
-/// switch (see `profile_service.dart`) so it stays accurate as a
-/// description of what the app really does, not generic boilerplate.
 class PrivacyPolicyScreen extends StatelessWidget {
   const PrivacyPolicyScreen({super.key});
 

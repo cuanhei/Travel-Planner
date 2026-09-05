@@ -2,9 +2,6 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../models/emergency_contact.dart';
 
-/// CRUD for the signed-in user's personal emergency contacts (family or
-/// friends they add themselves) — separate from the Utilities module's
-/// static list of official numbers (police, ambulance, etc.).
 class EmergencyContactService {
   EmergencyContactService._();
 
@@ -12,7 +9,6 @@ class EmergencyContactService {
 
   SupabaseClient get _client => Supabase.instance.client;
 
-  /// The signed-in user's contacts, oldest-added first.
   Future<List<EmergencyContact>> list() async {
     final user = _client.auth.currentUser;
     if (user == null) return [];

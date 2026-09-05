@@ -10,23 +10,23 @@ import '../../widgets/detail_header.dart';
 import '../../widgets/user_avatar.dart';
 
 const _monthNames = [
-  'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-  'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+  'Jan',
+  'Feb',
+  'Mar',
+  'Apr',
+  'May',
+  'Jun',
+  'Jul',
+  'Aug',
+  'Sep',
+  'Oct',
+  'Nov',
+  'Dec',
 ];
 
 String _formatDate(DateTime d) =>
     '${d.day} ${_monthNames[d.month - 1]} ${d.year}';
 
-/// Read-only view of a user's profile — the "other side" of the
-/// Instagram-style public/private switch in Settings → Privacy &
-/// Security. A public profile shows everything; a private one is
-/// limited to name, photo, and bio, with a "This account is private"
-/// notice instead of the rest.
-///
-/// Not yet linked from anywhere else in the app — tapping a member's
-/// name in Group Travel, a reviewer in Community, etc. will route here
-/// later. For now it's reachable via Settings → Privacy & Security →
-/// "Preview My Profile", so it can be seen and tested on its own.
 class ViewProfileScreen extends StatefulWidget {
   const ViewProfileScreen({super.key, required this.userId});
 
@@ -100,8 +100,9 @@ class _ProfileHeader extends StatelessWidget {
     final state = ProfileAvatarState.decode(profile.avatarUrl);
     final isAvatarDesign =
         state.mode == ProfileAvatarMode.avatarDesign && state.design != null;
-    final photoUrl =
-        state.mode == ProfileAvatarMode.photo ? state.photoUrl : null;
+    final photoUrl = state.mode == ProfileAvatarMode.photo
+        ? state.photoUrl
+        : null;
     final canZoom = isAvatarDesign || (photoUrl?.isNotEmpty ?? false);
     return Column(
       children: [
@@ -111,8 +112,8 @@ class _ProfileHeader extends StatelessWidget {
             onTap: !canZoom
                 ? null
                 : isAvatarDesign
-                    ? () => showAvatarDesignViewer(context, state.design!)
-                    : () => showAvatarViewer(context, photoUrl!),
+                ? () => showAvatarDesignViewer(context, state.design!)
+                : () => showAvatarViewer(context, photoUrl!),
             child: UserAvatar(
               name: profile.fullName,
               avatarUrl: profile.avatarUrl,
@@ -126,7 +127,9 @@ class _ProfileHeader extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             Text(
-              profile.fullName.isEmpty ? tr('auth_traveler_default') : profile.fullName,
+              profile.fullName.isEmpty
+                  ? tr('auth_traveler_default')
+                  : profile.fullName,
               style: TextStyle(
                 color: context.colors.ink,
                 fontSize: 20,
@@ -135,11 +138,7 @@ class _ProfileHeader extends StatelessWidget {
             ),
             if (!profile.isPublic) ...[
               const SizedBox(width: 6),
-              Icon(
-                Icons.lock_rounded,
-                size: 16,
-                color: context.colors.muted,
-              ),
+              Icon(Icons.lock_rounded, size: 16, color: context.colors.muted),
             ],
           ],
         ),
@@ -216,9 +215,17 @@ class _PublicDetails extends StatelessWidget {
       if (profile.phone?.isNotEmpty ?? false)
         (Icons.phone_outlined, tr('auth_phone'), profile.phone!),
       if (profile.dateOfBirth != null)
-        (Icons.cake_outlined, tr('auth_date_of_birth'), _formatDate(profile.dateOfBirth!)),
+        (
+          Icons.cake_outlined,
+          tr('auth_date_of_birth'),
+          _formatDate(profile.dateOfBirth!),
+        ),
       if (profile.gender?.isNotEmpty ?? false)
-        (Icons.person_outline_rounded, tr('auth_gender'), genderLabel(profile.gender!)),
+        (
+          Icons.person_outline_rounded,
+          tr('auth_gender'),
+          genderLabel(profile.gender!),
+        ),
       if (profile.nationality?.isNotEmpty ?? false)
         (Icons.flag_outlined, tr('auth_nationality'), profile.nationality!),
       if (profile.address?.isNotEmpty ?? false)

@@ -1,6 +1,3 @@
-/// A recorded real-world payment between two trip members — "Jiaying
-/// paid Esther RM50 in cash" — that settles part of the Expense Split
-/// screen's auto-computed even split. Backed by `trip_settlements`.
 class TripSettlement {
   const TripSettlement({
     required this.id,

@@ -7,12 +7,6 @@ import '../../theme/app_theme.dart';
 import '../../widgets/detail_header.dart';
 import 'budget_planner_screen.dart' show categoryVisuals, formatAmount;
 
-/// Where the trip's money actually went, visually — a donut chart of
-/// spending by category (from logged expenses, not planned amounts),
-/// with a legend listing each category's amount and share of the total.
-/// Hovering (or tapping, on touch devices) a slice reveals its category
-/// name on the chart itself; otherwise the ring stays clean and the
-/// legend below is the readable source of truth.
 class BudgetPieChartScreen extends StatefulWidget {
   const BudgetPieChartScreen({
     super.key,
@@ -66,8 +60,6 @@ class _BudgetPieChartScreenState extends State<BudgetPieChartScreen> {
         child: StreamBuilder<List<Expense>>(
           stream: _budgetService.watchExpenses(widget.tripId),
           builder: (context, snapshot) {
-            // Personal expenses are private spending, excluded from the
-            // trip-wide category breakdown — see budget_planner_screen.
             final expenses = (snapshot.data ?? const <Expense>[])
                 .where((e) => e.isShared)
                 .toList();
@@ -112,7 +104,8 @@ class _BudgetPieChartScreenState extends State<BudgetPieChartScreen> {
                                   PieChart(
                                     PieChartData(
                                       sections: [
-                                        for (final (index, e) in entries.indexed)
+                                        for (final (index, e)
+                                            in entries.indexed)
                                           _pieSection(
                                             index: index,
                                             category: e.key,

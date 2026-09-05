@@ -10,10 +10,6 @@ import '../../widgets/detail_header.dart';
 import '../../widgets/gradient_button.dart';
 import '../../widgets/password_strength.dart';
 
-/// Change Password (Settings → Account). Verifies the current password by
-/// attempting a fresh sign-in with it before allowing the update — Supabase
-/// doesn't require the current password for `updateUser`, so this is done
-/// client-side via `AuthService.reauthenticate`.
 class ChangePasswordScreen extends StatefulWidget {
   const ChangePasswordScreen({super.key});
 

@@ -1,4 +1,3 @@
-/// A single logged trip expense, backed by the `expenses` table.
 class Expense {
   const Expense({
     required this.id,
@@ -25,9 +24,6 @@ class Expense {
   final String? stopPlace;
   final List<String> photoUrls;
 
-  /// Off means this expense is personal spending only — excluded from
-  /// [BudgetService.getBalances]'s equal-split calculation, but still
-  /// counted in the Budget Planner's overall totals/category breakdown.
   final bool isShared;
 
   factory Expense.fromMap(Map<String, dynamic> map) {

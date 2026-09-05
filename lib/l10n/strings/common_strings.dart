@@ -1,5 +1,3 @@
-/// Shared strings used across multiple modules (bottom nav labels, common
-/// buttons/words). Keys are prefixed `common_`.
 const Map<String, Map<String, String>> commonStrings = {
   'en': {
     'common_nav_home': 'Home',
@@ -304,7 +302,8 @@ const Map<String, Map<String, String>> commonStrings = {
     'common_see_all': 'Alle anzeigen',
     'common_loading': 'Lädt...',
     'common_coming_soon': 'Demnächst',
-    'common_error_generic': 'Etwas ist schiefgelaufen. Bitte versuche es erneut.',
+    'common_error_generic':
+        'Etwas ist schiefgelaufen. Bitte versuche es erneut.',
     'common_search_country_or_code': 'Land oder Code suchen',
     'common_search_country': 'Land suchen',
     'common_no_countries_found': 'Keine Länder gefunden',

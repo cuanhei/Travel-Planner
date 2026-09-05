@@ -8,8 +8,6 @@ import '../../models/chat_attachment.dart';
 import '../../theme/app_theme.dart';
 import 'media_preview_screen.dart';
 
-/// A photo/video file picked in [ChatComposer], ready to be uploaded
-/// and attached to a message.
 class PickedChatMedia {
   const PickedChatMedia({
     required this.bytes,
@@ -24,8 +22,6 @@ class PickedChatMedia {
   final ChatAttachmentType type;
 }
 
-/// The message being composed replies to — shown as a dismissible quote
-/// banner above the input row.
 class ComposerReplyTarget {
   const ComposerReplyTarget({
     required this.messageId,
@@ -40,13 +36,8 @@ class ComposerReplyTarget {
   final bool hasAttachment;
 }
 
-/// [MentionCandidate.userId] for the synthetic "mention everyone" entry
-/// — never a real user id, so it can't collide with one.
 const _mentionAllId = '__all__';
 
-/// One member selectable from the `@` mention autocomplete — kept
-/// separate from [GroupMember] so this widget doesn't need to import
-/// the whole Group module's model for one field.
 class MentionCandidate {
   const MentionCandidate({
     required this.userId,
@@ -59,11 +50,6 @@ class MentionCandidate {
   final int avatarColor;
 }
 
-/// Message input row shared by Group Chat and Direct Message screens: a
-/// text field, an attach button (photo/video), and a send button. Also
-/// hosts the reply-quote banner, `@`-mention autocomplete (group chat
-/// only — [mentionCandidates] is left null/empty for a DM), and the
-/// typing-indicator broadcast trigger.
 class ChatComposer extends StatefulWidget {
   const ChatComposer({
     super.key,
@@ -88,17 +74,11 @@ class ChatComposer extends StatefulWidget {
   })
   onSendMedia;
 
-  /// Set while replying to a message — shows the quote banner above the
-  /// input and gets threaded onto the next message sent.
   final ComposerReplyTarget? replyTarget;
   final VoidCallback? onCancelReply;
 
-  /// Members selectable via `@` — empty disables the mention feature
-  /// entirely (used for a 1:1 DM, where mentioning is pointless).
   final List<MentionCandidate> mentionCandidates;
 
-  /// Called (debounced) while the field has text — the caller broadcasts
-  /// a typing event from this.
   final VoidCallback? onTyping;
 
   @override
@@ -112,15 +92,8 @@ class _ChatComposerState extends State<ChatComposer> {
   bool _isBusy = false;
   Timer? _typingThrottle;
 
-  /// Members mentioned in the current draft, picked from the
-  /// autocomplete list rather than parsed from typed text — messageId
-  /// isn't needed here since these become `mentioned_user_ids` at send
-  /// time.
   final Set<String> _mentionedIds = {};
 
-  /// Non-null while the text just after the last `@` (back to the
-  /// previous space) is a live mention query — drives the suggestions
-  /// list below the input.
   String? _mentionQuery;
 
   @override
@@ -144,8 +117,7 @@ class _ChatComposerState extends State<ChatComposer> {
 
     if (hasText && widget.onTyping != null && _typingThrottle == null) {
       widget.onTyping!();
-      // At most one broadcast every couple of seconds while the person
-      // keeps typing, not one per keystroke.
+
       _typingThrottle = Timer(const Duration(seconds: 2), () {
         _typingThrottle = null;
       });
@@ -161,8 +133,7 @@ class _ChatComposerState extends State<ChatComposer> {
       return;
     }
     final rawQuery = upToCursor.substring(at + 1);
-    // A space (or the query running into a previous mention) ends it —
-    // "@" only triggers suggestions for the word being typed right now.
+
     final nextQuery = rawQuery.contains(' ') ? null : rawQuery;
     if (nextQuery != _mentionQuery) setState(() => _mentionQuery = nextQuery);
   }
@@ -174,9 +145,7 @@ class _ChatComposerState extends State<ChatComposer> {
     final matches = widget.mentionCandidates
         .where((c) => c.label.toLowerCase().startsWith(lower))
         .toList();
-    // "All" mentions everyone at once instead of picking one member —
-    // offered whenever what's typed so far could still be leading up to
-    // "all", same prefix matching as a real name.
+
     if (widget.mentionCandidates.isNotEmpty && 'all'.startsWith(lower)) {
       matches.insert(
         0,
@@ -212,15 +181,7 @@ class _ChatComposerState extends State<ChatComposer> {
       _mentionedIds.add(candidate.userId);
     }
     setState(() => _mentionQuery = null);
-    // Tapping the suggestion list moves focus there, away from the text
-    // field. Requesting it back synchronously (right here) still loses
-    // to the list item's own focus handling for that same tap, so the
-    // field ends up unfocused right after — the next keystrokes then go
-    // nowhere, which is why typing after a mention looked like it
-    // "disappeared". Doing it (and re-asserting the caret position, in
-    // case regaining focus reset it) after this frame settles instead
-    // reliably lands the cursor right after "@name ", ready to keep
-    // typing beside it.
+
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       _focusNode.requestFocus();
@@ -237,9 +198,7 @@ class _ChatComposerState extends State<ChatComposer> {
     _mentionedIds.clear();
     setState(() => _mentionQuery = null);
     widget.onCancelReply?.call();
-    // Keep the keyboard/cursor active after sending (not
-    // FocusScope...unfocus()) so firing off several messages in a row
-    // doesn't need re-tapping the field before each one.
+
     _focusNode.requestFocus();
     try {
       await widget.onSendText(
@@ -327,10 +286,7 @@ class _ChatComposerState extends State<ChatComposer> {
           );
 
     if (!mounted) return;
-    // Preview before it actually uploads — shows exactly what's about
-    // to be sent (and lets a caption be added) instead of it going out
-    // the moment it's picked. Null means backed out; otherwise this is
-    // the caption text (possibly empty, for "send with no caption").
+
     final caption = await Navigator.of(context).push<String>(
       MaterialPageRoute(
         builder: (_) => MediaPreviewScreen(

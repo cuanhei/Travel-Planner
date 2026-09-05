@@ -1,6 +1,3 @@
-/// A single comment on a Community post, joined from `comments` +
-/// `profiles`. [parentCommentId] is `null` for a top-level comment, or the
-/// id of the comment it's a reply to.
 class PostComment {
   const PostComment({
     required this.id,

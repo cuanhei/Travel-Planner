@@ -13,10 +13,6 @@ import 'category_expenses_screen.dart';
 import 'expense_split_screen.dart';
 import 'expense_tracker_screen.dart';
 
-/// Visual definition (icon/color) for a spending category, keyed by
-/// [label]. Planned/spent amounts are no longer static — they're read
-/// live from Supabase (`budget_categories` / `expenses`) and matched
-/// back to this list by label purely to pick an icon and color.
 class BudgetCategory {
   const BudgetCategory({
     required this.label,
@@ -57,28 +53,17 @@ const budgetCategories = [
   ),
 ];
 
-/// Colors for custom ("Other") categories — distinct from every
-/// [budgetCategories] hue so a custom category never gets confused with
-/// a fixed one. Picked deterministically per label (not randomly) so a
-/// category keeps the same color across rebuilds/restarts, and cycled
-/// by hash so two different custom categories (e.g. two "Other" labels
-/// added on the same trip) don't all collapse onto one grey slice in
-/// the pie chart the way a single fixed grey used to.
 const _customCategoryPalette = [
-  Color(0xFFE53935), // red
-  Color(0xFF00ACC1), // cyan
-  Color(0xFF43A047), // green
-  Color(0xFF6D4C41), // brown
-  Color(0xFFD81B60), // pink
-  Color(0xFF546E7A), // blue grey
-  Color(0xFFF4511E), // deep orange
-  Color(0xFF8E24AA), // deep purple
+  Color(0xFFE53935),
+  Color(0xFF00ACC1),
+  Color(0xFF43A047),
+  Color(0xFF6D4C41),
+  Color(0xFFD81B60),
+  Color(0xFF546E7A),
+  Color(0xFFF4511E),
+  Color(0xFF8E24AA),
 ];
 
-/// Fallback visual for a custom category typed in via "Other" — a
-/// neutral tag icon (rather than misleadingly reusing a fixed
-/// category's), with a color chosen from [_customCategoryPalette] by
-/// hashing the label.
 BudgetCategory _otherCategoryVisual(String label) => BudgetCategory(
   label: label,
   icon: Icons.sell_rounded,
@@ -92,9 +77,6 @@ BudgetCategory categoryVisuals(String label) => budgetCategories.firstWhere(
   orElse: () => _otherCategoryVisual(label),
 );
 
-/// Formats an RM amount, showing decimals only when it actually has
-/// cents — RM 1500 stays whole, RM 12.50 keeps its cents instead of
-/// being silently rounded away to RM 13 by a flat `toStringAsFixed(0)`.
 String formatAmount(double amount) {
   final rounded = double.parse(amount.toStringAsFixed(2));
   return rounded % 1 == 0
@@ -102,8 +84,6 @@ String formatAmount(double amount) {
       : rounded.toStringAsFixed(2);
 }
 
-/// Trip budget overview: total vs spent, category breakdown, and links
-/// into expense tracking and splitting. Backed live by Supabase.
 class BudgetPlannerScreen extends StatefulWidget {
   const BudgetPlannerScreen({super.key, required this.tripId});
 
@@ -231,11 +211,6 @@ class _BudgetPlannerContent extends StatelessWidget {
     ]);
   }
 
-  /// Tapping a single category row sets just that category's planned
-  /// amount — quicker than opening the full "Plan Categories" sheet
-  /// when you only want to fix up one category (e.g. Transport needs
-  /// how much budget). Validated against [totalBudget] so the sum of
-  /// every category's planned amount can never exceed it.
   Future<void> _editCategoryBudget(
     BuildContext context,
     String label,
@@ -264,10 +239,6 @@ class _BudgetPlannerContent extends StatelessWidget {
     }
   }
 
-  /// Organizer-only, reached from the trash icon on a category row.
-  /// Deleting a category also deletes every expense logged under it
-  /// (see [BudgetService.deleteCategory]), so the confirmation spells
-  /// out exactly how much that will remove from the trip's total spent.
   Future<void> _confirmDeleteCategory(
     BuildContext context,
     String label,
@@ -331,10 +302,6 @@ class _BudgetPlannerContent extends StatelessWidget {
         return StreamBuilder<List<Expense>>(
           stream: budgetService.watchExpenses(tripId),
           builder: (context, expenseSnap) {
-            // Personal (is_shared = false) expenses are private spending
-            // that never counted against the trip's shared budget — only
-            // surfaced in the Expense Tracker's own Personal total, never
-            // rolled into the trip-wide spent/category figures here.
             final expenses = (expenseSnap.data ?? const <Expense>[])
                 .where((e) => e.isShared)
                 .toList();
@@ -356,13 +323,7 @@ class _BudgetPlannerContent extends StatelessWidget {
               builder: (context, catSnap) {
                 final plannedCategories =
                     catSnap.data ?? const <BudgetCategoryData>[];
-                // Always show the default categories (so there's
-                // somewhere to tap into and plan a budget for each one
-                // before any spending happens), plus any category nobody
-                // planned for but that already has real spending against
-                // it — e.g. a custom "Other" category from the expense
-                // form — so it doesn't silently vanish from the
-                // breakdown.
+
                 final plannedByLabel = {
                   for (final c in plannedCategories) c.label: c.plannedAmount,
                 };
@@ -593,10 +554,7 @@ class _BudgetPlannerContent extends StatelessWidget {
                             final visuals = categoryVisuals(label);
                             final planned = plannedByLabel[label] ?? 0;
                             final spent = spentByCategory[label] ?? 0;
-                            // No planned amount to measure against but
-                            // money was spent anyway — show the bar full
-                            // rather than empty, since "0% of an unset
-                            // budget" would read as no spending at all.
+
                             final r = planned <= 0
                                 ? (spent > 0 ? 1.0 : 0.0)
                                 : (spent / planned).clamp(0.0, 1.0);
@@ -963,10 +921,6 @@ class _EditBudgetSheetState extends State<_EditBudgetSheet> {
   }
 }
 
-/// Single-category planned-amount editor, opened by tapping a category
-/// row. Validates that this category's amount plus every other
-/// category's planned amount ([otherCategoriesTotal]) never exceeds
-/// [totalBudget] — shows an inline error instead of saving when it would.
 class _CategoryBudgetDialog extends StatefulWidget {
   const _CategoryBudgetDialog({
     required this.label,
@@ -1092,14 +1046,6 @@ class _CategoryBudgetDialogState extends State<_CategoryBudgetDialog> {
   }
 }
 
-/// Lets any trip member set how much they plan to spend in each
-/// category that's relevant to this trip — the fixed [budgetCategories]
-/// plus any custom one already planned for or spent under (e.g. an
-/// "Other" category typed into the expense form), so a category never
-/// silently has no way to plan a budget for it just because it isn't
-/// one of the defaults. Open to every member (not just the organizer),
-/// matching the `categories_write_members` RLS policy. Validates that
-/// the categories never add up to more than [totalBudget].
 class _ManageCategoriesSheet extends StatefulWidget {
   const _ManageCategoriesSheet({
     required this.plannedByLabel,
@@ -1264,9 +1210,6 @@ class _ManageCategoriesSheetState extends State<_ManageCategoriesSheet> {
   }
 }
 
-/// One column of the Trip Budget card's "Total Budget · Spent ·
-/// Remaining" row — same label/value shape for all three so they read
-/// as one glanceable stat strip instead of a paragraph.
 class _BudgetStat extends StatelessWidget {
   const _BudgetStat({
     required this.label,

@@ -4,9 +4,6 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'locale_service.dart';
 import 'supabase_config.dart';
 
-/// The signed-in user's real activity counts, used to decide which
-/// Achievements badges are earned — computed from actual Trip/Budget/
-/// Group data (`trip_members`, `trips`, `expenses`), never hardcoded.
 class AchievementStats {
   const AchievementStats({
     required this.tripCount,
@@ -28,9 +25,6 @@ class AchievementStats {
   );
 }
 
-/// One entry on the Achievements grid. A null [isEarned] means there's no
-/// backing data anywhere in the app to track it yet, so it always shows
-/// locked (see `achievements_screen.dart`).
 class AchievementBadge {
   const AchievementBadge({
     required this.label,
@@ -47,8 +41,6 @@ class AchievementBadge {
   final String Function(AchievementStats stats)? progress;
 }
 
-/// Every badge shown on the Achievements screen and counted in the
-/// Profile tab's "badges" stat — the single source of truth for both.
 List<AchievementBadge> achievementBadges() => [
   AchievementBadge(
     label: tr('auth_badge_first_trip'),
@@ -62,28 +54,32 @@ List<AchievementBadge> achievementBadges() => [
     icon: Icons.event_available_rounded,
     color: const Color(0xFF8E63CE),
     isEarned: (s) => s.tripCount >= 3,
-    progress: (s) => '${s.tripCount.clamp(0, 3)}/3 ${tr('auth_trips_planned_suffix')}',
+    progress: (s) =>
+        '${s.tripCount.clamp(0, 3)}/3 ${tr('auth_trips_planned_suffix')}',
   ),
   AchievementBadge(
     label: tr('auth_badge_10_trips'),
     icon: Icons.military_tech_rounded,
     color: const Color(0xFFFFB347),
     isEarned: (s) => s.tripCount >= 10,
-    progress: (s) => '${s.tripCount.clamp(0, 10)}/10 ${tr('auth_trips_planned_suffix')}',
+    progress: (s) =>
+        '${s.tripCount.clamp(0, 10)}/10 ${tr('auth_trips_planned_suffix')}',
   ),
   AchievementBadge(
     label: tr('auth_badge_globe_trotter'),
     icon: Icons.public_rounded,
     color: const Color(0xFF5C6BC0),
     isEarned: (s) => s.distinctDestinations >= 3,
-    progress: (s) => '${s.distinctDestinations.clamp(0, 3)}/3 ${tr('auth_destinations_suffix')}',
+    progress: (s) =>
+        '${s.distinctDestinations.clamp(0, 3)}/3 ${tr('auth_destinations_suffix')}',
   ),
   AchievementBadge(
     label: tr('auth_badge_budget_master'),
     icon: Icons.savings_rounded,
     color: const Color(0xFF11998E),
     isEarned: (s) => s.expenseCount >= 5,
-    progress: (s) => '${s.expenseCount.clamp(0, 5)}/5 ${tr('auth_expenses_logged_suffix')}',
+    progress: (s) =>
+        '${s.expenseCount.clamp(0, 5)}/5 ${tr('auth_expenses_logged_suffix')}',
   ),
   AchievementBadge(
     label: tr('auth_badge_social_butterfly'),

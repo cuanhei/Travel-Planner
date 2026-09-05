@@ -1,7 +1,5 @@
 import 'package:flutter/material.dart';
 
-/// A pulsing "you are here" dot used on the app's stylized (non-SDK) map
-/// surfaces to mark the traveler's current position.
 class CurrentLocationMarker extends StatefulWidget {
   const CurrentLocationMarker({super.key});
 

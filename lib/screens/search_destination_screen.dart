@@ -12,11 +12,6 @@ import 'explore/explore_place_details_screen.dart';
 
 const _debounceDuration = Duration(milliseconds: 400);
 
-/// Destination search — free-text search via Google Places API (New)
-/// (see [GooglePlacesService.textSearch]), with recent searches kept in
-/// a local, per-device SQLite database keyed by the signed-in user's id
-/// (see [SearchHistoryService]) rather than Supabase — this history is
-/// local-device-only by design, not synced across a traveler's devices.
 class SearchDestinationScreen extends StatefulWidget {
   const SearchDestinationScreen({super.key});
 
@@ -94,7 +89,8 @@ class _SearchDestinationScreenState extends State<SearchDestinationScreen> {
       setState(() {
         _results = const [];
         _searching = false;
-        _error = 'Could not search destinations. Check your connection and try again.';
+        _error =
+            'Could not search destinations. Check your connection and try again.';
         _hasSearched = true;
       });
     }
@@ -113,7 +109,9 @@ class _SearchDestinationScreenState extends State<SearchDestinationScreen> {
     }
     if (!mounted) return;
     Navigator.of(context).push(
-      MaterialPageRoute(builder: (_) => ExplorePlaceDetailsScreen(place: place)),
+      MaterialPageRoute(
+        builder: (_) => ExplorePlaceDetailsScreen(place: place),
+      ),
     );
   }
 

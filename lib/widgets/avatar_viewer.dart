@@ -3,9 +3,6 @@ import 'package:flutter/material.dart';
 import '../models/avatar_config.dart';
 import 'avatar_preview.dart';
 
-/// Opens [photoUrl] full-screen over a dark scrim, pinch/scroll-zoomable via
-/// [InteractiveViewer]. Dismiss with the close button, the system back
-/// gesture, or tapping outside the image.
 Future<void> showAvatarViewer(BuildContext context, String photoUrl) {
   return _showZoomViewer(
     context,
@@ -13,10 +10,6 @@ Future<void> showAvatarViewer(BuildContext context, String photoUrl) {
   );
 }
 
-/// Same full-screen, pinch-zoomable presentation as [showAvatarViewer], but
-/// for a designed avatar (see [AvatarPreview]) instead of an uploaded photo —
-/// used when the profile's active avatar mode is `avatarDesign` rather than
-/// `photo` (see `ProfileAvatarState`).
 Future<void> showAvatarDesignViewer(BuildContext context, AvatarConfig design) {
   return _showZoomViewer(
     context,

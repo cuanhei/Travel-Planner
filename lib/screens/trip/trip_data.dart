@@ -2,8 +2,6 @@ import 'package:flutter/material.dart';
 
 import '../../theme/app_theme.dart';
 
-/// Formats a stop's planned stay as a compact label, e.g. "1h 30m",
-/// "45m", or "2h".
 String formatDuration(Duration duration) {
   final hours = duration.inHours;
   final minutes = duration.inMinutes % 60;
@@ -12,7 +10,6 @@ String formatDuration(Duration duration) {
   return '${hours}h ${minutes}m';
 }
 
-/// Common quick-pick durations for the stop form's duration selector.
 const stopDurationOptions = [
   Duration(minutes: 30),
   Duration(hours: 1),
@@ -42,14 +39,10 @@ class TripSummary {
   final IconData icon;
   final bool upcoming;
 
-  /// Number of planned stops in the itinerary — shown as a quick stat
-  /// on the trip card.
   final int stops;
 
-  /// Trip length in days — shown alongside [stops].
   final int days;
 
-  /// Estimated/spent budget, formatted for display (e.g. "RM 1,500").
   final String budget;
 }
 
@@ -67,8 +60,6 @@ final upcomingTrips = [
   ),
 ];
 
-/// A single stop in a trip's itinerary: what to visit, which day, and
-/// roughly when. Immutable — edits produce a new instance via [copyWith].
 @immutable
 class TripStop {
   const TripStop({
@@ -88,7 +79,6 @@ class TripStop {
   final IconData icon;
   final List<Color> gradient;
 
-  /// How long the traveler plans to stay at this stop.
   final Duration duration;
 
   TripStop copyWith({
@@ -111,8 +101,6 @@ class TripStop {
   }
 }
 
-/// A pickable stop category — sets the icon and gradient shown on the
-/// stop's tile once selected in the add/edit stop form.
 class StopCategory {
   const StopCategory(this.label, this.icon, this.gradient);
   final String label;
@@ -126,11 +114,7 @@ const stopCategories = [
   StopCategory('Food', Icons.restaurant_rounded, AppColors.sunset),
   StopCategory('Nature', Icons.terrain_rounded, AppColors.lagoon),
   StopCategory('Beach', Icons.beach_access_rounded, AppColors.sunset),
-  StopCategory(
-    'Culture',
-    Icons.holiday_village_rounded,
-    AppColors.horizon,
-  ),
+  StopCategory('Culture', Icons.holiday_village_rounded, AppColors.horizon),
 ];
 
 final pastTrips = [

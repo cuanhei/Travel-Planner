@@ -4,9 +4,6 @@ import '../data/countries.dart';
 import '../services/locale_service.dart';
 import '../theme/app_theme.dart';
 
-/// Tappable "🇲🇾 Malaysian" field. Opens the same searchable country sheet
-/// as [CountryCodePicker] but shows/returns the country name rather than
-/// a dial code — used for the Edit Profile "Nationality" field.
 class NationalityPicker extends StatelessWidget {
   const NationalityPicker({
     super.key,
@@ -14,8 +11,6 @@ class NationalityPicker extends StatelessWidget {
     required this.onChanged,
   });
 
-  /// The stored nationality string (a [Country.name]), or null/empty if
-  /// none is set yet.
   final String? selected;
   final ValueChanged<Country> onChanged;
 

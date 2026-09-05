@@ -10,7 +10,6 @@ import 'forgot_password_screen.dart';
 import 'home_screen.dart';
 import 'verify_email_screen.dart';
 
-/// Combined sign in / sign up screen reached from the welcome carousel.
 class AuthScreen extends StatefulWidget {
   const AuthScreen({super.key});
 
@@ -70,8 +69,6 @@ class _AuthScreenState extends State<AuthScreen> {
         );
         if (!mounted) return;
         if (response.session != null) {
-          // Email confirmation is disabled on this project — Supabase
-          // already signed the user in, so there's no code to verify.
           Navigator.of(context).pushAndRemoveUntil(
             MaterialPageRoute(builder: (_) => HomeScreen()),
             (route) => false,

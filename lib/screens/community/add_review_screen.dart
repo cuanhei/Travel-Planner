@@ -13,37 +13,16 @@ import '../../widgets/detail_header.dart';
 import '../../widgets/gradient_button.dart';
 import 'crop_image_screen.dart';
 
-/// Image formats [CropImageScreen] (behind `crop_your_image`) can decode —
-/// same allow-list `AddPostScreen` uses. A camera capture is always a JPEG,
-/// so it's always croppable; a gallery pick only skips the crop step for a
-/// format outside this list (e.g. HEIC, which Flutter can't preview either
-/// without a platform-specific codec).
 const _croppableExtensions = {'jpg', 'jpeg', 'png', 'gif', 'webp'};
 
-/// Where a review photo came from — offered as a chooser sheet on mobile,
-/// where a camera exists; desktop/web skip straight to gallery since
-/// `image_picker` has no camera implementation there.
 enum _PhotoSource { camera, gallery }
 
-/// Star rating plus a written review submission form. Backed by
-/// `reviews` — one review per *visit*, so submitting a *new* review always
-/// inserts a fresh row rather than editing a previous one (see
-/// [CommunityService.addReview]).
-///
-/// Only reachable from `ReviewDetailsScreen` once the user has got an
-/// unused visit to spend, but re-checked here too as a safety net in case
-/// something ever routes here directly. (The old `PlaceDetailsScreen` also
-/// linked here before it was replaced by `ExplorePlaceDetailsScreen`, which
-/// doesn't wire up reviews yet — see that class's doc comment.)
-///
-/// Doubles as the editor when [existingReview] is passed (only ever by the
-/// review's own author — the review list only shows the edit affordance
-/// when `review.authorId` matches the signed-in user): fields are
-/// pre-filled, the visit-gate above is skipped entirely (editing doesn't
-/// spend a visit), and [CommunityService.updateReview] is called instead of
-/// [addReview] on submit.
 class AddReviewScreen extends StatefulWidget {
-  const AddReviewScreen({super.key, required this.placeName, this.existingReview});
+  const AddReviewScreen({
+    super.key,
+    required this.placeName,
+    this.existingReview,
+  });
 
   final String placeName;
   final PlaceReview? existingReview;
@@ -66,10 +45,6 @@ class _AddReviewScreenState extends State<AddReviewScreen> {
   final List<Uint8List> _photoBytes = [];
   final List<String> _photoExtensions = [];
 
-  /// The review's photos at load time, in edit mode — removable
-  /// individually via [_removeExistingPhoto], separately from freshly
-  /// picked [_photoBytes]. Empty in create mode, where there's nothing to
-  /// start from.
   late final List<String> _existingPhotoUrls = List.of(
     widget.existingReview?.photoUrls ?? const [],
   );
@@ -77,18 +52,10 @@ class _AddReviewScreenState extends State<AddReviewScreen> {
   bool _pickingPhotos = false;
   String? _photoError;
 
-  /// Set once the user has tried to submit at least once, so validation
-  /// errors don't show up before they've interacted with the form.
   bool _showErrors = false;
 
-  /// `null` while the visit/review counts are still loading. `true` once
-  /// loaded means there's at least one visit not yet spent on a review —
-  /// see [TripService.visitCount] / [CommunityService.myReviewCount].
   bool? _canReview;
 
-  /// Whether the place has ever been visited at all, once loaded — used to
-  /// pick between "never visited" and "already reviewed every visit" as
-  /// the reason [_canReview] is false.
   bool _everVisited = false;
 
   @override
@@ -98,9 +65,7 @@ class _AddReviewScreenState extends State<AddReviewScreen> {
     if (existing != null) {
       _rating = existing.rating;
       _controller.text = existing.body;
-      // Editing doesn't spend a visit, so the gate below is irrelevant —
-      // skip straight past it rather than re-running the visit/review-count
-      // check this screen normally opens with.
+
       _canReview = true;
       return;
     }
@@ -139,11 +104,6 @@ class _AddReviewScreenState extends State<AddReviewScreen> {
   bool get _canSubmit =>
       _ratingError == null && _reviewError == null && !_submitting;
 
-  /// Adds one review photo: picks a source (camera vs. gallery, or straight
-  /// to gallery where there's no camera to offer), then routes the result
-  /// through [CropImageScreen] before appending it — unlike the old
-  /// multi-select picker, this only ever adds one photo per call so each
-  /// one gets its own crop pass.
   int get _totalPhotoCount => _existingPhotoUrls.length + _photoBytes.length;
 
   Future<void> _addPhoto() async {
@@ -478,11 +438,6 @@ class _AddReviewScreenState extends State<AddReviewScreen> {
   }
 }
 
-/// Horizontal row of picked-photo thumbnails (each removable) plus a
-/// trailing "add" tile, for [AddReviewScreen]'s optional photo attachments.
-/// [existingUrls] (network, edit mode only) come first, then [newPhotos]
-/// (freshly picked, local) — each with its own remove callback since
-/// they're removed from different lists.
 class _PhotoPicker extends StatelessWidget {
   const _PhotoPicker({
     required this.existingUrls,
@@ -586,9 +541,6 @@ class _PhotoPicker extends StatelessWidget {
   }
 }
 
-/// Bottom sheet offering "Take Photo" / "Choose from Gallery", shown before
-/// [_AddReviewScreenState._addPhoto] opens either the camera or the file
-/// picker.
 class _PhotoSourceSheet extends StatelessWidget {
   const _PhotoSourceSheet();
 
@@ -608,7 +560,10 @@ class _PhotoSourceSheet extends StatelessWidget {
             ),
           ),
           ListTile(
-            leading: Icon(Icons.photo_camera_rounded, color: context.colors.ink),
+            leading: Icon(
+              Icons.photo_camera_rounded,
+              color: context.colors.ink,
+            ),
             title: Text(
               'Take Photo',
               style: TextStyle(
@@ -619,7 +574,10 @@ class _PhotoSourceSheet extends StatelessWidget {
             onTap: () => Navigator.of(context).pop(_PhotoSource.camera),
           ),
           ListTile(
-            leading: Icon(Icons.photo_library_rounded, color: context.colors.ink),
+            leading: Icon(
+              Icons.photo_library_rounded,
+              color: context.colors.ink,
+            ),
             title: Text(
               'Choose from Gallery',
               style: TextStyle(

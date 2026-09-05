@@ -8,7 +8,6 @@ import '../../utils/time_ago.dart';
 import '../../widgets/detail_header.dart';
 import '../../widgets/user_avatar.dart';
 
-/// Live comment thread on a community post, backed by `comments`.
 class CommentsScreen extends StatelessWidget {
   const CommentsScreen({super.key, required this.postId, required this.place});
 
@@ -32,11 +31,6 @@ class CommentsScreen extends StatelessWidget {
   }
 }
 
-/// The comment list + composer for one post — every comment shown here is
-/// scoped to [postId] only (`comments.post_id = postId`), so a
-/// post's comments never leak into another post's thread. Replies are
-/// nested one level under their top-level comment (see
-/// [_replyTargetRootId]).
 class CommentsSection extends StatefulWidget {
   const CommentsSection({super.key, required this.postId});
 
@@ -51,25 +45,12 @@ class _CommentsSectionState extends State<CommentsSection> {
   final _controller = TextEditingController();
   final _focusNode = FocusNode();
 
-  /// Subscribed once for the lifetime of this screen — calling
-  /// [CommunityService.watchComments] fresh on every `build()` would tear
-  /// down and re-create the Realtime subscription (and its initial fetch)
-  /// on every rebuild. [_post] dismisses the keyboard right after posting,
-  /// which changes layout and triggers exactly such a rebuild, so a comment
-  /// submitted right then could briefly show twice — once from the old
-  /// subscription's tail end, once from the new one's fresh fetch.
   late final Stream<List<PostComment>> _commentsStream = _service.watchComments(
     widget.postId,
   );
 
-  /// The comment the composer is currently replying to, or `null` for a
-  /// plain top-level comment. Shown as a dismissible chip above the text
-  /// field.
   PostComment? _replyTarget;
 
-  /// Root comment ids whose replies are currently expanded — replies are
-  /// collapsed by default (just a "View N replies" toggle) and stay
-  /// expanded once opened until the traveler taps "Hide replies" again.
   final Set<String> _expandedThreads = {};
 
   void _toggleThread(String rootId) {
@@ -78,11 +59,6 @@ class _CommentsSectionState extends State<CommentsSection> {
     });
   }
 
-  /// The `parent_comment_id` a submitted reply should carry — always a
-  /// top-level comment's own id, never another reply's: replying to a
-  /// reply still targets *that reply's* parent, so the whole conversation
-  /// flattens into one thread under the original top-level comment rather
-  /// than nesting indefinitely.
   String? get _replyTargetRootId {
     final target = _replyTarget;
     if (target == null) return null;
@@ -97,9 +73,6 @@ class _CommentsSectionState extends State<CommentsSection> {
   }
 
   void _startReply(PostComment comment) {
-    // Auto-expands the thread being replied to — tapping "Reply" on a
-    // collapsed root comment should let the traveler see the conversation
-    // they're joining, not just post blind into a hidden thread.
     final rootId = comment.parentCommentId ?? comment.id;
     setState(() {
       _replyTarget = comment;
@@ -360,9 +333,6 @@ class _CommentsSectionState extends State<CommentsSection> {
   }
 }
 
-/// One comment or reply bubble — avatar, name, timestamp, body, and a
-/// Reply action, plus a Delete action only when [comment.authorId] matches
-/// the signed-in user.
 class _CommentTile extends StatelessWidget {
   const _CommentTile({
     required this.comment,

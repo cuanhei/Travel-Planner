@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 
 import '../theme/app_theme.dart';
 
-/// A pill-shaped call-to-action button with a gradient fill and soft glow.
 class GradientButton extends StatelessWidget {
   const GradientButton({
     super.key,

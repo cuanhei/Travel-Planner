@@ -1,8 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
-/// A support request thread, created on support's side once an email sent
-/// via the Help Center's "Contact Support" action is triaged.
 @immutable
 class SupportTicket {
   const SupportTicket({
@@ -24,7 +22,6 @@ class SupportTicket {
 
 enum SupportSender { customer, support }
 
-/// One message in a [SupportTicket]'s thread.
 @immutable
 class SupportMessage {
   const SupportMessage({
@@ -46,11 +43,6 @@ class SupportMessage {
   );
 }
 
-/// Backs the Help Center's ticket history and reply threads with Supabase
-/// rows. Tickets are created on support's side (via the Supabase Table
-/// Editor) once an email sent through "Contact Support" is triaged; a
-/// reply — or a follow-up sent from here — is a row too, so it shows up
-/// next time the customer opens the thread.
 class SupportService {
   SupportService._();
 
@@ -58,7 +50,6 @@ class SupportService {
 
   SupabaseClient get _client => Supabase.instance.client;
 
-  /// The signed-in user's tickets, most recent first.
   Future<List<SupportTicket>> listMyTickets() async {
     final rows = await _client
         .from('support_tickets')
@@ -69,7 +60,6 @@ class SupportService {
         .toList();
   }
 
-  /// All messages on [ticketId], oldest first.
   Future<List<SupportMessage>> listMessages(String ticketId) async {
     final rows = await _client
         .from('support_messages')
@@ -81,7 +71,6 @@ class SupportService {
         .toList();
   }
 
-  /// Adds a follow-up customer message to an existing ticket.
   Future<void> sendFollowUp({
     required String ticketId,
     required String message,

@@ -11,9 +11,6 @@ import 'add_post_screen.dart';
 import 'comments_screen.dart';
 import 'post_card.dart';
 
-/// "Community" bottom-nav tab: a travel-experience feed backed by Supabase
-/// (`posts`, `post_likes`, `comments`), loaded page by page rather than as
-/// one live stream of the whole table — see [CommunityService.fetchFeedPage].
 class CommunityTab extends StatefulWidget {
   const CommunityTab({super.key});
 
@@ -27,8 +24,6 @@ class _CommunityTabState extends State<CommunityTab> {
   final _service = CommunityService();
   final _scrollController = ScrollController();
 
-  /// `null` = "All" — otherwise one of [categories]' labels, the same set
-  /// a post is tagged with in [AddPostScreen].
   String? _selectedCategory;
 
   final List<CommunityPost> _posts = [];
@@ -37,10 +32,6 @@ class _CommunityTabState extends State<CommunityTab> {
   bool _hasMore = true;
   Object? _error;
 
-  /// Set when [CommunityService.watchFeedActivity] reports a post from
-  /// someone else — shown as a banner rather than acted on automatically,
-  /// since splicing it into the paginated list would shift every
-  /// already-loaded page's offset.
   bool _hasNewPosts = false;
 
   StreamSubscription<CommunityFeedEvent>? _activitySub;
@@ -155,7 +146,7 @@ class _CommunityTabState extends State<CommunityTab> {
       });
     } catch (_) {
       if (!mounted) return;
-      // Leave `_hasMore` alone so scrolling near the bottom again retries.
+
       setState(() => _loadingMore = false);
     }
   }
@@ -175,9 +166,7 @@ class _CommunityTabState extends State<CommunityTab> {
 
   Future<void> _editPost(CommunityPost post) async {
     await Navigator.of(context).push<bool>(
-      MaterialPageRoute(
-        builder: (_) => AddPostScreen(existingPost: post),
-      ),
+      MaterialPageRoute(builder: (_) => AddPostScreen(existingPost: post)),
     );
     _loadInitial();
   }
@@ -229,9 +218,6 @@ class _CommunityTabState extends State<CommunityTab> {
     }
   }
 
-  /// Applies a reaction change to the local list immediately — the feed no
-  /// longer has a live subscription to fall back on for this — then sends
-  /// it to the backend.
   Future<void> _react(CommunityPost post, String? reactionType) async {
     if (reactionType == post.myReaction) return;
     final counts = Map<String, int>.from(post.reactionCounts);

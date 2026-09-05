@@ -33,8 +33,6 @@ class Place {
   final IconData icon;
   final String description;
 
-  /// Roughly what a visit costs per person (entry fee, food, etc.) —
-  /// a formatted range like "RM 30 – 50" or "Free".
   final String avgBudget;
   final double? distanceKm;
 }
@@ -136,7 +134,6 @@ final categories = [
   (label: 'Nightlife', icon: Icons.nightlife_rounded),
 ];
 
-/// "Explore" bottom-nav tab: category chips + popular destinations feed.
 class ExploreTab extends StatefulWidget {
   const ExploreTab({super.key});
 
@@ -152,9 +149,6 @@ class _ExploreTabState extends State<ExploreTab> {
   bool _nearbyLoading = true;
   String? _nearbyError;
 
-  /// Resolved once (GPS permission/lookup is the slow, user-facing part)
-  /// and reused for every subsequent category re-search, so switching
-  /// chips doesn't re-prompt for location each time.
   LatLng? _center;
 
   @override
@@ -168,11 +162,6 @@ class _ExploreTabState extends State<ExploreTab> {
     _loadNearby();
   }
 
-  /// Fetches real places around the traveler's current GPS position via
-  /// Google Places API (New) Nearby Search, restricted server-side to
-  /// [_selectedCategory]'s Google types when one is picked — mirrors the
-  /// permission handling other GPS-driven sections (Weather, Map View)
-  /// already use for resolving [_center] the first time this runs.
   Future<void> _loadNearby() async {
     setState(() {
       _nearbyLoading = true;
@@ -207,11 +196,7 @@ class _ExploreTabState extends State<ExploreTab> {
       final category = _selectedCategory;
       final results = await _placesService.nearbySearch(
         center: center,
-        // "All" still means "all travel-related categories", not
-        // "anything Google returns nearby" — an unrestricted search
-        // includes plenty of non-touristy noise (apartments, offices,
-        // random shops with no travel relevance), so it's restricted to
-        // the union of every category's types rather than left open.
+
         includedTypes: category == null
             ? _allCategoryPlaceTypes
             : _placeTypesForCategory(category),
@@ -306,14 +291,6 @@ class _ExploreTabState extends State<ExploreTab> {
   }
 }
 
-/// Google Places `primaryType` values that fall under each of the
-/// existing category chip labels (see [categories]) — sent as
-/// `includedTypes` on the Nearby Search request, so every value here
-/// must be one of Places API (New)'s documented "Table A" types (the
-/// ones allowed in requests). "Table B" types — e.g. `place_of_worship`,
-/// `mosque`, `church` — can be *returned* in a response's `primaryType`
-/// but aren't valid here; including one makes Google reject the whole
-/// request with a 400, which is what broke "Culture" originally.
 const _categoryPlaceTypes = {
   'Shopping': {
     'shopping_mall',
@@ -365,10 +342,9 @@ const _categoryPlaceTypes = {
 Set<String> _placeTypesForCategory(String category) =>
     _categoryPlaceTypes[category] ?? const {};
 
-/// Union of every category's types — what "All" actually searches for,
-/// so it still means "every kind of travel-relevant place" rather than
-/// an unrestricted nearby search.
-final _allCategoryPlaceTypes = _categoryPlaceTypes.values.expand((s) => s).toSet();
+final _allCategoryPlaceTypes = _categoryPlaceTypes.values
+    .expand((s) => s)
+    .toSet();
 
 class _CategoryChip extends StatelessWidget {
   const _CategoryChip({
@@ -419,9 +395,6 @@ class _CategoryChip extends StatelessWidget {
   }
 }
 
-/// Same 130-height horizontal strip the dummy version always occupied —
-/// loading/error/empty states fill that same footprint so the page
-/// doesn't jump around while GPS/the API resolve.
 class _NearbyPlacesSection extends StatelessWidget {
   const _NearbyPlacesSection({
     required this.loading,
@@ -466,10 +439,7 @@ class _NearbyPlacesSection extends StatelessWidget {
                 style: TextStyle(color: context.colors.muted, fontSize: 12),
               ),
               const SizedBox(height: 4),
-              TextButton(
-                onPressed: onRetry,
-                child: const Text('Retry'),
-              ),
+              TextButton(onPressed: onRetry, child: const Text('Retry')),
             ],
           ),
         ),
@@ -530,16 +500,19 @@ class _NearbyPlaceCard extends StatelessWidget {
               Image.network(
                 place.photoUrl!,
                 fit: BoxFit.cover,
-                errorBuilder: (context, error, stackTrace) => const DecoratedBox(
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(colors: _placeholderGradient),
-                  ),
-                ),
+                errorBuilder: (context, error, stackTrace) =>
+                    const DecoratedBox(
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(colors: _placeholderGradient),
+                      ),
+                    ),
                 loadingBuilder: (context, child, progress) => progress == null
                     ? child
                     : const DecoratedBox(
                         decoration: BoxDecoration(
-                          gradient: LinearGradient(colors: _placeholderGradient),
+                          gradient: LinearGradient(
+                            colors: _placeholderGradient,
+                          ),
                         ),
                       ),
               ),
@@ -587,4 +560,3 @@ class _NearbyPlaceCard extends StatelessWidget {
     );
   }
 }
-

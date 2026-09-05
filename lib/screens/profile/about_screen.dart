@@ -7,8 +7,6 @@ import '../../widgets/list_tile_card.dart';
 import 'privacy_policy_screen.dart';
 import 'terms_of_service_screen.dart';
 
-/// "About" screen: app identity, version, and links out to the Terms of
-/// Service and Privacy Policy pages.
 class AboutScreen extends StatelessWidget {
   const AboutScreen({super.key});
 
@@ -96,14 +94,18 @@ class AboutScreen extends StatelessWidget {
                     icon: Icons.description_outlined,
                     title: tr('auth_terms_of_service'),
                     onTap: () => Navigator.of(context).push(
-                      MaterialPageRoute(builder: (_) => const TermsOfServiceScreen()),
+                      MaterialPageRoute(
+                        builder: (_) => const TermsOfServiceScreen(),
+                      ),
                     ),
                   ),
                   ListTileCard(
                     icon: Icons.privacy_tip_outlined,
                     title: tr('auth_privacy_policy'),
                     onTap: () => Navigator.of(context).push(
-                      MaterialPageRoute(builder: (_) => const PrivacyPolicyScreen()),
+                      MaterialPageRoute(
+                        builder: (_) => const PrivacyPolicyScreen(),
+                      ),
                     ),
                   ),
                   const SizedBox(height: 16),

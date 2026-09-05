@@ -1,5 +1,3 @@
-/// A single packing checklist entry, backed by the `packing_items`
-/// table — scoped to one trip, shared by every member of it.
 class PackingItem {
   const PackingItem({
     required this.id,

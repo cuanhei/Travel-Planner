@@ -65,8 +65,6 @@ const _sections = <(String, String)>[
   ),
 ];
 
-/// Static Terms of Service text, reached from Settings → About →
-/// "Terms of Service".
 class TermsOfServiceScreen extends StatelessWidget {
   const TermsOfServiceScreen({super.key});
 

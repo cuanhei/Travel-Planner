@@ -11,11 +11,6 @@ import '../widgets/gradient_button.dart';
 import 'auth_screen.dart';
 import 'home_screen.dart';
 
-/// 6-digit email code, requested after a password sign-in when the account
-/// has email-based two-factor authentication enabled. Reached from
-/// [AuthScreen] (which has already triggered the email via
-/// `AuthService.sendLoginEmailCode`); verifying completes the sign-in and
-/// continues on to [HomeScreen].
 class EmailTwoFactorScreen extends StatefulWidget {
   const EmailTwoFactorScreen({super.key, required this.email});
 
@@ -199,7 +194,8 @@ class _EmailTwoFactorScreenState extends State<EmailTwoFactorScreen> {
                                       ),
                                     ),
                                   ),
-                                  onChanged: (value) => _onChanged(index, value),
+                                  onChanged: (value) =>
+                                      _onChanged(index, value),
                                 ),
                               );
                             }),
@@ -233,7 +229,9 @@ class _EmailTwoFactorScreenState extends State<EmailTwoFactorScreen> {
                             child: TextButton(
                               onPressed: _resending ? null : _resendCode,
                               child: Text(
-                                _resending ? tr('auth_sending_ellipsis') : tr('auth_resend_code'),
+                                _resending
+                                    ? tr('auth_sending_ellipsis')
+                                    : tr('auth_resend_code'),
                                 style: TextStyle(
                                   color: context.colors.ink,
                                   fontWeight: FontWeight.w700,

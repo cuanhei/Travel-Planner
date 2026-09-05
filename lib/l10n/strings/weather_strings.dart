@@ -1,5 +1,3 @@
-/// Weather module translations (Weather Forecast). Keys are prefixed
-/// `weather_`.
 const Map<String, Map<String, String>> weatherStrings = {
   'en': {
     'weather_forecast_title': 'Weather Forecast',
@@ -11,10 +9,8 @@ const Map<String, Map<String, String>> weatherStrings = {
     'weather_condition_rain_some_areas': 'Rain in Some Areas',
     'weather_condition_rain_most_areas': 'Rain in Most Areas',
     'weather_condition_rain_some_coastal': 'Rain in Some Coastal Areas',
-    'weather_condition_thunderstorms_some_areas':
-        'Thunderstorms in Some Areas',
-    'weather_condition_thunderstorms_most_areas':
-        'Thunderstorms in Most Areas',
+    'weather_condition_thunderstorms_some_areas': 'Thunderstorms in Some Areas',
+    'weather_condition_thunderstorms_most_areas': 'Thunderstorms in Most Areas',
     'weather_condition_thunderstorms_some_coastal':
         'Thunderstorms in Some Coastal Areas',
     'weather_condition_unknown': 'Unknown',
@@ -168,12 +164,9 @@ const Map<String, Map<String, String>> weatherStrings = {
     'weather_condition_thunderstorms': 'Giông Bão',
     'weather_condition_rain_some_areas': 'Mưa Ở Một Số Khu Vực',
     'weather_condition_rain_most_areas': 'Mưa Ở Hầu Hết Khu Vực',
-    'weather_condition_rain_some_coastal':
-        'Mưa Ở Một Số Khu Vực Ven Biển',
-    'weather_condition_thunderstorms_some_areas':
-        'Giông Bão Ở Một Số Khu Vực',
-    'weather_condition_thunderstorms_most_areas':
-        'Giông Bão Ở Hầu Hết Khu Vực',
+    'weather_condition_rain_some_coastal': 'Mưa Ở Một Số Khu Vực Ven Biển',
+    'weather_condition_thunderstorms_some_areas': 'Giông Bão Ở Một Số Khu Vực',
+    'weather_condition_thunderstorms_most_areas': 'Giông Bão Ở Hầu Hết Khu Vực',
     'weather_condition_thunderstorms_some_coastal':
         'Giông Bão Ở Một Số Khu Vực Ven Biển',
     'weather_condition_unknown': 'Không Xác Định',
@@ -197,8 +190,7 @@ const Map<String, Map<String, String>> weatherStrings = {
     'weather_condition_thunderstorms': 'Badai Petir',
     'weather_condition_rain_some_areas': 'Hujan di Beberapa Wilayah',
     'weather_condition_rain_most_areas': 'Hujan di Sebagian Besar Wilayah',
-    'weather_condition_rain_some_coastal':
-        'Hujan di Beberapa Wilayah Pesisir',
+    'weather_condition_rain_some_coastal': 'Hujan di Beberapa Wilayah Pesisir',
     'weather_condition_thunderstorms_some_areas':
         'Badai Petir di Beberapa Wilayah',
     'weather_condition_thunderstorms_most_areas':
@@ -255,8 +247,7 @@ const Map<String, Map<String, String>> weatherStrings = {
     'weather_condition_rain_some_areas': 'சில பகுதிகளில் மழை',
     'weather_condition_rain_most_areas': 'பெரும்பாலான பகுதிகளில் மழை',
     'weather_condition_rain_some_coastal': 'சில கடலோர பகுதிகளில் மழை',
-    'weather_condition_thunderstorms_some_areas':
-        'சில பகுதிகளில் இடிமின்னல்',
+    'weather_condition_thunderstorms_some_areas': 'சில பகுதிகளில் இடிமின்னல்',
     'weather_condition_thunderstorms_most_areas':
         'பெரும்பாலான பகுதிகளில் இடிமின்னல்',
     'weather_condition_thunderstorms_some_coastal':
@@ -283,10 +274,8 @@ const Map<String, Map<String, String>> weatherStrings = {
     'weather_condition_rain_some_areas': 'أمطار في بعض المناطق',
     'weather_condition_rain_most_areas': 'أمطار في معظم المناطق',
     'weather_condition_rain_some_coastal': 'أمطار في بعض المناطق الساحلية',
-    'weather_condition_thunderstorms_some_areas':
-        'عواصف رعدية في بعض المناطق',
-    'weather_condition_thunderstorms_most_areas':
-        'عواصف رعدية في معظم المناطق',
+    'weather_condition_thunderstorms_some_areas': 'عواصف رعدية في بعض المناطق',
+    'weather_condition_thunderstorms_most_areas': 'عواصف رعدية في معظم المناطق',
     'weather_condition_thunderstorms_some_coastal':
         'عواصف رعدية في بعض المناطق الساحلية',
     'weather_condition_unknown': 'غير معروف',
@@ -309,12 +298,9 @@ const Map<String, Map<String, String>> weatherStrings = {
     'weather_condition_cloudy': 'Nublado',
     'weather_condition_thunderstorms': 'Tormentas Eléctricas',
     'weather_condition_rain_some_areas': 'Lluvia en Algunas Zonas',
-    'weather_condition_rain_most_areas':
-        'Lluvia en la Mayoría de las Zonas',
-    'weather_condition_rain_some_coastal':
-        'Lluvia en Algunas Zonas Costeras',
-    'weather_condition_thunderstorms_some_areas':
-        'Tormentas en Algunas Zonas',
+    'weather_condition_rain_most_areas': 'Lluvia en la Mayoría de las Zonas',
+    'weather_condition_rain_some_coastal': 'Lluvia en Algunas Zonas Costeras',
+    'weather_condition_thunderstorms_some_areas': 'Tormentas en Algunas Zonas',
     'weather_condition_thunderstorms_most_areas':
         'Tormentas en la Mayoría de las Zonas',
     'weather_condition_thunderstorms_some_coastal':
@@ -339,12 +325,10 @@ const Map<String, Map<String, String>> weatherStrings = {
     'weather_condition_cloudy': 'Nuageux',
     'weather_condition_thunderstorms': 'Orages',
     'weather_condition_rain_some_areas': 'Pluie dans Certaines Zones',
-    'weather_condition_rain_most_areas':
-        'Pluie dans la Plupart des Zones',
+    'weather_condition_rain_most_areas': 'Pluie dans la Plupart des Zones',
     'weather_condition_rain_some_coastal':
         'Pluie dans Certaines Zones Côtières',
-    'weather_condition_thunderstorms_some_areas':
-        'Orages dans Certaines Zones',
+    'weather_condition_thunderstorms_some_areas': 'Orages dans Certaines Zones',
     'weather_condition_thunderstorms_most_areas':
         'Orages dans la Plupart des Zones',
     'weather_condition_thunderstorms_some_coastal':
@@ -369,10 +353,8 @@ const Map<String, Map<String, String>> weatherStrings = {
     'weather_condition_cloudy': 'Bewölkt',
     'weather_condition_thunderstorms': 'Gewitter',
     'weather_condition_rain_some_areas': 'Regen in einigen Gebieten',
-    'weather_condition_rain_most_areas':
-        'Regen in den meisten Gebieten',
-    'weather_condition_rain_some_coastal':
-        'Regen in einigen Küstengebieten',
+    'weather_condition_rain_most_areas': 'Regen in den meisten Gebieten',
+    'weather_condition_rain_some_coastal': 'Regen in einigen Küstengebieten',
     'weather_condition_thunderstorms_some_areas':
         'Gewitter in einigen Gebieten',
     'weather_condition_thunderstorms_most_areas':
@@ -400,8 +382,7 @@ const Map<String, Map<String, String>> weatherStrings = {
     'weather_condition_thunderstorms': 'Tempestades',
     'weather_condition_rain_some_areas': 'Chuva em Algumas Áreas',
     'weather_condition_rain_most_areas': 'Chuva na Maioria das Áreas',
-    'weather_condition_rain_some_coastal':
-        'Chuva em Algumas Áreas Costeiras',
+    'weather_condition_rain_some_coastal': 'Chuva em Algumas Áreas Costeiras',
     'weather_condition_thunderstorms_some_areas':
         'Tempestades em Algumas Áreas',
     'weather_condition_thunderstorms_most_areas':
@@ -431,10 +412,8 @@ const Map<String, Map<String, String>> weatherStrings = {
     'weather_condition_rain_most_areas': 'Дождь в большинстве районов',
     'weather_condition_rain_some_coastal':
         'Дождь в некоторых прибрежных районах',
-    'weather_condition_thunderstorms_some_areas':
-        'Грозы в некоторых районах',
-    'weather_condition_thunderstorms_most_areas':
-        'Грозы в большинстве районов',
+    'weather_condition_thunderstorms_some_areas': 'Грозы в некоторых районах',
+    'weather_condition_thunderstorms_most_areas': 'Грозы в большинстве районов',
     'weather_condition_thunderstorms_some_coastal':
         'Грозы в некоторых прибрежных районах',
     'weather_condition_unknown': 'Неизвестно',

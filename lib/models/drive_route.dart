@@ -3,9 +3,6 @@ import 'package:latlong2/latlong.dart';
 import '../utils/google_routes_parsing.dart';
 import '../utils/polyline_codec.dart';
 
-/// A single driving route, requested separately from transit and shown
-/// only as a secondary comparison — from Google Routes API with
-/// `travelMode: "DRIVE"`.
 class DriveRoute {
   const DriveRoute({
     required this.duration,

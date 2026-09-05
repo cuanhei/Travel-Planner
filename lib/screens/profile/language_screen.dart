@@ -7,16 +7,6 @@ import '../../widgets/detail_header.dart';
 import '../../widgets/simple_card.dart';
 import '../home_screen.dart';
 
-/// Language picker: search filters the list live (no page reload — it's
-/// just a local list filter), and picking a language immediately switches
-/// the whole app via [currentLanguageCode]/[setAppLanguage].
-///
-/// Picking a language also resets navigation back to Home. Flutter skips
-/// rebuilding a widget subtree when its parent passes an *identical*
-/// widget instance again (e.g. this app's `static final` tab-body lists),
-/// so a language change wouldn't otherwise reliably refresh every already
-/// -mounted screen sitting behind this one on the stack. A full remount
-/// via `pushAndRemoveUntil` sidesteps that entirely.
 class LanguageScreen extends StatefulWidget {
   const LanguageScreen({super.key});
 
@@ -40,13 +30,13 @@ class _LanguageScreenState extends State<LanguageScreen> {
       _filtered = q.isEmpty
           ? supportedLanguages
           : supportedLanguages
-              .where(
-                (l) =>
-                    l.englishName.toLowerCase().contains(q) ||
-                    l.nativeName.toLowerCase().contains(q) ||
-                    l.code.toLowerCase().contains(q),
-              )
-              .toList();
+                .where(
+                  (l) =>
+                      l.englishName.toLowerCase().contains(q) ||
+                      l.nativeName.toLowerCase().contains(q) ||
+                      l.code.toLowerCase().contains(q),
+                )
+                .toList();
     });
   }
 
@@ -111,9 +101,7 @@ class _LanguageScreenState extends State<LanguageScreen> {
                               await setAppLanguage(lang.code);
                               if (!context.mounted) return;
                               Navigator.of(context).pushAndRemoveUntil(
-                                MaterialPageRoute(
-                                  builder: (_) => HomeScreen(),
-                                ),
+                                MaterialPageRoute(builder: (_) => HomeScreen()),
                                 (route) => false,
                               );
                             },

@@ -25,7 +25,6 @@ const _monthNames = [
 
 String _formatShortDate(DateTime d) => '${_monthNames[d.month - 1]} ${d.day}';
 
-/// One "X pays Y" transaction in a settle-up plan.
 class _Settlement {
   const _Settlement({
     required this.from,
@@ -40,13 +39,6 @@ class _Settlement {
 
 const _settledThreshold = 0.01;
 
-/// Splits every traveler's paid total evenly across the group, nets out
-/// already-recorded [settlements] (a real payment reduces the payer's
-/// debt and the receiver's credit before the plan is computed — so a
-/// settled amount doesn't reappear just because new expenses reshuffled
-/// who's paired with who), and reduces what's left to the smallest
-/// possible set of "X pays Y RM Z" transactions (greedy: match the
-/// biggest debtor against the biggest creditor, repeat).
 List<_Settlement> _computeSettlements(
   List<TripBalance> travelers,
   Map<String, double> netByUser,
@@ -96,11 +88,6 @@ List<_Settlement> _computeSettlements(
   return settlements;
 }
 
-/// Shows what each trip member actually paid (summed from their logged
-/// expenses) and, from that, an automatically computed even split: who's
-/// owed money, who owes money, and the smallest set of payments that
-/// would settle everyone up — each markable as settled once actually
-/// paid outside the app, which nets it out of future recalculations.
 class ExpenseSplitScreen extends StatefulWidget {
   const ExpenseSplitScreen({super.key, required this.tripId});
 
@@ -195,9 +182,6 @@ class _ExpenseSplitScreenState extends State<ExpenseSplitScreen> {
               builder: (context, settleSnap) {
                 final settlements = settleSnap.data ?? const <TripSettlement>[];
 
-                // A settlement reduces the payer's debt (net moves
-                // toward zero, i.e. up) and the receiver's credit (net
-                // moves toward zero, i.e. down).
                 final netByUser = {
                   for (final t in travelers) t.userId: t.paid - fairShare,
                 };
@@ -558,8 +542,6 @@ class _ExpenseSplitScreenState extends State<ExpenseSplitScreen> {
   }
 }
 
-/// One "X pays Y" pending transaction with a "mark as settled" action —
-/// manages its own saving state so a double-tap can't record it twice.
 class _PendingSettlementRow extends StatefulWidget {
   const _PendingSettlementRow({
     required this.settlement,

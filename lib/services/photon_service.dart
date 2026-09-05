@@ -8,33 +8,15 @@ import '../models/trip_stop_location.dart';
 const _searchEndpoint = 'https://photon.komoot.io/api/';
 const _reverseEndpoint = 'https://photon.komoot.io/reverse';
 
-/// Photon's server rejects requests with Dart's default `Dart/x.x (dart:io)`
-/// User-Agent with a 403 — every request needs a browser-like one instead.
 const _headers = {
-  'User-Agent':
-      'Mozilla/5.0 (compatible; travelplanner-app) TravelPlanner/1.0',
+  'User-Agent': 'Mozilla/5.0 (compatible; travelplanner-app) TravelPlanner/1.0',
 };
 
-/// west,south,east,north — a loose box around all of Malaysia (Peninsular
-/// + Sabah/Sarawak). Narrows Photon's search to the region, but since the
-/// box's corners spill into Indonesia/Singapore/Brunei/Thailand, it's not
-/// a country filter by itself — see the `countrycode` check in [_toStop].
 const _malaysiaBbox = '99.5,0.5,119.5,7.5';
 
-/// Photon is a best-effort, unauthenticated third-party API — without a
-/// timeout, a slow or unreachable request leaves an `await` on this
-/// hanging indefinitely, which for [PhotonService.reverseAdministrative]
-/// means Emergency Contacts' loading spinner never resolves at all rather
-/// than falling back to the national-only numbers.
 const _requestTimeout = Duration(seconds: 10);
 
-/// Free place search/autocomplete and reverse geocoding via Photon
-/// (komoot's OpenStreetMap-based geocoder) — no API key required. Every
-/// result is restricted to Malaysia.
 class PhotonService {
-  /// Autocomplete search for the Stop Selection search bar. [near] biases
-  /// results toward that point (e.g. the map's current center) without
-  /// restricting to it; results outside Malaysia are dropped regardless.
   Future<List<TripStopLocation>> search(String query, {LatLng? near}) async {
     final trimmed = query.trim();
     if (trimmed.isEmpty) return const [];
@@ -49,23 +31,18 @@ class PhotonService {
         if (near != null) 'lon': near.longitude.toString(),
       },
     );
-    final response = await http.get(uri, headers: _headers).timeout(_requestTimeout);
+    final response = await http
+        .get(uri, headers: _headers)
+        .timeout(_requestTimeout);
     if (response.statusCode != 200) {
       throw Exception('Place search failed (${response.statusCode})');
     }
     return _parseFeatures(response.body);
   }
 
-  /// Reverse-geocodes [point] to its containing administrative area
-  /// names, unlike [reverse] which returns the nearest named PLACE (a
-  /// shop, landmark, etc.) collapsed into one address string. Used by
-  /// the Weather module to match a GPS position to a MET Malaysia "Town"
-  /// forecast area — returns whichever fields Photon's OSM data has for
-  /// that point (a sparsely-mapped rural point may have `city` empty),
-  /// plus [countryCode] so a caller can distinguish "outside Malaysia"
-  /// (a real, expected result) from "no data at all". Returns null only
-  /// when there's no reverse-geocode result whatsoever.
-  Future<({String? city, String? district, String? state, String? countryCode})?>
+  Future<
+    ({String? city, String? district, String? state, String? countryCode})?
+  >
   reverseAdministrative(LatLng point) async {
     final uri = Uri.parse(_reverseEndpoint).replace(
       queryParameters: {
@@ -73,7 +50,9 @@ class PhotonService {
         'lon': point.longitude.toString(),
       },
     );
-    final response = await http.get(uri, headers: _headers).timeout(_requestTimeout);
+    final response = await http
+        .get(uri, headers: _headers)
+        .timeout(_requestTimeout);
     if (response.statusCode != 200) {
       throw Exception('Reverse lookup failed (${response.statusCode})');
     }
@@ -131,7 +110,9 @@ class PhotonService {
 
     return TripStopLocation(
       name: name,
-      address: addressParts.isEmpty ? 'Unknown address' : addressParts.join(', '),
+      address: addressParts.isEmpty
+          ? 'Unknown address'
+          : addressParts.join(', '),
       longitude: (coords[0] as num).toDouble(),
       latitude: (coords[1] as num).toDouble(),
       osmId: osmId,
@@ -142,8 +123,6 @@ class PhotonService {
     );
   }
 
-  /// Maps Photon/OSM's `osm_key`/`osm_value` tag pair to one of
-  /// [TripStopLocation]'s coarse category labels.
   String _categoryOf(String? key, String? value) {
     switch (key) {
       case 'shop':

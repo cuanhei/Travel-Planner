@@ -1,10 +1,5 @@
 import 'package:flutter/material.dart';
 
-/// Decorative "real map" backdrop — land, a coastline strip, a park
-/// block, a few building blocks, and a couple of roads. No map SDK or
-/// tile data, just enough visual language to read as a street map.
-/// Shared by every stylized map surface in the app so they look
-/// consistent.
 class StreetMapPainter extends CustomPainter {
   const StreetMapPainter();
 
@@ -15,7 +10,6 @@ class StreetMapPainter extends CustomPainter {
       Paint()..color = const Color(0xFFEFEDE6),
     );
 
-    // Coastline along the right edge.
     final water = Path()
       ..moveTo(size.width * 0.84, 0)
       ..quadraticBezierTo(
@@ -29,7 +23,6 @@ class StreetMapPainter extends CustomPainter {
       ..close();
     canvas.drawPath(water, Paint()..color = const Color(0xFFC3E3F2));
 
-    // Park block.
     canvas.drawRRect(
       RRect.fromRectAndRadius(
         Rect.fromLTWH(
@@ -43,7 +36,6 @@ class StreetMapPainter extends CustomPainter {
       Paint()..color = const Color(0xFFD9E8CE),
     );
 
-    // Building blocks.
     final blockPaint = Paint()..color = Colors.white.withValues(alpha: 0.65);
     for (final r in const [
       Rect.fromLTWH(0.10, 0.10, 0.20, 0.16),
@@ -66,7 +58,6 @@ class StreetMapPainter extends CustomPainter {
       );
     }
 
-    // Minor streets.
     final minorRoad = Paint()
       ..color = Colors.white
       ..strokeWidth = 3;
@@ -79,7 +70,6 @@ class StreetMapPainter extends CustomPainter {
       canvas.drawLine(Offset(0, y), Offset(size.width, y), minorRoad);
     }
 
-    // Major roads.
     final majorRoad = Paint()
       ..color = const Color(0xFFF7D774)
       ..strokeWidth = 7
