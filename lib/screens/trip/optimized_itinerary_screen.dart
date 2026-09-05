@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../models/day_schedule.dart';
 import '../../models/pending_trip_draft.dart';
+import '../../models/place_environment.dart';
 import '../../models/trip_day.dart';
 import '../../models/trip_stop_location.dart';
 import '../../models/unscheduled_stop.dart';
@@ -75,13 +76,31 @@ class _OptimizedItineraryScreenState extends State<OptimizedItineraryScreen> {
   final _weatherAdjustmentService = WeatherAdjustmentService();
   final _gapFillingService = GapFillingService();
   late final List<TripDay> _tripDays = buildTripDays(widget.draft);
-  late final Future<List<DaySchedule>> _scheduleFuture = _computeSchedules();
+
+  List<DaySchedule>? _schedules;
+  String _statusMessage = 'Getting started…';
+
+  @override
+  void initState() {
+    super.initState();
+    // Deferred a frame so the very first status update isn't a setState
+    // fired from within initState/the first build itself.
+    WidgetsBinding.instance.addPostFrameCallback((_) => _run());
+  }
+
+  Future<void> _run() async {
+    final schedules = await _computeSchedules();
+    if (mounted) setState(() => _schedules = schedules);
+  }
 
   Future<List<DaySchedule>> _computeSchedules() async {
     if (_tripDays.isEmpty) return const [];
 
     var assignment = const <int, List<TripStopLocation>>{};
     if (widget.draft.stops.isNotEmpty) {
+      setState(
+        () => _statusMessage = 'Figuring out which stops fit which day…',
+      );
       final detours = await _assignmentService.computeDetours(
         days: _tripDays,
         places: widget.draft.stops,
@@ -89,6 +108,9 @@ class _OptimizedItineraryScreenState extends State<OptimizedItineraryScreen> {
       assignment = _assignmentService.assignPlacesToDays(detours);
     }
 
+    setState(
+      () => _statusMessage = 'Working out travel times and opening hours…',
+    );
     final baseSchedules = [
       for (final day in _tripDays)
         await _scheduleService.scheduleDay(
@@ -99,12 +121,14 @@ class _OptimizedItineraryScreenState extends State<OptimizedItineraryScreen> {
         ),
     ];
 
+    setState(() => _statusMessage = 'Checking the weather forecast…');
     final weatherAdjusted = await _weatherAdjustmentService.adjust(
       baseSchedules: baseSchedules,
       dayStart: widget.draft.startTime,
       dayEnd: widget.draft.endTime,
     );
 
+    setState(() => _statusMessage = 'Filling in any remaining gaps…');
     final gapFilled = await _gapFillingService.fillGaps(
       schedules: weatherAdjusted,
       dayStart: widget.draft.startTime,
@@ -125,6 +149,7 @@ class _OptimizedItineraryScreenState extends State<OptimizedItineraryScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final schedules = _schedules;
     return Scaffold(
       backgroundColor: context.colors.surface,
       body: SafeArea(
@@ -139,60 +164,75 @@ class _OptimizedItineraryScreenState extends State<OptimizedItineraryScreen> {
                   : widget.description,
             ),
             Expanded(
-              child: FutureBuilder<List<DaySchedule>>(
-                future: _scheduleFuture,
-                builder: (context, snapshot) {
-                  final loading =
-                      snapshot.connectionState != ConnectionState.done;
-                  final schedules = snapshot.data ?? const [];
-                  final unscheduled = [
-                    for (final s in schedules) ...s.unscheduledStops,
-                  ];
-                  return ListView(
-                    padding: const EdgeInsets.fromLTRB(24, 8, 24, 24),
-                    children: [
-                      Row(
-                        children: [
-                          _SummaryStat(
-                            icon: Icons.flag_rounded,
-                            label: 'Stops',
-                            value: '${widget.draft.stops.length}',
-                          ),
-                          _SummaryStat(
-                            icon: Icons.calendar_today_rounded,
-                            label: 'Days',
-                            value: '${_tripDays.length}',
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 20),
-                      if (_tripDays.isEmpty)
-                        Text(
-                          'Pick your travel dates and start/end locations '
-                          'to see the day-by-day plan.',
-                          style: TextStyle(
-                            color: context.colors.muted,
-                            fontSize: 13,
-                          ),
-                        )
-                      else if (loading)
-                        for (final day in _tripDays)
-                          _TripDayLoadingCard(day: day)
-                      else ...[
-                        for (final schedule in schedules)
-                          _TripDaySection(schedule: schedule),
-                        if (unscheduled.isNotEmpty)
-                          _UnscheduledSection(entries: unscheduled),
-                      ],
-                      const SizedBox(height: 8),
-                      _SaveTripButton(
-                        tripName: widget.tripName,
-                        description: widget.description,
-                        draft: widget.draft,
-                      ),
-                    ],
-                  );
-                },
+              child: schedules == null
+                  ? _BuildingItineraryView(statusMessage: _statusMessage)
+                  : _ItineraryContent(
+                      tripDays: _tripDays,
+                      schedules: schedules,
+                      draft: widget.draft,
+                      tripName: widget.tripName,
+                      description: widget.description,
+                    ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Full-screen loading state shown for the whole time the pipeline is
+/// computing (geographic clustering → route order → opening
+/// hours/travel/duration → weather adjustment → gap filling) — nothing
+/// about the itinerary is shown until it's actually finished, rather
+/// than revealing partial per-day placeholders as they trickle in.
+class _BuildingItineraryView extends StatelessWidget {
+  const _BuildingItineraryView({required this.statusMessage});
+
+  final String statusMessage;
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 40),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 84,
+              height: 84,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: AppColors.accent.withValues(alpha: 0.12),
+              ),
+              alignment: Alignment.center,
+              child: const SizedBox(
+                width: 34,
+                height: 34,
+                child: CircularProgressIndicator(
+                  strokeWidth: 3,
+                  color: AppColors.accent,
+                ),
+              ),
+            ),
+            const SizedBox(height: 24),
+            Text(
+              'Planning your itinerary…',
+              style: TextStyle(
+                color: context.colors.ink,
+                fontWeight: FontWeight.w800,
+                fontSize: 17,
+              ),
+            ),
+            const SizedBox(height: 8),
+            AnimatedSwitcher(
+              duration: const Duration(milliseconds: 250),
+              child: Text(
+                statusMessage,
+                key: ValueKey(statusMessage),
+                textAlign: TextAlign.center,
+                style: TextStyle(color: context.colors.muted, fontSize: 13),
               ),
             ),
           ],
@@ -202,21 +242,90 @@ class _OptimizedItineraryScreenState extends State<OptimizedItineraryScreen> {
   }
 }
 
+/// The finished itinerary — everything shown only once [schedules] is
+/// fully computed.
+class _ItineraryContent extends StatelessWidget {
+  const _ItineraryContent({
+    required this.tripDays,
+    required this.schedules,
+    required this.draft,
+    required this.tripName,
+    required this.description,
+  });
+
+  final List<TripDay> tripDays;
+  final List<DaySchedule> schedules;
+  final PendingTripDraft draft;
+  final String tripName;
+  final String description;
+
+  @override
+  Widget build(BuildContext context) {
+    final unscheduled = [
+      for (final s in schedules) ...s.unscheduledStops,
+    ];
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(24, 8, 24, 24),
+      children: [
+        Row(
+          children: [
+            _SummaryStat(
+              icon: Icons.flag_rounded,
+              label: 'Stops',
+              value: '${draft.stops.length}',
+            ),
+            _SummaryStat(
+              icon: Icons.calendar_today_rounded,
+              label: 'Days',
+              value: '${tripDays.length}',
+            ),
+          ],
+        ),
+        const SizedBox(height: 20),
+        if (tripDays.isEmpty)
+          Text(
+            'Pick your travel dates and start/end locations '
+            'to see the day-by-day plan.',
+            style: TextStyle(color: context.colors.muted, fontSize: 13),
+          )
+        else ...[
+          for (final schedule in schedules) _TripDaySection(schedule: schedule),
+          if (unscheduled.isNotEmpty) _UnscheduledSection(entries: unscheduled),
+        ],
+        const SizedBox(height: 8),
+        _SaveTripButton(
+          tripName: tripName,
+          description: description,
+          draft: draft,
+          schedules: schedules,
+        ),
+      ],
+    );
+  }
+}
+
 /// "Save Trip" button — this is the actual create-trip step for the
 /// whole Create Trip flow. Nothing is written to the database before
-/// this point; tapping it inserts the `trips` row (plus one
-/// `trip_accommodations` row per night) from [draft], then returns to
-/// My Trips.
+/// this point; tapping it inserts the `trips` row, one
+/// `trip_accommodations` row per night, then the whole generated
+/// itinerary — every location involved into `trip_stops` and the timed
+/// day-by-day route into `trip_schedule_stops` (see
+/// [TripService.saveTripSchedule]) — before returning to My Trips.
+/// Disabled (shown greyed out, not tappable) until [schedules] is
+/// available, since there's nothing to save yet while the pipeline is
+/// still computing.
 class _SaveTripButton extends StatefulWidget {
   const _SaveTripButton({
     required this.tripName,
     required this.description,
     required this.draft,
+    required this.schedules,
   });
 
   final String tripName;
   final String description;
   final PendingTripDraft draft;
+  final List<DaySchedule>? schedules;
 
   @override
   State<_SaveTripButton> createState() => _SaveTripButtonState();
@@ -227,10 +336,13 @@ class _SaveTripButtonState extends State<_SaveTripButton> {
   bool _saving = false;
 
   Future<void> _handleTap() async {
+    final schedules = widget.schedules;
+    if (schedules == null) return;
+
     setState(() => _saving = true);
     final draft = widget.draft;
     try {
-      await _tripService.createTrip(
+      final tripId = await _tripService.createTrip(
         name: widget.tripName,
         description: widget.description,
         destination: draft.endLocation?.name ?? draft.startLocation?.name,
@@ -248,6 +360,11 @@ class _SaveTripButtonState extends State<_SaveTripButton> {
         endTime: _formatTimeOfDay(draft.endTime),
         totalBudget: draft.totalBudget,
         accommodations: draft.accommodations,
+      );
+      await _tripService.saveTripSchedule(
+        tripId: tripId,
+        schedules: schedules,
+        dayStart: draft.startTime,
       );
     } catch (e) {
       // Full exception (PostgrestException's message/code/details/hint)
@@ -282,11 +399,12 @@ class _SaveTripButtonState extends State<_SaveTripButton> {
 
   @override
   Widget build(BuildContext context) {
+    final ready = widget.schedules != null;
     return GradientButton(
       label: 'Save Trip',
       icon: Icons.bookmark_added_rounded,
       loading: _saving,
-      onPressed: _saving ? () {} : _handleTap,
+      onPressed: (_saving || !ready) ? () {} : _handleTap,
     );
   }
 }
@@ -343,36 +461,6 @@ class _SummaryStat extends StatelessWidget {
   }
 }
 
-/// Placeholder shown for each day while [DayScheduleService] is still
-/// working — anchors only, same shell as [_TripDaySection] but no
-/// timeline yet.
-class _TripDayLoadingCard extends StatelessWidget {
-  const _TripDayLoadingCard({required this.day});
-
-  final TripDay day;
-
-  @override
-  Widget build(BuildContext context) {
-    return _DayCardShell(
-      day: day,
-      child: Row(
-        children: [
-          const SizedBox(
-            width: 14,
-            height: 14,
-            child: CircularProgressIndicator(strokeWidth: 2),
-          ),
-          const SizedBox(width: 10),
-          Text(
-            'Building this day\'s schedule…',
-            style: TextStyle(color: context.colors.muted, fontSize: 12),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
 /// One day's card: start anchor, the timed stop-by-stop schedule
 /// [DayScheduleService] built for it (real stop order, real travel
 /// time, real opening hours — see [DaySchedule]), and the end anchor
@@ -405,10 +493,15 @@ class _TripDaySection extends StatelessWidget {
               ),
             )
           else
-            for (final scheduledStop in schedule.scheduledStops)
+            for (var i = 0; i < schedule.scheduledStops.length; i++)
               Padding(
                 padding: const EdgeInsets.symmetric(vertical: 10),
-                child: _ScheduledStopCard(scheduledStop: scheduledStop),
+                child: _ScheduledStopCard(
+                  scheduledStop: schedule.scheduledStops[i],
+                  previousLocationName: i == 0
+                      ? day.startAnchor.name
+                      : schedule.scheduledStops[i - 1].stop.name,
+                ),
               ),
           _AnchorLine(
             label: 'End At',
@@ -435,8 +528,7 @@ class _TripDaySection extends StatelessWidget {
   }
 }
 
-/// Shared card chrome (background, date header) for both
-/// [_TripDayLoadingCard] and [_TripDaySection].
+/// Shared card chrome (background, date header) for [_TripDaySection].
 class _DayCardShell extends StatelessWidget {
   const _DayCardShell({required this.day, required this.child});
 
@@ -551,13 +643,51 @@ class _AnchorLine extends StatelessWidget {
   }
 }
 
+/// Why [scheduledStop] landed here — grounded only in what the pipeline
+/// actually computed for it (travel time from whatever came before it,
+/// whether it waited for opening, and its indoor/outdoor/mixed
+/// [PlaceEnvironment] against [ScheduledStop.hasWeatherConcern]), not a
+/// fabricated explanation.
+String _reasonForStop(ScheduledStop scheduledStop, String previousLocationName) {
+  final stop = scheduledStop.stop;
+  final parts = <String>[];
+
+  final travel = scheduledStop.travelMinutesFromPrevious;
+  parts.add(
+    travel <= 2
+        ? 'Right next to $previousLocationName'
+        : '$travel min from $previousLocationName',
+  );
+
+  if (scheduledStop.waitTime.inMinutes > 0) {
+    parts.add('scheduled right as it opens');
+  }
+
+  final environment = getEnvironment(stop.primaryType, stop.types);
+  if (scheduledStop.hasWeatherConcern) {
+    parts.add("kept despite mixed weather — no better slot fit");
+  } else if (environment == PlaceEnvironment.outdoor) {
+    parts.add('good weather for an outdoor visit');
+  } else if (environment == PlaceEnvironment.indoor) {
+    parts.add('indoor, weather-proof pick');
+  }
+
+  return parts.join(' · ');
+}
+
 /// One scheduled stop's real timeline: travel time in from wherever came
 /// before it, arrival, a wait-for-opening callout if it arrived early,
-/// and the visit window — all from [ScheduledStop], nothing simulated.
+/// the visit window, and why the planner placed it here (see
+/// [_reasonForStop]) — all derived from [ScheduledStop], nothing
+/// simulated.
 class _ScheduledStopCard extends StatelessWidget {
-  const _ScheduledStopCard({required this.scheduledStop});
+  const _ScheduledStopCard({
+    required this.scheduledStop,
+    required this.previousLocationName,
+  });
 
   final ScheduledStop scheduledStop;
+  final String previousLocationName;
 
   @override
   Widget build(BuildContext context) {
@@ -658,6 +788,28 @@ class _ScheduledStopCard extends StatelessWidget {
                           fontWeight: FontWeight.w700,
                         ),
                       ),
+                    ),
+                    const SizedBox(height: 6),
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Icon(
+                          Icons.lightbulb_outline_rounded,
+                          size: 12,
+                          color: context.colors.muted,
+                        ),
+                        const SizedBox(width: 4),
+                        Expanded(
+                          child: Text(
+                            _reasonForStop(scheduledStop, previousLocationName),
+                            style: TextStyle(
+                              color: context.colors.muted,
+                              fontSize: 10.5,
+                              fontStyle: FontStyle.italic,
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                   ],
                 ),

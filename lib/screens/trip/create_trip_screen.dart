@@ -618,9 +618,6 @@ class _CreateTripScreenState extends State<CreateTripScreen> {
                                   value: _startLocation,
                                   onChanged: _onStartLocationChanged,
                                   hintText: 'Search for a starting location…',
-                                  isResultDisabled: (loc) =>
-                                      _endLocation != null &&
-                                      loc == _endLocation,
                                 ),
                                 _FieldError(field.errorText),
                               ],
@@ -642,9 +639,6 @@ class _CreateTripScreenState extends State<CreateTripScreen> {
                                   value: _endLocation,
                                   onChanged: _onEndLocationChanged,
                                   hintText: 'Search for an ending location…',
-                                  isResultDisabled: (loc) =>
-                                      _startLocation != null &&
-                                      loc == _startLocation,
                                 ),
                                 _FieldError(field.errorText),
                               ],

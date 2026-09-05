@@ -1,186 +1,92 @@
 import 'package:flutter/material.dart';
 
+import '../../models/trip.dart';
+import '../../models/trip_schedule_entry.dart';
+import '../../models/trip_stop_location.dart' show iconForCategory;
+import '../../services/trip_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/detail_header.dart';
 import '../transport/transport_routes_screen.dart';
 
-/// How the traveler gets from one timeline stop to the next.
-enum _TransportMode { undecided, publicTransport, eHailing, walk }
+const _monthNames = [
+  'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+  'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+];
 
-extension on _TransportMode {
-  String get label => switch (this) {
-    _TransportMode.undecided => 'Choose transport',
-    _TransportMode.publicTransport => 'Public transport',
-    _TransportMode.eHailing => 'E-hailing',
-    _TransportMode.walk => 'Walking',
-  };
+/// e.g. "Aug 14".
+String _formatShortDate(DateTime d) => '${_monthNames[d.month - 1]} ${d.day}';
 
-  IconData get icon => switch (this) {
-    _TransportMode.undecided => Icons.alt_route_rounded,
-    _TransportMode.publicTransport => Icons.directions_bus_filled_rounded,
-    _TransportMode.eHailing => Icons.local_taxi_rounded,
-    _TransportMode.walk => Icons.directions_walk_rounded,
-  };
-
-  Color get color => switch (this) {
-    _TransportMode.undecided => const Color(0xFF6E7A93),
-    _TransportMode.publicTransport => const Color(0xFF5C6BC0),
-    _TransportMode.eHailing => AppColors.accent,
-    _TransportMode.walk => const Color(0xFF11998E),
-  };
+/// "14:05:00" (Postgres `time`) → "2:05 PM"; null through unchanged.
+String? _formatTimeString(String? raw) {
+  if (raw == null) return null;
+  final parts = raw.split(':');
+  if (parts.length < 2) return raw;
+  final hour = int.tryParse(parts[0]) ?? 0;
+  final minute = int.tryParse(parts[1]) ?? 0;
+  final period = hour >= 12 ? 'PM' : 'AM';
+  final displayHour = hour % 12 == 0 ? 12 : hour % 12;
+  return '$displayHour:${minute.toString().padLeft(2, '0')} $period';
 }
 
+IconData _iconForTravelMode(String? mode) => switch (mode) {
+  'drive' => Icons.directions_car_filled_rounded,
+  'walk' => Icons.directions_walk_rounded,
+  'transit' => Icons.directions_bus_filled_rounded,
+  _ => Icons.alt_route_rounded,
+};
+
+String _labelForTravelMode(String? mode) => switch (mode) {
+  'drive' => 'Driving',
+  'walk' => 'Walking',
+  'transit' => 'Public transport',
+  _ => 'Getting there',
+};
+
 /// A node in a day's timeline — either a stop ([_Activity]) or the
-/// commute between two stops ([_Transport]).
+/// travel between two stops ([_Transport]).
 abstract class _TimelineEntry {}
 
 class _Activity extends _TimelineEntry {
-  _Activity(
-    this.time,
-    this.title,
-    this.subtitle,
-    this.icon, {
-    this.completed = false,
-  });
+  _Activity(this.time, this.title, this.subtitle, this.icon);
 
   final String time;
   final String title;
   final String subtitle;
   final IconData icon;
-  bool completed;
+
+  /// Purely local/session state — there's no "completed" column on
+  /// `trip_schedule_stops`, so this (like the similar tracker on Trip
+  /// Details' Activity feed) resets the next time this screen opens.
+  bool completed = false;
 }
 
 class _Transport extends _TimelineEntry {
-  _Transport(this.estimatedMinutes, {this.mode = _TransportMode.undecided});
+  _Transport(this.minutes, this.mode);
 
-  final int estimatedMinutes;
-  _TransportMode mode;
+  final int minutes;
+  final String? mode;
 }
 
-/// UI-only vertical timeline of each day's activities for the trip,
-/// with the commute between stops shown as its own tappable step where
-/// the traveler picks public transport, e-hailing, or walking.
+/// Real, saved day-by-day schedule for a trip — everything
+/// [DayScheduleService] worked out at planning time (stop order, real
+/// travel minutes, opening-hours-aware arrival/departure times) and
+/// [TripService.saveTripSchedule] persisted to `trip_schedule_stops`,
+/// read back and displayed one day at a time.
 class DailyTimelineScreen extends StatefulWidget {
-  const DailyTimelineScreen({super.key});
+  const DailyTimelineScreen({super.key, required this.trip});
+
+  final Trip trip;
 
   @override
   State<DailyTimelineScreen> createState() => _DailyTimelineScreenState();
 }
 
 class _DailyTimelineScreenState extends State<DailyTimelineScreen> {
-  int _day = 0;
+  final _tripService = TripService();
+  late final Future<List<TripScheduleEntry>> _scheduleFuture = _tripService
+      .getTripSchedule(widget.trip.id);
 
-  static final _days = [
-    (
-      label: 'Day 1',
-      date: 'Aug 14',
-      items: <_TimelineEntry>[
-        _Activity(
-          '8:00 AM',
-          'Breakfast at hotel',
-          'Start the day fueled up',
-          Icons.free_breakfast_rounded,
-          completed: true,
-        ),
-        _Transport(15, mode: _TransportMode.walk),
-        _Activity(
-          '10:00 AM',
-          'Komtar, George Town',
-          'Shopping & observation deck',
-          Icons.location_city_rounded,
-          completed: true,
-        ),
-        _Transport(4, mode: _TransportMode.walk),
-        _Activity(
-          '1:00 PM',
-          'Lunch at Komtar food court',
-          'Local Penang hawker food',
-          Icons.restaurant_rounded,
-          completed: true,
-        ),
-        _Transport(10, mode: _TransportMode.walk),
-        _Activity(
-          '4:00 PM',
-          'Stroll George Town street art',
-          'Free time exploring murals',
-          Icons.palette_rounded,
-          completed: true,
-        ),
-      ],
-    ),
-    (
-      label: 'Day 2',
-      date: 'Aug 15',
-      items: <_TimelineEntry>[
-        _Activity(
-          '9:30 AM',
-          'Breakfast nearby',
-          'Local kopitiam',
-          Icons.coffee_rounded,
-          completed: true,
-        ),
-        _Transport(18),
-        _Activity(
-          '1:00 PM',
-          'Gurney Drive & Plaza',
-          'Shopping and seaside walk',
-          Icons.shopping_bag_rounded,
-        ),
-        _Transport(6, mode: _TransportMode.walk),
-        _Activity(
-          '6:30 PM',
-          'Dinner at Gurney food stalls',
-          'Famous hawker street food',
-          Icons.restaurant_rounded,
-        ),
-      ],
-    ),
-    (
-      label: 'Day 3',
-      date: 'Aug 16',
-      items: <_TimelineEntry>[
-        _Activity(
-          '11:00 AM',
-          'Check out & luggage drop',
-          'Prep for last stop',
-          Icons.luggage_rounded,
-        ),
-        _Transport(25),
-        _Activity(
-          '4:00 PM',
-          'Queensbay Mall',
-          'Final shopping & souvenirs',
-          Icons.storefront_rounded,
-        ),
-        _Transport(30),
-        _Activity(
-          '8:00 PM',
-          'Head to airport',
-          'End of trip',
-          Icons.flight_takeoff_rounded,
-        ),
-      ],
-    ),
-  ];
-
-  Future<void> _pickTransportMode(_Transport transport) async {
-    final selected = await showModalBottomSheet<_TransportMode>(
-      context: context,
-      backgroundColor: Colors.transparent,
-      builder: (_) => _TransportModeSheet(current: transport.mode),
-    );
-    if (selected == null) return;
-    setState(() => transport.mode = selected);
-    if (selected == _TransportMode.publicTransport && mounted) {
-      Navigator.of(
-        context,
-      ).push(MaterialPageRoute(builder: (_) => const TransportRoutesScreen()));
-    }
-  }
-
-  void _completeActivity(_Activity activity) {
-    setState(() => activity.completed = true);
-  }
+  int _selectedDay = 1;
 
   /// The first not-yet-completed stop in [items] — only this one gets a
   /// "Complete" button, so the traveler works through the day in order.
@@ -191,9 +97,36 @@ class _DailyTimelineScreenState extends State<DailyTimelineScreen> {
     return null;
   }
 
+  List<_TimelineEntry> _entriesForDay(List<TripScheduleEntry> dayEntries) {
+    final entries = <_TimelineEntry>[];
+    for (final entry in dayEntries) {
+      if (entry.travelMinutes != null) {
+        entries.add(_Transport(entry.travelMinutes!, entry.travelMode));
+      }
+      final time =
+          _formatTimeString(entry.scheduledArrival) ??
+          _formatTimeString(entry.scheduledDeparture) ??
+          '';
+      entries.add(
+        _Activity(
+          time,
+          entry.stopName,
+          entry.isHotel ? 'Accommodation' : entry.stopAddress,
+          entry.isHotel ? Icons.hotel_rounded : iconForCategory(entry.category),
+        ),
+      );
+    }
+    return entries;
+  }
+
+  String? _dateLabelFor(int dayNumber) {
+    final start = widget.trip.startDate;
+    if (start == null) return null;
+    return _formatShortDate(start.add(Duration(days: dayNumber - 1)));
+  }
+
   @override
   Widget build(BuildContext context) {
-    final day = _days[_day];
     return Scaffold(
       backgroundColor: context.colors.surface,
       body: SafeArea(
@@ -203,76 +136,141 @@ class _DailyTimelineScreenState extends State<DailyTimelineScreen> {
               title: 'Daily Timeline',
               subtitle: 'Your day-by-day schedule',
             ),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 24),
-              child: Row(
-                children: List.generate(_days.length, (i) {
-                  final active = i == _day;
-                  return Expanded(
-                    child: GestureDetector(
-                      onTap: () => setState(() => _day = i),
-                      child: Container(
-                        margin: EdgeInsets.only(
-                          right: i < _days.length - 1 ? 10 : 0,
+            Expanded(
+              child: FutureBuilder<List<TripScheduleEntry>>(
+                future: _scheduleFuture,
+                builder: (context, snapshot) {
+                  if (snapshot.connectionState != ConnectionState.done) {
+                    return const Center(child: CircularProgressIndicator());
+                  }
+                  if (snapshot.hasError) {
+                    return Center(
+                      child: Text(
+                        'Could not load the schedule: ${snapshot.error}',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(color: context.colors.muted),
+                      ),
+                    );
+                  }
+
+                  final byDay = <int, List<TripScheduleEntry>>{};
+                  for (final entry in snapshot.data ?? const []) {
+                    byDay.putIfAbsent(entry.dayNumber, () => []).add(entry);
+                  }
+                  final dayNumbers = byDay.keys.toList()..sort();
+
+                  if (dayNumbers.isEmpty) {
+                    return Center(
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 32),
+                        child: Text(
+                          "This trip doesn't have a saved schedule yet.",
+                          textAlign: TextAlign.center,
+                          style: TextStyle(color: context.colors.muted),
                         ),
-                        padding: const EdgeInsets.symmetric(vertical: 10),
-                        decoration: BoxDecoration(
-                          color: active
-                              ? context.colors.ink
-                              : context.colors.card,
-                          borderRadius: BorderRadius.circular(14),
-                        ),
-                        child: Column(
+                      ),
+                    );
+                  }
+
+                  if (!dayNumbers.contains(_selectedDay)) {
+                    _selectedDay = dayNumbers.first;
+                  }
+                  final items = _entriesForDay(byDay[_selectedDay]!);
+
+                  return Column(
+                    children: [
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 24),
+                        child: Row(
                           children: [
-                            Text(
-                              _days[i].label,
-                              style: TextStyle(
-                                color: active
-                                    ? Colors.white
-                                    : context.colors.ink,
-                                fontWeight: FontWeight.w700,
-                                fontSize: 13,
+                            for (final dayNumber in dayNumbers)
+                              Expanded(
+                                child: GestureDetector(
+                                  onTap: () =>
+                                      setState(() => _selectedDay = dayNumber),
+                                  child: Container(
+                                    margin: EdgeInsets.only(
+                                      right: dayNumber == dayNumbers.last
+                                          ? 0
+                                          : 10,
+                                    ),
+                                    padding: const EdgeInsets.symmetric(
+                                      vertical: 10,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: dayNumber == _selectedDay
+                                          ? context.colors.ink
+                                          : context.colors.card,
+                                      borderRadius: BorderRadius.circular(14),
+                                    ),
+                                    child: Column(
+                                      children: [
+                                        Text(
+                                          'Day $dayNumber',
+                                          style: TextStyle(
+                                            color: dayNumber == _selectedDay
+                                                ? Colors.white
+                                                : context.colors.ink,
+                                            fontWeight: FontWeight.w700,
+                                            fontSize: 13,
+                                          ),
+                                        ),
+                                        if (_dateLabelFor(dayNumber) !=
+                                            null) ...[
+                                          const SizedBox(height: 2),
+                                          Text(
+                                            _dateLabelFor(dayNumber)!,
+                                            style: TextStyle(
+                                              color: dayNumber == _selectedDay
+                                                  ? Colors.white70
+                                                  : context.colors.muted,
+                                              fontSize: 11,
+                                            ),
+                                          ),
+                                        ],
+                                      ],
+                                    ),
+                                  ),
+                                ),
                               ),
-                            ),
-                            const SizedBox(height: 2),
-                            Text(
-                              _days[i].date,
-                              style: TextStyle(
-                                color: active
-                                    ? Colors.white70
-                                    : context.colors.muted,
-                                fontSize: 11,
-                              ),
-                            ),
                           ],
                         ),
                       ),
-                    ),
-                  );
-                }),
-              ),
-            ),
-            const SizedBox(height: 8),
-            Expanded(
-              child: ListView.builder(
-                padding: const EdgeInsets.fromLTRB(24, 16, 24, 24),
-                itemCount: day.items.length,
-                itemBuilder: (context, index) {
-                  final item = day.items[index];
-                  final isLast = index == day.items.length - 1;
-                  if (item is _Activity) {
-                    return _ActivityRow(
-                      activity: item,
-                      isLast: isLast,
-                      showCompleteButton: identical(item, _firstUndone(day.items)),
-                      onComplete: () => _completeActivity(item),
-                    );
-                  }
-                  final transport = item as _Transport;
-                  return _TransportRow(
-                    transport: transport,
-                    isLast: isLast,
-                    onTap: () => _pickTransportMode(transport),
+                      const SizedBox(height: 8),
+                      Expanded(
+                        child: ListView.builder(
+                          padding: const EdgeInsets.fromLTRB(24, 16, 24, 24),
+                          itemCount: items.length,
+                          itemBuilder: (context, index) {
+                            final item = items[index];
+                            final isLast = index == items.length - 1;
+                            if (item is _Activity) {
+                              return _ActivityRow(
+                                activity: item,
+                                isLast: isLast,
+                                showCompleteButton: identical(
+                                  item,
+                                  _firstUndone(items),
+                                ),
+                                onComplete: () =>
+                                    setState(() => item.completed = true),
+                              );
+                            }
+                            return _TransportRow(
+                              transport: item as _Transport,
+                              isLast: isLast,
+                              onTap: () => Navigator.of(context).push(
+                                MaterialPageRoute(
+                                  builder: (_) => TransportRoutesScreen(
+                                    tripId: widget.trip.id,
+                                  ),
+                                ),
+                              ),
+                            );
+                          },
+                        ),
+                      ),
+                    ],
                   );
                 },
               ),
@@ -448,6 +446,10 @@ class _ActivityRow extends StatelessWidget {
   }
 }
 
+/// Shows the real travel time/mode already computed at planning time —
+/// tapping opens Transport for live public-transport alternatives for
+/// this trip, since the schedule itself only ever records driving time
+/// (see `TripService.saveTripSchedule`).
 class _TransportRow extends StatelessWidget {
   const _TransportRow({
     required this.transport,
@@ -461,19 +463,23 @@ class _TransportRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final mode = transport.mode;
+    final color = AppColors.accent;
     return _TimelineRow(
       isLast: isLast,
       leading: Container(
         width: 30,
         height: 30,
         decoration: BoxDecoration(
-          color: mode.color.withValues(alpha: 0.12),
+          color: color.withValues(alpha: 0.12),
           shape: BoxShape.circle,
-          border: Border.all(color: mode.color.withValues(alpha: 0.4)),
+          border: Border.all(color: color.withValues(alpha: 0.4)),
         ),
         alignment: Alignment.center,
-        child: Icon(mode.icon, color: mode.color, size: 15),
+        child: Icon(
+          _iconForTravelMode(transport.mode),
+          color: color,
+          size: 15,
+        ),
       ),
       content: Material(
         color: context.colors.card,
@@ -490,7 +496,7 @@ class _TransportRow extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        '~${transport.estimatedMinutes} min transport',
+                        '~${transport.minutes} min',
                         style: TextStyle(
                           color: context.colors.ink,
                           fontWeight: FontWeight.w700,
@@ -499,7 +505,7 @@ class _TransportRow extends StatelessWidget {
                       ),
                       const SizedBox(height: 2),
                       Text(
-                        mode.label,
+                        _labelForTravelMode(transport.mode),
                         style: TextStyle(
                           color: context.colors.muted,
                           fontSize: 11,
@@ -515,146 +521,6 @@ class _TransportRow extends StatelessWidget {
                 ),
               ],
             ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _TransportModeSheet extends StatelessWidget {
-  const _TransportModeSheet({required this.current});
-
-  final _TransportMode current;
-
-  @override
-  Widget build(BuildContext context) {
-    return SafeArea(
-      child: Container(
-        margin: const EdgeInsets.all(12),
-        padding: const EdgeInsets.all(20),
-        decoration: BoxDecoration(
-          color: context.colors.card,
-          borderRadius: BorderRadius.circular(24),
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'How do you want to get there?',
-              style: TextStyle(
-                color: context.colors.ink,
-                fontWeight: FontWeight.w800,
-                fontSize: 16,
-              ),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              'Choose how to travel to the next stop',
-              style: TextStyle(color: context.colors.muted, fontSize: 12.5),
-            ),
-            const SizedBox(height: 18),
-            _ModeOption(
-              mode: _TransportMode.publicTransport,
-              description: 'See live bus options and directions',
-              selected: current == _TransportMode.publicTransport,
-              onTap: () =>
-                  Navigator.of(context).pop(_TransportMode.publicTransport),
-            ),
-            const SizedBox(height: 10),
-            _ModeOption(
-              mode: _TransportMode.eHailing,
-              description: 'Book a Grab or taxi ride',
-              selected: current == _TransportMode.eHailing,
-              onTap: () => Navigator.of(context).pop(_TransportMode.eHailing),
-            ),
-            const SizedBox(height: 10),
-            _ModeOption(
-              mode: _TransportMode.walk,
-              description: 'Free, and a good stretch of the legs',
-              selected: current == _TransportMode.walk,
-              onTap: () => Navigator.of(context).pop(_TransportMode.walk),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _ModeOption extends StatelessWidget {
-  const _ModeOption({
-    required this.mode,
-    required this.description,
-    required this.selected,
-    required this.onTap,
-  });
-
-  final _TransportMode mode;
-  final String description;
-  final bool selected;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return Material(
-      color: context.colors.surface,
-      borderRadius: BorderRadius.circular(16),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(16),
-        onTap: onTap,
-        child: Container(
-          padding: const EdgeInsets.all(14),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(
-              color: selected ? mode.color : Colors.transparent,
-              width: 1.5,
-            ),
-          ),
-          child: Row(
-            children: [
-              Container(
-                width: 42,
-                height: 42,
-                decoration: BoxDecoration(
-                  color: mode.color.withValues(alpha: 0.14),
-                  shape: BoxShape.circle,
-                ),
-                alignment: Alignment.center,
-                child: Icon(mode.icon, color: mode.color, size: 20),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      mode.label,
-                      style: TextStyle(
-                        color: context.colors.ink,
-                        fontWeight: FontWeight.w700,
-                        fontSize: 13.5,
-                      ),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      description,
-                      style: TextStyle(
-                        color: context.colors.muted,
-                        fontSize: 11.5,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              Icon(
-                Icons.chevron_right_rounded,
-                color: context.colors.muted,
-                size: 18,
-              ),
-            ],
           ),
         ),
       ),
