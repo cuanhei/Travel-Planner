@@ -1,9 +1,0 @@
--- No-op: this migration originally tried to add "poll creator can also
--- edit/delete their own poll" permissions, but the live database
--- already had exactly this (under different policy names —
--- polls_update_owner_or_organizer, polls_delete_owner_or_organizer,
--- poll_options_write_owner_or_organizer — each checking
--- `created_by = auth.uid() OR is_trip_organizer(trip_id)`), applied
--- outside this migration history. Left in place only so the migration
--- number isn't reused; see schema.sql for the actual current policy
--- names/definitions.

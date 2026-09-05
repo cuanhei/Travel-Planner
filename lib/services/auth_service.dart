@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -63,12 +65,43 @@ class AuthService {
     required String name,
     required String email,
     required String password,
-  }) {
-    return _auth.signUp(
+  }) async {
+    final response = await _auth.signUp(
       email: email,
       password: password,
       data: {'full_name': name},
     );
+    if (response.user != null) {
+      unawaited(_sendWelcomeEmail(email: email, name: name));
+    }
+    return response;
+  }
+
+  /// Fires the "You're signed up for TravelPlanner!" welcome email
+  /// ([supabase/functions/send-welcome-email]) directly from the client
+  /// right after sign-up, rather than via a Database Webhook on
+  /// `profiles` inserts — this project's Supabase instance is missing the
+  /// internal `supabase_functions` schema Database Webhooks depend on, so
+  /// calling the already-deployed function straight from here sidesteps
+  /// that. Payload shape matches what the function expects from a
+  /// Database Webhook (`{"record": {...}}`) so the function itself didn't
+  /// need to change. Best-effort: any failure here (network blip, the
+  /// function not yet deployed, etc) is swallowed and never surfaces to
+  /// the sign-up flow.
+  Future<void> _sendWelcomeEmail({
+    required String email,
+    required String name,
+  }) async {
+    try {
+      await Supabase.instance.client.functions.invoke(
+        'send-welcome-email',
+        body: {
+          'record': {'email': email, 'display_name': name},
+        },
+      );
+    } catch (e) {
+      debugPrint('send-welcome-email invoke failed, skipping: $e');
+    }
   }
 
   Future<void> signIn({required String email, required String password}) {
