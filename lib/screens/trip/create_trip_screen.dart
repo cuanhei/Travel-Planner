@@ -432,6 +432,46 @@ class _CreateTripScreenState extends State<CreateTripScreen> {
     return !combined.isBefore(DateTime.now());
   }
 
+  DateTime _combine(DateTime date, TimeOfDay time) =>
+      DateTime(date.year, date.month, date.day, time.hour, time.minute);
+
+  /// True if [endDate] combined with [endTime] is after the trip's start
+  /// (start date combined with Trip Start Time) — checked as one
+  /// combined moment each, not just date-before-date, so a same-day trip
+  /// whose end time is earlier in the day than its start time is still
+  /// caught. True whenever the start isn't fully set yet — nothing to
+  /// compare against.
+  bool _isEndMomentAfterStart(DateTime endDate, TimeOfDay endTime) {
+    final startDate = _startDate;
+    final startTime = _tripStartTime;
+    if (startDate == null || startTime == null) return true;
+    return _combine(endDate, endTime).isAfter(_combine(startDate, startTime));
+  }
+
+  /// Same check against whatever's *currently* set for [_endDate]/
+  /// [_tripEndTime] — true whenever either isn't set yet.
+  bool _isEndAfterStart() {
+    final endDate = _endDate;
+    final endTime = _tripEndTime;
+    if (endDate == null || endTime == null) return true;
+    return _isEndMomentAfterStart(endDate, endTime);
+  }
+
+  /// Clears an already-set Trip End Time if it's no longer after the
+  /// trip's (possibly just-changed) start — called after any edit to the
+  /// start date/time or the end date, all of which can invalidate it.
+  void _clearStaleTripEndTime() {
+    if (_tripEndTime != null && !_isEndAfterStart()) {
+      _tripEndTime = null;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          behavior: SnackBarBehavior.floating,
+          content: Text('Trip End Time is no longer after the trip start — pick a new one.'),
+        ),
+      );
+    }
+  }
+
   Future<void> _pickStartDate() async {
     final picked = await showDatePicker(
       context: context,
@@ -456,6 +496,10 @@ class _CreateTripScreenState extends State<CreateTripScreen> {
             content: Text('That start time has already passed today — pick a new one.'),
           ),
         );
+      } else {
+        // The start moved later in the day (or to a later date entirely)
+        // — the already-picked Trip End Time may no longer be after it.
+        _clearStaleTripEndTime();
       }
       _syncDays();
     });
@@ -473,45 +517,81 @@ class _CreateTripScreenState extends State<CreateTripScreen> {
     if (picked == null) return;
     setState(() {
       _endDate = picked;
+      _clearStaleTripEndTime();
       _syncDays();
     });
     _refreshTripEndTravel();
   }
 
+  /// Keeps reopening the time picker — pre-filled with the traveler's
+  /// last (rejected) attempt — until they either land on a time that
+  /// isn't already past for [_startDate], or cancel outright. Flutter's
+  /// [showTimePicker] has no built-in "earliest selectable time" the way
+  /// [showDatePicker] has `firstDate`, so this is the closest equivalent:
+  /// an invalid pick can never actually be accepted, it just bounces
+  /// straight back to the picker instead of silently closing.
   Future<void> _pickTripStartTime() async {
-    final picked = await showTimePicker(
-      context: context,
-      initialTime: _tripStartTime ?? const TimeOfDay(hour: 8, minute: 0),
-    );
-    if (picked == null) return;
-    final date = _startDate;
-    if (date != null && !_isStartMomentValid(date, picked)) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          behavior: SnackBarBehavior.floating,
-          content: Text('That time has already passed today — pick a later time.'),
-        ),
-      );
-      return;
-    }
-    setState(() => _tripStartTime = picked);
-    // Affects Day 1 always, and any later day that hasn't been given its
-    // own start-time override.
-    for (var d = 0; d < _dayStops.length; d++) {
-      if (d == 0 || d >= _dayStartOverride.length || _dayStartOverride[d] == null) {
-        unawaited(_recheckWeatherForDay(d));
+    var initial = _tripStartTime ?? const TimeOfDay(hour: 8, minute: 0);
+    while (true) {
+      final picked = await showTimePicker(context: context, initialTime: initial);
+      if (picked == null) return;
+
+      final date = _startDate;
+      if (date != null && !_isStartMomentValid(date, picked)) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            behavior: SnackBarBehavior.floating,
+            content: Text('That time has already passed today — pick a later time.'),
+          ),
+        );
+        initial = picked;
+        continue;
       }
+
+      setState(() {
+        _tripStartTime = picked;
+        // The start moved later in the day — the already-picked Trip End
+        // Time may no longer be after it.
+        _clearStaleTripEndTime();
+      });
+      // Affects Day 1 always, and any later day that hasn't been given
+      // its own start-time override.
+      for (var d = 0; d < _dayStops.length; d++) {
+        if (d == 0 || d >= _dayStartOverride.length || _dayStartOverride[d] == null) {
+          unawaited(_recheckWeatherForDay(d));
+        }
+      }
+      return;
     }
   }
 
+  /// Same reopen-until-valid loop as [_pickTripStartTime], but checked
+  /// against the trip's start (date + time) as one combined moment
+  /// rather than "now" — a same-day trip's end time must still fall
+  /// after its start time, not just be some arbitrary time of day.
   Future<void> _pickTripEndTime() async {
-    final picked = await showTimePicker(
-      context: context,
-      initialTime: _tripEndTime ?? const TimeOfDay(hour: 18, minute: 0),
-    );
-    if (picked == null) return;
-    setState(() => _tripEndTime = picked);
+    var initial = _tripEndTime ?? const TimeOfDay(hour: 18, minute: 0);
+    while (true) {
+      final picked = await showTimePicker(context: context, initialTime: initial);
+      if (picked == null) return;
+
+      final endDate = _endDate;
+      if (endDate != null && !_isEndMomentAfterStart(endDate, picked)) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            behavior: SnackBarBehavior.floating,
+            content: Text('Trip End Time must be after the trip\'s start date and time.'),
+          ),
+        );
+        initial = picked;
+        continue;
+      }
+
+      setState(() => _tripEndTime = picked);
+      return;
+    }
   }
 
   /// Refetches the travel leg from the last day's current end (its last
@@ -1202,6 +1282,11 @@ class _CreateTripScreenState extends State<CreateTripScreen> {
                           dayNumber: _selectedDay + 1,
                           date: dayDates[_selectedDay],
                           dayStartMinutes: _dayStartMinutesFor(_selectedDay),
+                          startTimeIsSet: _selectedDay == 0
+                              ? _tripStartTime != null
+                              : (_dayStartOverride.length > _selectedDay &&
+                                      _dayStartOverride[_selectedDay] != null) ||
+                                  _tripStartTime != null,
                           canEditStartTime: _selectedDay != 0,
                           onEditStartTime: _selectedDay == 0 ? null : () => _pickDayStartOverride(_selectedDay),
                           originLabel: _originLabel(_selectedDay),
@@ -1213,6 +1298,9 @@ class _CreateTripScreenState extends State<CreateTripScreen> {
                               : null,
                           accommodationTravel: _selectedDay < _accommodationTravel.length
                               ? _accommodationTravel[_selectedDay]
+                              : null,
+                          previousNightAccommodation: _selectedDay > 0 && _selectedDay - 1 < _nightAccommodation.length
+                              ? _nightAccommodation[_selectedDay - 1]
                               : null,
                           showValidation: _showValidation,
                           weatherForecastAvailable: StopWeatherService.isWithinForecastWindow(
@@ -1541,6 +1629,7 @@ class _DayTimelinePanel extends StatelessWidget {
     required this.dayNumber,
     required this.date,
     required this.dayStartMinutes,
+    this.startTimeIsSet = true,
     this.canEditStartTime = false,
     this.onEditStartTime,
     required this.originLabel,
@@ -1549,6 +1638,7 @@ class _DayTimelinePanel extends StatelessWidget {
     required this.isLastDay,
     required this.accommodation,
     this.accommodationTravel,
+    this.previousNightAccommodation,
     required this.showValidation,
     required this.weatherForecastAvailable,
     required this.weatherFor,
@@ -1568,6 +1658,12 @@ class _DayTimelinePanel extends StatelessWidget {
   final DateTime date;
   final int dayStartMinutes;
 
+  /// False when [dayStartMinutes] is just the 8am placeholder default,
+  /// not a value the traveler actually chose (e.g. their pick was
+  /// rejected as already past for today) — shown as "--:--" instead of a
+  /// real time, so an unset start time never *looks* accepted.
+  final bool startTimeIsSet;
+
   /// False for Day 1, whose clock is always [_CreateTripScreenState._tripStartTime]
   /// set up top — every later day can override it here instead.
   final bool canEditStartTime;
@@ -1583,6 +1679,11 @@ class _DayTimelinePanel extends StatelessWidget {
   /// with zero stops, so an empty day still shows a direct "yesterday's
   /// accommodation → tonight's accommodation" leg.
   final _TravelSegment? accommodationTravel;
+
+  /// The previous night's accommodation, if any — lets this day offer a
+  /// one-tap "Same as previous night" to stay at the same place multiple
+  /// nights running, instead of re-searching for it.
+  final TripStopLocation? previousNightAccommodation;
 
   /// True once the traveler has attempted to save — turns on the red
   /// "Required" caption under this day's accommodation field.
@@ -1643,10 +1744,22 @@ class _DayTimelinePanel extends StatelessWidget {
           ),
           const SizedBox(height: 14),
           _OriginNode(
-            time: _minutesToClock(dayStartMinutes),
+            time: startTimeIsSet ? _minutesToClock(dayStartMinutes) : '--:--',
             label: originLabel,
             onEditTime: canEditStartTime ? onEditStartTime : null,
           ),
+          if (!startTimeIsSet) ...[
+            const SizedBox(height: 4),
+            Padding(
+              padding: const EdgeInsets.only(left: 62),
+              child: Text(
+                canEditStartTime
+                    ? 'Pick a start time for this day — times below are placeholders.'
+                    : 'Pick a valid Trip Start Time above — times below are placeholders.',
+                style: const TextStyle(color: Colors.red, fontSize: 11.5, fontWeight: FontWeight.w600),
+              ),
+            ),
+          ],
           if (stops.isNotEmpty)
             ReorderableListView.builder(
               shrinkWrap: true,
@@ -1731,6 +1844,14 @@ class _DayTimelinePanel extends StatelessWidget {
               'Used as the starting point for Day ${dayNumber + 1}.',
               style: TextStyle(color: context.colors.muted, fontSize: 11.5),
             ),
+            if (previousNightAccommodation case final previous?
+                when previous != accommodation) ...[
+              const SizedBox(height: 8),
+              _SameAsPreviousChip(
+                location: previous,
+                onTap: () => onChanged(previous),
+              ),
+            ],
             const SizedBox(height: 8),
             _TravelConnector(segment: accommodationTravel),
             LocationSearchField(
@@ -2187,6 +2308,44 @@ class _Tag extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
       decoration: BoxDecoration(color: color.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(8)),
       child: Text(label, style: TextStyle(color: color, fontSize: 11, fontWeight: FontWeight.w600)),
+    );
+  }
+}
+
+/// One-tap "stay here again tonight" — lets the same accommodation cover
+/// multiple consecutive nights without re-searching for it each time.
+class _SameAsPreviousChip extends StatelessWidget {
+  const _SameAsPreviousChip({required this.location, required this.onTap});
+
+  final TripStopLocation location;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      borderRadius: BorderRadius.circular(10),
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+        decoration: BoxDecoration(
+          color: AppColors.accent.withValues(alpha: 0.1),
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: Row(
+          children: [
+            const Icon(Icons.repeat_rounded, size: 15, color: AppColors.accent),
+            const SizedBox(width: 6),
+            Expanded(
+              child: Text(
+                'Same as previous night — ${location.name}',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(color: AppColors.accent, fontWeight: FontWeight.w700, fontSize: 12),
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
