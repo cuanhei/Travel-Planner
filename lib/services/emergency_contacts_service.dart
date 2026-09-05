@@ -37,12 +37,17 @@ class ResolvedEmergencyContacts {
 /// the traveler's itinerary (George Town → Penang's numbers, Alor Setar →
 /// Kedah's, etc.) rather than a live GPS fix.
 ///
-/// Police/Ambulance/Fire are the same nationwide (999/999/994) — what
-/// actually varies by state is facility-specific numbers like the local
-/// Tourist Police desk or the state's main hospital. This only has
-/// verified real numbers for Penang so far ([_stateExtras]); every other
-/// state just shows the correct national three rather than a
-/// plausible-looking but unverified number.
+/// 999/994 always work and always connect to the right place — what
+/// [_stateExtras] adds on top is each state/federal territory's own
+/// direct-line numbers for its main government hospital (verified against
+/// each hospital's own moh.gov.my page), state police contingent HQ
+/// (verified against rmp.gov.my's own directory), and state Fire & Rescue
+/// HQ (verified against bomba.gov.my/each department's own page) — for
+/// when a traveler wants that facility specifically rather than the
+/// national dispatch line. Penang also has a verified Tourist Police
+/// number. An unrecognized state (or one Photon fails to resolve) just
+/// gets the national three rather than a plausible-looking but unverified
+/// number.
 class EmergencyContactsService {
   EmergencyContactsService({PhotonService? photonService})
     : _photon = photonService ?? PhotonService();
@@ -82,8 +87,320 @@ class EmergencyContactsService {
         color: Color(0xFF11998E),
       ),
       (
+        label: 'Penang Police HQ (IPK)',
+        number: '04-269 1999',
+        icon: Icons.local_police_rounded,
+        color: Color(0xFF5C6BC0),
+      ),
+      (
+        label: 'Penang Fire & Rescue HQ',
+        number: '04-386 6010',
+        icon: Icons.local_fire_department_rounded,
+        color: Color(0xFFFFB347),
+      ),
+      (
         label: 'Penang Hospital',
         number: '04-222 5333',
+        icon: Icons.medical_services_rounded,
+        color: Colors.redAccent,
+      ),
+    ],
+    'Selangor': [
+      (
+        label: 'Selangor Police HQ (IPK)',
+        number: '03-5514 5222',
+        icon: Icons.local_police_rounded,
+        color: Color(0xFF5C6BC0),
+      ),
+      (
+        label: 'Selangor Fire & Rescue HQ',
+        number: '03-7846 4444',
+        icon: Icons.local_fire_department_rounded,
+        color: Color(0xFFFFB347),
+      ),
+      (
+        label: 'Selangor Hospital (Shah Alam)',
+        number: '03-5526 3000',
+        icon: Icons.medical_services_rounded,
+        color: Colors.redAccent,
+      ),
+    ],
+    'Johor': [
+      (
+        label: 'Johor Police HQ (IPK)',
+        number: '07-221 2999',
+        icon: Icons.local_police_rounded,
+        color: Color(0xFF5C6BC0),
+      ),
+      (
+        label: 'Johor Fire & Rescue HQ',
+        number: '07-340 9999',
+        icon: Icons.local_fire_department_rounded,
+        color: Color(0xFFFFB347),
+      ),
+      (
+        label: 'Johor Hospital (Sultanah Aminah, JB)',
+        number: '07-225 7000',
+        icon: Icons.medical_services_rounded,
+        color: Colors.redAccent,
+      ),
+    ],
+    'Kedah': [
+      (
+        label: 'Kedah Police HQ (IPK)',
+        number: '04-739 3999',
+        icon: Icons.local_police_rounded,
+        color: Color(0xFF5C6BC0),
+      ),
+      (
+        label: 'Kedah Fire & Rescue HQ',
+        number: '04-733 3444',
+        icon: Icons.local_fire_department_rounded,
+        color: Color(0xFFFFB347),
+      ),
+      (
+        label: 'Kedah Hospital (Sultanah Bahiyah)',
+        number: '04-740 6233',
+        icon: Icons.medical_services_rounded,
+        color: Colors.redAccent,
+      ),
+    ],
+    'Kelantan': [
+      (
+        label: 'Kelantan Police HQ (IPK)',
+        number: '09-745 0999',
+        icon: Icons.local_police_rounded,
+        color: Color(0xFF5C6BC0),
+      ),
+      (
+        label: 'Kelantan Fire & Rescue (Kota Bharu)',
+        number: '09-748 4444',
+        icon: Icons.local_fire_department_rounded,
+        color: Color(0xFFFFB347),
+      ),
+      (
+        label: 'Kelantan Hospital (Raja Perempuan Zainab II)',
+        number: '09-745 2000',
+        icon: Icons.medical_services_rounded,
+        color: Colors.redAccent,
+      ),
+    ],
+    'Malacca': [
+      (
+        label: 'Malacca Police HQ (IPK)',
+        number: '06-285 1999',
+        icon: Icons.local_police_rounded,
+        color: Color(0xFF5C6BC0),
+      ),
+      (
+        label: 'Malacca Fire & Rescue (Melaka Tengah)',
+        number: '06-231 6844',
+        icon: Icons.local_fire_department_rounded,
+        color: Color(0xFFFFB347),
+      ),
+      (
+        label: 'Malacca Hospital',
+        number: '06-289 2344',
+        icon: Icons.medical_services_rounded,
+        color: Colors.redAccent,
+      ),
+    ],
+    'Negeri Sembilan': [
+      (
+        label: 'Negeri Sembilan Police HQ (IPK)',
+        number: '06-768 2417',
+        icon: Icons.local_police_rounded,
+        color: Color(0xFF5C6BC0),
+      ),
+      (
+        label: 'Negeri Sembilan Fire & Rescue HQ',
+        number: '06-767 7089',
+        icon: Icons.local_fire_department_rounded,
+        color: Color(0xFFFFB347),
+      ),
+      (
+        label: "Negeri Sembilan Hospital (Tuanku Ja'afar)",
+        number: '06-768 4000',
+        icon: Icons.medical_services_rounded,
+        color: Colors.redAccent,
+      ),
+    ],
+    'Pahang': [
+      (
+        label: 'Pahang Police HQ (IPK)',
+        number: '09-505 2222',
+        icon: Icons.local_police_rounded,
+        color: Color(0xFF5C6BC0),
+      ),
+      (
+        label: 'Pahang Fire & Rescue HQ',
+        number: '09-570 5999',
+        icon: Icons.local_fire_department_rounded,
+        color: Color(0xFFFFB347),
+      ),
+      (
+        label: 'Pahang Hospital (Tengku Ampuan Afzan)',
+        number: '09-513 3333',
+        icon: Icons.medical_services_rounded,
+        color: Colors.redAccent,
+      ),
+    ],
+    'Perak': [
+      (
+        label: 'Perak Police HQ (IPK)',
+        number: '05-240 1999',
+        icon: Icons.local_police_rounded,
+        color: Color(0xFF5C6BC0),
+      ),
+      (
+        label: 'Perak Fire & Rescue (Ipoh Zone 1)',
+        number: '05-547 4444',
+        icon: Icons.local_fire_department_rounded,
+        color: Color(0xFFFFB347),
+      ),
+      (
+        label: 'Perak Hospital (Raja Permaisuri Bainun)',
+        number: '05-208 5000',
+        icon: Icons.medical_services_rounded,
+        color: Colors.redAccent,
+      ),
+    ],
+    'Perlis': [
+      (
+        label: 'Perlis Police HQ (IPK)',
+        number: '04-987 2417',
+        icon: Icons.local_police_rounded,
+        color: Color(0xFF5C6BC0),
+      ),
+      (
+        label: 'Perlis Fire & Rescue (Kangar)',
+        number: '04-976 0544',
+        icon: Icons.local_fire_department_rounded,
+        color: Color(0xFFFFB347),
+      ),
+      (
+        label: 'Perlis Hospital (Tuanku Fauziah)',
+        number: '04-973 8000',
+        icon: Icons.medical_services_rounded,
+        color: Colors.redAccent,
+      ),
+    ],
+    'Sabah': [
+      (
+        label: 'Sabah Police HQ (IPK)',
+        number: '088-454 738',
+        icon: Icons.local_police_rounded,
+        color: Color(0xFF5C6BC0),
+      ),
+      (
+        label: 'Sabah Fire & Rescue HQ',
+        number: '088-210 214',
+        icon: Icons.local_fire_department_rounded,
+        color: Color(0xFFFFB347),
+      ),
+      (
+        label: 'Sabah Hospital (Queen Elizabeth)',
+        number: '088-517 555',
+        icon: Icons.medical_services_rounded,
+        color: Colors.redAccent,
+      ),
+    ],
+    'Sarawak': [
+      (
+        label: 'Sarawak Police HQ (IPK)',
+        number: '082-240 800',
+        icon: Icons.local_police_rounded,
+        color: Color(0xFF5C6BC0),
+      ),
+      (
+        label: 'Sarawak Fire & Rescue HQ',
+        number: '082-365 994',
+        icon: Icons.local_fire_department_rounded,
+        color: Color(0xFFFFB347),
+      ),
+      (
+        label: 'Sarawak Hospital (Umum Sarawak)',
+        number: '082-276 666',
+        icon: Icons.medical_services_rounded,
+        color: Colors.redAccent,
+      ),
+    ],
+    'Terengganu': [
+      (
+        label: 'Terengganu Police HQ (IPK)',
+        number: '09-635 4745',
+        icon: Icons.local_police_rounded,
+        color: Color(0xFF5C6BC0),
+      ),
+      (
+        label: 'Terengganu Fire & Rescue HQ',
+        number: '09-622 4444',
+        icon: Icons.local_fire_department_rounded,
+        color: Color(0xFFFFB347),
+      ),
+      (
+        label: 'Terengganu Hospital (Sultanah Nur Zahirah)',
+        number: '09-621 2121',
+        icon: Icons.medical_services_rounded,
+        color: Colors.redAccent,
+      ),
+    ],
+    'Kuala Lumpur': [
+      (
+        label: 'Kuala Lumpur Police HQ (IPK)',
+        number: '03-2146 0585',
+        icon: Icons.local_police_rounded,
+        color: Color(0xFF5C6BC0),
+      ),
+      (
+        label: 'Kuala Lumpur Fire & Rescue (Jalan Hang Tuah)',
+        number: '03-9221 7222',
+        icon: Icons.local_fire_department_rounded,
+        color: Color(0xFFFFB347),
+      ),
+      (
+        label: 'Kuala Lumpur Hospital',
+        number: '03-2615 5555',
+        icon: Icons.medical_services_rounded,
+        color: Colors.redAccent,
+      ),
+    ],
+    'Labuan': [
+      (
+        label: 'Labuan District Police HQ (IPD)',
+        number: '087-412 222',
+        icon: Icons.local_police_rounded,
+        color: Color(0xFF5C6BC0),
+      ),
+      (
+        label: 'Labuan Fire & Rescue (Central)',
+        number: '087-414 444',
+        icon: Icons.local_fire_department_rounded,
+        color: Color(0xFFFFB347),
+      ),
+      (
+        label: 'Labuan Hospital',
+        number: '087-596 888',
+        icon: Icons.medical_services_rounded,
+        color: Colors.redAccent,
+      ),
+    ],
+    'Putrajaya': [
+      (
+        label: 'Putrajaya District Police HQ (IPD)',
+        number: '03-8886 2222',
+        icon: Icons.local_police_rounded,
+        color: Color(0xFF5C6BC0),
+      ),
+      (
+        label: 'Fire & Rescue Dept. National HQ (Putrajaya)',
+        number: '03-8892 7600',
+        icon: Icons.local_fire_department_rounded,
+        color: Color(0xFFFFB347),
+      ),
+      (
+        label: 'Putrajaya Hospital',
+        number: '03-8312 4200',
         icon: Icons.medical_services_rounded,
         color: Colors.redAccent,
       ),

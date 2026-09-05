@@ -649,13 +649,19 @@ create table public.posts (
     check (cover_gradient in ('horizon', 'dusk', 'sunset', 'lagoon')),
   media_url text,
   media_type text check (media_type is null or media_type in ('image', 'video')),
+  -- Up to 3 photos/videos, parallel arrays (media_types[i] describes
+  -- media_urls[i]) — media_url/media_type above are legacy single-media
+  -- columns, still readable but no longer written to.
+  media_urls text[],
+  media_types text[],
   likes_count integer not null default 0,
   -- `{reaction_type: count}` breakdown, e.g. `{"like": 3, "love": 1}` — lets
   -- the feed render small per-emoji counts without a join/count query on
   -- every row. Kept in sync by handle_post_like_change().
   reaction_counts jsonb not null default '{}'::jsonb,
   comments_count integer not null default 0,
-  created_at timestamptz not null default now()
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
 );
 
 -- One row per (post, user) — a user has at most one reaction per post;
@@ -675,8 +681,13 @@ create table public.comments (
   post_id uuid not null references public.posts (id) on delete cascade,
   author_id uuid not null references auth.users (id) on delete cascade,
   body text not null check (char_length(trim(body)) > 0),
+  -- Null for a top-level comment; a reply's own id for a reply to it.
+  -- `on delete cascade` removes every reply when its parent is deleted.
+  parent_comment_id uuid references public.comments (id) on delete cascade,
   created_at timestamptz not null default now()
 );
+
+create index comments_parent_comment_id_idx on public.comments (parent_comment_id);
 
 -- Keyed by place name (this app has no canonical `places` table — Explore's
 -- place cards and Community posts both just carry a free-text place name),
@@ -769,6 +780,30 @@ $$;
 create trigger on_post_comment_change
   after insert or delete on public.comments
   for each row execute function public.handle_post_comment_change();
+
+-- Bumps posts.updated_at only when the post's own content changes — not
+-- when likes_count/comments_count are updated by the triggers above,
+-- which would otherwise mark a post "Edited" just because someone
+-- reacted to or commented on it.
+create function public.handle_post_content_updated_at()
+returns trigger
+language plpgsql
+as $$
+begin
+  if new.place_name is distinct from old.place_name
+     or new.caption is distinct from old.caption
+     or new.category is distinct from old.category
+     or new.media_urls is distinct from old.media_urls
+     or new.media_types is distinct from old.media_types then
+    new.updated_at = now();
+  end if;
+  return new;
+end;
+$$;
+
+create trigger on_posts_content_updated
+  before update on public.posts
+  for each row execute function public.handle_post_content_updated_at();
 
 -- ============================================================
 -- Row Level Security
