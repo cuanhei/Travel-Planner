@@ -21,6 +21,13 @@ const _headers = {
 /// a country filter by itself — see the `countrycode` check in [_toStop].
 const _malaysiaBbox = '99.5,0.5,119.5,7.5';
 
+/// Photon is a best-effort, unauthenticated third-party API — without a
+/// timeout, a slow or unreachable request leaves an `await` on this
+/// hanging indefinitely, which for [PhotonService.reverseAdministrative]
+/// means Emergency Contacts' loading spinner never resolves at all rather
+/// than falling back to the national-only numbers.
+const _requestTimeout = Duration(seconds: 10);
+
 /// Free place search/autocomplete and reverse geocoding via Photon
 /// (komoot's OpenStreetMap-based geocoder) — no API key required. Every
 /// result is restricted to Malaysia.
@@ -42,7 +49,7 @@ class PhotonService {
         if (near != null) 'lon': near.longitude.toString(),
       },
     );
-    final response = await http.get(uri, headers: _headers);
+    final response = await http.get(uri, headers: _headers).timeout(_requestTimeout);
     if (response.statusCode != 200) {
       throw Exception('Place search failed (${response.statusCode})');
     }
@@ -66,7 +73,7 @@ class PhotonService {
         'lon': point.longitude.toString(),
       },
     );
-    final response = await http.get(uri, headers: _headers);
+    final response = await http.get(uri, headers: _headers).timeout(_requestTimeout);
     if (response.statusCode != 200) {
       throw Exception('Reverse lookup failed (${response.statusCode})');
     }

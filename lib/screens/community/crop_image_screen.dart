@@ -143,9 +143,17 @@ class _CropImageScreenState extends State<CropImageScreen> {
                   final preset = _presets[i];
                   final selected = _presetIndex == i;
                   return GestureDetector(
-                    onTap: _cropping
+                    onTap: (_cropping || !_ready)
                         ? null
-                        : () => setState(() => _presetIndex = i),
+                        : () {
+                            setState(() => _presetIndex = i);
+                            // `Crop` has no didUpdateWidget, so passing a
+                            // new `aspectRatio:` prop below is silently
+                            // ignored after the first build — the
+                            // controller setter is the only thing that
+                            // actually recalculates the crop rect.
+                            _controller.aspectRatio = preset.ratio;
+                          },
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [

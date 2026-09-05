@@ -685,13 +685,16 @@ create table public.comments (
 -- .myReviewCount gates how many a user may add, and addReview always
 -- inserts a fresh row rather than upserting (see
 -- 0013_allow_multiple_reviews_per_visit.sql for the migration that
--- dropped the old one-per-place uniqueness).
+-- dropped the old one-per-place uniqueness). photo_urls is nullable — a
+-- review can still be text-only — and holds public URLs into the
+-- `review-media` storage bucket (see 0014_add_review_photos.sql).
 create table public.reviews (
   id uuid primary key default gen_random_uuid(),
   place_name text not null,
   author_id uuid not null references auth.users (id) on delete cascade,
   rating smallint not null check (rating between 1 and 5),
   body text not null check (char_length(trim(body)) > 0),
+  photo_urls text[],
   created_at timestamptz not null default now()
 );
 
@@ -1135,6 +1138,26 @@ create policy "post_media_delete_own_folder" on storage.objects
     and (storage.foldername(name))[1] = auth.uid()::text
   );
 
+-- Storage: `review-media` holds the photos a review can optionally attach
+-- (AddReviewScreen). Same public-bucket-plus-folder-ownership shape as
+-- `post-media` above.
+insert into storage.buckets (id, name, public)
+values ('review-media', 'review-media', true)
+on conflict (id) do nothing;
+
+create policy "review_media_select_public" on storage.objects
+  for select to public using (bucket_id = 'review-media');
+create policy "review_media_insert_own_folder" on storage.objects
+  for insert to authenticated with check (
+    bucket_id = 'review-media'
+    and (storage.foldername(name))[1] = auth.uid()::text
+  );
+create policy "review_media_delete_own_folder" on storage.objects
+  for delete to authenticated using (
+    bucket_id = 'review-media'
+    and (storage.foldername(name))[1] = auth.uid()::text
+  );
+
 -- ============================================================
 -- Realtime: every table the Flutter services read via `.stream()`
 -- must be in this publication, or those streams silently never emit.
@@ -1156,6 +1179,7 @@ alter publication supabase_realtime add table
   public.expenses,
   public.budget_categories,
   public.trip_settlements,
+  public.trip_stops,
   public.posts,
   public.comments,
   public.reviews;
