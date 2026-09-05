@@ -37,7 +37,9 @@ class UtilitiesHomeScreen extends StatelessWidget {
                     subtitle: tr('utilities_packing_list_card_subtitle'),
                     iconColor: Color(0xFF11998E),
                     onTap: () => Navigator.of(context).push(
-                      MaterialPageRoute(builder: (_) => PackingListScreen()),
+                      MaterialPageRoute(
+                        builder: (_) => PackingListScreen(tripId: tripId),
+                      ),
                     ),
                   ),
                   ListTileCard(

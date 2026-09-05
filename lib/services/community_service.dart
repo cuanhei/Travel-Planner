@@ -422,7 +422,7 @@ class CommunityService {
               .toList();
           final profiles = await _client
               .from('profiles')
-              .select('id, display_name, avatar_color')
+              .select('id, display_name, avatar_color, avatar_url')
               .inFilter('id', userIds);
           final profileById = {
             for (final p in profiles as List) p['id'] as String: p,

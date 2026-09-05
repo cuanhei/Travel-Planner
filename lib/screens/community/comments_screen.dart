@@ -6,6 +6,7 @@ import '../../services/community_service.dart';
 import '../../theme/app_theme.dart';
 import '../../utils/time_ago.dart';
 import '../../widgets/detail_header.dart';
+import '../../widgets/user_avatar.dart';
 
 /// Live comment thread on a community post, backed by `comments`.
 class CommentsScreen extends StatelessWidget {
@@ -378,21 +379,15 @@ class _CommentTile extends StatelessWidget {
     final isReply = comment.parentCommentId != null;
     final isOwnComment =
         comment.authorId == Supabase.instance.client.auth.currentUser?.id;
-    final avatarRadius = isReply ? 13.0 : 16.0;
+    final avatarSize = isReply ? 26.0 : 32.0;
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        CircleAvatar(
-          radius: avatarRadius,
-          backgroundColor: Color(comment.authorColor),
-          child: Text(
-            comment.authorName[0].toUpperCase(),
-            style: TextStyle(
-              color: Colors.white,
-              fontWeight: FontWeight.w800,
-              fontSize: isReply ? 10.5 : 12,
-            ),
-          ),
+        UserAvatar(
+          name: comment.authorName,
+          avatarUrl: comment.authorAvatarUrl,
+          size: avatarSize,
+          borderWidth: 0,
         ),
         const SizedBox(width: 10),
         Expanded(
