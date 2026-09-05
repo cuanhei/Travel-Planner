@@ -2,8 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:latlong2/latlong.dart';
 
+import '../models/trip.dart';
 import '../services/auth_service.dart';
 import '../services/locale_service.dart';
+import '../services/notification_prefs_service.dart';
 import '../services/profile_service.dart';
 import '../services/trip_service.dart';
 import '../services/weather_service.dart';
@@ -12,6 +14,7 @@ import '../utils/weather_display.dart';
 import '../widgets/coming_soon.dart';
 import '../widgets/destination_search_bar.dart';
 import '../widgets/section_header.dart';
+import '../widgets/trip_reminder_support.dart';
 import '../widgets/user_avatar.dart';
 import 'activity_log_screen.dart';
 import 'community/community_tab.dart';
@@ -24,6 +27,7 @@ import 'transport/transport_routes_screen.dart';
 import 'trip/create_trip_screen.dart';
 import 'trip/map_view_screen.dart';
 import 'trip/trip_details_screen.dart';
+import 'trip/trip_reminders_screen.dart';
 import 'trip/trips_tab.dart';
 import 'weather/weather_forecast_screen.dart';
 
@@ -63,6 +67,11 @@ class _HomeScreenState extends State<HomeScreen> {
   void initState() {
     super.initState();
     ProfileService.instance.load();
+    // Settings' toggles only ever update `.current` in-memory (see
+    // NotificationPrefsService._persist) — without this, a fresh app
+    // load would show every toggle as off until the user flips it again,
+    // even though the signed-in choice is already saved to their account.
+    NotificationPrefsService.instance.load();
   }
 
   @override
@@ -95,6 +104,10 @@ class _DashboardBody extends StatelessWidget {
         SliverPadding(
           padding: EdgeInsets.fromLTRB(24, 20, 24, 0),
           sliver: SliverToBoxAdapter(child: DestinationSearchBar()),
+        ),
+        SliverPadding(
+          padding: EdgeInsets.fromLTRB(24, 20, 24, 0),
+          sliver: SliverToBoxAdapter(child: _TripReminderBanner()),
         ),
         SliverPadding(
           padding: EdgeInsets.fromLTRB(24, 24, 24, 0),
@@ -158,6 +171,15 @@ class _DashboardBody extends StatelessWidget {
   }
 }
 
+/// The greeting string key for right now: morning before noon, afternoon
+/// until 6pm, evening after that.
+String _currentGreetingKey() {
+  final hour = DateTime.now().hour;
+  if (hour < 12) return 'home_greeting_morning';
+  if (hour < 18) return 'home_greeting_afternoon';
+  return 'home_greeting_evening';
+}
+
 class _GreetingBar extends StatelessWidget {
   const _GreetingBar();
 
@@ -176,7 +198,7 @@ class _GreetingBar extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    tr('home_greeting'),
+                    tr(_currentGreetingKey()),
                     style: TextStyle(
                       color: context.colors.muted,
                       fontSize: 13,
@@ -282,6 +304,59 @@ class _IconBadgeButton extends StatelessWidget {
   }
 }
 
+
+/// Surfaces a single banner on the dashboard when one of the signed-in
+/// user's real trips (via [TripService.watchMyTrips]) is either underway
+/// or starting soon — nothing renders otherwise, so this stays invisible
+/// for users with no trip coming up. Gated entirely behind Settings >
+/// Notifications > Trip Reminders: off means this never even queries
+/// trips, matching that toggle's promise.
+///
+/// Only ever shows the single most urgent trip (ongoing beats upcoming,
+/// soonest upcoming otherwise) to avoid stacking multiple banners on the
+/// dashboard; tapping it opens that trip directly, unless other trips also
+/// need a reminder, in which case it opens [TripRemindersScreen] to list
+/// all of them instead.
+class _TripReminderBanner extends StatelessWidget {
+  const _TripReminderBanner();
+
+  @override
+  Widget build(BuildContext context) {
+    return ValueListenableBuilder<NotificationPrefs>(
+      valueListenable: NotificationPrefsService.instance.current,
+      builder: (context, prefs, _) {
+        if (!prefs.tripRemindersEnabled) return const SizedBox.shrink();
+
+        return StreamBuilder<List<Trip>>(
+          stream: TripService().watchMyTrips(),
+          builder: (context, snapshot) {
+            final trips = snapshot.data;
+            if (trips == null || trips.isEmpty) return const SizedBox.shrink();
+
+            final reminders = tripsNeedingReminder(trips);
+            if (reminders.isEmpty) return const SizedBox.shrink();
+
+            final top = reminders.first;
+            final moreCount = reminders.length - 1;
+
+            return TripReminderCard(
+              message: tripReminderMessage(top),
+              ongoing: top.status == TripStatus.current,
+              moreCount: moreCount,
+              onTap: () => Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) => moreCount > 0
+                      ? const TripRemindersScreen()
+                      : TripDetailsScreen(trip: top),
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+}
 
 class _UpcomingTripCard extends StatelessWidget {
   const _UpcomingTripCard();

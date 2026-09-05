@@ -13,7 +13,7 @@
 -- Run once in the Supabase SQL Editor for this project.
 
 create or replace function public.find_profiles_by_phone(p_phones text[])
-returns table (matched_phone text, id uuid)
+returns table (matched_phone text, id uuid)+
 language sql
 security definer
 set search_path = public

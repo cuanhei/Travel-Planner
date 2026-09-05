@@ -82,8 +82,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           _SwitchCard(
                             icon: Icons.event_available_rounded,
                             title: tr('auth_trip_reminders'),
-                            value: pushOn && prefs.tripRemindersEnabled,
-                            onChanged: pushOn ? _toggleTripReminders : null,
+                            value: prefs.tripRemindersEnabled,
+                            onChanged: _toggleTripReminders,
                           ),
                         ],
                       );

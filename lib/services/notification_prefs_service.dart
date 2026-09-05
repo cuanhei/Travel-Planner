@@ -61,14 +61,15 @@ class NotificationPrefsService {
     );
   }
 
-  /// Turning push off also turns off trip reminders (a sub-preference of
-  /// push) and drops the token, since it's no longer valid to use.
+  /// Trip reminders are shown in-app regardless of push permission, so
+  /// turning push off only drops the (now-invalid) token — it no longer
+  /// touches the trip reminders preference.
   Future<void> setPushEnabled(bool value, {String? fcmToken}) {
     final c = current.value;
     return _persist(
       NotificationPrefs(
         pushEnabled: value,
-        tripRemindersEnabled: value ? c.tripRemindersEnabled : false,
+        tripRemindersEnabled: c.tripRemindersEnabled,
         emailUpdatesEnabled: c.emailUpdatesEnabled,
         fcmToken: value ? (fcmToken ?? c.fcmToken) : null,
       ),
