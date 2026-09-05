@@ -15,24 +15,6 @@ import 'edit_schedule_screen.dart';
 import 'edit_trip_screen.dart';
 import 'trip_map_screen.dart';
 
-class _Stop {
-  _Stop({
-    required this.name,
-    required this.time,
-    required this.subtitle,
-    required this.icon,
-    required this.gradient,
-    this.completed = false,
-  });
-
-  final String name;
-  final String time;
-  final String subtitle;
-  final IconData icon;
-  final List<Color> gradient;
-  bool completed;
-}
-
 class TripDetailsScreen extends StatefulWidget {
   const TripDetailsScreen({super.key, required this.trip});
 
@@ -67,39 +49,6 @@ class _TripDetailsScreenState extends State<TripDetailsScreen> {
       debugPrint('Loading trip stats failed: $e');
     }
   }
-
-  final _stops = [
-    _Stop(
-      name: 'Komtar, George Town',
-      time: 'Day 1 · 10:00 AM',
-      subtitle: 'Shopping & observation deck',
-      icon: Icons.location_city_rounded,
-      gradient: AppColors.horizon,
-      completed: true,
-    ),
-    _Stop(
-      name: 'Gurney Drive & Plaza',
-      time: 'Day 2 · 1:00 PM',
-      subtitle: 'Shopping and seaside walk',
-      icon: Icons.shopping_bag_rounded,
-      gradient: AppColors.dusk,
-    ),
-    _Stop(
-      name: 'Queensbay Mall',
-      time: 'Day 3 · 4:00 PM',
-      subtitle: 'Final shopping & souvenirs',
-      icon: Icons.storefront_rounded,
-      gradient: AppColors.sunset,
-    ),
-  ];
-
-  _Stop get _upcomingStop =>
-      _stops.firstWhere((s) => !s.completed, orElse: () => _stops.last);
-
-  _Stop get _completedStop =>
-      _stops.lastWhere((s) => s.completed, orElse: () => _stops.first);
-
-  void _completeStop(_Stop stop) => setState(() => stop.completed = true);
 
   Future<void> _openEditTrip() async {
     final updated = await Navigator.of(context).push<bool>(
@@ -229,14 +178,6 @@ class _TripDetailsScreenState extends State<TripDetailsScreen> {
                         SectionHeader(title: 'Trip Tools'),
                         SizedBox(height: 14),
                         _ToolsGrid(trip: _trip, onScheduleUpdated: _loadStats),
-                        SizedBox(height: 28),
-                        SectionHeader(title: 'Activity'),
-                        SizedBox(height: 14),
-                        _ActivityTile(
-                          stop: _upcomingStop,
-                          onComplete: () => _completeStop(_upcomingStop),
-                        ),
-                        _ActivityTile(stop: _completedStop),
                       ],
                     ),
                   ),
@@ -480,150 +421,6 @@ class _ToolsGrid extends StatelessWidget {
           ),
         );
       },
-    );
-  }
-}
-
-class _ActivityTile extends StatelessWidget {
-  const _ActivityTile({required this.stop, this.onComplete});
-
-  final _Stop stop;
-
-  final VoidCallback? onComplete;
-
-  @override
-  Widget build(BuildContext context) {
-    const done = Color(0xFF11998E);
-    final completed = stop.completed;
-    return Container(
-      width: double.infinity,
-      margin: EdgeInsets.only(bottom: 14),
-      padding: EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: context.colors.card,
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: [
-          BoxShadow(
-            color: context.colors.ink.withValues(alpha: 0.05),
-            blurRadius: 12,
-            offset: Offset(0, 5),
-          ),
-        ],
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            width: 46,
-            height: 46,
-            decoration: BoxDecoration(
-              gradient: completed
-                  ? null
-                  : LinearGradient(colors: stop.gradient),
-              color: completed ? done.withValues(alpha: 0.15) : null,
-              borderRadius: BorderRadius.circular(14),
-            ),
-            alignment: Alignment.center,
-            child: Icon(
-              completed ? Icons.check_rounded : stop.icon,
-              color: completed ? done : Colors.white,
-              size: 20,
-            ),
-          ),
-          SizedBox(width: 14),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Container(
-                      padding: EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                      decoration: BoxDecoration(
-                        color: (completed ? done : AppColors.accent).withValues(
-                          alpha: 0.12,
-                        ),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Text(
-                        completed ? 'COMPLETED' : 'UPCOMING',
-                        style: TextStyle(
-                          color: completed ? done : AppColors.accent,
-                          fontSize: 9.5,
-                          fontWeight: FontWeight.w800,
-                          letterSpacing: 0.4,
-                        ),
-                      ),
-                    ),
-                    SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        stop.time,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          color: context.colors.muted,
-                          fontSize: 11.5,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                SizedBox(height: 6),
-                Text(
-                  stop.name,
-                  style: TextStyle(
-                    color: context.colors.ink,
-                    fontWeight: FontWeight.w800,
-                    fontSize: 14.5,
-                  ),
-                ),
-                SizedBox(height: 3),
-                Text(
-                  stop.subtitle,
-                  style: TextStyle(color: context.colors.muted, fontSize: 12),
-                ),
-                if (onComplete != null) ...[
-                  SizedBox(height: 12),
-                  Material(
-                    color: context.colors.ink,
-                    borderRadius: BorderRadius.circular(12),
-                    child: InkWell(
-                      borderRadius: BorderRadius.circular(12),
-                      onTap: onComplete,
-                      child: Padding(
-                        padding: EdgeInsets.symmetric(
-                          horizontal: 14,
-                          vertical: 9,
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(
-                              Icons.check_rounded,
-                              color: Colors.white,
-                              size: 15,
-                            ),
-                            SizedBox(width: 6),
-                            Text(
-                              'Complete',
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontWeight: FontWeight.w700,
-                                fontSize: 12.5,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-              ],
-            ),
-          ),
-        ],
-      ),
     );
   }
 }

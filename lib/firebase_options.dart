@@ -1,11 +1,5 @@
 import 'package:firebase_core/firebase_core.dart' show FirebaseOptions;
 
-/// Firebase Web config, from the Firebase Console: Project settings →
-/// General → "Your apps" → the web app's config snippet. These values
-/// aren't secret (see https://firebase.google.com/docs/projects/api-keys)
-/// — they identify the project, they don't authenticate anything by
-/// themselves — so it's fine for them to live in committed source, same as
-/// the official `flutterfire configure` CLI generates.
 class DefaultFirebaseOptions {
   DefaultFirebaseOptions._();
 
@@ -19,9 +13,6 @@ class DefaultFirebaseOptions {
     measurementId: 'G-7GFY6E6CXP',
   );
 
-  /// The Web Push certificate key pair's public key, from Firebase Console:
-  /// Project settings → Cloud Messaging → Web configuration → "Web Push
-  /// certificates". Passed to `getToken(vapidKey: ...)`.
   static const vapidKey =
       'BHOKRo7ljfGKCmggOcjzSBgfcDQPqqxMN2FmxC7ujyXxV-D2Gm3qTDmDnj2MLAday1VfzfU-OEfQc8a-8BSzPPc';
 
