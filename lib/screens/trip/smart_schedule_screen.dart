@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../../services/locale_service.dart';
+import '../../models/pending_trip_draft.dart';
 import '../../theme/app_theme.dart';
 import '../explore/explore_tab.dart' show Place;
 import 'optimized_itinerary_screen.dart';
@@ -27,13 +27,11 @@ class SmartScheduleScreen extends StatefulWidget {
 }
 
 class _SmartScheduleScreenState extends State<SmartScheduleScreen> {
-  // A getter (not `static const`) so the step text re-runs tr() on every
-  // build and picks up language changes.
-  List<String> get _steps => [
-    tr('trip_step_weather'),
-    tr('trip_step_transport'),
-    tr('trip_step_optimizing'),
-    tr('trip_step_balancing'),
+  static const _steps = [
+    'Checking the weather forecast…',
+    'Finding available public transport…',
+    'Optimizing your route between stops…',
+    'Balancing your daily schedule…',
   ];
 
   int _step = 0;
@@ -58,8 +56,20 @@ class _SmartScheduleScreenState extends State<SmartScheduleScreen> {
               builder: (_) => OptimizedItineraryScreen(
                 tripName: widget.tripName,
                 description: widget.description,
-                places: widget.places,
-                recommendedNames: widget.recommendedNames,
+                // This screen has no entry point in the app anymore (a
+                // leftover from an earlier "Choose Places" flow, kept
+                // only so it still compiles) — no real Create Trip draft
+                // exists for it to carry forward.
+                draft: const PendingTripDraft(
+                  startLocation: null,
+                  endLocation: null,
+                  accommodations: [],
+                  stops: [],
+                  dateRange: null,
+                  startTime: TimeOfDay(hour: 9, minute: 0),
+                  endTime: TimeOfDay(hour: 18, minute: 0),
+                  totalBudget: 0,
+                ),
               ),
             ),
           );
@@ -71,8 +81,8 @@ class _SmartScheduleScreenState extends State<SmartScheduleScreen> {
   @override
   Widget build(BuildContext context) {
     final title = widget.tripName.isEmpty
-        ? '${tr('trip_planning_stops_prefix')} ${widget.places.length}-${tr('trip_planning_stops_suffix')}'
-        : '${tr('trip_planning_word')} "${widget.tripName}"';
+        ? 'Planning your ${widget.places.length}-stop trip'
+        : 'Planning "${widget.tripName}"';
 
     return Scaffold(
       backgroundColor: context.colors.ink,

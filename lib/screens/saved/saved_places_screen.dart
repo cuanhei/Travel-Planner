@@ -4,7 +4,6 @@ import '../../services/locale_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/detail_header.dart';
 import '../explore/explore_tab.dart';
-import '../explore/place_details_screen.dart';
 
 /// Bookmarked places, grouped as a simple grid.
 class SavedPlacesScreen extends StatefulWidget {
@@ -50,11 +49,11 @@ class _SavedPlacesScreenState extends State<SavedPlacesScreen> {
                       itemBuilder: (context, index) {
                         final p = results[index];
                         return GestureDetector(
-                          onTap: () => Navigator.of(context).push(
-                            MaterialPageRoute(
-                              builder: (_) => PlaceDetailsScreen(place: p),
-                            ),
-                          ),
+                          // TODO: navigate to place details once this
+                          // dummy catalog has real Google Places data to
+                          // show (place_details_screen.dart was removed
+                          // with the dummy-data details view).
+                          onTap: null,
                           child: Container(
                             decoration: BoxDecoration(
                               color: context.colors.card,

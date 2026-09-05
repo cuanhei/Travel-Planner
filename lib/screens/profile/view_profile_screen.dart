@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../models/profile_avatar_state.dart';
+import '../../services/auth_service.dart';
 import '../../services/locale_service.dart';
 import '../../services/profile_service.dart';
 import '../../theme/app_theme.dart';
@@ -21,12 +22,15 @@ String _formatDate(DateTime d) =>
 /// Instagram-style public/private switch in Settings → Privacy &
 /// Security. A public profile shows everything; a private one is
 /// limited to name, photo, and bio, with a "This account is private"
-/// notice instead of the rest.
+/// notice instead of the rest — unless [userId] is the signed-in user's
+/// own id, in which case everything always shows regardless of that
+/// switch, since the restriction is about hiding details from others.
 ///
-/// Not yet linked from anywhere else in the app — tapping a member's
-/// name in Group Travel, a reviewer in Community, etc. will route here
-/// later. For now it's reachable via Settings → Privacy & Security →
-/// "Preview My Profile", so it can be seen and tested on its own.
+/// Reachable via Settings → Privacy & Security → "Preview My Profile"
+/// (always the signed-in user's own [userId]) and by tapping a post
+/// author's avatar in the Community feed (`PostCard`) — either the
+/// signed-in user's own posts or someone else's, since [ProfileService.
+/// getById] just returns whichever profile row [userId] points at.
 class ViewProfileScreen extends StatefulWidget {
   const ViewProfileScreen({super.key, required this.userId});
 
@@ -69,12 +73,18 @@ class _ViewProfileScreenState extends State<ViewProfileScreen> {
                       ),
                     );
                   }
+                  // The private-profile restriction is about hiding your
+                  // details from *other* people — viewing your own profile
+                  // (e.g. tapping your own avatar on a Community post)
+                  // always shows everything, same as Edit Profile would.
+                  final isOwnProfile =
+                      profile.id == AuthService.instance.currentUser?.id;
                   return ListView(
                     padding: const EdgeInsets.fromLTRB(24, 8, 24, 24),
                     children: [
                       _ProfileHeader(profile: profile),
                       const SizedBox(height: 28),
-                      if (profile.isPublic)
+                      if (profile.isPublic || isOwnProfile)
                         _PublicDetails(profile: profile)
                       else
                         const _PrivateNotice(),

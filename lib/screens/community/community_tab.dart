@@ -1,94 +1,20 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
-import '../../services/locale_service.dart';
+import '../../models/community_feed_event.dart';
+import '../../models/community_post.dart';
+import '../../services/community_service.dart';
 import '../../theme/app_theme.dart';
-import '../../widgets/coming_soon.dart';
+import '../explore/explore_tab.dart' show categories;
 import 'add_post_screen.dart';
 import 'comments_screen.dart';
+import 'post_card.dart';
+import 'share_post_sheet.dart';
 
-class Review {
-  Review({
-    required this.author,
-    required this.avatarColor,
-    required this.rating,
-    required this.date,
-    required this.text,
-  });
-
-  final String author;
-  final Color avatarColor;
-  final double rating;
-  final String date;
-  final String text;
-}
-
-class Post {
-  Post({
-    required this.author,
-    required this.avatarColor,
-    required this.place,
-    required this.time,
-    required this.caption,
-    required this.gradient,
-    required this.icon,
-    required this.likes,
-    required this.comments,
-  });
-
-  final String author;
-  final Color avatarColor;
-  final String place;
-  final String time;
-  final String caption;
-  final List<Color> gradient;
-  final IconData icon;
-  final int likes;
-  final int comments;
-}
-
-// A function, not a top-level `final` — a top-level `final` is only ever
-// evaluated once (the first time it's touched), so any `tr()` calls in it
-// would stay frozen at whichever language was active at that moment. This
-// re-evaluates on every call, i.e. every rebuild. User-submitted posts
-// (via AddPostScreen) are kept separately, in `_CommunityTabState._userPosts`,
-// so they aren't lost on rebuild the way re-calling this would lose them.
-List<Post> _seedPosts() => [
-  Post(
-    author: tr('community_author_mei_ling'),
-    avatarColor: Color(0xFFFF7A59),
-    place: tr('community_place_chew_jetty'),
-    time: tr('community_time_2h_ago'),
-    caption: tr('community_caption_chew_jetty'),
-    gradient: AppColors.horizon,
-    icon: Icons.holiday_village_rounded,
-    likes: 128,
-    comments: 14,
-  ),
-  Post(
-    author: tr('community_author_arif_hakim'),
-    avatarColor: Color(0xFF5C6BC0),
-    place: tr('community_place_gurney_hawker'),
-    time: tr('community_time_5h_ago'),
-    caption: tr('community_caption_gurney'),
-    gradient: AppColors.sunset,
-    icon: Icons.restaurant_rounded,
-    likes: 96,
-    comments: 21,
-  ),
-  Post(
-    author: tr('community_author_sophia_tan'),
-    avatarColor: Color(0xFF11998E),
-    place: tr('community_place_penang_hill'),
-    time: tr('community_time_1d_ago'),
-    caption: tr('community_caption_penang_hill'),
-    gradient: AppColors.lagoon,
-    icon: Icons.terrain_rounded,
-    likes: 203,
-    comments: 32,
-  ),
-];
-
-/// "Community" bottom-nav tab: a simple travel-experience feed.
+/// "Community" bottom-nav tab: a travel-experience feed backed by Supabase
+/// (`posts`, `post_likes`, `comments`), loaded page by page rather than as
+/// one live stream of the whole table — see [CommunityService.fetchFeedPage].
 class CommunityTab extends StatefulWidget {
   const CommunityTab({super.key});
 
@@ -97,215 +23,429 @@ class CommunityTab extends StatefulWidget {
 }
 
 class _CommunityTabState extends State<CommunityTab> {
-  final _userPosts = <Post>[];
+  static const _pageSize = 10;
+
+  final _service = CommunityService();
+  final _scrollController = ScrollController();
+
+  /// `null` = "All" — otherwise one of [categories]' labels, the same set
+  /// a post is tagged with in [AddPostScreen].
+  String? _selectedCategory;
+
+  final List<CommunityPost> _posts = [];
+  bool _initialLoading = true;
+  bool _loadingMore = false;
+  bool _hasMore = true;
+  Object? _error;
+
+  /// Set when [CommunityService.watchFeedActivity] reports a post from
+  /// someone else — shown as a banner rather than acted on automatically,
+  /// since splicing it into the paginated list would shift every
+  /// already-loaded page's offset.
+  bool _hasNewPosts = false;
+
+  StreamSubscription<CommunityFeedEvent>? _activitySub;
+
+  @override
+  void initState() {
+    super.initState();
+    _scrollController.addListener(_onScroll);
+    _loadInitial();
+    _activitySub = _service.watchFeedActivity().listen(_onFeedEvent);
+  }
+
+  @override
+  void dispose() {
+    _scrollController
+      ..removeListener(_onScroll)
+      ..dispose();
+    _activitySub?.cancel();
+    super.dispose();
+  }
+
+  void _onFeedEvent(CommunityFeedEvent event) {
+    switch (event) {
+      case NewPostAvailable():
+        if (!mounted || _initialLoading) return;
+        setState(() => _hasNewPosts = true);
+      case PostReactionsChanged(
+        :final postId,
+        :final reactionCounts,
+        :final likesCount,
+      ):
+        final index = _posts.indexWhere((p) => p.id == postId);
+        if (!mounted || index == -1) return;
+        setState(() {
+          _posts[index] = _posts[index].copyWith(
+            reactionCounts: reactionCounts,
+            likesCount: likesCount,
+          );
+        });
+      case PostCommentCountChanged(:final postId, :final delta):
+        final index = _posts.indexWhere((p) => p.id == postId);
+        if (!mounted || index == -1) return;
+        setState(() {
+          final current = _posts[index];
+          _posts[index] = current.copyWith(
+            commentsCount: (current.commentsCount + delta).clamp(0, 1 << 30),
+          );
+        });
+    }
+  }
+
+  Future<void> _refreshFromBanner() async {
+    setState(() => _hasNewPosts = false);
+    await _scrollController.animateTo(
+      0,
+      duration: const Duration(milliseconds: 300),
+      curve: Curves.easeOut,
+    );
+    await _loadInitial();
+  }
+
+  void _onScroll() {
+    if (!_hasMore || _loadingMore || _initialLoading) return;
+    final position = _scrollController.position;
+    if (position.pixels > position.maxScrollExtent - 300) {
+      _loadMore();
+    }
+  }
+
+  Future<void> _loadInitial() async {
+    setState(() {
+      _initialLoading = true;
+      _error = null;
+    });
+    try {
+      final page = await _service.fetchFeedPage(
+        category: _selectedCategory,
+        offset: 0,
+        limit: _pageSize,
+      );
+      if (!mounted) return;
+      setState(() {
+        _posts
+          ..clear()
+          ..addAll(page);
+        _hasMore = page.length == _pageSize;
+        _initialLoading = false;
+        _hasNewPosts = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _error = e;
+        _initialLoading = false;
+      });
+    }
+  }
+
+  Future<void> _loadMore() async {
+    setState(() => _loadingMore = true);
+    try {
+      final page = await _service.fetchFeedPage(
+        category: _selectedCategory,
+        offset: _posts.length,
+        limit: _pageSize,
+      );
+      if (!mounted) return;
+      setState(() {
+        _posts.addAll(page);
+        _hasMore = page.length == _pageSize;
+        _loadingMore = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      // Leave `_hasMore` alone so scrolling near the bottom again retries.
+      setState(() => _loadingMore = false);
+    }
+  }
+
+  void _selectCategory(String? category) {
+    if (category == _selectedCategory) return;
+    setState(() => _selectedCategory = category);
+    _loadInitial();
+  }
 
   Future<void> _addPost() async {
-    final post = await Navigator.of(
+    await Navigator.of(
       context,
-    ).push<Post>(MaterialPageRoute(builder: (_) => const AddPostScreen()));
-    if (post == null) return;
-    setState(() => _userPosts.insert(0, post));
+    ).push<bool>(MaterialPageRoute(builder: (_) => const AddPostScreen()));
+    _loadInitial();
+  }
+
+  Future<void> _editPost(CommunityPost post) async {
+    await Navigator.of(context).push<bool>(
+      MaterialPageRoute(
+        builder: (_) => AddPostScreen(existingPost: post),
+      ),
+    );
+    _loadInitial();
+  }
+
+  /// Applies a reaction change to the local list immediately — the feed no
+  /// longer has a live subscription to fall back on for this — then sends
+  /// it to the backend.
+  Future<void> _react(CommunityPost post, String? reactionType) async {
+    if (reactionType == post.myReaction) return;
+    final counts = Map<String, int>.from(post.reactionCounts);
+    final previous = post.myReaction;
+    if (previous != null) {
+      final left = (counts[previous] ?? 1) - 1;
+      if (left <= 0) {
+        counts.remove(previous);
+      } else {
+        counts[previous] = left;
+      }
+    }
+    if (reactionType != null) {
+      counts[reactionType] = (counts[reactionType] ?? 0) + 1;
+    }
+    final updated = post.copyWith(
+      myReaction: reactionType,
+      clearMyReaction: reactionType == null,
+      reactionCounts: counts,
+      likesCount: counts.values.fold<int>(0, (a, b) => a + b),
+    );
+    final index = _posts.indexWhere((p) => p.id == post.id);
+    if (index != -1) setState(() => _posts[index] = updated);
+
+    await _service.setReaction(
+      post.id,
+      reactionType: reactionType,
+      currentReaction: previous,
+    );
   }
 
   @override
   Widget build(BuildContext context) {
-    final posts = [..._userPosts, ..._seedPosts()];
     return SafeArea(
-      child: ListView(
-        padding: EdgeInsets.fromLTRB(24, 20, 24, 24),
-        children: [
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  tr('community_title'),
-                  style: TextStyle(
-                    color: context.colors.ink,
-                    fontSize: 24,
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-              ),
-              Material(
-                color: context.colors.ink,
-                shape: CircleBorder(),
-                child: InkWell(
-                  customBorder: CircleBorder(),
-                  onTap: _addPost,
-                  child: Padding(
-                    padding: EdgeInsets.all(10),
-                    child: Icon(
-                      Icons.add_rounded,
-                      color: Colors.white,
-                      size: 22,
+      child: RefreshIndicator(
+        onRefresh: _loadInitial,
+        child: ListView(
+          controller: _scrollController,
+          physics: const AlwaysScrollableScrollPhysics(),
+          padding: const EdgeInsets.fromLTRB(24, 20, 24, 24),
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    'Community',
+                    style: TextStyle(
+                      color: context.colors.ink,
+                      fontSize: 24,
+                      fontWeight: FontWeight.w800,
                     ),
                   ),
                 ),
-              ),
-            ],
-          ),
-          SizedBox(height: 4),
-          Text(
-            tr('community_subtitle'),
-            style: TextStyle(color: context.colors.muted, fontSize: 13.5),
-          ),
-          SizedBox(height: 20),
-          ...posts.map((p) => _PostCard(post: p)),
-        ],
-      ),
-    );
-  }
-}
-
-class _PostCard extends StatelessWidget {
-  const _PostCard({required this.post});
-
-  final Post post;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      margin: EdgeInsets.only(bottom: 16),
-      padding: EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: context.colors.card,
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: [
-          BoxShadow(
-            color: context.colors.ink.withValues(alpha: 0.05),
-            blurRadius: 14,
-            offset: Offset(0, 6),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              CircleAvatar(
-                radius: 18,
-                backgroundColor: post.avatarColor,
-                child: Text(
-                  post.author[0],
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.w800,
+                Material(
+                  color: context.colors.ink,
+                  shape: const CircleBorder(),
+                  child: InkWell(
+                    customBorder: const CircleBorder(),
+                    onTap: _addPost,
+                    child: const Padding(
+                      padding: EdgeInsets.all(10),
+                      child: Icon(
+                        Icons.add_rounded,
+                        color: Colors.white,
+                        size: 22,
+                      ),
+                    ),
                   ),
                 ),
+              ],
+            ),
+            const SizedBox(height: 4),
+            Text(
+              'Travel stories from fellow explorers',
+              style: TextStyle(color: context.colors.muted, fontSize: 13.5),
+            ),
+            const SizedBox(height: 16),
+            SizedBox(
+              height: 36,
+              child: ListView(
+                scrollDirection: Axis.horizontal,
+                children: [
+                  _CategoryChip(
+                    label: 'All',
+                    icon: Icons.apps_rounded,
+                    selected: _selectedCategory == null,
+                    onTap: () => _selectCategory(null),
+                  ),
+                  for (final c in categories)
+                    Padding(
+                      padding: const EdgeInsets.only(left: 8),
+                      child: _CategoryChip(
+                        label: c.label,
+                        icon: c.icon,
+                        selected: _selectedCategory == c.label,
+                        onTap: () => _selectCategory(c.label),
+                      ),
+                    ),
+                ],
               ),
-              SizedBox(width: 10),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      post.author,
-                      style: TextStyle(
+            ),
+            const SizedBox(height: 16),
+            if (_hasNewPosts)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 16),
+                child: Material(
+                  color: Colors.transparent,
+                  child: InkWell(
+                    borderRadius: BorderRadius.circular(14),
+                    onTap: _refreshFromBanner,
+                    child: Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.symmetric(vertical: 10),
+                      decoration: BoxDecoration(
                         color: context.colors.ink,
-                        fontWeight: FontWeight.w700,
-                        fontSize: 13.5,
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                      alignment: Alignment.center,
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: const [
+                          Icon(
+                            Icons.arrow_upward_rounded,
+                            color: Colors.white,
+                            size: 15,
+                          ),
+                          SizedBox(width: 6),
+                          Text(
+                            'New posts — tap to refresh',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.w700,
+                              fontSize: 12.5,
+                            ),
+                          ),
+                        ],
                       ),
                     ),
-                    Text(
-                      '${post.place} · ${post.time}',
-                      style: TextStyle(
-                        color: context.colors.muted,
-                        fontSize: 11.5,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-          SizedBox(height: 12),
-          Text(
-            post.caption,
-            style: TextStyle(
-              color: context.colors.ink,
-              fontSize: 13,
-              height: 1.4,
-            ),
-          ),
-          SizedBox(height: 12),
-          Container(
-            height: 140,
-            width: double.infinity,
-            decoration: BoxDecoration(
-              gradient: LinearGradient(colors: post.gradient),
-              borderRadius: BorderRadius.circular(16),
-            ),
-            alignment: Alignment.center,
-            child: Icon(
-              post.icon,
-              color: Colors.white.withValues(alpha: 0.9),
-              size: 40,
-            ),
-          ),
-          SizedBox(height: 10),
-          Row(
-            children: [
-              _PostAction(
-                icon: Icons.favorite_border_rounded,
-                label: '${post.likes}',
-                onTap: () => showComingSoon(context, tr('community_like')),
-              ),
-              SizedBox(width: 18),
-              _PostAction(
-                icon: Icons.mode_comment_outlined,
-                label: '${post.comments}',
-                onTap: () => Navigator.of(context).push(
-                  MaterialPageRoute(
-                    builder: (_) => CommentsScreen(place: post.place),
                   ),
                 ),
               ),
-              Spacer(),
-              GestureDetector(
-                onTap: () => showComingSoon(context, tr('community_share')),
-                child: Icon(
-                  Icons.share_outlined,
-                  color: context.colors.muted,
-                  size: 19,
+            if (_error != null)
+              Padding(
+                padding: const EdgeInsets.only(top: 40),
+                child: Center(
+                  child: Column(
+                    children: [
+                      Text(
+                        "Couldn't load the community feed.",
+                        textAlign: TextAlign.center,
+                        style: TextStyle(color: context.colors.muted),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        '$_error',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          color: context.colors.muted,
+                          fontSize: 11.5,
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      OutlinedButton(
+                        onPressed: _loadInitial,
+                        child: const Text('Retry'),
+                      ),
+                    ],
+                  ),
+                ),
+              )
+            else if (_initialLoading)
+              const Padding(
+                padding: EdgeInsets.only(top: 40),
+                child: Center(child: CircularProgressIndicator()),
+              )
+            else if (_posts.isEmpty)
+              Padding(
+                padding: const EdgeInsets.only(top: 40),
+                child: Center(
+                  child: Text(
+                    _selectedCategory == null
+                        ? 'No posts yet — be the first to share a travel moment!'
+                        : 'No $_selectedCategory posts yet.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(color: context.colors.muted),
+                  ),
+                ),
+              )
+            else ...[
+              ..._posts.map(
+                (p) => PostCard(
+                  post: p,
+                  onReact: (reactionType) => _react(p, reactionType),
+                  onComment: () => Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) =>
+                          CommentsScreen(postId: p.id, place: p.placeName),
+                    ),
+                  ),
+                  onShare: () => showSharePostSheet(context, p),
+                  onEdit: () => _editPost(p),
                 ),
               ),
+              if (_loadingMore)
+                const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 20),
+                  child: Center(child: CircularProgressIndicator()),
+                ),
             ],
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
 }
 
-class _PostAction extends StatelessWidget {
-  const _PostAction({
-    required this.icon,
+class _CategoryChip extends StatelessWidget {
+  const _CategoryChip({
     required this.label,
+    required this.icon,
+    required this.selected,
     required this.onTap,
   });
 
-  final IconData icon;
   final String label;
+  final IconData icon;
+  final bool selected;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
       onTap: onTap,
-      child: Row(
-        children: [
-          Icon(icon, color: context.colors.muted, size: 19),
-          SizedBox(width: 5),
-          Text(
-            label,
-            style: TextStyle(
-              color: context.colors.muted,
-              fontSize: 12.5,
-              fontWeight: FontWeight.w600,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        padding: const EdgeInsets.symmetric(horizontal: 14),
+        decoration: BoxDecoration(
+          color: selected ? context.colors.ink : context.colors.card,
+          borderRadius: BorderRadius.circular(20),
+        ),
+        alignment: Alignment.center,
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              icon,
+              size: 15,
+              color: selected ? Colors.white : context.colors.muted,
             ),
-          ),
-        ],
+            const SizedBox(width: 6),
+            Text(
+              label,
+              style: TextStyle(
+                color: selected ? Colors.white : context.colors.ink,
+                fontWeight: FontWeight.w600,
+                fontSize: 12.5,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

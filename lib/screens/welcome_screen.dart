@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 
-import '../services/locale_service.dart';
 import '../theme/app_theme.dart';
 import '../widgets/gradient_button.dart';
 import 'auth_screen.dart';
@@ -19,6 +18,33 @@ class _OnboardData {
   final List<Color> gradient;
 }
 
+List<_OnboardData> _pages = [
+  _OnboardData(
+    icon: Icons.explore_rounded,
+    title: 'Discover Your Next\nAdventure',
+    description:
+        'Explore thousands of destinations curated for every kind of '
+        'traveler, from hidden gems to iconic landmarks.',
+    gradient: AppColors.horizon,
+  ),
+  _OnboardData(
+    icon: Icons.map_rounded,
+    title: 'Plan Every Detail\nEffortlessly',
+    description:
+        'Build day-by-day itineraries, organize bookings, and keep your '
+        'whole trip in one beautiful timeline.',
+    gradient: AppColors.dusk,
+  ),
+  _OnboardData(
+    icon: Icons.flight_takeoff_rounded,
+    title: 'Travel Smarter,\nStress-Free',
+    description:
+        'Get real-time tips, budget tracking, and packing checklists so '
+        'all you have to do is enjoy the ride.',
+    gradient: AppColors.sunset,
+  ),
+];
+
 /// The app's intro / welcome experience: a swipeable feature carousel
 /// that leads into the sign in / sign up screen.
 class WelcomeScreen extends StatefulWidget {
@@ -31,30 +57,6 @@ class WelcomeScreen extends StatefulWidget {
 class _WelcomeScreenState extends State<WelcomeScreen> {
   final PageController _controller = PageController();
   double _page = 0;
-
-  // A getter, not a top-level constant — `tr()` must re-evaluate on every
-  // build (a top-level variable's initializer runs exactly once per app
-  // session, same trap as a `static final` field).
-  List<_OnboardData> get _pages => [
-    _OnboardData(
-      icon: Icons.explore_rounded,
-      title: tr('auth_onboard_1_title'),
-      description: tr('auth_onboard_1_desc'),
-      gradient: AppColors.horizon,
-    ),
-    _OnboardData(
-      icon: Icons.map_rounded,
-      title: tr('auth_onboard_2_title'),
-      description: tr('auth_onboard_2_desc'),
-      gradient: AppColors.dusk,
-    ),
-    _OnboardData(
-      icon: Icons.flight_takeoff_rounded,
-      title: tr('auth_onboard_3_title'),
-      description: tr('auth_onboard_3_desc'),
-      gradient: AppColors.sunset,
-    ),
-  ];
 
   @override
   void initState() {
@@ -148,7 +150,7 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
                           child: TextButton(
                             onPressed: _goToAuth,
                             child: Text(
-                              tr('auth_skip'),
+                              'Skip',
                               style: TextStyle(
                                 color: Colors.white70,
                                 fontWeight: FontWeight.w600,
@@ -196,7 +198,7 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
                   padding: EdgeInsets.symmetric(horizontal: 28),
                   child: GradientButton(
                     key: ValueKey(isLast),
-                    label: isLast ? tr('auth_get_started') : tr('common_next'),
+                    label: isLast ? 'Get Started' : 'Next',
                     icon: Icons.arrow_forward_rounded,
                     colors: [Colors.white, Colors.white],
                     foregroundColor: gradient[0],
@@ -217,7 +219,7 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
                 TextButton(
                   onPressed: _goToAuth,
                   child: Text(
-                    tr('auth_already_have_account'),
+                    'I already have an account',
                     style: TextStyle(
                       color: Colors.white70,
                       fontWeight: FontWeight.w600,

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../models/poll.dart';
 import '../../services/group_service.dart';
@@ -47,6 +48,8 @@ class _VotingScreenState extends State<VotingScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final myUid = Supabase.instance.client.auth.currentUser?.id;
+
     return Scaffold(
       backgroundColor: context.colors.surface,
       body: SafeArea(
@@ -78,6 +81,10 @@ class _VotingScreenState extends State<VotingScreen> {
                         itemBuilder: (context, index) {
                           final poll = polls[index];
                           final totalVotes = poll.totalVotes;
+                          // The organizer can manage any poll; anyone
+                          // else only the one they created themselves.
+                          final canManage =
+                              isOrganizer || poll.createdBy == myUid;
                           return Container(
                             margin: EdgeInsets.only(bottom: 18),
                             padding: EdgeInsets.all(16),
@@ -110,7 +117,7 @@ class _VotingScreenState extends State<VotingScreen> {
                                         ),
                                       ),
                                     ),
-                                    if (isOrganizer)
+                                    if (canManage)
                                       GestureDetector(
                                         onTap: () => _editPoll(poll),
                                         child: Padding(

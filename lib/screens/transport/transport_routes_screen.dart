@@ -4,133 +4,83 @@ import 'package:latlong2/latlong.dart';
 
 import '../../models/drive_route.dart';
 import '../../models/transit_route.dart';
-import '../../models/transport_location.dart';
+import '../../models/trip_stop_location.dart';
 import '../../services/locale_service.dart';
+import '../../services/photon_service.dart';
 import '../../services/route_service.dart';
+import '../../services/trip_service.dart';
 import '../../theme/app_theme.dart';
 import '../../utils/format.dart';
 import '../../utils/transit_vehicle_display.dart';
-import '../../widgets/current_location_marker.dart';
 import '../../widgets/detail_header.dart';
-import '../../widgets/map_label_pill.dart';
+import '../../widgets/location_search_field.dart';
 import '../../widgets/route_map_view.dart';
-import '../../widgets/street_map_painter.dart';
-import '../../widgets/transport_location_search_field.dart';
-import '../explore/explore_tab.dart' show Place, places;
-import 'fare_calculator_screen.dart';
-import 'route_details_screen.dart';
+import '../explore/explore_tab.dart' show Place;
 import 'transit_route_details_screen.dart';
-
-/// One scheduled bus option from the traveler's current location to a
-/// searched destination. UI-only mock data derived from the place's
-/// approximate distance — no live transit/geo API involved.
-class BusDeparture {
-  const BusDeparture({
-    required this.busNumber,
-    required this.color,
-    required this.waitMinutes,
-    required this.rideMinutes,
-    required this.fare,
-    required this.nearestStop,
-    required this.walkToStopMinutes,
-    required this.destinationStop,
-    required this.walkFromStopMinutes,
-    required this.destinationName,
-  });
-
-  final String busNumber;
-  final Color color;
-  final int waitMinutes;
-  final int rideMinutes;
-  final String fare;
-  final String nearestStop;
-  final int walkToStopMinutes;
-  final String destinationStop;
-  final int walkFromStopMinutes;
-  final String destinationName;
-
-  int get totalMinutes =>
-      walkToStopMinutes + waitMinutes + rideMinutes + walkFromStopMinutes;
-}
-
-const _currentLocationName = 'Komtar, George Town';
 
 /// The traveler's next planned itinerary stop — mirrors the "Next Stop"
 /// leg shown on the home dashboard and trip schedule (Komtar → Gurney
 /// Drive & Plaza → Queensbay Mall), so the transport tab can proactively
 /// offer directions to it.
-Place _nextStop() => Place(
+final _nextStop = Place(
   name: 'Gurney Drive & Plaza',
-  area: tr('explore_area_gurney_drive'),
+  area: 'Gurney Drive, Penang',
   category: 'Shopping',
   rating: 0,
   reviews: 0,
   gradient: AppColors.dusk,
   icon: Icons.shopping_bag_rounded,
-  description: tr('transport_next_planned_stop_desc'),
+  description: 'Your next planned stop on this trip.',
   avgBudget: 'RM 20 – 50',
   distanceKm: 3.8,
 );
 
-const _busColors = [
-  Color(0xFF5C6BC0),
-  Color(0xFF11998E),
-  Color(0xFFFF7A59),
-];
-const _busPool = ['101', '204', '305', '401', '502', '607'];
-const _waitOptions = [4, 13, 26];
-
-const _nearbyStops = [
-  (name: 'Komtar Sentral', alignment: Alignment(0.05, 0.6)),
-  (name: 'Prangin Mall Stop', alignment: Alignment(-0.55, 0.25)),
-];
-
-List<BusDeparture> _departuresFor(Place destination) {
-  final distance = destination.distanceKm ?? 5.0;
-  final rideMinutes = (distance * 3.4 + 7).round();
-  final fareValue = 1.0 + distance * 0.18;
-  final seed = destination.name.hashCode.abs();
-  return List.generate(3, (i) {
-    return BusDeparture(
-      busNumber: _busPool[(seed + i * 7) % _busPool.length],
-      color: _busColors[(seed + i) % _busColors.length],
-      waitMinutes: _waitOptions[i],
-      rideMinutes: rideMinutes + i * 2,
-      fare: 'RM ${(fareValue + i * 0.2).toStringAsFixed(2)}',
-      nearestStop: _nearbyStops.first.name,
-      walkToStopMinutes: 4,
-      destinationStop: '${destination.name} Stop',
-      walkFromStopMinutes: 3,
-      destinationName: destination.name,
-    );
-  });
-}
-
-/// UI-only transit planner: a stylized map centered on the traveler's
-/// current location, a destination search, and the resulting bus
-/// departures with full walk → wait → ride → alight instructions.
+/// Real transit planner: Depart From/Destination search, a live map,
+/// and public-transport (primary) + driving (comparison) route results
+/// via [RouteService]. [showTripExtras] additionally surfaces a
+/// trip-aware "Next Up" suggestion and the traveler's saved "Quick
+/// Stops" above the search — the search/map/results below are identical
+/// either way.
 class TransportRoutesScreen extends StatefulWidget {
-  const TransportRoutesScreen({super.key, this.showTripExtras = true});
+  const TransportRoutesScreen({
+    super.key,
+    this.showTripExtras = true,
+    this.tripId,
+  });
 
   /// Whether to show the trip-specific extras — the "Next Up" stop
-  /// suggestion and the "My Routes" saved-routes list. The home
-  /// dashboard's entry point keeps it simpler: just the map, search,
-  /// and results.
+  /// suggestion and the "Quick Stops" list. The home dashboard's entry
+  /// point keeps it simpler: just the map, search, and results.
   final bool showTripExtras;
+
+  /// The trip "Quick Stops" belongs to — each trip has its own independent
+  /// quick-stop list (see [TripService.getFavoriteStops]) of places the
+  /// traveler commonly visits on this trip, saved purely for fast
+  /// transport access — not part of the trip's travel plan/itinerary.
+  /// Required for that section to load/save; when null (as from entry
+  /// points that haven't been wired to a real trip yet) "Quick Stops"
+  /// just doesn't render, even if [showTripExtras] is true.
+  final String? tripId;
 
   @override
   State<TransportRoutesScreen> createState() => _TransportRoutesScreenState();
 }
 
 class _TransportRoutesScreenState extends State<TransportRoutesScreen> {
-  final _searchController = TextEditingController();
-  String _query = '';
-  Place? _destination;
+  final _tripService = TripService();
+  List<TripStopLocation> _favoriteStops = const [];
+  bool _loadingFavorites = false;
+  final _photonService = PhotonService();
 
-  final _favoriteStops = [places[3], places[4]];
+  /// Set while a "Next Up"/favourite-stop tap is being resolved to a
+  /// real, geocoded [TripStopLocation] via Photon — those cards only
+  /// carry a dummy [Place] (name/area, no coordinates), so tapping one
+  /// re-searches its name for a real destination rather than setting it
+  /// directly.
+  bool _resolvingQuickDestination = false;
 
-  TransportLocation? _departure;
-  TransportLocation? _selectedDestination;
+  TripStopLocation? _departure;
+  TripStopLocation? _selectedDestination;
   bool _locatingDeparture = false;
   String? _departureError;
 
@@ -139,20 +89,33 @@ class _TransportRoutesScreenState extends State<TransportRoutesScreen> {
   DriveRoute? _driveRoute;
   bool _loadingRoutes = false;
   String? _routesError;
-  bool _showDriveOnMap = false;
   int _selectedTransitIndex = 0;
   int _routeRequestId = 0;
 
   @override
   void initState() {
     super.initState();
-    if (!widget.showTripExtras) _initDeparture();
+    _initDeparture();
+    if (widget.showTripExtras && widget.tripId != null) {
+      _loadFavoriteStops();
+    }
   }
 
-  @override
-  void dispose() {
-    _searchController.dispose();
-    super.dispose();
+  Future<void> _loadFavoriteStops() async {
+    final tripId = widget.tripId;
+    if (tripId == null) return;
+    setState(() => _loadingFavorites = true);
+    try {
+      final stops = await _tripService.getFavoriteStops(tripId);
+      if (!mounted) return;
+      setState(() {
+        _favoriteStops = stops;
+        _loadingFavorites = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _loadingFavorites = false);
+    }
   }
 
   /// Resolves the traveler's current GPS position as the default
@@ -166,7 +129,9 @@ class _TransportRoutesScreenState extends State<TransportRoutesScreen> {
     });
     try {
       if (!await Geolocator.isLocationServiceEnabled()) {
-        _failDeparture(tr('transport_location_services_off_search'));
+        _failDeparture(
+          'Location services are turned off. Search for a departure point instead.',
+        );
         return;
       }
       var permission = await Geolocator.checkPermission();
@@ -174,11 +139,15 @@ class _TransportRoutesScreenState extends State<TransportRoutesScreen> {
         permission = await Geolocator.requestPermission();
       }
       if (permission == LocationPermission.deniedForever) {
-        _failDeparture(tr('transport_location_permission_denied_forever_search'));
+        _failDeparture(
+          'Location permission is permanently denied. Enable it in Settings, or search for a departure point.',
+        );
         return;
       }
       if (permission == LocationPermission.denied) {
-        _failDeparture(tr('transport_location_permission_denied_search'));
+        _failDeparture(
+          'Location permission denied. Search for a departure point instead.',
+        );
         return;
       }
       final position = await Geolocator.getCurrentPosition(
@@ -186,8 +155,8 @@ class _TransportRoutesScreenState extends State<TransportRoutesScreen> {
       );
       if (!mounted) return;
       setState(() {
-        _departure = TransportLocation(
-          name: tr('transport_current_location_word'),
+        _departure = TripStopLocation(
+          name: 'Current Location',
           address: '',
           latitude: position.latitude,
           longitude: position.longitude,
@@ -196,7 +165,9 @@ class _TransportRoutesScreenState extends State<TransportRoutesScreen> {
       });
       _maybeFetchRoutes();
     } catch (_) {
-      _failDeparture(tr('transport_unable_retrieve_location_search'));
+      _failDeparture(
+        'Unable to retrieve your current location. Search for a departure point instead.',
+      );
     }
   }
 
@@ -223,7 +194,6 @@ class _TransportRoutesScreenState extends State<TransportRoutesScreen> {
         _driveRoute = null;
         _routesError = null;
         _loadingRoutes = false;
-        _showDriveOnMap = false;
         _selectedTransitIndex = 0;
       });
       return;
@@ -235,7 +205,6 @@ class _TransportRoutesScreenState extends State<TransportRoutesScreen> {
       _routesError = null;
       _transitRoutes = const [];
       _driveRoute = null;
-      _showDriveOnMap = false;
       _selectedTransitIndex = 0;
     });
 
@@ -252,14 +221,15 @@ class _TransportRoutesScreenState extends State<TransportRoutesScreen> {
         _transitRoutes = transitRoutes;
         _loadingRoutes = false;
         _routesError = transitRoutes.isEmpty
-            ? tr('transport_no_transit_routes_found')
+            ? 'No public transport routes found between these points.'
             : null;
       });
     } catch (_) {
       if (!mounted || requestId != _routeRequestId) return;
       setState(() {
         _loadingRoutes = false;
-        _routesError = tr('transport_could_not_load_transit_routes');
+        _routesError =
+            'Could not load public transport routes. Check your connection and try again.';
       });
     }
 
@@ -276,96 +246,146 @@ class _TransportRoutesScreenState extends State<TransportRoutesScreen> {
     }
   }
 
-  /// Polyline currently shown on the single persistent map — the
-  /// selected transit route by default, or the driving route when that
-  /// comparison is toggled on. Empty before both endpoints are set or
-  /// while routes are still loading.
+  /// Polyline currently shown on the single persistent map — always the
+  /// selected transit route; the driving comparison is reference-only
+  /// and never plotted. Empty before both endpoints are set or while
+  /// routes are still loading.
   List<LatLng> get _mapPolylinePoints {
-    if (_showDriveOnMap && _driveRoute != null) {
-      return _driveRoute!.polylinePoints;
-    }
     if (_transitRoutes.isEmpty) return const [];
     final index = _selectedTransitIndex.clamp(0, _transitRoutes.length - 1);
     return _transitRoutes[index].polylinePoints;
   }
 
-  Color get _mapPolylineColor =>
-      _showDriveOnMap && _driveRoute != null
-          ? const Color(0xFF5C6BC0)
-          : const Color(0xFF11998E);
+  Color get _mapPolylineColor => const Color(0xFF11998E);
 
   Future<void> _addFavoriteStop() async {
-    final picked = await showModalBottomSheet<Place>(
+    final tripId = widget.tripId;
+    if (tripId == null) return;
+    final picked = await showModalBottomSheet<TripStopLocation>(
       context: context,
       backgroundColor: Colors.transparent,
       isScrollControlled: true,
       builder: (_) => _FavoriteStopPicker(alreadyAdded: _favoriteStops),
     );
     if (picked == null) return;
-    setState(() => _favoriteStops.add(picked));
+    try {
+      final saved = await _tripService.addFavoriteStop(tripId, picked);
+      if (!mounted) return;
+      setState(() => _favoriteStops = [..._favoriteStops, saved]);
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          behavior: SnackBarBehavior.floating,
+          content: Text('Could not save that stop. Try again.'),
+        ),
+      );
+    }
   }
 
-  void _removeFavoriteStop(Place place) {
-    final index = _favoriteStops.indexOf(place);
-    setState(() => _favoriteStops.remove(place));
+  Future<void> _removeFavoriteStop(TripStopLocation stop) async {
+    final tripId = widget.tripId;
+    final index = _favoriteStops.indexOf(stop);
+    setState(() => _favoriteStops = [..._favoriteStops]..remove(stop));
+    try {
+      await _tripService.removeFavoriteStop(stop.id!);
+    } catch (_) {
+      if (!mounted) return;
+      setState(
+        () => _favoriteStops = [..._favoriteStops]
+          ..insert(index.clamp(0, _favoriteStops.length), stop),
+      );
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          behavior: SnackBarBehavior.floating,
+          content: Text('Could not remove that stop. Try again.'),
+        ),
+      );
+      return;
+    }
+    if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         behavior: SnackBarBehavior.floating,
         backgroundColor: context.colors.ink,
-        content: Text(tr('transport_removed_favourite').replaceAll('{place}', place.name)),
+        content: Text('${stop.name} removed from quick stops'),
         action: SnackBarAction(
-          label: tr('transport_undo'),
+          label: 'Undo',
           textColor: AppColors.accent,
-          onPressed: () => setState(
-            () => _favoriteStops.insert(
-              index.clamp(0, _favoriteStops.length),
-              place,
-            ),
-          ),
+          onPressed: () async {
+            if (tripId == null) return;
+            try {
+              final restored = await _tripService.addFavoriteStop(
+                tripId,
+                stop,
+              );
+              if (!mounted) return;
+              setState(
+                () => _favoriteStops = [..._favoriteStops]
+                  ..insert(index.clamp(0, _favoriteStops.length), restored),
+              );
+            } catch (_) {
+              // Best-effort undo — nothing more to do if it fails.
+            }
+          },
         ),
       ),
     );
   }
 
-  List<Place> get _matches {
-    if (_query.isEmpty) return const [];
-    final q = _query.toLowerCase();
-    return places.where((p) => p.name.toLowerCase().contains(q)).take(4).toList();
+  /// A favourite stop already carries real coordinates (unlike "Next Up",
+  /// which only has a name to re-geocode), so tapping one sets it as the
+  /// destination directly.
+  void _selectFavoriteStop(TripStopLocation stop) {
+    setState(() => _selectedDestination = stop);
+    _maybeFetchRoutes();
   }
 
-  void _selectDestination(Place place) {
-    FocusScope.of(context).unfocus();
-    _searchController.text = place.name;
-    setState(() {
-      _destination = place;
-      _query = '';
-    });
-  }
-
-  void _clearDestination() {
-    _searchController.clear();
-    setState(() {
-      _destination = null;
-      _query = '';
-    });
+  /// "Next Up"/a favourite stop only carries a name (no coordinates) —
+  /// resolves it to a real place via Photon and sets it as the
+  /// destination, same as if the traveler had searched for it manually.
+  Future<void> _selectDestination(Place place) async {
+    setState(() => _resolvingQuickDestination = true);
+    try {
+      final results = await _photonService.search(place.name);
+      if (!mounted) return;
+      if (results.isEmpty) {
+        setState(() => _resolvingQuickDestination = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            behavior: SnackBarBehavior.floating,
+            content: Text('Could not find "${place.name}" — try searching manually.'),
+          ),
+        );
+        return;
+      }
+      setState(() {
+        _selectedDestination = results.first;
+        _resolvingQuickDestination = false;
+      });
+      _maybeFetchRoutes();
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _resolvingQuickDestination = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          behavior: SnackBarBehavior.floating,
+          content: Text('Could not find "${place.name}" — try searching manually.'),
+        ),
+      );
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    final destination = _destination;
-    final departures = destination == null
-        ? const <BusDeparture>[]
-        : _departuresFor(destination);
-    final nextStop = _nextStop();
-
     return Scaffold(
       backgroundColor: context.colors.surface,
       body: SafeArea(
         child: Column(
           children: [
             DetailHeader(
-              title: tr('transport_title'),
-              subtitle: tr('transport_find_your_way'),
+              title: 'Transport',
+              subtitle: 'Find your way around Malaysia',
               // trailing: IconButton(
               //   onPressed: () => Navigator.of(context).push(
               //     MaterialPageRoute(
@@ -383,89 +403,19 @@ class _TransportRoutesScreenState extends State<TransportRoutesScreen> {
                 padding: const EdgeInsets.fromLTRB(20, 4, 20, 24),
                 children: [
                   if (widget.showTripExtras) ...[
-                    if (destination?.name != nextStop.name) ...[
+                    if (_selectedDestination?.name != _nextStop.name) ...[
                       _NextStopCard(
-                        stopName: nextStop.name,
-                        onTap: () => _selectDestination(nextStop),
+                        stopName: _nextStop.name,
+                        onTap: () => _selectDestination(_nextStop),
                       ),
                       const SizedBox(height: 20),
                     ],
-                    Row(
-                      children: [
-                        Expanded(
-                          child: Text(
-                            tr('transport_my_stops'),
-                            style: TextStyle(
-                              color: context.colors.ink,
-                              fontWeight: FontWeight.w800,
-                              fontSize: 16,
-                            ),
-                          ),
-                        ),
-                        GestureDetector(
-                          onTap: _addFavoriteStop,
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              const Icon(
-                                Icons.add_circle_rounded,
-                                color: AppColors.accent,
-                                size: 16,
-                              ),
-                              const SizedBox(width: 4),
-                              Text(
-                                tr('transport_add'),
-                                style: TextStyle(
-                                  color: AppColors.accent,
-                                  fontWeight: FontWeight.w700,
-                                  fontSize: 13,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      tr('transport_favourite_places_hint'),
-                      style: TextStyle(color: context.colors.muted, fontSize: 12),
-                    ),
-                    const SizedBox(height: 12),
-                    if (_favoriteStops.isEmpty)
-                      Text(
-                        tr('transport_no_favourite_stops'),
-                        style: TextStyle(color: context.colors.muted, fontSize: 12),
-                      )
-                    else
-                      ..._favoriteStops.map(
-                        (place) => _FavoriteStopCard(
-                          place: place,
-                          onTap: () => _selectDestination(place),
-                          onRemove: () => _removeFavoriteStop(place),
-                        ),
-                      ),
-                    const SizedBox(height: 20),
-                  ],
-                  if (widget.showTripExtras) ...[
-                    _TransitMap(
-                      destination: destination,
-                      searchController: _searchController,
-                      query: _query,
-                      matches: _matches,
-                      onQueryChanged: (v) => setState(() => _query = v),
-                      onPick: _selectDestination,
-                      onClear: _clearDestination,
-                    ),
-                    const SizedBox(height: 20),
-                    if (destination == null)
-                      const _EmptySearchState()
-                    else ...[
+                    if (widget.tripId != null) ...[
                       Row(
                         children: [
                           Expanded(
                             child: Text(
-                              tr('transport_buses_to').replaceAll('{dest}', destination.name),
+                              'Quick Stops',
                               style: TextStyle(
                                 color: context.colors.ink,
                                 fontWeight: FontWeight.w800,
@@ -473,115 +423,146 @@ class _TransportRoutesScreenState extends State<TransportRoutesScreen> {
                               ),
                             ),
                           ),
-                          Text(
-                            tr('transport_options_count').replaceAll('{count}', '${departures.length}'),
-                            style: TextStyle(
-                              color: context.colors.muted,
-                              fontSize: 12,
-                              fontWeight: FontWeight.w600,
+                          GestureDetector(
+                            onTap: _addFavoriteStop,
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const Icon(
+                                  Icons.add_circle_rounded,
+                                  color: AppColors.accent,
+                                  size: 16,
+                                ),
+                                const SizedBox(width: 4),
+                                Text(
+                                  'Add',
+                                  style: TextStyle(
+                                    color: AppColors.accent,
+                                    fontWeight: FontWeight.w700,
+                                    fontSize: 13,
+                                  ),
+                                ),
+                              ],
                             ),
                           ),
                         ],
                       ),
+                      const SizedBox(height: 4),
+                      Text(
+                        'Places you commonly visit on this trip — added just for fast transport access, not part of your travel plan. Tap one to see how to get there.',
+                        style: TextStyle(
+                          color: context.colors.muted,
+                          fontSize: 12,
+                        ),
+                      ),
                       const SizedBox(height: 12),
-                      ...departures.map(
-                        (d) => _DepartureCard(
-                          departure: d,
-                          onTap: () => Navigator.of(context).push(
-                            MaterialPageRoute(
-                              builder: (_) => RouteDetailsScreen(departure: d),
-                            ),
+                      if (_loadingFavorites)
+                        const Padding(
+                          padding: EdgeInsets.symmetric(vertical: 8),
+                          child: SizedBox(
+                            width: 18,
+                            height: 18,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          ),
+                        )
+                      else if (_favoriteStops.isEmpty)
+                        Text(
+                          'No quick stops yet.',
+                          style: TextStyle(
+                            color: context.colors.muted,
+                            fontSize: 12,
+                          ),
+                        )
+                      else
+                        ..._favoriteStops.map(
+                          (stop) => _FavoriteStopCard(
+                            stop: stop,
+                            onTap: () => _selectFavoriteStop(stop),
+                            onRemove: () => _removeFavoriteStop(stop),
                           ),
                         ),
-                      ),
+                      const SizedBox(height: 20),
                     ],
-                  ] else ...[
-                    _FieldLabel(tr('transport_depart_from_label')),
-                    const SizedBox(height: 8),
-                    TransportLocationSearchField(
-                      value: _departure,
-                      onChanged: (loc) {
-                        setState(() {
-                          _departure = loc;
-                          if (loc != null) _departureError = null;
-                        });
-                        _maybeFetchRoutes();
-                      },
-                      hintText: _locatingDeparture
-                          ? tr('transport_getting_location')
-                          : tr('transport_search_departure_location_hint'),
-                      selectedIcon: Icons.my_location_rounded,
-                      helperText: _departureError,
-                      externalLoading: _locatingDeparture,
-                      quickActionLabel: tr('transport_use_current_location'),
-                      onQuickAction: _initDeparture,
+                  ],
+                  const _FieldLabel('Depart From'),
+                  const SizedBox(height: 8),
+                  LocationSearchField(
+                    value: _departure,
+                    onChanged: (loc) {
+                      setState(() {
+                        _departure = loc;
+                        if (loc != null) _departureError = null;
+                      });
+                      _maybeFetchRoutes();
+                    },
+                    hintText: _locatingDeparture
+                        ? 'Getting your location…'
+                        : 'Search departure location…',
+                    selectedIcon: Icons.my_location_rounded,
+                    helperText: _departureError,
+                    externalLoading: _locatingDeparture,
+                    quickActionLabel: 'Use current location',
+                    onQuickAction: _initDeparture,
+                  ),
+                  const SizedBox(height: 18),
+                  const _FieldLabel('Destination'),
+                  const SizedBox(height: 8),
+                  LocationSearchField(
+                    value: _selectedDestination,
+                    onChanged: (d) {
+                      setState(() => _selectedDestination = d);
+                      _maybeFetchRoutes();
+                    },
+                    hintText: _resolvingQuickDestination
+                        ? 'Finding that place…'
+                        : 'Where do you want to go?',
+                    externalLoading: _resolvingQuickDestination,
+                    selectedIcon: Icons.directions_transit_filled_rounded,
+                  ),
+                  const SizedBox(height: 18),
+                  RouteMapView(
+                    source: _departure == null
+                        ? null
+                        : LatLng(_departure!.latitude, _departure!.longitude),
+                    destination: _selectedDestination == null
+                        ? null
+                        : LatLng(
+                            _selectedDestination!.latitude,
+                            _selectedDestination!.longitude,
+                          ),
+                    polylinePoints: _mapPolylinePoints,
+                    polylineColor: _mapPolylineColor,
+                    height: 270,
+                  ),
+                  const SizedBox(height: 20),
+                  if (_selectedDestination == null)
+                    const _EmptyDestinationState()
+                  else ...[
+                    _RouteEndpointsCard(
+                      departure: _departure,
+                      locatingDeparture: _locatingDeparture,
+                      destination: _selectedDestination!,
                     ),
-                    const SizedBox(height: 18),
-                    _FieldLabel(tr('transport_destination_label')),
-                    const SizedBox(height: 8),
-                    TransportLocationSearchField(
-                      value: _selectedDestination,
-                      onChanged: (d) {
-                        setState(() => _selectedDestination = d);
-                        _maybeFetchRoutes();
-                      },
-                      hintText: tr('transport_where_to_go_hint'),
-                      selectedIcon: Icons.directions_transit_filled_rounded,
-                    ),
-                    const SizedBox(height: 18),
-                    RouteMapView(
-                      source: _departure == null
-                          ? null
-                          : LatLng(
-                              _departure!.latitude,
-                              _departure!.longitude,
-                            ),
-                      destination: _selectedDestination == null
-                          ? null
-                          : LatLng(
-                              _selectedDestination!.latitude,
-                              _selectedDestination!.longitude,
-                            ),
-                      polylinePoints: _mapPolylinePoints,
-                      polylineColor: _mapPolylineColor,
-                      height: 270,
-                    ),
-                    const SizedBox(height: 20),
-                    if (_selectedDestination == null)
-                      const _EmptyDestinationState()
-                    else ...[
-                      _RouteEndpointsCard(
-                        departure: _departure,
-                        locatingDeparture: _locatingDeparture,
-                        destination: _selectedDestination!,
-                      ),
-                      if (_departure != null) ...[
-                        const SizedBox(height: 20),
-                        _RouteResultsSection(
-                          loading: _loadingRoutes,
-                          error: _routesError,
-                          transitRoutes: _transitRoutes,
-                          driveRoute: _driveRoute,
-                          showDriveOnMap: _showDriveOnMap,
-                          selectedTransitIndex: _selectedTransitIndex,
-                          onSelectTransit: (index) => setState(() {
-                            _selectedTransitIndex = index;
-                            _showDriveOnMap = false;
-                          }),
-                          onToggleDrive: (showDrive) =>
-                              setState(() => _showDriveOnMap = showDrive),
-                          onViewDetails: (route) =>
-                              Navigator.of(context).push(
-                            MaterialPageRoute(
-                              builder: (_) => TransitRouteDetailsScreen(
-                                route: route,
-                                departure: _departure!,
-                                destination: _selectedDestination!,
-                              ),
+                    if (_departure != null) ...[
+                      const SizedBox(height: 20),
+                      _RouteResultsSection(
+                        loading: _loadingRoutes,
+                        error: _routesError,
+                        transitRoutes: _transitRoutes,
+                        driveRoute: _driveRoute,
+                        selectedTransitIndex: _selectedTransitIndex,
+                        onSelectTransit: (index) =>
+                            setState(() => _selectedTransitIndex = index),
+                        onViewDetails: (route) => Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (_) => TransitRouteDetailsScreen(
+                              route: route,
+                              departure: _departure!,
+                              destination: _selectedDestination!,
                             ),
                           ),
                         ),
-                      ],
+                      ),
                     ],
                   ],
                 ],
@@ -642,9 +623,9 @@ class _NextStopCard extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  tr('transport_next_up'),
-                  style: const TextStyle(
+                const Text(
+                  'NEXT UP',
+                  style: TextStyle(
                     color: Colors.white70,
                     fontSize: 10.5,
                     fontWeight: FontWeight.w800,
@@ -653,7 +634,7 @@ class _NextStopCard extends StatelessWidget {
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  tr('transport_next_stop_question').replaceAll('{stop}', stopName),
+                  'Your next stop is $stopName. Do you want to go there?',
                   style: const TextStyle(
                     color: Colors.white,
                     fontSize: 13.5,
@@ -680,7 +661,7 @@ class _NextStopCard extends StatelessWidget {
                           children: [
                             Flexible(
                               child: Text(
-                                tr('transport_yes_find_transport').replaceAll('{stop}', stopName),
+                                'Yes, find me transport to $stopName',
                                 textAlign: TextAlign.center,
                                 style: TextStyle(
                                   color: context.colors.ink,
@@ -712,12 +693,12 @@ class _NextStopCard extends StatelessWidget {
 
 class _FavoriteStopCard extends StatelessWidget {
   const _FavoriteStopCard({
-    required this.place,
+    required this.stop,
     required this.onTap,
     required this.onRemove,
   });
 
-  final Place place;
+  final TripStopLocation stop;
   final VoidCallback onTap;
   final VoidCallback onRemove;
 
@@ -749,11 +730,11 @@ class _FavoriteStopCard extends StatelessWidget {
                   width: 42,
                   height: 42,
                   decoration: BoxDecoration(
-                    gradient: LinearGradient(colors: place.gradient),
+                    gradient: const LinearGradient(colors: AppColors.horizon),
                     shape: BoxShape.circle,
                   ),
                   alignment: Alignment.center,
-                  child: Icon(place.icon, color: Colors.white, size: 19),
+                  child: Icon(stop.categoryIcon, color: Colors.white, size: 19),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
@@ -761,7 +742,7 @@ class _FavoriteStopCard extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        place.name,
+                        stop.name,
                         overflow: TextOverflow.ellipsis,
                         style: TextStyle(
                           color: context.colors.ink,
@@ -771,7 +752,9 @@ class _FavoriteStopCard extends StatelessWidget {
                       ),
                       const SizedBox(height: 2),
                       Text(
-                        tr('transport_tap_for_directions').replaceAll('{area}', place.area),
+                        stop.address.isEmpty
+                            ? 'Tap for directions'
+                            : 'Tap for directions · ${stop.address}',
                         overflow: TextOverflow.ellipsis,
                         style: TextStyle(
                           color: context.colors.muted,
@@ -799,33 +782,17 @@ class _FavoriteStopCard extends StatelessWidget {
   }
 }
 
-/// Bottom sheet for picking a place to save as a favourite stop —
-/// excludes places already saved.
-class _FavoriteStopPicker extends StatefulWidget {
+/// Bottom sheet for adding a quick stop — searches any real place via
+/// Photon (see [LocationSearchField]) rather than picking from a fixed
+/// list, since a quick stop can be anywhere the traveler commonly visits
+/// on this trip. Results already saved to this trip show as disabled.
+class _FavoriteStopPicker extends StatelessWidget {
   const _FavoriteStopPicker({required this.alreadyAdded});
 
-  final List<Place> alreadyAdded;
-
-  @override
-  State<_FavoriteStopPicker> createState() => _FavoriteStopPickerState();
-}
-
-class _FavoriteStopPickerState extends State<_FavoriteStopPicker> {
-  String _query = '';
+  final List<TripStopLocation> alreadyAdded;
 
   @override
   Widget build(BuildContext context) {
-    final available = places
-        .where((p) => !widget.alreadyAdded.contains(p))
-        .toList();
-    final filtered = _query.isEmpty
-        ? available
-        : available
-              .where(
-                (p) => p.name.toLowerCase().contains(_query.toLowerCase()),
-              )
-              .toList();
-
     return Padding(
       padding: EdgeInsets.only(
         bottom: MediaQuery.of(context).viewInsets.bottom,
@@ -844,7 +811,7 @@ class _FavoriteStopPickerState extends State<_FavoriteStopPicker> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                tr('transport_add_favourite_title'),
+                'Add a Quick Stop',
                 style: TextStyle(
                   color: context.colors.ink,
                   fontWeight: FontWeight.w800,
@@ -853,93 +820,18 @@ class _FavoriteStopPickerState extends State<_FavoriteStopPicker> {
               ),
               const SizedBox(height: 4),
               Text(
-                tr('transport_add_favourite_subtitle'),
+                'Add a place you\'d commonly visit on this trip — just for fast transport access, not part of your travel plan',
                 style: TextStyle(color: context.colors.muted, fontSize: 12.5),
               ),
               const SizedBox(height: 16),
-              TextField(
-                onChanged: (v) => setState(() => _query = v),
-                style: TextStyle(
-                  color: context.colors.ink,
-                  fontWeight: FontWeight.w600,
-                ),
-                decoration: InputDecoration(
-                  hintText: tr('transport_search_places_hint'),
-                  hintStyle: TextStyle(color: context.colors.muted),
-                  prefixIcon: Icon(
-                    Icons.search_rounded,
-                    color: context.colors.muted,
-                    size: 20,
-                  ),
-                  filled: true,
-                  fillColor: context.colors.surface,
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(14),
-                    borderSide: BorderSide.none,
-                  ),
-                  contentPadding: const EdgeInsets.symmetric(
-                    vertical: 14,
-                    horizontal: 14,
-                  ),
-                ),
-              ),
-              const SizedBox(height: 10),
-              Flexible(
-                child: filtered.isEmpty
-                    ? Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 24),
-                        child: Text(
-                          available.isEmpty
-                              ? tr('transport_all_places_added')
-                              : tr('transport_no_matching_places'),
-                          style: TextStyle(
-                            color: context.colors.muted,
-                            fontSize: 12.5,
-                          ),
-                        ),
-                      )
-                    : ListView.builder(
-                        shrinkWrap: true,
-                        itemCount: filtered.length,
-                        itemBuilder: (context, i) {
-                          final place = filtered[i];
-                          return ListTile(
-                            contentPadding: EdgeInsets.zero,
-                            leading: Container(
-                              width: 40,
-                              height: 40,
-                              decoration: BoxDecoration(
-                                gradient: LinearGradient(
-                                  colors: place.gradient,
-                                ),
-                                shape: BoxShape.circle,
-                              ),
-                              alignment: Alignment.center,
-                              child: Icon(
-                                place.icon,
-                                color: Colors.white,
-                                size: 18,
-                              ),
-                            ),
-                            title: Text(
-                              place.name,
-                              style: TextStyle(
-                                color: context.colors.ink,
-                                fontWeight: FontWeight.w700,
-                                fontSize: 13.5,
-                              ),
-                            ),
-                            subtitle: Text(
-                              place.area,
-                              style: TextStyle(
-                                color: context.colors.muted,
-                                fontSize: 11.5,
-                              ),
-                            ),
-                            onTap: () => Navigator.of(context).pop(place),
-                          );
-                        },
-                      ),
+              LocationSearchField(
+                value: null,
+                onChanged: (loc) {
+                  if (loc != null) Navigator.of(context).pop(loc);
+                },
+                hintText: 'Search a place…',
+                isResultDisabled: (r) => alreadyAdded.contains(r),
+                emptyResultsText: 'No places found',
               ),
             ],
           ),
@@ -948,302 +840,6 @@ class _FavoriteStopPickerState extends State<_FavoriteStopPicker> {
     );
   }
 }
-
-class _TransitMap extends StatelessWidget {
-  const _TransitMap({
-    required this.destination,
-    required this.searchController,
-    required this.query,
-    required this.matches,
-    required this.onQueryChanged,
-    required this.onPick,
-    required this.onClear,
-  });
-
-  final Place? destination;
-  final TextEditingController searchController;
-  final String query;
-  final List<Place> matches;
-  final ValueChanged<String> onQueryChanged;
-  final ValueChanged<Place> onPick;
-  final VoidCallback onClear;
-
-  static const _currentLocation = Alignment(-0.2, 0.55);
-
-  @override
-  Widget build(BuildContext context) {
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(24),
-      child: Container(
-        height: 270,
-        color: const Color(0xFFEFEDE6),
-        child: Stack(
-          children: [
-            const Positioned.fill(
-              child: CustomPaint(painter: StreetMapPainter()),
-            ),
-            for (final stop in _nearbyStops)
-              Align(
-                alignment: stop.alignment,
-                child: _StopMarker(label: stop.name),
-              ),
-            const Align(
-              alignment: _currentLocation,
-              child: CurrentLocationMarker(),
-            ),
-            Positioned(
-              left: 10,
-              right: 10,
-              top: 10,
-              child: _TransitSearchField(
-                controller: searchController,
-                hasDestination: destination != null,
-                onChanged: onQueryChanged,
-                onClear: onClear,
-              ),
-            ),
-            if (query.isNotEmpty)
-              Positioned(
-                left: 10,
-                right: 10,
-                top: 58,
-                child: _TransitSearchResults(matches: matches, onPick: onPick),
-              ),
-            Positioned(
-              left: 10,
-              bottom: 10,
-              child: MapLabelPill(
-                text: tr('transport_you_are_here').replaceAll('{location}', _currentLocationName),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _StopMarker extends StatelessWidget {
-  const _StopMarker({required this.label});
-
-  final String label;
-
-  @override
-  Widget build(BuildContext context) {
-    return Tooltip(
-      message: label,
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Container(
-            width: 24,
-            height: 24,
-            decoration: BoxDecoration(
-              color: Colors.white,
-              shape: BoxShape.circle,
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.15),
-                  blurRadius: 4,
-                  offset: const Offset(0, 2),
-                ),
-              ],
-            ),
-            alignment: Alignment.center,
-            child: const Icon(
-              Icons.directions_bus_filled_rounded,
-              size: 13,
-              color: Color(0xFF5C6BC0),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _TransitSearchField extends StatelessWidget {
-  const _TransitSearchField({
-    required this.controller,
-    required this.hasDestination,
-    required this.onChanged,
-    required this.onClear,
-  });
-
-  final TextEditingController controller;
-  final bool hasDestination;
-  final ValueChanged<String> onChanged;
-  final VoidCallback onClear;
-
-  @override
-  Widget build(BuildContext context) {
-    return Material(
-      elevation: 3,
-      shadowColor: Colors.black.withValues(alpha: 0.2),
-      borderRadius: BorderRadius.circular(14),
-      child: Container(
-        height: 44,
-        padding: const EdgeInsets.symmetric(horizontal: 12),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(14),
-        ),
-        child: Row(
-          children: [
-            Icon(
-              hasDestination
-                  ? Icons.directions_bus_filled_rounded
-                  : Icons.search_rounded,
-              color: const Color(0xFF6E7A93),
-              size: 19,
-            ),
-            const SizedBox(width: 8),
-            Expanded(
-              child: TextField(
-                controller: controller,
-                onChanged: onChanged,
-                readOnly: hasDestination,
-                textInputAction: TextInputAction.search,
-                style: const TextStyle(
-                  color: Color(0xFF0B1D3A),
-                  fontSize: 13.5,
-                  fontWeight: FontWeight.w600,
-                ),
-                decoration: InputDecoration(
-                  hintText: tr('transport_where_to_go_hint'),
-                  hintStyle: const TextStyle(
-                    color: Color(0xFF6E7A93),
-                    fontWeight: FontWeight.w500,
-                  ),
-                  border: InputBorder.none,
-                  isDense: true,
-                ),
-              ),
-            ),
-            if (controller.text.isNotEmpty)
-              GestureDetector(
-                onTap: onClear,
-                child: const Icon(
-                  Icons.close_rounded,
-                  color: Color(0xFF6E7A93),
-                  size: 18,
-                ),
-              ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _TransitSearchResults extends StatelessWidget {
-  const _TransitSearchResults({required this.matches, required this.onPick});
-
-  final List<Place> matches;
-  final ValueChanged<Place> onPick;
-
-  @override
-  Widget build(BuildContext context) {
-    return Material(
-      elevation: 4,
-      shadowColor: Colors.black.withValues(alpha: 0.25),
-      borderRadius: BorderRadius.circular(14),
-      color: Colors.white,
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(maxHeight: 190),
-        child: matches.isEmpty
-            ? Padding(
-                padding: const EdgeInsets.all(16),
-                child: Text(
-                  tr('transport_no_matching_destinations'),
-                  style: const TextStyle(color: Color(0xFF6E7A93), fontSize: 12.5),
-                ),
-              )
-            : ListView(
-                padding: const EdgeInsets.symmetric(vertical: 4),
-                shrinkWrap: true,
-                children: [
-                  for (final place in matches)
-                    ListTile(
-                      dense: true,
-                      visualDensity: VisualDensity.compact,
-                      leading: Icon(
-                        place.icon,
-                        size: 18,
-                        color: const Color(0xFF11998E),
-                      ),
-                      title: Text(
-                        place.name,
-                        style: const TextStyle(
-                          color: Color(0xFF0B1D3A),
-                          fontWeight: FontWeight.w700,
-                          fontSize: 13,
-                        ),
-                      ),
-                      subtitle: Text(
-                        place.area,
-                        style: const TextStyle(
-                          color: Color(0xFF6E7A93),
-                          fontSize: 11,
-                        ),
-                      ),
-                      trailing: const Icon(
-                        Icons.directions_bus_filled_rounded,
-                        size: 16,
-                        color: Color(0xFF6E7A93),
-                      ),
-                      onTap: () => onPick(place),
-                    ),
-                ],
-              ),
-      ),
-    );
-  }
-}
-
-class _EmptySearchState extends StatelessWidget {
-  const _EmptySearchState();
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(24),
-      decoration: BoxDecoration(
-        color: context.colors.card,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(
-          color: context.colors.muted.withValues(alpha: 0.15),
-        ),
-      ),
-      child: Column(
-        children: [
-          Icon(
-            Icons.directions_bus_filled_rounded,
-            color: context.colors.muted,
-            size: 30,
-          ),
-          const SizedBox(height: 10),
-          Text(
-            tr('transport_search_where_title'),
-            style: TextStyle(
-              color: context.colors.ink,
-              fontWeight: FontWeight.w700,
-              fontSize: 13.5,
-            ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            tr('transport_search_where_subtitle'),
-            textAlign: TextAlign.center,
-            style: TextStyle(color: context.colors.muted, fontSize: 12),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
 class _EmptyDestinationState extends StatelessWidget {
   const _EmptyDestinationState();
 
@@ -1268,7 +864,7 @@ class _EmptyDestinationState extends StatelessWidget {
           ),
           const SizedBox(height: 10),
           Text(
-            tr('transport_search_where_title'),
+            'Search where you want to go',
             style: TextStyle(
               color: context.colors.ink,
               fontWeight: FontWeight.w700,
@@ -1277,7 +873,7 @@ class _EmptyDestinationState extends StatelessWidget {
           ),
           const SizedBox(height: 4),
           Text(
-            tr('transport_find_destination_malaysia'),
+            'Find any destination in Malaysia to get started.',
             textAlign: TextAlign.center,
             style: TextStyle(color: context.colors.muted, fontSize: 12),
           ),
@@ -1316,9 +912,9 @@ class _RouteEndpointsCard extends StatelessWidget {
     required this.destination,
   });
 
-  final TransportLocation? departure;
+  final TripStopLocation? departure;
   final bool locatingDeparture;
-  final TransportLocation destination;
+  final TripStopLocation destination;
 
   @override
   Widget build(BuildContext context) {
@@ -1342,9 +938,8 @@ class _RouteEndpointsCard extends StatelessWidget {
           _EndpointRow(
             icon: Icons.trip_origin_rounded,
             iconColor: const Color(0xFF5C6BC0),
-            label: tr('transport_depart_from_caps'),
-            name: departure?.name ??
-                (locatingDeparture ? tr('transport_locating_word') : tr('transport_not_set_word')),
+            label: 'DEPART FROM',
+            name: departure?.name ?? (locatingDeparture ? 'Locating…' : 'Not set'),
             address: departure?.address ?? '',
           ),
           Padding(
@@ -1358,7 +953,7 @@ class _RouteEndpointsCard extends StatelessWidget {
           _EndpointRow(
             icon: Icons.location_on_rounded,
             iconColor: AppColors.accent,
-            label: tr('transport_destination_caps'),
+            label: 'DESTINATION',
             name: destination.name,
             address: destination.address,
           ),
@@ -1450,10 +1045,8 @@ class _RouteResultsSection extends StatelessWidget {
     required this.error,
     required this.transitRoutes,
     required this.driveRoute,
-    required this.showDriveOnMap,
     required this.selectedTransitIndex,
     required this.onSelectTransit,
-    required this.onToggleDrive,
     required this.onViewDetails,
   });
 
@@ -1461,10 +1054,8 @@ class _RouteResultsSection extends StatelessWidget {
   final String? error;
   final List<TransitRoute> transitRoutes;
   final DriveRoute? driveRoute;
-  final bool showDriveOnMap;
   final int selectedTransitIndex;
   final ValueChanged<int> onSelectTransit;
-  final ValueChanged<bool> onToggleDrive;
   final ValueChanged<TransitRoute> onViewDetails;
 
   @override
@@ -1472,7 +1063,8 @@ class _RouteResultsSection extends StatelessWidget {
     if (loading) return const _RoutesLoadingCard();
     if (transitRoutes.isEmpty) {
       return _RoutesErrorCard(
-        message: error ?? tr('transport_no_transit_routes_found'),
+        message: error ??
+            'No public transport routes found between these points.',
       );
     }
 
@@ -1481,13 +1073,13 @@ class _RouteResultsSection extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _SectionLabel(tr('transport_public_transport_section')),
+        const _SectionLabel('Public Transport'),
         const SizedBox(height: 10),
         for (var i = 0; i < transitRoutes.length; i++) ...[
           _TransitRouteSummaryCard(
             route: transitRoutes[i],
             recommended: i == 0,
-            selected: !showDriveOnMap && selectedTransitIndex == i,
+            selected: selectedTransitIndex == i,
             onTap: () {
               onSelectTransit(i);
               onViewDetails(transitRoutes[i]);
@@ -1497,13 +1089,9 @@ class _RouteResultsSection extends StatelessWidget {
         ],
         if (drive != null) ...[
           const SizedBox(height: 6),
-          _SectionLabel(tr('transport_alternative_section')),
+          const _SectionLabel('Alternative'),
           const SizedBox(height: 10),
-          _DriveRouteSummaryCard(
-            route: drive,
-            selected: showDriveOnMap,
-            onTap: () => onToggleDrive(!showDriveOnMap),
-          ),
+          _DriveRouteSummaryCard(route: drive),
         ],
       ],
     );
@@ -1531,7 +1119,7 @@ class _RoutesLoadingCard extends StatelessWidget {
           ),
           const SizedBox(height: 12),
           Text(
-            tr('transport_finding_routes'),
+            'Finding public transport routes…',
             style: TextStyle(
               color: context.colors.muted,
               fontSize: 12.5,
@@ -1620,9 +1208,8 @@ class _TransitRouteSummaryCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final vehicles = route.vehicleSequence;
     final transferLabel = route.transferCount == 0
-        ? tr('transport_direct_word')
-        : '${route.transferCount} '
-              '${route.transferCount == 1 ? tr('transport_transfer_singular') : tr('transport_transfer_plural')}';
+        ? 'Direct'
+        : '${route.transferCount} transfer${route.transferCount == 1 ? '' : 's'}';
 
     return Material(
       color: context.colors.card,
@@ -1670,9 +1257,9 @@ class _TransitRouteSummaryCard extends StatelessWidget {
                               color: AppColors.accent.withValues(alpha: 0.14),
                               borderRadius: BorderRadius.circular(20),
                             ),
-                            child: Text(
-                              tr('transport_recommended_badge'),
-                              style: const TextStyle(
+                            child: const Text(
+                              'RECOMMENDED',
+                              style: TextStyle(
                                 color: AppColors.accent,
                                 fontSize: 9.5,
                                 fontWeight: FontWeight.w800,
@@ -1731,257 +1318,63 @@ class _TransitRouteSummaryCard extends StatelessWidget {
   }
 }
 
-/// Secondary driving comparison card — tapping it toggles whether the
-/// map below shows the driving polyline instead of the primary transit
-/// route. Never appears inside the "Public Transport" list itself.
+/// Secondary driving comparison — reference only: how long driving would
+/// take compared to the public-transport options above. Not tappable and
+/// never plotted on the map; it never appears inside the "Public
+/// Transport" list itself.
 class _DriveRouteSummaryCard extends StatelessWidget {
-  const _DriveRouteSummaryCard({
-    required this.route,
-    required this.selected,
-    required this.onTap,
-  });
+  const _DriveRouteSummaryCard({required this.route});
 
   final DriveRoute route;
-  final bool selected;
-  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
     const driveColor = Color(0xFF5C6BC0);
-    return Material(
-      color: context.colors.card,
-      borderRadius: BorderRadius.circular(18),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(18),
-        onTap: onTap,
-        child: Container(
-          padding: const EdgeInsets.all(14),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(18),
-            border: Border.all(
-              color: selected
-                  ? driveColor
-                  : context.colors.muted.withValues(alpha: 0.15),
-              width: selected ? 1.5 : 1,
-            ),
-          ),
-          child: Row(
-            children: [
-              Container(
-                width: 36,
-                height: 36,
-                decoration: BoxDecoration(
-                  color: driveColor.withValues(alpha: 0.14),
-                  shape: BoxShape.circle,
-                ),
-                alignment: Alignment.center,
-                child: const Icon(
-                  Icons.directions_car_filled_rounded,
-                  color: driveColor,
-                  size: 18,
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      tr('transport_drive_word'),
-                      style: TextStyle(
-                        color: context.colors.ink,
-                        fontWeight: FontWeight.w700,
-                        fontSize: 13.5,
-                      ),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      '${formatDuration(route.duration)} • ${formatDistanceMeters(route.distanceMeters)}',
-                      style: TextStyle(
-                        color: context.colors.muted,
-                        fontSize: 12,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              Icon(
-                selected
-                    ? Icons.radio_button_checked_rounded
-                    : Icons.radio_button_unchecked_rounded,
-                color: selected ? driveColor : context.colors.muted,
-                size: 20,
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _DepartureCard extends StatelessWidget {
-  const _DepartureCard({required this.departure, required this.onTap});
-
-  final BusDeparture departure;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final d = departure;
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
-      child: Material(
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
         color: context.colors.card,
         borderRadius: BorderRadius.circular(18),
-        child: InkWell(
-          borderRadius: BorderRadius.circular(18),
-          onTap: onTap,
-          child: Container(
-            padding: const EdgeInsets.all(14),
+        border: Border.all(color: context.colors.muted.withValues(alpha: 0.15)),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 36,
+            height: 36,
             decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(18),
-              boxShadow: [
-                BoxShadow(
-                  color: context.colors.ink.withValues(alpha: 0.05),
-                  blurRadius: 12,
-                  offset: const Offset(0, 5),
-                ),
-              ],
+              color: driveColor.withValues(alpha: 0.14),
+              shape: BoxShape.circle,
             ),
+            alignment: Alignment.center,
+            child: const Icon(
+              Icons.directions_car_filled_rounded,
+              color: driveColor,
+              size: 18,
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Row(
-                  children: [
-                    Container(
-                      width: 42,
-                      height: 42,
-                      decoration: BoxDecoration(
-                        color: d.color.withValues(alpha: 0.14),
-                        shape: BoxShape.circle,
-                      ),
-                      alignment: Alignment.center,
-                      child: Text(
-                        d.busNumber,
-                        style: TextStyle(
-                          color: d.color,
-                          fontWeight: FontWeight.w800,
-                          fontSize: 12.5,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            tr('transport_bus_number').replaceAll('{bus}', d.busNumber),
-                            style: TextStyle(
-                              color: context.colors.ink,
-                              fontWeight: FontWeight.w700,
-                              fontSize: 13.5,
-                            ),
-                          ),
-                          const SizedBox(height: 2),
-                          Text(
-                            tr('transport_departs_in')
-                                .replaceAll('{min}', '${d.waitMinutes}')
-                                .replaceAll('{stop}', d.nearestStop),
-                            style: TextStyle(
-                              color: context.colors.muted,
-                              fontSize: 11.5,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.end,
-                      children: [
-                        Text(
-                          '${d.totalMinutes} min',
-                          style: TextStyle(
-                            color: context.colors.ink,
-                            fontWeight: FontWeight.w800,
-                            fontSize: 13,
-                          ),
-                        ),
-                        const SizedBox(height: 2),
-                        Text(
-                          d.fare,
-                          style: const TextStyle(
-                            color: AppColors.accent,
-                            fontWeight: FontWeight.w700,
-                            fontSize: 11.5,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
+                Text(
+                  'Drive',
+                  style: TextStyle(
+                    color: context.colors.ink,
+                    fontWeight: FontWeight.w700,
+                    fontSize: 13.5,
+                  ),
                 ),
-                const SizedBox(height: 10),
-                Container(
-                  height: 1,
-                  color: context.colors.muted.withValues(alpha: 0.12),
-                ),
-                const SizedBox(height: 10),
-                Row(
-                  children: [
-                    Icon(
-                      Icons.directions_walk_rounded,
-                      size: 14,
-                      color: context.colors.muted,
-                    ),
-                    const SizedBox(width: 4),
-                    Text(
-                      '${d.walkToStopMinutes}m',
-                      style: TextStyle(
-                        color: context.colors.muted,
-                        fontSize: 11,
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Icon(
-                      Icons.schedule_rounded,
-                      size: 14,
-                      color: context.colors.muted,
-                    ),
-                    const SizedBox(width: 4),
-                    Text(
-                      '${d.waitMinutes}m ${tr('transport_wait')}',
-                      style: TextStyle(
-                        color: context.colors.muted,
-                        fontSize: 11,
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Icon(
-                      Icons.directions_bus_filled_rounded,
-                      size: 14,
-                      color: context.colors.muted,
-                    ),
-                    const SizedBox(width: 4),
-                    Text(
-                      '${d.rideMinutes}m ${tr('transport_ride')}',
-                      style: TextStyle(
-                        color: context.colors.muted,
-                        fontSize: 11,
-                      ),
-                    ),
-                    const Spacer(),
-                    Icon(
-                      Icons.chevron_right_rounded,
-                      color: context.colors.muted,
-                      size: 18,
-                    ),
-                  ],
+                const SizedBox(height: 2),
+                Text(
+                  '${formatDuration(route.duration)} • ${formatDistanceMeters(route.distanceMeters)}',
+                  style: TextStyle(color: context.colors.muted, fontSize: 12),
                 ),
               ],
             ),
           ),
-        ),
+        ],
       ),
     );
   }

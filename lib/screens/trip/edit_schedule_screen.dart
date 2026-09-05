@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 
-import '../../services/locale_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/detail_header.dart';
 import '../../widgets/gradient_button.dart';
@@ -46,7 +45,7 @@ class _EditScheduleScreenState extends State<EditScheduleScreen> {
     // Day 1
     TripStop(
       id: 1,
-      name: tr('trip_activity_breakfast_hotel_title'),
+      name: 'Breakfast at Hotel',
       day: 1,
       time: const TimeOfDay(hour: 8, minute: 0),
       icon: Icons.free_breakfast_rounded,
@@ -55,7 +54,7 @@ class _EditScheduleScreenState extends State<EditScheduleScreen> {
     ),
     TripStop(
       id: 2,
-      name: tr('trip_stop_komtar_name'),
+      name: 'Komtar, George Town',
       day: 1,
       time: const TimeOfDay(hour: 10, minute: 0),
       icon: Icons.location_city_rounded,
@@ -64,7 +63,7 @@ class _EditScheduleScreenState extends State<EditScheduleScreen> {
     ),
     TripStop(
       id: 3,
-      name: tr('trip_activity_lunch_komtar_title'),
+      name: 'Lunch at Komtar Food Court',
       day: 1,
       time: const TimeOfDay(hour: 13, minute: 0),
       icon: Icons.restaurant_rounded,
@@ -73,7 +72,7 @@ class _EditScheduleScreenState extends State<EditScheduleScreen> {
     ),
     TripStop(
       id: 4,
-      name: '${tr('trip_back_to_prefix')} ${tr('trip_interest_hotel')}',
+      name: 'Back to Hotel',
       day: 1,
       time: const TimeOfDay(hour: 18, minute: 0),
       icon: Icons.hotel_rounded,
@@ -83,7 +82,7 @@ class _EditScheduleScreenState extends State<EditScheduleScreen> {
     // Day 2
     TripStop(
       id: 5,
-      name: tr('trip_activity_breakfast_nearby_title'),
+      name: 'Breakfast Nearby',
       day: 2,
       time: const TimeOfDay(hour: 9, minute: 30),
       icon: Icons.coffee_rounded,
@@ -92,7 +91,7 @@ class _EditScheduleScreenState extends State<EditScheduleScreen> {
     ),
     TripStop(
       id: 6,
-      name: tr('trip_stop_gurney_name'),
+      name: 'Gurney Drive & Plaza',
       day: 2,
       time: const TimeOfDay(hour: 13, minute: 0),
       icon: Icons.shopping_bag_rounded,
@@ -101,7 +100,7 @@ class _EditScheduleScreenState extends State<EditScheduleScreen> {
     ),
     TripStop(
       id: 7,
-      name: tr('trip_activity_dinner_gurney_title'),
+      name: 'Dinner at Gurney Food Stalls',
       day: 2,
       time: const TimeOfDay(hour: 18, minute: 30),
       icon: Icons.restaurant_rounded,
@@ -110,7 +109,7 @@ class _EditScheduleScreenState extends State<EditScheduleScreen> {
     ),
     TripStop(
       id: 8,
-      name: '${tr('trip_back_to_prefix')} ${tr('trip_interest_hotel')}',
+      name: 'Back to Hotel',
       day: 2,
       time: const TimeOfDay(hour: 21, minute: 0),
       icon: Icons.hotel_rounded,
@@ -120,7 +119,7 @@ class _EditScheduleScreenState extends State<EditScheduleScreen> {
     // Day 3
     TripStop(
       id: 9,
-      name: tr('trip_activity_breakfast_hotel_title'),
+      name: 'Breakfast at Hotel',
       day: 3,
       time: const TimeOfDay(hour: 8, minute: 30),
       icon: Icons.free_breakfast_rounded,
@@ -129,7 +128,7 @@ class _EditScheduleScreenState extends State<EditScheduleScreen> {
     ),
     TripStop(
       id: 10,
-      name: tr('trip_stop_queensbay_name'),
+      name: 'Queensbay Mall',
       day: 3,
       time: const TimeOfDay(hour: 16, minute: 0),
       icon: Icons.shopping_bag_rounded,
@@ -138,7 +137,7 @@ class _EditScheduleScreenState extends State<EditScheduleScreen> {
     ),
     TripStop(
       id: 11,
-      name: tr('trip_activity_airport_title'),
+      name: 'Head to Airport',
       day: 3,
       time: const TimeOfDay(hour: 20, minute: 0),
       icon: Icons.flight_takeoff_rounded,
@@ -251,7 +250,7 @@ class _EditScheduleScreenState extends State<EditScheduleScreen> {
           ),
         ),
         title: Text(
-          tr('trip_override_order_title'),
+          'Override planned order?',
           textAlign: TextAlign.center,
           style: TextStyle(
             color: dialogContext.colors.ink,
@@ -260,7 +259,10 @@ class _EditScheduleScreenState extends State<EditScheduleScreen> {
           ),
         ),
         content: Text(
-          tr('trip_override_order_body'),
+          'Your stops were sequenced to minimize travel time and match '
+          'each stop to its best forecasted weather. Overriding the order '
+          'may no longer be optimized and could lead to a less enjoyable '
+          'trip — for example, an outdoor stop landing during rain.',
           textAlign: TextAlign.center,
           style: TextStyle(
             color: dialogContext.colors.muted,
@@ -272,14 +274,14 @@ class _EditScheduleScreenState extends State<EditScheduleScreen> {
         actions: [
           TextButton(
             onPressed: () => Navigator.of(dialogContext).pop(false),
-            child: Text(tr('trip_keep_original_order')),
+            child: const Text('Keep Original Order'),
           ),
           FilledButton(
             onPressed: () => Navigator.of(dialogContext).pop(true),
             style: FilledButton.styleFrom(
               backgroundColor: Colors.orangeAccent.shade700,
             ),
-            child: Text(tr('trip_override_anyway')),
+            child: const Text('Override Anyway'),
           ),
         ],
       ),
@@ -352,9 +354,7 @@ class _EditScheduleScreenState extends State<EditScheduleScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             behavior: SnackBarBehavior.floating,
-            content: Text(
-              '${tr('trip_could_not_create_trip_prefix')}: $error',
-            ),
+            content: Text('Could not create trip: $error'),
           ),
         );
       }
@@ -366,9 +366,7 @@ class _EditScheduleScreenState extends State<EditScheduleScreen> {
         behavior: SnackBarBehavior.floating,
         backgroundColor: context.colors.ink,
         content: Text(
-          _isReordered
-              ? tr('trip_updated_custom_order')
-              : tr('trip_updated_snackbar'),
+          _isReordered ? 'Trip updated — custom order saved' : 'Trip updated',
         ),
       ),
     );
@@ -391,15 +389,12 @@ class _EditScheduleScreenState extends State<EditScheduleScreen> {
         child: Column(
           children: [
             DetailHeader(
-              title: widget.previewMode
-                  ? tr('trip_review_schedule_title')
-                  : tr('trip_edit_trip_title'),
+              title: widget.previewMode ? 'Review Schedule' : 'Edit Trip',
               subtitle: widget.previewMode
-                  ? tr('trip_review_schedule_subtitle')
+                  ? 'Review the optimized route before creating your trip'
                   : locked
-                  ? '${tr('trip_day_word')} $selectedDay '
-                        '${tr('trip_day_locked_suffix')}'
-                  : tr('trip_edit_schedule_subtitle'),
+                  ? 'Day $selectedDay is already complete — view only'
+                  : 'Tap a stop to edit, drag to reorder',
               trailing: IconButton(
                 onPressed: locked || widget.previewMode ? null : _openAddStop,
                 icon: Icon(
@@ -445,7 +440,7 @@ class _EditScheduleScreenState extends State<EditScheduleScreen> {
                               const SizedBox(width: 4),
                             ],
                             Text(
-                              '${tr('trip_day_word')} $day',
+                              'Day $day',
                               style: TextStyle(
                                 color: active ? Colors.white : context.colors.ink,
                                 fontWeight: FontWeight.w700,
@@ -469,8 +464,7 @@ class _EditScheduleScreenState extends State<EditScheduleScreen> {
               child: dayIndices.isEmpty
                   ? Center(
                       child: Text(
-                        '${tr('trip_no_stops_scheduled_prefix')} '
-                        '$selectedDay ${tr('trip_no_stops_scheduled_suffix')}',
+                        'No stops scheduled for Day $selectedDay yet.',
                         style: TextStyle(color: context.colors.muted, fontSize: 13),
                       ),
                     )
@@ -515,7 +509,7 @@ class _EditScheduleScreenState extends State<EditScheduleScreen> {
                     : ReorderableListView.builder(
                       padding: const EdgeInsets.fromLTRB(24, 16, 24, 24),
                       itemCount: dayIndices.length,
-                      onReorder: (oldIndex, newIndex) =>
+                      onReorderItem: (oldIndex, newIndex) =>
                           _reorder(selectedDay, oldIndex, newIndex),
                       itemBuilder: (context, i) {
                         final absoluteIndex = dayIndices[i];
@@ -541,9 +535,7 @@ class _EditScheduleScreenState extends State<EditScheduleScreen> {
             Padding(
               padding: const EdgeInsets.fromLTRB(24, 0, 24, 20),
               child: GradientButton(
-                label: widget.previewMode
-                    ? tr('trip_confirm_create_trip')
-                    : tr('trip_save_changes'),
+                label: widget.previewMode ? 'Confirm & Create Trip' : 'Save Changes',
                 icon: widget.previewMode
                     ? Icons.check_circle_rounded
                     : Icons.check_rounded,
@@ -700,7 +692,7 @@ class _StopTimelineRow extends StatelessWidget {
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: Text(
-                  tr('trip_completed_badge_caps'),
+                  'COMPLETED',
                   style: TextStyle(
                     color: context.colors.muted,
                     fontSize: 9,
@@ -759,7 +751,7 @@ class _OverrideBanner extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  tr('trip_custom_order_applied'),
+                  'Custom order applied',
                   style: TextStyle(
                     color: context.colors.ink,
                     fontWeight: FontWeight.w700,
@@ -768,7 +760,8 @@ class _OverrideBanner extends StatelessWidget {
                 ),
                 SizedBox(height: 2),
                 Text(
-                  tr('trip_custom_order_desc'),
+                  'This sequence may not be optimized and could lead to a '
+                  'worse experience if the weather changes.',
                   style: TextStyle(
                     color: context.colors.muted,
                     fontSize: 11.5,
@@ -779,7 +772,7 @@ class _OverrideBanner extends StatelessWidget {
                 GestureDetector(
                   onTap: onReset,
                   child: Text(
-                    tr('trip_reset_optimized_order'),
+                    'Reset to optimized order',
                     style: TextStyle(
                       color: Colors.orangeAccent.shade700,
                       fontWeight: FontWeight.w700,

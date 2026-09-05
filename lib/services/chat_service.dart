@@ -1,6 +1,10 @@
+import 'dart:typed_data';
+
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../models/chat_attachment.dart';
 import '../models/group_message.dart';
+import 'chat_media_service.dart';
 import 'supabase_config.dart';
 
 /// Backend for the trip's group chat.
@@ -9,6 +13,7 @@ class ChatService {
     : _client = client ?? SupabaseConfig.client;
 
   final SupabaseClient _client;
+  final _media = ChatMediaService();
 
   String get _uid => _client.auth.currentUser!.id;
 
@@ -33,32 +38,165 @@ class ChatService {
           final profileById = {
             for (final p in profiles as List) p['id'] as String: p,
           };
-          return rows
-              .where((r) => profileById.containsKey(r['user_id']))
-              .map(
-                (r) => GroupMessage.fromMap({
-                  ...r,
-                  'profiles': profileById[r['user_id']],
-                }),
-              )
-              .toList();
+          // Nicknames are per-trip (trip_members.nickname), not part of
+          // the profile — a sender's Group Chat name prefers their own
+          // nickname for this trip when they've set one. Best-effort:
+          // if this lookup fails (e.g. migration 0016 not applied yet
+          // on this database), messages should still show with their
+          // plain profile name rather than the whole chat going blank.
+          var nicknameByUserId = <String, String>{};
+          try {
+            final members = await _client
+                .from('trip_members')
+                .select('user_id, nickname')
+                .eq('trip_id', tripId)
+                .inFilter('user_id', userIds);
+            nicknameByUserId = {
+              for (final m in members as List)
+                if (m['nickname'] != null)
+                  m['user_id'] as String: m['nickname'] as String,
+            };
+          } catch (_) {
+            // Fall through with no nicknames resolved.
+          }
+          return rows.where((r) => profileById.containsKey(r['user_id'])).map((
+            r,
+          ) {
+            final userId = r['user_id'] as String;
+            final profile = profileById[userId]!;
+            // Explicitly typed: an untyped `{...profile, if (...) ...}`
+            // literal infers as Map<dynamic, dynamic> here (the `if`
+            // collection-element defeats the spread's own Map<String,
+            // dynamic> type), which then fails GroupMessage.fromMap's
+            // `as Map<String, dynamic>` cast on every single message.
+            final mergedProfile = <String, dynamic>{
+              ...profile,
+              if (nicknameByUserId[userId] != null)
+                'display_name': nicknameByUserId[userId],
+            };
+            return GroupMessage.fromMap({...r, 'profiles': mergedProfile});
+          }).toList();
         });
   }
 
   Future<void> sendMessage({
     required String tripId,
-    required String body,
+    String? body,
+    ChatAttachment? attachment,
   }) async {
-    final trimmed = body.trim();
-    if (trimmed.isEmpty) return;
+    final trimmed = body?.trim();
+    if ((trimmed == null || trimmed.isEmpty) && attachment == null) return;
     await _client.from('group_messages').insert({
       'trip_id': tripId,
       'user_id': _uid,
-      'body': trimmed,
+      if (trimmed != null && trimmed.isNotEmpty) 'body': trimmed,
+      if (attachment != null) ...attachment.toInsertMap(),
     });
+  }
+
+  /// Uploads a photo/video file for this trip's chat and returns its
+  /// public URL, ready to pass into [sendMessage] as part of a
+  /// [ChatAttachment].
+  Future<String> uploadAttachment({
+    required String tripId,
+    required Uint8List bytes,
+    required String fileExt,
+    required String contentType,
+  }) {
+    return _media.upload(
+      tripId: tripId,
+      bytes: bytes,
+      fileExt: fileExt,
+      contentType: contentType,
+    );
   }
 
   Future<void> deleteMessage(String messageId) async {
     await _client.from('group_messages').delete().eq('id', messageId);
+  }
+
+  /// Live read receipts for every message in [tripId], grouped by
+  /// message id then by the member who read it. A separate stream
+  /// (rather than embedded in [watchMessages]) since realtime streams
+  /// don't support joins and the two update independently anyway.
+  Stream<Map<String, Map<String, DateTime>>> watchReadReceipts(String tripId) {
+    return _client
+        .from('group_message_reads')
+        .stream(primaryKey: ['message_id', 'user_id'])
+        .eq('trip_id', tripId)
+        .map((rows) {
+          final byMessage = <String, Map<String, DateTime>>{};
+          for (final r in rows) {
+            final messageId = r['message_id'] as String;
+            byMessage.putIfAbsent(messageId, () => {})[r['user_id'] as String] =
+                DateTime.parse(r['read_at'] as String);
+          }
+          return byMessage;
+        });
+  }
+
+  /// Records that the signed-in member has now seen each of
+  /// [messageIds] — safe to call repeatedly (e.g. every time the chat's
+  /// message list changes while the screen is open); already-read
+  /// messages are silently skipped rather than overwriting `read_at`.
+  Future<void> markMessagesRead({
+    required String tripId,
+    required List<String> messageIds,
+  }) async {
+    if (messageIds.isEmpty) return;
+    await _client
+        .from('group_message_reads')
+        .upsert(
+          [
+            for (final id in messageIds)
+              {'message_id': id, 'trip_id': tripId, 'user_id': _uid},
+          ],
+          onConflict: 'message_id,user_id',
+          ignoreDuplicates: true,
+        );
+  }
+
+  /// Live reactions for every message in [tripId], grouped by message
+  /// id then by the member who reacted — `message_id` -> (`user_id` ->
+  /// emoji).
+  Stream<Map<String, Map<String, String>>> watchReactions(String tripId) {
+    return _client
+        .from('group_message_reactions')
+        .stream(primaryKey: ['message_id', 'user_id'])
+        .eq('trip_id', tripId)
+        .map((rows) {
+          final byMessage = <String, Map<String, String>>{};
+          for (final r in rows) {
+            byMessage.putIfAbsent(
+              r['message_id'] as String,
+              () => {},
+            )[r['user_id'] as String] = r['emoji'] as String;
+          }
+          return byMessage;
+        });
+  }
+
+  /// Sets (replacing any previous one) the signed-in member's reaction
+  /// on [messageId].
+  Future<void> setReaction({
+    required String tripId,
+    required String messageId,
+    required String emoji,
+  }) async {
+    await _client.from('group_message_reactions').upsert({
+      'message_id': messageId,
+      'trip_id': tripId,
+      'user_id': _uid,
+      'emoji': emoji,
+    }, onConflict: 'message_id,user_id');
+  }
+
+  /// Removes the signed-in member's reaction on [messageId], if any.
+  Future<void> removeReaction(String messageId) async {
+    await _client
+        .from('group_message_reactions')
+        .delete()
+        .eq('message_id', messageId)
+        .eq('user_id', _uid);
   }
 }

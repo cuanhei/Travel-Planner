@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 
-import '../../services/locale_service.dart';
 import '../../theme/app_theme.dart';
 
 /// Formats a stop's planned stay as a compact label, e.g. "1h 30m",
@@ -54,10 +53,10 @@ class TripSummary {
   final String budget;
 }
 
-List<TripSummary> upcomingTrips() => [
-  TripSummary(
+final upcomingTrips = [
+  const TripSummary(
     title: 'Penang Adventure',
-    place: tr('home_demo_destination'),
+    place: 'Penang, Malaysia',
     dates: 'Aug 14 – Aug 16',
     gradient: AppColors.horizon,
     icon: Icons.location_city_rounded,

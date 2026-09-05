@@ -38,12 +38,6 @@ String friendlyAuthError(AuthException e) {
     case 'validation_failed':
     case 'bad_json':
       return 'Please check your details and try again.';
-    case 'mfa_verification_failed':
-      return 'That code is incorrect. Please try again.';
-    case 'mfa_factor_not_found':
-      return 'That verification method is no longer available.';
-    case 'insufficient_aal':
-      return 'Please sign out and sign in again to confirm this change.';
   }
 
   final message = e.message.toLowerCase();

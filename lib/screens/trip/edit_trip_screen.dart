@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 
-import '../../services/locale_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/detail_header.dart';
 import '../../widgets/gradient_button.dart';
@@ -44,7 +43,7 @@ class _EditTripScreenState extends State<EditTripScreen> {
       SnackBar(
         behavior: SnackBarBehavior.floating,
         backgroundColor: context.colors.ink,
-        content: Text(tr('trip_updated_snackbar')),
+        content: const Text('Trip updated'),
       ),
     );
   }
@@ -56,26 +55,26 @@ class _EditTripScreenState extends State<EditTripScreen> {
         backgroundColor: dialogContext.colors.card,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         title: Text(
-          tr('trip_delete_trip_confirm_title'),
+          'Delete this trip?',
           style: TextStyle(
             color: dialogContext.colors.ink,
             fontWeight: FontWeight.w800,
           ),
         ),
         content: Text(
-          '"${_nameController.text.trim()}" '
-          '${tr('trip_delete_trip_confirm_body_suffix')}',
+          '"${_nameController.text.trim()}" and its entire itinerary will '
+          'be permanently deleted.',
           style: TextStyle(color: dialogContext.colors.muted),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(dialogContext).pop(false),
-            child: Text(tr('trip_cancel')),
+            child: const Text('Cancel'),
           ),
           FilledButton(
             onPressed: () => Navigator.of(dialogContext).pop(true),
             style: FilledButton.styleFrom(backgroundColor: Colors.redAccent),
-            child: Text(tr('trip_delete')),
+            child: const Text('Delete'),
           ),
         ],
       ),
@@ -86,7 +85,7 @@ class _EditTripScreenState extends State<EditTripScreen> {
         SnackBar(
           behavior: SnackBarBehavior.floating,
           backgroundColor: Colors.redAccent,
-          content: Text(tr('trip_deleted_snackbar')),
+          content: const Text('Trip deleted'),
         ),
       );
     }
@@ -99,9 +98,9 @@ class _EditTripScreenState extends State<EditTripScreen> {
       body: SafeArea(
         child: Column(
           children: [
-            DetailHeader(
-              title: tr('trip_edit_trip_title'),
-              subtitle: tr('trip_edit_trip_subtitle'),
+            const DetailHeader(
+              title: 'Edit Trip',
+              subtitle: "Update this trip's details",
             ),
             Expanded(
               child: ListView(
@@ -109,15 +108,15 @@ class _EditTripScreenState extends State<EditTripScreen> {
                 children: [
                   _SectionCard(
                     icon: Icons.edit_note_rounded,
-                    title: tr('trip_section_trip_details'),
+                    title: 'Trip Details',
                     children: [
-                      _FieldLabel(tr('trip_field_trip_name')),
+                      _FieldLabel('Trip Name'),
                       _InputBox(
                         controller: _nameController,
                         icon: Icons.edit_rounded,
                       ),
                       const SizedBox(height: 18),
-                      _FieldLabel(tr('trip_field_description')),
+                      _FieldLabel('Description'),
                       _InputBox(
                         controller: _descriptionController,
                         icon: Icons.notes_rounded,
@@ -128,24 +127,24 @@ class _EditTripScreenState extends State<EditTripScreen> {
                   const SizedBox(height: 16),
                   _SectionCard(
                     icon: Icons.flight_takeoff_rounded,
-                    title: tr('trip_section_logistics'),
+                    title: 'Logistics',
                     children: [
-                      _FieldLabel(tr('trip_field_destination')),
+                      _FieldLabel('Destination'),
                       _InputBox(
                         controller: _destinationController,
                         icon: Icons.location_on_rounded,
                       ),
                       const SizedBox(height: 18),
-                      _FieldLabel(tr('trip_field_travel_dates')),
+                      _FieldLabel('Travel Dates'),
                       _DatePickerRow(onTap: () {}),
                       const SizedBox(height: 18),
-                      _FieldLabel(tr('trip_field_travelers')),
+                      _FieldLabel('Travelers'),
                       _TravelersStepper(
                         count: _travelers,
                         onChanged: (v) => setState(() => _travelers = v),
                       ),
                       const SizedBox(height: 18),
-                      _FieldLabel(tr('trip_budget_word')),
+                      _FieldLabel('Budget'),
                       _InputBox(
                         controller: _budgetController,
                         icon: Icons.account_balance_wallet_rounded,
@@ -156,10 +155,10 @@ class _EditTripScreenState extends State<EditTripScreen> {
                   const SizedBox(height: 16),
                   _SectionCard(
                     icon: Icons.interests_rounded,
-                    title: tr('trip_field_interests'),
+                    title: 'Interests',
                     children: [
                       Text(
-                        tr('trip_interests_hint'),
+                        'Used to tailor recommendations for this trip.',
                         style: TextStyle(
                           color: context.colors.muted,
                           fontSize: 12,
@@ -229,7 +228,7 @@ class _EditTripScreenState extends State<EditTripScreen> {
                   ),
                   const SizedBox(height: 32),
                   GradientButton(
-                    label: tr('trip_save_changes'),
+                    label: 'Save Changes',
                     icon: Icons.check_rounded,
                     onPressed: _save,
                   ),
@@ -242,8 +241,8 @@ class _EditTripScreenState extends State<EditTripScreen> {
                         color: Colors.redAccent,
                         size: 18,
                       ),
-                      label: Text(
-                        tr('trip_delete_trip_button'),
+                      label: const Text(
+                        'Delete Trip',
                         style: TextStyle(
                           color: Colors.redAccent,
                           fontWeight: FontWeight.w700,
@@ -435,7 +434,7 @@ class _TravelersStepper extends StatelessWidget {
           Icon(Icons.people_alt_rounded, color: context.colors.muted, size: 18),
           const SizedBox(width: 12),
           Text(
-            '$count ${count == 1 ? tr('trip_traveler_singular') : tr('trip_traveler_plural')}',
+            '$count ${count == 1 ? 'traveler' : 'travelers'}',
             style: TextStyle(
               color: context.colors.ink,
               fontWeight: FontWeight.w600,

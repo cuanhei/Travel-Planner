@@ -1,12 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../models/join_request.dart';
 import '../../services/group_service.dart';
-import '../../services/locale_service.dart';
+import '../../services/trip_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/detail_header.dart';
 import '../../widgets/gradient_button.dart';
+import '../trip/trip_details_screen.dart';
 
 const _codeLength = 6;
 
@@ -36,8 +38,10 @@ class JoinTripScreen extends StatefulWidget {
 class _JoinTripScreenState extends State<JoinTripScreen> {
   final _controller = TextEditingController();
   final _groupService = GroupService();
+  final _tripService = TripService();
   String _code = '';
   bool _isSubmitting = false;
+  String? _openingTripId;
 
   @override
   void dispose() {
@@ -52,6 +56,17 @@ class _JoinTripScreenState extends State<JoinTripScreen> {
     setState(() => _isSubmitting = true);
     try {
       await _groupService.requestToJoin(_code);
+    } on PostgrestException catch (e) {
+      if (e.message.toLowerCase().contains('already a member')) {
+        await _handleAlreadyMember();
+        return;
+      }
+      if (!mounted) return;
+      setState(() => _isSubmitting = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(behavior: SnackBarBehavior.floating, content: Text(e.message)),
+      );
+      return;
     } catch (e) {
       if (!mounted) return;
       setState(() => _isSubmitting = false);
@@ -65,12 +80,79 @@ class _JoinTripScreenState extends State<JoinTripScreen> {
       SnackBar(
         behavior: SnackBarBehavior.floating,
         backgroundColor: context.colors.ink,
-        content: Text(
-          tr('group_request_sent_snackbar'),
+        content: const Text(
+          'Request sent! Waiting for the organizer to approve.',
         ),
       ),
     );
     Navigator.of(context).maybePop();
+  }
+
+  /// The organizer's own invite code (or any code for a trip the caller
+  /// already belongs to) hits `request_to_join`'s "already a member"
+  /// guard — rather than leaving that raw error on screen, show a
+  /// friendly message and, once we know which trip it was, take them
+  /// straight to its Trip Details after a short pause.
+  Future<void> _handleAlreadyMember() async {
+    String? tripId;
+    try {
+      tripId = await _groupService.findMyTripByCode(_code);
+    } catch (_) {
+      tripId = null;
+    }
+    if (!mounted) return;
+    setState(() => _isSubmitting = false);
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        behavior: SnackBarBehavior.floating,
+        backgroundColor: context.colors.ink,
+        duration: const Duration(seconds: 5),
+        content: Text(
+          tripId == null
+              ? "You're already in this trip!"
+              : "You're already in this trip! Taking you there...",
+        ),
+      ),
+    );
+    if (tripId == null) return;
+
+    await Future.delayed(const Duration(seconds: 5));
+    if (!mounted) return;
+    try {
+      final trip = await _tripService.getTrip(tripId);
+      if (!mounted) return;
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute(builder: (_) => TripDetailsScreen(trip: trip)),
+      );
+    } catch (_) {
+      // Trip couldn't be loaded (e.g. removed since) — just leave them
+      // on this screen rather than crash into a broken details page.
+    }
+  }
+
+  /// Approved requests are tappable — take the requester straight to
+  /// the trip they were let into instead of making them hunt for it
+  /// in My Trips.
+  Future<void> _openTrip(String tripId) async {
+    if (_openingTripId != null) return;
+    setState(() => _openingTripId = tripId);
+    try {
+      final trip = await _tripService.getTrip(tripId);
+      if (!mounted) return;
+      await Navigator.of(
+        context,
+      ).push(MaterialPageRoute(builder: (_) => TripDetailsScreen(trip: trip)));
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          behavior: SnackBarBehavior.floating,
+          content: Text('Could not open trip: $e'),
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _openingTripId = null);
+    }
   }
 
   @override
@@ -81,8 +163,8 @@ class _JoinTripScreenState extends State<JoinTripScreen> {
         child: Column(
           children: [
             DetailHeader(
-              title: tr('group_join_trip_title'),
-              subtitle: tr('group_join_trip_subtitle'),
+              title: 'Join a Trip',
+              subtitle: 'Enter a friend\'s invite code',
             ),
             Expanded(
               child: ListView(
@@ -106,7 +188,7 @@ class _JoinTripScreenState extends State<JoinTripScreen> {
                   ),
                   const SizedBox(height: 24),
                   Text(
-                    tr('group_invite_code_label'),
+                    'Invite Code',
                     textAlign: TextAlign.center,
                     style: TextStyle(
                       color: context.colors.ink,
@@ -116,7 +198,7 @@ class _JoinTripScreenState extends State<JoinTripScreen> {
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    tr('group_invite_code_ask'),
+                    'Ask the trip organizer for their 6-character code',
                     textAlign: TextAlign.center,
                     style: TextStyle(
                       color: context.colors.muted,
@@ -162,7 +244,7 @@ class _JoinTripScreenState extends State<JoinTripScreen> {
                   ),
                   const SizedBox(height: 28),
                   GradientButton(
-                    label: tr('group_join_trip_button'),
+                    label: 'Join Trip',
                     icon: Icons.group_add_rounded,
                     onPressed: _canJoin ? () => _join() : () {},
                   ),
@@ -176,7 +258,7 @@ class _JoinTripScreenState extends State<JoinTripScreen> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            tr('group_your_requests_title'),
+                            'Your Requests',
                             style: TextStyle(
                               color: context.colors.ink,
                               fontWeight: FontWeight.w800,
@@ -185,7 +267,13 @@ class _JoinTripScreenState extends State<JoinTripScreen> {
                           ),
                           const SizedBox(height: 12),
                           ...requests.map(
-                            (r) => _RequestStatusTile(request: r),
+                            (r) => _RequestStatusTile(
+                              request: r,
+                              isOpening: _openingTripId == r.tripId,
+                              onTap: r.status == 'approved'
+                                  ? () => _openTrip(r.tripId)
+                                  : null,
+                            ),
                           ),
                         ],
                       );
@@ -202,14 +290,23 @@ class _JoinTripScreenState extends State<JoinTripScreen> {
 }
 
 class _RequestStatusTile extends StatelessWidget {
-  const _RequestStatusTile({required this.request});
+  const _RequestStatusTile({
+    required this.request,
+    this.onTap,
+    this.isOpening = false,
+  });
 
   final MyJoinRequest request;
 
+  /// Only set for approved requests — tapping opens the trip.
+  final VoidCallback? onTap;
+  final bool isOpening;
+
   (Color, String) get _statusVisuals => switch (request.status) {
-    'approved' => (const Color(0xFF11998E), tr('group_status_approved')),
-    'rejected' => (Colors.redAccent, tr('group_status_declined')),
-    _ => (const Color(0xFFFFB347), tr('group_status_pending')),
+    'approved' => (const Color(0xFF11998E), 'Approved'),
+    'rejected' => (Colors.redAccent, 'Declined'),
+    'removed' => (Colors.grey, 'Removed'),
+    _ => (const Color(0xFFFFB347), 'Pending'),
   };
 
   @override
@@ -217,9 +314,7 @@ class _RequestStatusTile extends StatelessWidget {
     final (color, label) = _statusVisuals;
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
-      padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: context.colors.card,
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
@@ -229,45 +324,171 @@ class _RequestStatusTile extends StatelessWidget {
           ),
         ],
       ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            width: 10,
-            height: 10,
-            margin: const EdgeInsets.only(top: 4),
-            decoration: BoxDecoration(color: color, shape: BoxShape.circle),
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Column(
+      child: Material(
+        color: context.colors.card,
+        borderRadius: BorderRadius.circular(16),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(16),
+          onTap: onTap,
+          child: Padding(
+            padding: const EdgeInsets.all(14),
+            child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  label,
-                  style: TextStyle(
+                Container(
+                  width: 10,
+                  height: 10,
+                  margin: const EdgeInsets.only(top: 5),
+                  decoration: BoxDecoration(
                     color: color,
-                    fontWeight: FontWeight.w800,
-                    fontSize: 12.5,
+                    shape: BoxShape.circle,
                   ),
                 ),
-                if (request.status == 'rejected' &&
-                    request.reason != null &&
-                    request.reason!.isNotEmpty) ...[
-                  const SizedBox(height: 4),
-                  Text(
-                    request.reason!,
-                    style: TextStyle(
-                      color: context.colors.muted,
-                      fontSize: 12,
-                      height: 1.4,
-                    ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              request.tripName ?? 'Trip',
+                              style: TextStyle(
+                                color: context.colors.ink,
+                                fontWeight: FontWeight.w800,
+                                fontSize: 14,
+                              ),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                          Container(
+                            margin: const EdgeInsets.only(left: 8),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 3,
+                            ),
+                            decoration: BoxDecoration(
+                              color: color.withValues(alpha: 0.12),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Text(
+                              label,
+                              style: TextStyle(
+                                color: color,
+                                fontWeight: FontWeight.w800,
+                                fontSize: 11,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        [
+                          if ((request.destination ?? '').isNotEmpty)
+                            request.destination!,
+                          request.dateRangeLabel,
+                        ].join(' · '),
+                        style: TextStyle(
+                          color: context.colors.muted,
+                          fontSize: 12,
+                        ),
+                      ),
+                      if (request.status == 'pending') ...[
+                        const SizedBox(height: 4),
+                        Text(
+                          'Waiting for the organizer to approve',
+                          style: TextStyle(
+                            color: context.colors.muted,
+                            fontSize: 11.5,
+                            fontStyle: FontStyle.italic,
+                          ),
+                        ),
+                      ],
+                      if (request.status == 'approved') ...[
+                        const SizedBox(height: 4),
+                        Text(
+                          "You're in! This trip now appears in My Trips.",
+                          style: TextStyle(
+                            color: context.colors.muted,
+                            fontSize: 11.5,
+                          ),
+                        ),
+                      ],
+                      if (request.status == 'removed') ...[
+                        const SizedBox(height: 4),
+                        Text(
+                          'You were removed from this trip by the organizer.',
+                          style: TextStyle(
+                            color: context.colors.muted,
+                            fontSize: 11.5,
+                            fontStyle: FontStyle.italic,
+                          ),
+                        ),
+                      ],
+                      if (request.status == 'rejected') ...[
+                        const SizedBox(height: 8),
+                        Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.all(10),
+                          decoration: BoxDecoration(
+                            color: Colors.redAccent.withValues(alpha: 0.08),
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Reason',
+                                style: TextStyle(
+                                  color: Colors.redAccent,
+                                  fontWeight: FontWeight.w800,
+                                  fontSize: 10.5,
+                                  letterSpacing: 0.4,
+                                ),
+                              ),
+                              const SizedBox(height: 3),
+                              Text(
+                                (request.reason != null &&
+                                        request.reason!.isNotEmpty)
+                                    ? request.reason!
+                                    : 'The organizer didn\'t leave a reason.',
+                                style: TextStyle(
+                                  color: context.colors.muted,
+                                  fontSize: 12,
+                                  height: 1.4,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ],
                   ),
+                ),
+                if (onTap != null) ...[
+                  const SizedBox(width: 8),
+                  if (isOpening)
+                    SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: context.colors.muted,
+                      ),
+                    )
+                  else
+                    Icon(
+                      Icons.chevron_right_rounded,
+                      color: context.colors.muted,
+                      size: 20,
+                    ),
                 ],
               ],
             ),
           ),
-        ],
+        ),
       ),
     );
   }

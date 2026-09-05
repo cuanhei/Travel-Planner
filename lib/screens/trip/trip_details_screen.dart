@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 
 import '../../models/trip.dart';
-import '../../services/locale_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/section_header.dart';
 import '../budget/budget_planner_screen.dart';
@@ -49,26 +48,26 @@ class TripDetailsScreen extends StatefulWidget {
 }
 
 class _TripDetailsScreenState extends State<TripDetailsScreen> {
-  late final _stops = [
+  final _stops = [
     _Stop(
-      name: tr('trip_stop_komtar_name'),
-      time: tr('trip_stop_komtar_time'),
-      subtitle: tr('trip_stop_komtar_subtitle'),
+      name: 'Komtar, George Town',
+      time: 'Day 1 · 10:00 AM',
+      subtitle: 'Shopping & observation deck',
       icon: Icons.location_city_rounded,
       gradient: AppColors.horizon,
       completed: true,
     ),
     _Stop(
-      name: tr('trip_stop_gurney_name'),
-      time: tr('trip_stop_gurney_time'),
-      subtitle: tr('trip_stop_gurney_subtitle'),
+      name: 'Gurney Drive & Plaza',
+      time: 'Day 2 · 1:00 PM',
+      subtitle: 'Shopping and seaside walk',
       icon: Icons.shopping_bag_rounded,
       gradient: AppColors.dusk,
     ),
     _Stop(
-      name: tr('trip_stop_queensbay_name'),
-      time: tr('trip_stop_queensbay_time'),
-      subtitle: tr('trip_stop_queensbay_subtitle'),
+      name: 'Queensbay Mall',
+      time: 'Day 3 · 4:00 PM',
+      subtitle: 'Final shopping & souvenirs',
       icon: Icons.storefront_rounded,
       gradient: AppColors.sunset,
     ),
@@ -185,12 +184,12 @@ class _TripDetailsScreenState extends State<TripDetailsScreen> {
                       children: [
                         _StatsRow(trip: widget.trip),
                         SizedBox(height: 28),
-                        SectionHeader(title: tr('trip_section_trip_tools')),
+                        SectionHeader(title: 'Trip Tools'),
                         SizedBox(height: 14),
                         _ToolsGrid(tripId: widget.trip.id),
                         SizedBox(height: 28),
                         SectionHeader(
-                          title: tr('trip_section_activity'),
+                          title: 'Activity',
                           onAction: () => Navigator.of(context).push(
                             MaterialPageRoute(
                               builder: (_) => DailyTimelineScreen(),
@@ -224,22 +223,18 @@ class _StatsRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final stats = [
-      (label: tr('trip_stat_stops'), value: '3', icon: Icons.flag_rounded),
+      (label: 'Stops', value: '3', icon: Icons.flag_rounded),
       (
-        label: tr('trip_stat_days'),
+        label: 'Days',
         value: '${trip.days == 0 ? 3 : trip.days}',
         icon: Icons.calendar_today_rounded,
       ),
       (
-        label: tr('trip_budget_word'),
+        label: 'Budget',
         value: 'RM${trip.totalBudget.toStringAsFixed(0)}',
         icon: Icons.account_balance_wallet_rounded,
       ),
-      (
-        label: tr('trip_field_travelers'),
-        value: '2',
-        icon: Icons.people_alt_rounded,
-      ),
+      (label: 'Travelers', value: '2', icon: Icons.people_alt_rounded),
     ];
 
     return Row(
@@ -294,7 +289,7 @@ class _ToolsGrid extends StatelessWidget {
   Widget build(BuildContext context) {
     final tools = [
       (
-        label: tr('trip_tool_daily_timeline'),
+        label: 'Daily\nTimeline',
         icon: Icons.timeline_rounded,
         color: Color(0xFF5C6BC0),
         onTap: () => Navigator.of(
@@ -302,7 +297,7 @@ class _ToolsGrid extends StatelessWidget {
         ).push(MaterialPageRoute(builder: (_) => DailyTimelineScreen())),
       ),
       (
-        label: tr('trip_tool_edit_schedule'),
+        label: 'Edit\nSchedule',
         icon: Icons.edit_calendar_rounded,
         color: Color(0xFF11998E),
         onTap: () => Navigator.of(
@@ -310,7 +305,7 @@ class _ToolsGrid extends StatelessWidget {
         ).push(MaterialPageRoute(builder: (_) => EditScheduleScreen())),
       ),
       (
-        label: tr('trip_tool_map_view'),
+        label: 'Map\nView',
         icon: Icons.map_rounded,
         color: Color(0xFFFFB347),
         onTap: () => Navigator.of(context).push(
@@ -318,7 +313,7 @@ class _ToolsGrid extends StatelessWidget {
         ),
       ),
       (
-        label: tr('trip_tool_weather'),
+        label: 'Weather',
         icon: Icons.wb_sunny_rounded,
         color: Color(0xFF2E9CCA),
         onTap: () => Navigator.of(
@@ -326,15 +321,17 @@ class _ToolsGrid extends StatelessWidget {
         ).push(MaterialPageRoute(builder: (_) => WeatherForecastScreen())),
       ),
       (
-        label: tr('trip_tool_transport'),
+        label: 'Transport',
         icon: Icons.directions_bus_filled_rounded,
         color: Color(0xFF8E63CE),
-        onTap: () => Navigator.of(
-          context,
-        ).push(MaterialPageRoute(builder: (_) => TransportRoutesScreen())),
+        onTap: () => Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (_) => TransportRoutesScreen(tripId: tripId),
+          ),
+        ),
       ),
       (
-        label: tr('trip_tool_budget'),
+        label: 'Budget',
         icon: Icons.account_balance_wallet_rounded,
         color: AppColors.accent,
         onTap: () => Navigator.of(context).push(
@@ -344,7 +341,7 @@ class _ToolsGrid extends StatelessWidget {
         ),
       ),
       (
-        label: tr('trip_tool_utilities'),
+        label: 'Utilities',
         icon: Icons.checklist_rounded,
         color: Color(0xFF11998E),
         onTap: () => Navigator.of(
@@ -352,7 +349,7 @@ class _ToolsGrid extends StatelessWidget {
         ).push(MaterialPageRoute(builder: (_) => UtilitiesHomeScreen())),
       ),
       (
-        label: tr('trip_tool_group'),
+        label: 'Group',
         icon: Icons.group_rounded,
         color: Color(0xFF5C6BC0),
         onTap: () => Navigator.of(context).push(
@@ -476,9 +473,7 @@ class _ActivityTile extends StatelessWidget {
                         borderRadius: BorderRadius.circular(8),
                       ),
                       child: Text(
-                        completed
-                            ? tr('trip_completed_badge_caps')
-                            : tr('trip_upcoming_badge_caps'),
+                        completed ? 'COMPLETED' : 'UPCOMING',
                         style: TextStyle(
                           color: completed ? done : AppColors.accent,
                           fontSize: 9.5,
@@ -538,7 +533,7 @@ class _ActivityTile extends StatelessWidget {
                             ),
                             SizedBox(width: 6),
                             Text(
-                              tr('trip_complete_button'),
+                              'Complete',
                               style: TextStyle(
                                 color: Colors.white,
                                 fontWeight: FontWeight.w700,

@@ -19,6 +19,7 @@ class UserProfile {
     this.nationality,
     this.address,
     this.isPublic = true,
+    this.locationSharingEnabled = true,
     this.createdAt,
   });
 
@@ -44,6 +45,13 @@ class UserProfile {
   /// [avatarUrl], and [bio] — see `view_profile_screen.dart`.
   final bool isPublic;
 
+  /// Settings → Privacy & Security → "Location Sharing". Gates whether
+  /// Community posts show this user's real IP address or "Unknown" (see
+  /// `PostCard` and `CommunityService.addPost`/`_hydratePosts`) — read live
+  /// at display time, not frozen when a post was made, so flipping this
+  /// immediately changes what already-published posts show.
+  final bool locationSharingEnabled;
+
   factory UserProfile.fromRow(Map<String, dynamic> row) => UserProfile(
     id: row['id'] as String,
     fullName: (row['full_name'] as String?) ?? '',
@@ -58,6 +66,7 @@ class UserProfile {
     nationality: row['nationality'] as String?,
     address: row['address'] as String?,
     isPublic: (row['is_public'] as bool?) ?? true,
+    locationSharingEnabled: (row['location_sharing_enabled'] as bool?) ?? true,
     createdAt: row['created_at'] == null
         ? null
         : DateTime.parse(row['created_at'] as String),
@@ -144,6 +153,18 @@ class ProfileService {
     await _client
         .from('profiles')
         .update({'is_public': isPublic})
+        .eq('id', user.id);
+    await load();
+  }
+
+  /// Turns Settings → Privacy & Security → "Location Sharing" on/off — see
+  /// [UserProfile.locationSharingEnabled].
+  Future<void> setLocationSharingEnabled(bool enabled) async {
+    final user = _client.auth.currentUser;
+    if (user == null) return;
+    await _client
+        .from('profiles')
+        .update({'location_sharing_enabled': enabled})
         .eq('id', user.id);
     await load();
   }

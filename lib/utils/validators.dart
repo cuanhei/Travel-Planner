@@ -17,7 +17,7 @@ class Validators {
   static String? email(String? value) {
     final v = value?.trim() ?? '';
     if (v.isEmpty) return 'Enter your email';
-    if (!_emailPattern.hasMatch(v)) return 'The email format is invalid.';
+    if (!_emailPattern.hasMatch(v)) return 'Enter a valid email address';
     return null;
   }
 
@@ -40,8 +40,8 @@ class Validators {
   );
 
   // Individual strength requirements, exposed separately (rather than only
-  // as part of `newPassword`'s error message) so the Reset Password screen
-  // can render them as a live checklist the user can watch tick off.
+  // as part of `newPassword`'s error message) so screens like the password
+  // strength meter can render them as a live checklist.
   static bool hasMinLength(String v) => v.length >= 8;
   static bool hasUppercase(String v) => RegExp(r'[A-Z]').hasMatch(v);
   static bool hasLowercase(String v) => RegExp(r'[a-z]').hasMatch(v);
@@ -65,9 +65,7 @@ class Validators {
   }
 
   static String? confirmPassword(String? value, String original) {
-    final v = value ?? '';
-    if (v.isEmpty) return 'Please confirm your password';
-    if (v != original) return 'Passwords do not match';
+    if (value != original) return 'Passwords do not match';
     return null;
   }
 

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 
+import '../utils/geo.dart';
 import 'current_location_marker.dart';
 
 const _osmTileUrl = 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
@@ -21,18 +22,6 @@ final _malaysiaBounds = LatLngBounds(
 );
 
 const _closeZoom = 16.0;
-
-/// Guards against malformed coordinates (e.g. a corrupted polyline point
-/// from a routing API response) reaching [LatLngBounds], whose
-/// constructor throws an assertion error outside the valid lat/lng range
-/// instead of failing gracefully.
-bool _isValidLatLng(LatLng point) =>
-    point.latitude.isFinite &&
-    point.longitude.isFinite &&
-    point.latitude >= -90 &&
-    point.latitude <= 90 &&
-    point.longitude >= -180 &&
-    point.longitude <= 180;
 
 /// Read-only OpenStreetMap view (via flutter_map), constrained to
 /// Malaysia. Renders whichever of [source]/[destination] are known — so
@@ -103,10 +92,10 @@ class RouteMapView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final validSource = source != null && _isValidLatLng(source!) ? source : null;
+    final validSource = source != null && isValidLatLng(source!) ? source : null;
     final validDestination =
-        destination != null && _isValidLatLng(destination!) ? destination : null;
-    final validPolylinePoints = polylinePoints.where(_isValidLatLng).toList();
+        destination != null && isValidLatLng(destination!) ? destination : null;
+    final validPolylinePoints = polylinePoints.where(isValidLatLng).toList();
 
     final points = [?validSource, ?validDestination, ...validPolylinePoints];
     final bounds = points.isEmpty ? null : LatLngBounds.fromPoints(points);
@@ -152,6 +141,11 @@ class RouteMapView extends StatelessWidget {
                 point: validSource,
                 width: sourceIsCurrentLocation ? 54 : 34,
                 height: sourceIsCurrentLocation ? 54 : 34,
+                // A circular GPS dot is centered on its coordinate, while
+                // a pin must be anchored at its tip.
+                alignment: sourceIsCurrentLocation
+                    ? Alignment.center
+                    : Alignment.bottomCenter,
                 child: sourceIsCurrentLocation
                     ? const CurrentLocationMarker()
                     : const Icon(
@@ -165,6 +159,10 @@ class RouteMapView extends StatelessWidget {
                 point: validDestination,
                 width: 40,
                 height: 40,
+                // Keep the location's coordinate at the pin tip rather than
+                // the centre of the icon, which is especially visible when
+                // zoomed out.
+                alignment: Alignment.bottomCenter,
                 child: const Icon(
                   Icons.location_on_rounded,
                   color: Color(0xFFFF7A59),

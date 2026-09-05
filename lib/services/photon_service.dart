@@ -49,33 +49,6 @@ class PhotonService {
     return _parseFeatures(response.body);
   }
 
-  /// Resolves a place name (e.g. a "City, State" label from the Malaysia
-  /// city picker) to a coordinate — used to anchor route optimization at
-  /// the trip's start/end city. Returns null if Photon has no match.
-  Future<LatLng?> geocodeQuery(String query) async {
-    final results = await search(query);
-    if (results.isEmpty) return null;
-    final first = results.first;
-    return LatLng(first.latitude, first.longitude);
-  }
-
-  /// Looks up the nearest named place to [point] — used to label a pin
-  /// dropped by tapping the map or from the device's current location.
-  Future<TripStopLocation?> reverse(LatLng point) async {
-    final uri = Uri.parse(_reverseEndpoint).replace(
-      queryParameters: {
-        'lat': point.latitude.toString(),
-        'lon': point.longitude.toString(),
-      },
-    );
-    final response = await http.get(uri, headers: _headers);
-    if (response.statusCode != 200) {
-      throw Exception('Reverse lookup failed (${response.statusCode})');
-    }
-    final results = _parseFeatures(response.body);
-    return results.isEmpty ? null : results.first;
-  }
-
   /// Reverse-geocodes [point] to its containing administrative area
   /// names, unlike [reverse] which returns the nearest named PLACE (a
   /// shop, landmark, etc.) collapsed into one address string. Used by

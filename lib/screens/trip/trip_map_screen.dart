@@ -3,9 +3,9 @@ import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 
 import '../../models/trip_stop_location.dart';
-import '../../services/locale_service.dart';
 import '../../services/trip_service.dart';
 import '../../theme/app_theme.dart';
+import '../../utils/geo.dart';
 import '../../utils/malaysia_bounds.dart';
 import '../../widgets/detail_header.dart';
 
@@ -19,9 +19,8 @@ const _focusZoom = 16.0;
 /// Read-only map of every stop already saved to one trip — NOT the
 /// Transport module's routing/navigation map. No route calculation, no
 /// polylines, no external place search: this only plots
-/// [TripStopLocation]s already stored for [tripId] (via
-/// [TripService.watchTripStops]) and lets the traveler find one by name
-/// among them.
+/// [TripStopLocation]s already stored for [tripId] and lets the traveler
+/// find one by name among them.
 class TripMapScreen extends StatefulWidget {
   const TripMapScreen({super.key, required this.tripId});
 
@@ -32,9 +31,13 @@ class TripMapScreen extends StatefulWidget {
 }
 
 class _TripMapScreenState extends State<TripMapScreen> {
-  final _tripService = TripService();
   final _searchController = TextEditingController();
   final _searchFocusNode = FocusNode();
+  final _tripService = TripService();
+
+  List<TripStopLocation> _stops = [];
+  bool _loading = true;
+  String? _error;
 
   /// Marker color/popup state — set either by picking a stop from the
   /// search dropdown or by tapping its marker directly on the map.
@@ -56,6 +59,7 @@ class _TripMapScreenState extends State<TripMapScreen> {
         setState(() => _showDropdown = true);
       }
     });
+    _loadStops();
   }
 
   @override
@@ -63,6 +67,27 @@ class _TripMapScreenState extends State<TripMapScreen> {
     _searchController.dispose();
     _searchFocusNode.dispose();
     super.dispose();
+  }
+
+  Future<void> _loadStops() async {
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+    try {
+      final stops = await _tripService.getTripStops(widget.tripId);
+      if (!mounted) return;
+      setState(() {
+        _stops = stops;
+        _loading = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _error = '$e';
+        _loading = false;
+      });
+    }
   }
 
   List<TripStopLocation> _filteredStops(List<TripStopLocation> all) {
@@ -90,7 +115,19 @@ class _TripMapScreenState extends State<TripMapScreen> {
   }
 
   void _selectFromMarker(TripStopLocation stop) {
-    setState(() => _selectedMapStop = stop);
+    // Tapping the active marker again is an explicit deselect action.
+    // Reuse the normal clear path so a prior search focus is cleared too.
+    if (_selectedMapStop == stop) {
+      _clearSearch();
+      return;
+    }
+    _searchFocusNode.unfocus();
+    _searchController.text = stop.name;
+    setState(() {
+      _selectedMapStop = stop;
+      _searchQuery = '';
+      _showDropdown = false;
+    });
   }
 
   void _clearSearch() {
@@ -111,26 +148,22 @@ class _TripMapScreenState extends State<TripMapScreen> {
       body: SafeArea(
         child: Column(
           children: [
-            DetailHeader(
-              title: tr('trip_map_title_word'),
-              subtitle: tr('trip_every_stop_on_trip'),
+            const DetailHeader(
+              title: 'Trip Map',
+              subtitle: 'Every stop on this trip',
             ),
             Expanded(
-              child: StreamBuilder<List<TripStopLocation>>(
-                stream: _tripService.watchTripStops(widget.tripId),
-                builder: (context, snapshot) {
-                  final stops = snapshot.data ?? const <TripStopLocation>[];
-                  final loading =
-                      snapshot.connectionState == ConnectionState.waiting &&
-                      !snapshot.hasData;
+              child: Builder(
+                builder: (context) {
+                  if (_loading) return const _StopsLoading();
+                  if (_error != null) {
+                    return _StopsError(message: _error!, onRetry: _loadStops);
+                  }
+                  final stops = _stops;
 
                   return Padding(
                     padding: const EdgeInsets.fromLTRB(20, 4, 20, 20),
-                    child: loading
-                        ? const Center(child: CircularProgressIndicator())
-                        : snapshot.hasError
-                        ? _ErrorState(message: '${snapshot.error}')
-                        : stops.isEmpty
+                    child: stops.isEmpty
                         ? const _NoStopsState()
                         : ClipRRect(
                             borderRadius: BorderRadius.circular(24),
@@ -200,9 +233,20 @@ class _TripStopsMap extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final points = [for (final s in stops) LatLng(s.latitude, s.longitude)];
+    // A saved stop is always plotted from the values stored in the database:
+    // `LatLng` takes latitude first and longitude second. Discard malformed
+    // data here instead of letting one bad row skew the initial camera fit.
+    final plottedStops = [
+      for (final stop in stops)
+        if (isValidLatLng(LatLng(stop.latitude, stop.longitude))) stop,
+    ];
+    final points = [
+      for (final stop in plottedStops) LatLng(stop.latitude, stop.longitude),
+    ];
     final bounds = points.isEmpty ? null : LatLngBounds.fromPoints(points);
-    final focus = cameraFocus;
+    final focus = cameraFocus != null && isValidLatLng(cameraFocus!)
+        ? cameraFocus
+        : null;
 
     // Keyed on whether/where the camera should be focused, so selecting
     // a stop via search (or clearing back to "fit everything") remounts
@@ -211,13 +255,17 @@ class _TripStopsMap extends StatelessWidget {
     // MapController alone after the map is already mounted.
     final cameraKey = focus != null
         ? 'focus:${focus.latitude.toStringAsFixed(5)},${focus.longitude.toStringAsFixed(5)}'
-        : 'all:${stops.length}';
+        : 'all:${points.map((p) => '${p.latitude.toStringAsFixed(5)},${p.longitude.toStringAsFixed(5)}').join('|')}';
 
     return FlutterMap(
       key: ValueKey(cameraKey),
       options: MapOptions(
         initialCenter: focus ?? bounds?.center ?? malaysiaFallbackCenter,
-        initialZoom: focus != null || bounds == null ? _focusZoom : 6,
+        // Only actually used when initialCameraFit is null (falls back to
+        // the fit's own computed zoom otherwise).
+        initialZoom: focus != null || bounds == null || points.length == 1
+            ? _focusZoom
+            : 12,
         initialCameraFit: focus == null && bounds != null
             ? CameraFit.bounds(
                 bounds: bounds,
@@ -225,6 +273,13 @@ class _TripStopsMap extends StatelessWidget {
                 maxZoom: _focusZoom,
               )
             : null,
+        // No explicit minZoom here on purpose: MapOptions.minZoom acts as a
+        // hard floor on CameraFit.bounds's own computed zoom (it's clamped
+        // up to at least minZoom), so a fixed floor previously fought the
+        // "fit every stop" goal above whenever stops were spread wider than
+        // that floor allowed, clipping some out of the initial view.
+        // CameraConstraint.contain below already stops the camera from
+        // zooming/panning out past Malaysia, so no extra floor is needed.
         cameraConstraint: CameraConstraint.contain(bounds: malaysiaBounds),
         interactionOptions: const InteractionOptions(
           flags: InteractiveFlag.all & ~InteractiveFlag.rotate,
@@ -237,15 +292,20 @@ class _TripStopsMap extends StatelessWidget {
         ),
         MarkerLayer(
           markers: [
-            for (final stop in stops)
+            for (final (index, stop) in plottedStops.indexed)
               Marker(
                 point: LatLng(stop.latitude, stop.longitude),
-                width: 170,
-                height: 76,
-                alignment: Alignment.bottomCenter,
+                // A compact circular marker has its geographic coordinate at
+                // its exact centre. Unlike a tall pin/label widget, its
+                // visual position therefore cannot appear to drift as the
+                // camera zoom changes.
+                width: 38,
+                height: 38,
+                alignment: Alignment.center,
                 child: _TripStopMarker(
                   name: stop.name,
                   isSelected: stop == selected,
+                  number: index + 1,
                   onTap: () => onTapMarker(stop),
                 ),
               ),
@@ -260,21 +320,28 @@ class _TripStopMarker extends StatelessWidget {
   const _TripStopMarker({
     required this.name,
     required this.isSelected,
+    required this.number,
     required this.onTap,
   });
 
   final String name;
   final bool isSelected;
+  final int number;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      mainAxisAlignment: MainAxisAlignment.end,
+    return Stack(
+      clipBehavior: Clip.none,
+      alignment: Alignment.center,
       children: [
-        if (isSelected) ...[
-          Flexible(
+        // The label deliberately overflows the fixed-size marker. That keeps
+        // the marker's centre locked to the saved latitude/longitude.
+        if (isSelected)
+          Positioned(
+            left: -72,
+            right: -72,
+            bottom: 42,
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
               decoration: BoxDecoration(
@@ -282,7 +349,7 @@ class _TripStopMarker extends StatelessWidget {
                 borderRadius: BorderRadius.circular(10),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.2),
+                    color: Colors.black.withValues(alpha: 0.22),
                     blurRadius: 8,
                     offset: const Offset(0, 3),
                   ),
@@ -301,14 +368,38 @@ class _TripStopMarker extends StatelessWidget {
               ),
             ),
           ),
-          const SizedBox(height: 3),
-        ],
-        GestureDetector(
-          onTap: onTap,
-          child: Icon(
-            Icons.location_on_rounded,
-            color: isSelected ? _stopMarkerBlue : _stopMarkerRed,
-            size: 34,
+        Tooltip(
+          message: name,
+          child: Material(
+            color: Colors.transparent,
+            child: InkWell(
+              customBorder: const CircleBorder(),
+              onTap: onTap,
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  color: isSelected ? _stopMarkerBlue : _stopMarkerRed,
+                  shape: BoxShape.circle,
+                  border: Border.all(color: Colors.white, width: 3),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.28),
+                      blurRadius: 5,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
+                ),
+                child: Center(
+                  child: Text(
+                    '$number',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ),
+              ),
+            ),
           ),
         ),
       ],
@@ -359,9 +450,9 @@ class _TripStopSearchField extends StatelessWidget {
                   fontSize: 13.5,
                   fontWeight: FontWeight.w600,
                 ),
-                decoration: InputDecoration(
-                  hintText: tr('trip_search_trip_stops_hint'),
-                  hintStyle: const TextStyle(
+                decoration: const InputDecoration(
+                  hintText: 'Search trip stops…',
+                  hintStyle: TextStyle(
                     color: Color(0xFF6E7A93),
                     fontWeight: FontWeight.w500,
                   ),
@@ -402,11 +493,11 @@ class _TripStopDropdown extends StatelessWidget {
       child: ConstrainedBox(
         constraints: const BoxConstraints(maxHeight: 220),
         child: stops.isEmpty
-            ? Padding(
-                padding: const EdgeInsets.all(16),
+            ? const Padding(
+                padding: EdgeInsets.all(16),
                 child: Text(
-                  tr('trip_no_matching_stops'),
-                  style: const TextStyle(color: Color(0xFF6E7A93), fontSize: 12.5),
+                  'No matching stops',
+                  style: TextStyle(color: Color(0xFF6E7A93), fontSize: 12.5),
                 ),
               )
             : ListView.builder(
@@ -440,6 +531,58 @@ class _TripStopDropdown extends StatelessWidget {
   }
 }
 
+class _StopsLoading extends StatelessWidget {
+  const _StopsLoading();
+
+  @override
+  Widget build(BuildContext context) {
+    return const Center(child: CircularProgressIndicator());
+  }
+}
+
+class _StopsError extends StatelessWidget {
+  const _StopsError({required this.message, required this.onRetry});
+
+  final String message;
+  final VoidCallback onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              Icons.error_outline_rounded,
+              color: context.colors.muted,
+              size: 30,
+            ),
+            const SizedBox(height: 10),
+            Text(
+              'Could not load this trip\'s stops',
+              style: TextStyle(
+                color: context.colors.ink,
+                fontWeight: FontWeight.w700,
+                fontSize: 13.5,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              message,
+              textAlign: TextAlign.center,
+              style: TextStyle(color: context.colors.muted, fontSize: 12),
+            ),
+            const SizedBox(height: 14),
+            TextButton(onPressed: onRetry, child: const Text('Try again')),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class _NoStopsState extends StatelessWidget {
   const _NoStopsState();
 
@@ -452,7 +595,7 @@ class _NoStopsState extends StatelessWidget {
           Icon(Icons.flag_outlined, color: context.colors.muted, size: 34),
           const SizedBox(height: 10),
           Text(
-            tr('trip_no_stops_added_yet'),
+            'No stops added yet',
             style: TextStyle(
               color: context.colors.ink,
               fontWeight: FontWeight.w700,
@@ -461,7 +604,7 @@ class _NoStopsState extends StatelessWidget {
           ),
           const SizedBox(height: 4),
           Text(
-            tr('trip_add_stops_to_see_map'),
+            'Add stops to this trip to see them on the map.',
             textAlign: TextAlign.center,
             style: TextStyle(color: context.colors.muted, fontSize: 12),
           ),
@@ -471,38 +614,3 @@ class _NoStopsState extends StatelessWidget {
   }
 }
 
-class _ErrorState extends StatelessWidget {
-  const _ErrorState({required this.message});
-
-  final String message;
-
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(Icons.error_outline_rounded, color: context.colors.muted, size: 30),
-            const SizedBox(height: 10),
-            Text(
-              tr('trip_could_not_load_trip_stops'),
-              style: TextStyle(
-                color: context.colors.ink,
-                fontWeight: FontWeight.w700,
-                fontSize: 14,
-              ),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              message,
-              textAlign: TextAlign.center,
-              style: TextStyle(color: context.colors.muted, fontSize: 12),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}

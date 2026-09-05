@@ -1,10 +1,11 @@
 import 'package:flutter/material.dart';
 
+import '../main.dart' show navigatorKey;
 import '../services/auth_service.dart';
-import '../services/locale_service.dart';
-import '../services/remember_me_service.dart';
+import '../services/deep_link.dart';
 import '../services/supabase_config.dart';
 import '../theme/app_theme.dart';
+import 'community/post_detail_screen.dart';
 import 'home_screen.dart';
 import 'welcome_screen.dart';
 
@@ -21,17 +22,17 @@ class _SplashScreenState extends State<SplashScreen> {
   @override
   void initState() {
     super.initState();
-    Future.delayed(Duration(milliseconds: 1800), () async {
+    Future.delayed(Duration(milliseconds: 1800), () {
       if (!mounted) return;
-      var signedIn = SupabaseConfig.isConfigured && AuthService.instance.isSignedIn;
-      // Supabase persists a session locally regardless of "Remember Me" —
-      // if the user unchecked it at their last sign-in, honor that now by
-      // signing the leftover session back out before deciding where to go.
-      if (signedIn && !(await RememberMeService.isRemembered())) {
-        await AuthService.instance.signOut();
-        signedIn = false;
-      }
-      if (!mounted) return;
+      final signedIn = SupabaseConfig.isConfigured && AuthService.instance.isSignedIn;
+      // A link like /post/<id> (opened from Community's share action) is
+      // parsed from the URL the app cold-started with — only meaningful if
+      // there's already a session, since every table requires auth.
+      final sharedPostId = signedIn ? parseSharedPostId() : null;
+      // Note: pushReplacement's returned Future only completes when the
+      // *new* route is later popped (HomeScreen is the root, so that Future
+      // would never fire) — so the follow-up push below runs right after
+      // issuing the replacement, not chained off it.
       Navigator.of(context).pushReplacement(
         PageRouteBuilder(
           transitionDuration: Duration(milliseconds: 500),
@@ -40,6 +41,13 @@ class _SplashScreenState extends State<SplashScreen> {
               FadeTransition(opacity: animation, child: child),
         ),
       );
+      if (sharedPostId != null) {
+        navigatorKey.currentState?.push(
+          MaterialPageRoute(
+            builder: (_) => PostDetailScreen(postId: sharedPostId),
+          ),
+        );
+      }
     });
   }
 
@@ -80,7 +88,7 @@ class _SplashScreenState extends State<SplashScreen> {
               ),
               SizedBox(height: 20),
               Text(
-                tr('auth_app_name'),
+                'Travel Trip Planner',
                 style: TextStyle(
                   color: Colors.white,
                   fontSize: 24,
@@ -90,7 +98,7 @@ class _SplashScreenState extends State<SplashScreen> {
               ),
               SizedBox(height: 6),
               Text(
-                tr('auth_app_tagline'),
+                'Plan every journey, beautifully',
                 style: TextStyle(
                   color: Colors.white.withValues(alpha: 0.8),
                   fontSize: 13.5,

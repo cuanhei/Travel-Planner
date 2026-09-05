@@ -1,8 +1,9 @@
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
+import 'package:flutter_web_plugins/url_strategy.dart';
+import 'package:media_kit/media_kit.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'firebase_options.dart';
@@ -18,11 +19,19 @@ Future<void> main() async {
 
   await loadSavedLanguage();
 
-  // Supabase itself is configured via --dart-define (see SupabaseConfig);
-  // .env only supplies the Transport module's Google Routes API key
+  // Required once at startup before any Video/Player widget is used
+  // (chat's voice/video attachments) — sets up media_kit's native libs.
+  MediaKit.ensureInitialized();
+
+  // Plain paths on web (e.g. /post/<id> for a shared Community post) instead
+  // of the default /#/post/<id> hash fragment.
+  usePathUrlStrategy();
+
+  // Supabase is configured from `.env` (see SupabaseConfig.load) — the same
+  // file also supplies the Transport module's Google Routes API key
   // (route_service.dart), so a missing .env shouldn't block startup.
   try {
-    await dotenv.load(fileName: '.env');
+    await SupabaseConfig.load();
   } catch (_) {}
 
   if (SupabaseConfig.isConfigured) {
@@ -55,6 +64,12 @@ Future<void> main() async {
   runApp(const MyApp());
 }
 
+/// Lets a route be pushed from outside the widget tree — used by
+/// SplashScreen to open a shared Community post (deep link) right after
+/// the initial route replacement, which doesn't hand back a usable
+/// `BuildContext` of its own at that point.
+final navigatorKey = GlobalKey<NavigatorState>();
+
 class MyApp extends StatelessWidget {
   const MyApp({super.key});
 
@@ -70,6 +85,7 @@ class MyApp extends StatelessWidget {
           valueListenable: currentLanguageCode,
           builder: (context, _, _) {
             return MaterialApp(
+              navigatorKey: navigatorKey,
               title: 'TravelPlanner',
               debugShowCheckedModeBanner: false,
               theme: AppTheme.light,

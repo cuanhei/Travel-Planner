@@ -52,6 +52,10 @@ class AuthService {
     return 'Traveler';
   }
 
+  /// Fires on sign in, sign out, token refresh, and password-recovery link
+  /// clicks (`AuthChangeEvent.passwordRecovery`).
+  Stream<AuthState> get onAuthStateChange => _auth.onAuthStateChange;
+
   /// Returns the [AuthResponse] so callers can tell whether Supabase
   /// already signed the user in (email confirmation disabled on the
   /// project) or a confirmation code was emailed instead (session is null).
@@ -138,45 +142,6 @@ class AuthService {
     }
   }
 
-  /// Clears any failed-login streak for [email] — called automatically
-  /// after a successful sign-in (see the `onAuthStateChange` listener in
-  /// `main.dart`).
-  Future<void> clearLoginLockout(String email) async {
-    try {
-      await Supabase.instance.client.rpc(
-        'clear_login_lockout',
-        params: {'p_email': email},
-      );
-    } catch (e) {
-      debugPrint('clearLoginLockout failed, skipping: $e');
-    }
-  }
-
-  /// Permanently deletes the signed-in user's account (Privacy & Security >
-  /// Delete Account) via the `delete_own_account` SECURITY DEFINER DB
-  /// function (see supabase/migrations/0012_delete_own_account.sql), which
-  /// removes the row from `auth.users` and cascades through profiles,
-  /// trips, and everything else owned by this user.
-  ///
-  /// Only clears the *local* session afterwards — the account (and its
-  /// refresh token) is already gone server-side by that point, so a normal
-  /// server-side sign-out call would just fail.
-  Future<void> deleteAccount() async {
-    await Supabase.instance.client.rpc('delete_own_account');
-    await _auth.signOut(scope: SignOutScope.local);
-  }
-
-  /// Re-verifies the signed-in user's current password (e.g. before letting
-  /// them change it) by attempting a fresh sign-in with it. Throws an
-  /// [AuthException] with code `invalid_credentials` if it's wrong.
-  Future<void> reauthenticate(String currentPassword) {
-    final email = currentUser?.email;
-    if (email == null) {
-      throw StateError('reauthenticate called with no signed-in user');
-    }
-    return signIn(email: email, password: currentPassword);
-  }
-
   /// Emails a 6-digit recovery code to [email] (no link — see the
   /// "Reset Password" template note in `SUPABASE_SETUP.md`).
   Future<void> sendPasswordResetCode(String email) {
@@ -211,6 +176,46 @@ class AuthService {
 
   Future<void> resendSignupCode(String email) {
     return _auth.resend(type: OtpType.signup, email: email);
+  }
+
+  /// Clears any failed-login streak for [email] — called automatically
+  /// after a successful sign-in (see the `onAuthStateChange` listener in
+  /// `main.dart`). Fails open (silently) if the underlying migration isn't
+  /// applied yet.
+  Future<void> clearLoginLockout(String email) async {
+    try {
+      await Supabase.instance.client.rpc(
+        'clear_login_lockout',
+        params: {'p_email': email},
+      );
+    } catch (e) {
+      debugPrint('clearLoginLockout failed, skipping: $e');
+    }
+  }
+
+  /// Permanently deletes the signed-in user's account (Privacy & Security >
+  /// Delete Account) via the `delete_own_account` SECURITY DEFINER DB
+  /// function (see supabase/migrations/0012_delete_own_account.sql), which
+  /// removes the row from `auth.users` and cascades through profiles,
+  /// trips, and everything else owned by this user.
+  ///
+  /// Only clears the *local* session afterwards — the account (and its
+  /// refresh token) is already gone server-side by that point, so a normal
+  /// server-side sign-out call would just fail.
+  Future<void> deleteAccount() async {
+    await Supabase.instance.client.rpc('delete_own_account');
+    await _auth.signOut(scope: SignOutScope.local);
+  }
+
+  /// Re-verifies the signed-in user's current password (e.g. before letting
+  /// them change it) by attempting a fresh sign-in with it. Throws an
+  /// [AuthException] with code `invalid_credentials` if it's wrong.
+  Future<void> reauthenticate(String currentPassword) {
+    final email = currentUser?.email;
+    if (email == null) {
+      throw StateError('reauthenticate called with no signed-in user');
+    }
+    return signIn(email: email, password: currentPassword);
   }
 
   /// True if this account has email-based two-factor authentication turned

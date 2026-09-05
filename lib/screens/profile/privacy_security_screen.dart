@@ -12,11 +12,13 @@ import '../auth_screen.dart';
 import 'login_activity_screen.dart';
 import 'view_profile_screen.dart';
 
-/// Privacy preferences are UI-only; Two-Factor Authentication is wired to
-/// real Supabase email-OTP 2FA (see `AuthService`'s `emailTwoFactorEnabled`/
-/// `setEmailTwoFactorEnabled`/`*LoginEmailCode*` methods and
-/// `EmailTwoFactorScreen`) — a 6-digit code is emailed at sign-in whenever
-/// the user has turned this on.
+/// Most privacy preferences here are UI-only. Two exceptions: Two-Factor
+/// Authentication is wired to real Supabase email-OTP 2FA (see
+/// `AuthService`'s `emailTwoFactorEnabled`/`setEmailTwoFactorEnabled`/
+/// `*LoginEmailCode*` methods and `EmailTwoFactorScreen`) — a 6-digit code is
+/// emailed at sign-in whenever the user has turned this on. And Location
+/// Sharing (see `ProfileService.setLocationSharingEnabled`) gates whether
+/// Community posts show this user's real IP or "Unknown" (see `PostCard`).
 class PrivacySecurityScreen extends StatefulWidget {
   const PrivacySecurityScreen({super.key});
 
@@ -29,6 +31,7 @@ class _PrivacySecurityScreenState extends State<PrivacySecurityScreen> {
   bool _publicProfileBusy = false;
   bool _shareActivityWithFriends = true;
   bool _locationSharing = true;
+  bool _locationSharingBusy = false;
 
   bool _twoFactorEnabled = false;
   bool _twoFactorBusy = false;
@@ -40,6 +43,28 @@ class _PrivacySecurityScreenState extends State<PrivacySecurityScreen> {
     super.initState();
     _twoFactorEnabled = AuthService.instance.emailTwoFactorEnabled;
     _publicProfile = ProfileService.instance.current.value?.isPublic ?? true;
+    _locationSharing =
+        ProfileService.instance.current.value?.locationSharingEnabled ?? true;
+  }
+
+  Future<void> _onLocationSharingChanged(bool enabled) async {
+    if (_locationSharingBusy) return;
+    setState(() => _locationSharingBusy = true);
+    try {
+      await ProfileService.instance.setLocationSharingEnabled(enabled);
+      if (!mounted) return;
+      setState(() => _locationSharing = enabled);
+      _showSnack(
+        enabled
+            ? tr('auth_location_sharing_on')
+            : tr('auth_location_sharing_off'),
+      );
+    } catch (e) {
+      debugPrint('setLocationSharingEnabled failed: $e');
+      _showSnack(tr('common_error_generic'), error: true);
+    } finally {
+      if (mounted) setState(() => _locationSharingBusy = false);
+    }
   }
 
   Future<void> _onPublicProfileChanged(bool isPublic) async {
@@ -198,7 +223,8 @@ class _PrivacySecurityScreenState extends State<PrivacySecurityScreen> {
                     title: tr('auth_location_sharing'),
                     subtitle: tr('auth_location_sharing_desc'),
                     value: _locationSharing,
-                    onChanged: (v) => setState(() => _locationSharing = v),
+                    busy: _locationSharingBusy,
+                    onChanged: _onLocationSharingChanged,
                   ),
                   const SizedBox(height: 20),
                   _SectionLabel(tr('auth_security_section')),

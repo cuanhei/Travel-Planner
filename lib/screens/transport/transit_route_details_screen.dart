@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:latlong2/latlong.dart';
 
 import '../../models/transit_route.dart';
-import '../../models/transport_location.dart';
+import '../../models/trip_stop_location.dart';
 import '../../services/locale_service.dart';
 import '../../theme/app_theme.dart';
 import '../../utils/format.dart';
@@ -66,8 +66,8 @@ class TransitRouteDetailsScreen extends StatelessWidget {
   });
 
   final TransitRoute route;
-  final TransportLocation departure;
-  final TransportLocation destination;
+  final TripStopLocation departure;
+  final TripStopLocation destination;
 
   @override
   Widget build(BuildContext context) {
@@ -76,9 +76,9 @@ class TransitRouteDetailsScreen extends StatelessWidget {
       body: SafeArea(
         child: Column(
           children: [
-            DetailHeader(
-              title: tr('transport_route_details_title'),
-              subtitle: tr('transport_public_transport_journey'),
+            const DetailHeader(
+              title: 'Route Details',
+              subtitle: 'Public transport journey',
             ),
             Expanded(
               child: ListView(
@@ -151,16 +151,16 @@ class _StartNavigationBar extends StatelessWidget {
           child: InkWell(
             borderRadius: BorderRadius.circular(16),
             onTap: onTap,
-            child: Padding(
-              padding: const EdgeInsets.symmetric(vertical: 15),
+            child: const Padding(
+              padding: EdgeInsets.symmetric(vertical: 15),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  const Icon(Icons.navigation_rounded, color: Colors.white, size: 19),
-                  const SizedBox(width: 8),
+                  Icon(Icons.navigation_rounded, color: Colors.white, size: 19),
+                  SizedBox(width: 8),
                   Text(
-                    tr('transport_start_navigation'),
-                    style: const TextStyle(
+                    'Start Navigation',
+                    style: TextStyle(
                       color: Colors.white,
                       fontWeight: FontWeight.w800,
                       fontSize: 15,
@@ -212,9 +212,8 @@ class _SummaryStrip extends StatelessWidget {
           _StatItem(
             icon: Icons.sync_alt_rounded,
             label: route.transferCount == 0
-                ? tr('transport_direct_word')
-                : '${route.transferCount} '
-                      '${route.transferCount == 1 ? tr('transport_transfer_singular') : tr('transport_transfer_plural')}',
+                ? 'Direct'
+                : '${route.transferCount} transfer${route.transferCount == 1 ? '' : 's'}',
           ),
         ],
       ),
@@ -295,10 +294,10 @@ class _StepRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final details = step.details;
     if (details == null) {
-      return _StepCard(
+      return const _StepCard(
         icon: Icons.directions_transit_filled_rounded,
-        iconColor: const Color(0xFF11998E),
-        title: tr('transport_transit_word'),
+        iconColor: Color(0xFF11998E),
+        title: 'Transit',
       );
     }
     final display = TransitVehicleDisplay.of(details.vehicleType);
@@ -317,7 +316,7 @@ class _StepRow extends StatelessWidget {
       subtitle: '${details.departureStop} → ${details.arrivalStop}',
       trailingText: times.isEmpty ? null : times,
       footerText: details.headsign != null
-          ? '${tr('transport_towards_prefix')} ${details.headsign}'
+          ? 'Towards ${details.headsign}'
           : null,
     );
   }
@@ -336,7 +335,7 @@ class _WalkOnlySummary extends StatelessWidget {
     return _StepCard(
       icon: Icons.directions_walk_rounded,
       iconColor: const Color(0xFF6E7A93),
-      title: '${tr('transport_walk_duration_prefix')} ${formatDuration(duration)}',
+      title: 'Walk ${formatDuration(duration)}',
     );
   }
 }

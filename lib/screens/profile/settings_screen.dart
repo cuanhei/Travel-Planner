@@ -52,6 +52,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
     if (value) {
       showLocalNotification(tr('auth_trip_reminders_enabled_title'), tr('auth_trip_reminders_enabled_body'));
     }
+    if (!mounted) return;
+    _showMessage(
+      value ? tr('auth_trip_reminders_on') : tr('auth_trip_reminders_off'),
+    );
   }
 
   @override

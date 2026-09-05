@@ -1,19 +1,19 @@
+import 'dart:typed_data';
+
+import 'package:crop_your_image/crop_your_image.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../models/expense.dart';
 import '../../services/budget_service.dart';
 import '../../services/group_service.dart';
-import '../../services/locale_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/detail_header.dart';
 import 'budget_planner_screen.dart'
-    show
-        BudgetCategory,
-        budgetCategories,
-        categoryVisuals,
-        formatAmount,
-        translatedCategoryLabel;
+    show BudgetCategory, budgetCategories, categoryVisuals, formatAmount;
+import 'spending_insights_screen.dart';
 
 const _monthNames = [
   'Jan',
@@ -31,6 +31,96 @@ const _monthNames = [
 ];
 
 String _formatShortDate(DateTime d) => '${_monthNames[d.month - 1]} ${d.day}';
+
+/// File extension for an [XFile] picked via image_picker, used to name
+/// the storage object and pick its content-type — falls back to "jpg"
+/// when the picked file has no extension (some web/camera captures).
+String _photoFileExt(XFile file) {
+  final name = file.name;
+  final dot = name.lastIndexOf('.');
+  if (dot == -1 || dot == name.length - 1) return 'jpg';
+  return name.substring(dot + 1);
+}
+
+/// Cap on how many photos one expense can carry — keeps the picker strip
+/// and upload time bounded rather than a hard product requirement.
+const _maxPhotosPerExpense = 6;
+
+/// A freshly picked-and-cropped photo waiting to be uploaded on save —
+/// distinct from an already-saved [Expense.photoUrls] entry, which is
+/// just a URL with no local bytes to re-upload.
+class _PendingPhoto {
+  const _PendingPhoto({required this.bytes, required this.ext});
+  final Uint8List bytes;
+  final String ext;
+}
+
+/// Full-screen crop step shown right after picking a photo — drag the
+/// handles to choose which part of the image to keep (freeform, no
+/// fixed aspect ratio) instead of silently center-cropping it later to
+/// fit a thumbnail box. Pops with the cropped bytes, or null if the
+/// user backs out.
+class _CropPhotoScreen extends StatefulWidget {
+  const _CropPhotoScreen({required this.bytes});
+
+  final Uint8List bytes;
+
+  @override
+  State<_CropPhotoScreen> createState() => _CropPhotoScreenState();
+}
+
+class _CropPhotoScreenState extends State<_CropPhotoScreen> {
+  final _controller = CropController();
+  var _isCropping = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.black,
+      appBar: AppBar(
+        backgroundColor: Colors.black,
+        foregroundColor: Colors.white,
+        elevation: 0,
+        title: const Text('Crop Photo'),
+        actions: [
+          TextButton(
+            onPressed: _isCropping
+                ? null
+                : () {
+                    setState(() => _isCropping = true);
+                    _controller.crop();
+                  },
+            child: const Text(
+              'Done',
+              style: TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+          ),
+        ],
+      ),
+      body: Crop(
+        image: widget.bytes,
+        controller: _controller,
+        baseColor: Colors.black,
+        maskColor: Colors.black.withValues(alpha: 0.65),
+        progressIndicator: const Center(
+          child: CircularProgressIndicator(color: Colors.white),
+        ),
+        onCropped: (result) {
+          switch (result) {
+            case CropSuccess(:final croppedImage):
+              Navigator.of(context).pop(croppedImage);
+            case CropFailure():
+              setState(() => _isCropping = false);
+              Navigator.of(context).pop();
+          }
+        },
+      ),
+    );
+  }
+}
 
 const _calcOperators = {'+', '−', '×', '÷'};
 
@@ -183,6 +273,7 @@ class _ExpenseTrackerScreenState extends State<ExpenseTrackerScreen> {
     required String category,
     required double amount,
     required String? stopPlace,
+    required List<String> photoUrls,
   }) async {
     if (existing != null) {
       await _budgetService.updateExpense(
@@ -191,6 +282,7 @@ class _ExpenseTrackerScreenState extends State<ExpenseTrackerScreen> {
         category: category,
         amount: amount,
         stopPlace: stopPlace,
+        photoUrls: photoUrls,
       );
     } else {
       await _budgetService.addExpense(
@@ -200,6 +292,7 @@ class _ExpenseTrackerScreenState extends State<ExpenseTrackerScreen> {
         amount: amount,
         spentAt: DateTime.now(),
         stopPlace: stopPlace,
+        photoUrls: photoUrls,
       );
     }
   }
@@ -211,25 +304,25 @@ class _ExpenseTrackerScreenState extends State<ExpenseTrackerScreen> {
         backgroundColor: dialogContext.colors.card,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         title: Text(
-          tr('budget_delete_expense_confirm_title'),
+          'Delete this expense?',
           style: TextStyle(
             color: dialogContext.colors.ink,
             fontWeight: FontWeight.w800,
           ),
         ),
         content: Text(
-          '"${expense.title}" (RM ${expense.amount.toStringAsFixed(2)}) ${tr('budget_delete_expense_confirm_suffix')}',
+          '"${expense.title}" (RM ${expense.amount.toStringAsFixed(2)}) will be removed.',
           style: TextStyle(color: dialogContext.colors.muted),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(dialogContext).pop(false),
-            child: Text(tr('common_cancel')),
+            child: const Text('Cancel'),
           ),
           FilledButton(
             onPressed: () => Navigator.of(dialogContext).pop(true),
             style: FilledButton.styleFrom(backgroundColor: Colors.redAccent),
-            child: Text(tr('budget_delete_button')),
+            child: const Text('Delete'),
           ),
         ],
       ),
@@ -243,6 +336,143 @@ class _ExpenseTrackerScreenState extends State<ExpenseTrackerScreen> {
         SnackBar(behavior: SnackBarBehavior.floating, content: Text('$e')),
       );
     }
+  }
+
+  /// Read-only counterpart to [_showExpenseSheet] for an expense the
+  /// viewer can't edit (logged by someone else, and they're not the
+  /// organizer) — every member can still see what it was for, so the
+  /// list doesn't hide details behind a permission wall it doesn't need.
+  void _showExpenseDetailsSheet(Expense expense) {
+    final visuals = categoryVisuals(expense.category);
+    showModalBottomSheet(
+      context: context,
+      // Without this, the sheet caps itself at a fixed fraction of
+      // screen height and its content doesn't scroll — a multi-photo
+      // strip plus the detail rows can then overflow past that cap and
+      // get laid out (and hit-tested) somewhere other than where
+      // they're visibly drawn, making the photo look unclickable.
+      isScrollControlled: true,
+      backgroundColor: context.colors.card,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (sheetContext) {
+        return SafeArea(
+          child: Padding(
+            padding: EdgeInsets.fromLTRB(
+              24,
+              24,
+              24,
+              24 + MediaQuery.of(sheetContext).viewInsets.bottom,
+            ),
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Container(
+                        width: 44,
+                        height: 44,
+                        decoration: BoxDecoration(
+                          color: visuals.color.withValues(alpha: 0.12),
+                          shape: BoxShape.circle,
+                        ),
+                        alignment: Alignment.center,
+                        child: Icon(
+                          visuals.icon,
+                          color: visuals.color,
+                          size: 22,
+                        ),
+                      ),
+                      const SizedBox(width: 14),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              expense.title,
+                              style: TextStyle(
+                                color: sheetContext.colors.ink,
+                                fontWeight: FontWeight.w800,
+                                fontSize: 16,
+                              ),
+                            ),
+                            Text(
+                              expense.category,
+                              style: TextStyle(
+                                color: sheetContext.colors.muted,
+                                fontSize: 12.5,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      Text(
+                        'RM ${expense.amount.toStringAsFixed(2)}',
+                        style: TextStyle(
+                          color: sheetContext.colors.ink,
+                          fontWeight: FontWeight.w800,
+                          fontSize: 18,
+                        ),
+                      ),
+                    ],
+                  ),
+                  if (expense.photoUrls.isNotEmpty) ...[
+                    const SizedBox(height: 18),
+                    _PhotoStrip(urls: expense.photoUrls),
+                  ],
+                  const SizedBox(height: 20),
+                  _DetailRow(
+                    icon: Icons.calendar_today_rounded,
+                    label: 'Date',
+                    value: _formatShortDate(expense.spentAt),
+                  ),
+                  if (expense.stopPlace != null) ...[
+                    const SizedBox(height: 12),
+                    _DetailRow(
+                      icon: Icons.place_rounded,
+                      label: 'Where',
+                      value: expense.stopPlace!,
+                    ),
+                  ],
+                  const SizedBox(height: 12),
+                  FutureBuilder<String?>(
+                    future: _groupService.getDisplayName(expense.userId),
+                    builder: (context, snap) {
+                      return _DetailRow(
+                        icon: Icons.person_rounded,
+                        label: 'Logged by',
+                        value: snap.data ?? '…',
+                      );
+                    },
+                  ),
+                  const SizedBox(height: 22),
+                  SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton(
+                      onPressed: () => Navigator.of(sheetContext).pop(),
+                      style: OutlinedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                        side: BorderSide(color: sheetContext.colors.muted),
+                      ),
+                      child: Text(
+                        'Close',
+                        style: TextStyle(color: sheetContext.colors.ink),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
   }
 
   void _showExpenseSheet({
@@ -260,6 +490,9 @@ class _ExpenseTrackerScreenState extends State<ExpenseTrackerScreen> {
         ? categoryVisuals(existing.category)
         : budgetCategories.first;
     String? formError;
+    final keptExistingUrls = <String>[...?existing?.photoUrls];
+    final pendingPhotos = <_PendingPhoto>[];
+    var isUploadingPhoto = false;
 
     showModalBottomSheet(
       context: context,
@@ -271,6 +504,50 @@ class _ExpenseTrackerScreenState extends State<ExpenseTrackerScreen> {
       builder: (sheetContext) {
         return StatefulBuilder(
           builder: (sheetContext, setSheetState) {
+            void openPhotoViewer(int index) {
+              final images = <ImageProvider>[
+                for (final url in keptExistingUrls) NetworkImage(url),
+                for (final photo in pendingPhotos) MemoryImage(photo.bytes),
+              ];
+              Navigator.of(sheetContext).push(
+                MaterialPageRoute(
+                  builder: (_) =>
+                      _PhotoViewerScreen(images: images, initialIndex: index),
+                  fullscreenDialog: true,
+                ),
+              );
+            }
+
+            Future<void> pickPhoto() async {
+              if (keptExistingUrls.length + pendingPhotos.length >=
+                  _maxPhotosPerExpense) {
+                return;
+              }
+              final file = await ImagePicker().pickImage(
+                source: ImageSource.gallery,
+                maxWidth: 2000,
+                imageQuality: 90,
+              );
+              if (file == null) return;
+              final bytes = await file.readAsBytes();
+              if (!mounted) return;
+              // Crop before adding — otherwise a portrait photo just
+              // gets silently center-cropped later to fit the square
+              // thumbnail box, hiding whatever wasn't in the middle.
+              final cropped = await Navigator.of(context).push<Uint8List>(
+                MaterialPageRoute(
+                  builder: (_) => _CropPhotoScreen(bytes: bytes),
+                  fullscreenDialog: true,
+                ),
+              );
+              if (cropped == null) return;
+              setSheetState(() {
+                pendingPhotos.add(
+                  _PendingPhoto(bytes: cropped, ext: _photoFileExt(file)),
+                );
+              });
+            }
+
             Future<void> save() async {
               final title = titleController.text.trim();
               final rawAmount = amountController.text.trim();
@@ -279,14 +556,37 @@ class _ExpenseTrackerScreenState extends State<ExpenseTrackerScreen> {
               final amount =
                   double.tryParse(rawAmount) ?? _evaluateExpression(rawAmount);
               if (title.isEmpty) {
-                setSheetState(() => formError = tr('budget_enter_what_spent_on'));
+                setSheetState(() => formError = 'Enter what you spent on');
                 return;
               }
               if (amount == null || amount <= 0) {
-                setSheetState(() => formError = tr('budget_enter_valid_amount'));
+                setSheetState(() => formError = 'Enter a valid amount');
                 return;
               }
               final stopPlace = stopController.text.trim();
+
+              final photoUrls = [...keptExistingUrls];
+              if (pendingPhotos.isNotEmpty) {
+                setSheetState(() => isUploadingPhoto = true);
+                try {
+                  for (final photo in pendingPhotos) {
+                    final url = await _budgetService.uploadExpensePhoto(
+                      tripId: widget.tripId,
+                      bytes: photo.bytes,
+                      fileExt: photo.ext,
+                    );
+                    photoUrls.add(url);
+                  }
+                } catch (e) {
+                  setSheetState(() {
+                    isUploadingPhoto = false;
+                    formError = 'Could not upload photo: $e';
+                  });
+                  return;
+                }
+              }
+
+              if (!sheetContext.mounted) return;
               Navigator.of(sheetContext).pop();
               await _saveExpense(
                 existing: existing,
@@ -294,6 +594,7 @@ class _ExpenseTrackerScreenState extends State<ExpenseTrackerScreen> {
                 category: selectedCategory.label,
                 amount: amount,
                 stopPlace: stopPlace.isEmpty ? null : stopPlace,
+                photoUrls: photoUrls,
               );
             }
 
@@ -318,9 +619,7 @@ class _ExpenseTrackerScreenState extends State<ExpenseTrackerScreen> {
                       children: [
                         Expanded(
                           child: Text(
-                            existing != null
-                                ? tr('budget_edit_expense_title')
-                                : tr('budget_add_expense_title'),
+                            existing != null ? 'Edit Expense' : 'Add Expense',
                             style: TextStyle(
                               color: sheetContext.colors.ink,
                               fontWeight: FontWeight.w800,
@@ -348,7 +647,7 @@ class _ExpenseTrackerScreenState extends State<ExpenseTrackerScreen> {
                       },
                       style: TextStyle(color: sheetContext.colors.ink),
                       decoration: InputDecoration(
-                        hintText: tr('budget_expense_title_hint'),
+                        hintText: 'What did you spend on?',
                         filled: true,
                         fillColor: sheetContext.colors.surface,
                         border: OutlineInputBorder(
@@ -373,7 +672,7 @@ class _ExpenseTrackerScreenState extends State<ExpenseTrackerScreen> {
                         fontSize: 16,
                       ),
                       decoration: InputDecoration(
-                        hintText: tr('budget_amount_hint_keypad'),
+                        hintText: 'Amount (RM) — type or use the keypad',
                         filled: true,
                         fillColor: sheetContext.colors.surface,
                         border: OutlineInputBorder(
@@ -425,7 +724,7 @@ class _ExpenseTrackerScreenState extends State<ExpenseTrackerScreen> {
                     ],
                     const SizedBox(height: 18),
                     Text(
-                      tr('budget_field_category'),
+                      'Category',
                       style: TextStyle(
                         color: sheetContext.colors.ink,
                         fontWeight: FontWeight.w700,
@@ -477,7 +776,7 @@ class _ExpenseTrackerScreenState extends State<ExpenseTrackerScreen> {
                     ),
                     const SizedBox(height: 18),
                     Text(
-                      tr('budget_field_where'),
+                      'Where were you?',
                       style: TextStyle(
                         color: sheetContext.colors.ink,
                         fontWeight: FontWeight.w700,
@@ -486,7 +785,7 @@ class _ExpenseTrackerScreenState extends State<ExpenseTrackerScreen> {
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      tr('budget_pick_stop_hint'),
+                      'Pick a previous stop or type a new one — so we can learn your spending patterns',
                       style: TextStyle(
                         color: sheetContext.colors.muted,
                         fontSize: 11.5,
@@ -512,7 +811,7 @@ class _ExpenseTrackerScreenState extends State<ExpenseTrackerScreen> {
                               focusNode: focusNode,
                               style: TextStyle(color: sheetContext.colors.ink),
                               decoration: InputDecoration(
-                                hintText: tr('budget_where_optional_hint'),
+                                hintText: 'Where were you? (optional)',
                                 prefixIcon: Icon(
                                   Icons.place_rounded,
                                   size: 18,
@@ -582,11 +881,59 @@ class _ExpenseTrackerScreenState extends State<ExpenseTrackerScreen> {
                         );
                       },
                     ),
+                    const SizedBox(height: 18),
+                    Text(
+                      'Photos (optional)',
+                      style: TextStyle(
+                        color: sheetContext.colors.ink,
+                        fontWeight: FontWeight.w700,
+                        fontSize: 13,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'Attach up to $_maxPhotosPerExpense receipt or reference photos',
+                      style: TextStyle(
+                        color: sheetContext.colors.muted,
+                        fontSize: 11.5,
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    SizedBox(
+                      height: 88,
+                      child: ListView(
+                        scrollDirection: Axis.horizontal,
+                        children: [
+                          for (var i = 0; i < keptExistingUrls.length; i++)
+                            _PhotoThumb(
+                              key: ValueKey('existing-${keptExistingUrls[i]}'),
+                              image: NetworkImage(keptExistingUrls[i]),
+                              onTap: () => openPhotoViewer(i),
+                              onRemove: () => setSheetState(
+                                () => keptExistingUrls.removeAt(i),
+                              ),
+                            ),
+                          for (var i = 0; i < pendingPhotos.length; i++)
+                            _PhotoThumb(
+                              key: ValueKey('pending-$i'),
+                              image: MemoryImage(pendingPhotos[i].bytes),
+                              onTap: () =>
+                                  openPhotoViewer(keptExistingUrls.length + i),
+                              onRemove: () => setSheetState(
+                                () => pendingPhotos.removeAt(i),
+                              ),
+                            ),
+                          if (keptExistingUrls.length + pendingPhotos.length <
+                              _maxPhotosPerExpense)
+                            _AddPhotoTile(onTap: pickPhoto),
+                        ],
+                      ),
+                    ),
                     const SizedBox(height: 24),
                     SizedBox(
                       width: double.infinity,
                       child: FilledButton(
-                        onPressed: save,
+                        onPressed: isUploadingPhoto ? null : save,
                         style: FilledButton.styleFrom(
                           backgroundColor: sheetContext.colors.ink,
                           padding: const EdgeInsets.symmetric(vertical: 14),
@@ -594,11 +941,18 @@ class _ExpenseTrackerScreenState extends State<ExpenseTrackerScreen> {
                             borderRadius: BorderRadius.circular(14),
                           ),
                         ),
-                        child: Text(
-                          existing != null
-                              ? tr('budget_save_changes')
-                              : tr('budget_add_button'),
-                        ),
+                        child: isUploadingPhoto
+                            ? const SizedBox(
+                                width: 20,
+                                height: 20,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2.4,
+                                  valueColor: AlwaysStoppedAnimation(
+                                    Colors.white,
+                                  ),
+                                ),
+                              )
+                            : Text(existing != null ? 'Save Changes' : 'Add'),
                       ),
                     ),
                   ],
@@ -694,8 +1048,8 @@ class _ExpenseTrackerScreenState extends State<ExpenseTrackerScreen> {
                     return Column(
                       children: [
                         DetailHeader(
-                          title: tr('budget_expense_tracker_title'),
-                          subtitle: 'RM ${total.toStringAsFixed(2)} ${tr('budget_logged')}',
+                          title: 'Expense Tracker',
+                          subtitle: 'RM ${total.toStringAsFixed(2)} logged',
                           trailing: IconButton(
                             onPressed: () => _showExpenseSheet(
                               stopSuggestions: stopSuggestions,
@@ -712,79 +1066,98 @@ class _ExpenseTrackerScreenState extends State<ExpenseTrackerScreen> {
                           child: ListView(
                             padding: const EdgeInsets.fromLTRB(24, 8, 24, 24),
                             children: [
-                              Container(
-                                padding: const EdgeInsets.all(16),
-                                decoration: BoxDecoration(
-                                  color: context.colors.card,
+                              Material(
+                                color: context.colors.card,
+                                borderRadius: BorderRadius.circular(18),
+                                child: InkWell(
                                   borderRadius: BorderRadius.circular(18),
-                                  boxShadow: [
-                                    BoxShadow(
-                                      color: context.colors.ink.withValues(
-                                        alpha: 0.05,
+                                  onTap: () => Navigator.of(context).push(
+                                    MaterialPageRoute(
+                                      builder: (_) => SpendingInsightsScreen(
+                                        tripId: widget.tripId,
                                       ),
-                                      blurRadius: 10,
-                                      offset: const Offset(0, 4),
                                     ),
-                                  ],
-                                ),
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Row(
-                                      children: [
-                                        const Icon(
-                                          Icons.insights_rounded,
-                                          color: AppColors.accent,
-                                          size: 18,
+                                  ),
+                                  child: Container(
+                                    padding: const EdgeInsets.all(16),
+                                    decoration: BoxDecoration(
+                                      borderRadius: BorderRadius.circular(18),
+                                      boxShadow: [
+                                        BoxShadow(
+                                          color: context.colors.ink.withValues(
+                                            alpha: 0.05,
+                                          ),
+                                          blurRadius: 10,
+                                          offset: const Offset(0, 4),
                                         ),
-                                        const SizedBox(width: 8),
+                                      ],
+                                    ),
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Row(
+                                          children: [
+                                            const Icon(
+                                              Icons.insights_rounded,
+                                              color: AppColors.accent,
+                                              size: 18,
+                                            ),
+                                            const SizedBox(width: 8),
+                                            Expanded(
+                                              child: Text(
+                                                'Spending Insights',
+                                                style: TextStyle(
+                                                  color: context.colors.ink,
+                                                  fontWeight: FontWeight.w800,
+                                                  fontSize: 13.5,
+                                                ),
+                                              ),
+                                            ),
+                                            Icon(
+                                              Icons.chevron_right_rounded,
+                                              size: 18,
+                                              color: context.colors.muted,
+                                            ),
+                                          ],
+                                        ),
+                                        const SizedBox(height: 12),
+                                        Row(
+                                          children: [
+                                            Expanded(
+                                              child: _InsightStat(
+                                                label: 'Avg per stop',
+                                                value: byStop.isEmpty
+                                                    ? '—'
+                                                    : 'RM ${formatAmount(avgPerStop)}',
+                                              ),
+                                            ),
+                                            Expanded(
+                                              child: _InsightStat(
+                                                label: 'Top category',
+                                                value: topCategory?.key ?? '—',
+                                              ),
+                                            ),
+                                            Expanded(
+                                              child: _InsightStat(
+                                                label: 'Stops tagged',
+                                                value: '${byStop.length}',
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                        const SizedBox(height: 10),
                                         Text(
-                                          tr('budget_spending_insights'),
+                                          'Tag expenses with a stop and category — we\'ll use this history to recommend smarter budgets on future trips.',
                                           style: TextStyle(
-                                            color: context.colors.ink,
-                                            fontWeight: FontWeight.w800,
-                                            fontSize: 13.5,
+                                            color: context.colors.muted,
+                                            fontSize: 11,
+                                            height: 1.4,
                                           ),
                                         ),
                                       ],
                                     ),
-                                    const SizedBox(height: 12),
-                                    Row(
-                                      children: [
-                                        Expanded(
-                                          child: _InsightStat(
-                                            label: tr('budget_avg_per_stop'),
-                                            value: byStop.isEmpty
-                                                ? '—'
-                                                : 'RM ${formatAmount(avgPerStop)}',
-                                          ),
-                                        ),
-                                        Expanded(
-                                          child: _InsightStat(
-                                            label: tr('budget_top_category'),
-                                            value: topCategory == null
-                                                ? '—'
-                                                : translatedCategoryLabel(topCategory.key),
-                                          ),
-                                        ),
-                                        Expanded(
-                                          child: _InsightStat(
-                                            label: tr('budget_stops_tagged'),
-                                            value: '${byStop.length}',
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                    const SizedBox(height: 10),
-                                    Text(
-                                      tr('budget_insights_hint'),
-                                      style: TextStyle(
-                                        color: context.colors.muted,
-                                        fontSize: 11,
-                                        height: 1.4,
-                                      ),
-                                    ),
-                                  ],
+                                  ),
                                 ),
                               ),
                               const SizedBox(height: 20),
@@ -795,7 +1168,7 @@ class _ExpenseTrackerScreenState extends State<ExpenseTrackerScreen> {
                                   ),
                                   child: Center(
                                     child: Text(
-                                      tr('budget_no_expenses_logged'),
+                                      'No expenses logged yet.',
                                       style: TextStyle(
                                         color: context.colors.muted,
                                       ),
@@ -818,7 +1191,7 @@ class _ExpenseTrackerScreenState extends State<ExpenseTrackerScreen> {
                                             categorySuggestions:
                                                 categoryVisualSuggestions,
                                           )
-                                        : null,
+                                        : () => _showExpenseDetailsSheet(e),
                                     child: Container(
                                       margin: const EdgeInsets.only(bottom: 10),
                                       padding: const EdgeInsets.all(13),
@@ -857,18 +1230,59 @@ class _ExpenseTrackerScreenState extends State<ExpenseTrackerScreen> {
                                               crossAxisAlignment:
                                                   CrossAxisAlignment.start,
                                               children: [
-                                                Text(
-                                                  e.title,
-                                                  style: TextStyle(
-                                                    color: context.colors.ink,
-                                                    fontWeight: FontWeight.w700,
-                                                    fontSize: 13,
-                                                  ),
+                                                Row(
+                                                  children: [
+                                                    Flexible(
+                                                      child: Text(
+                                                        e.title,
+                                                        overflow: TextOverflow
+                                                            .ellipsis,
+                                                        style: TextStyle(
+                                                          color: context
+                                                              .colors
+                                                              .ink,
+                                                          fontWeight:
+                                                              FontWeight.w700,
+                                                          fontSize: 13,
+                                                        ),
+                                                      ),
+                                                    ),
+                                                    if (e
+                                                        .photoUrls
+                                                        .isNotEmpty) ...[
+                                                      const SizedBox(width: 5),
+                                                      Icon(
+                                                        Icons
+                                                            .photo_camera_rounded,
+                                                        size: 12,
+                                                        color: context
+                                                            .colors
+                                                            .muted,
+                                                      ),
+                                                      if (e.photoUrls.length >
+                                                          1) ...[
+                                                        const SizedBox(
+                                                          width: 2,
+                                                        ),
+                                                        Text(
+                                                          '${e.photoUrls.length}',
+                                                          style: TextStyle(
+                                                            color: context
+                                                                .colors
+                                                                .muted,
+                                                            fontSize: 10.5,
+                                                            fontWeight:
+                                                                FontWeight.w700,
+                                                          ),
+                                                        ),
+                                                      ],
+                                                    ],
+                                                  ],
                                                 ),
                                                 Text(
                                                   e.stopPlace == null
-                                                      ? '${translatedCategoryLabel(e.category)} · ${_formatShortDate(e.spentAt)}'
-                                                      : '${translatedCategoryLabel(e.category)} · ${e.stopPlace} · ${_formatShortDate(e.spentAt)}',
+                                                      ? '${e.category} · ${_formatShortDate(e.spentAt)}'
+                                                      : '${e.category} · ${e.stopPlace} · ${_formatShortDate(e.spentAt)}',
                                                   style: TextStyle(
                                                     color: context.colors.muted,
                                                     fontSize: 11,
@@ -885,14 +1299,12 @@ class _ExpenseTrackerScreenState extends State<ExpenseTrackerScreen> {
                                               fontSize: 13,
                                             ),
                                           ),
-                                          if (canEdit) ...[
-                                            const SizedBox(width: 4),
-                                            Icon(
-                                              Icons.chevron_right_rounded,
-                                              color: context.colors.muted,
-                                              size: 18,
-                                            ),
-                                          ],
+                                          const SizedBox(width: 4),
+                                          Icon(
+                                            Icons.chevron_right_rounded,
+                                            color: context.colors.muted,
+                                            size: 18,
+                                          ),
                                         ],
                                       ),
                                     ),
@@ -1056,7 +1468,7 @@ class _CategoryChip extends StatelessWidget {
             Icon(category.icon, size: 14, color: category.color),
             const SizedBox(width: 6),
             Text(
-              translatedCategoryLabel(category.label),
+              category.label,
               style: TextStyle(
                 color: isSelected ? category.color : context.colors.ink,
                 fontWeight: FontWeight.w600,
@@ -1096,7 +1508,7 @@ class _OtherCategoryChip extends StatelessWidget {
         backgroundColor: dialogContext.colors.card,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         title: Text(
-          tr('budget_custom_category_title'),
+          'Custom category',
           style: TextStyle(
             color: dialogContext.colors.ink,
             fontWeight: FontWeight.w800,
@@ -1108,7 +1520,7 @@ class _OtherCategoryChip extends StatelessWidget {
           autofocus: true,
           style: TextStyle(color: dialogContext.colors.ink),
           decoration: InputDecoration(
-            hintText: tr('budget_custom_category_hint'),
+            hintText: 'e.g. Souvenirs, Visa Fees',
             filled: true,
             fillColor: dialogContext.colors.surface,
             border: OutlineInputBorder(
@@ -1120,7 +1532,7 @@ class _OtherCategoryChip extends StatelessWidget {
         actions: [
           TextButton(
             onPressed: () => Navigator.of(dialogContext).pop(),
-            child: Text(tr('common_cancel')),
+            child: const Text('Cancel'),
           ),
           FilledButton(
             onPressed: () =>
@@ -1128,7 +1540,7 @@ class _OtherCategoryChip extends StatelessWidget {
             style: FilledButton.styleFrom(
               backgroundColor: dialogContext.colors.ink,
             ),
-            child: Text(tr('budget_use_this_button')),
+            child: const Text('Use this'),
           ),
         ],
       ),
@@ -1162,7 +1574,7 @@ class _OtherCategoryChip extends StatelessWidget {
             Icon(c.icon, size: 14, color: c.color),
             const SizedBox(width: 6),
             Text(
-              _isSelected ? selectedCategory.label : tr('budget_other_category'),
+              _isSelected ? selectedCategory.label : 'Other',
               style: TextStyle(
                 color: _isSelected ? c.color : context.colors.ink,
                 fontWeight: FontWeight.w600,
@@ -1201,6 +1613,317 @@ class _InsightStat extends StatelessWidget {
         Text(
           label,
           style: TextStyle(color: context.colors.muted, fontSize: 10.5),
+        ),
+      ],
+    );
+  }
+}
+
+/// One photo in the Add/Edit Expense sheet's picker strip — either an
+/// already-saved URL or freshly picked (and cropped) local bytes, with
+/// a small remove button. Square thumbnail: fine to center-crop here
+/// since the user already chose the crop themselves upstream. Tapping
+/// the image (not the remove button) opens the same full-screen
+/// zoomable viewer the read-only details sheet uses, so a photo isn't
+/// stuck at this fixed 80x80 preview size while editing either.
+class _PhotoThumb extends StatelessWidget {
+  const _PhotoThumb({
+    super.key,
+    required this.image,
+    required this.onTap,
+    required this.onRemove,
+  });
+
+  final ImageProvider image;
+  final VoidCallback onTap;
+  final VoidCallback onRemove;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(right: 10),
+      child: SizedBox(
+        width: 80,
+        height: 80,
+        child: Stack(
+          children: [
+            GestureDetector(
+              onTap: onTap,
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(12),
+                child: Image(
+                  image: image,
+                  width: 80,
+                  height: 80,
+                  fit: BoxFit.cover,
+                ),
+              ),
+            ),
+            Positioned(
+              top: 4,
+              right: 4,
+              child: Material(
+                color: Colors.black54,
+                shape: const CircleBorder(),
+                child: InkWell(
+                  customBorder: const CircleBorder(),
+                  onTap: onRemove,
+                  child: const Padding(
+                    padding: EdgeInsets.all(4),
+                    child: Icon(
+                      Icons.close_rounded,
+                      color: Colors.white,
+                      size: 14,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Trailing tile in the photo picker strip — tap to add another photo
+/// (opens source picker, then the crop screen).
+class _AddPhotoTile extends StatelessWidget {
+  const _AddPhotoTile({required this.onTap});
+
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        width: 80,
+        height: 80,
+        decoration: BoxDecoration(
+          color: context.colors.surface,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: context.colors.muted.withValues(alpha: 0.3),
+            width: 1.2,
+          ),
+        ),
+        child: Icon(
+          Icons.add_a_photo_rounded,
+          color: context.colors.muted,
+          size: 22,
+        ),
+      ),
+    );
+  }
+}
+
+/// Read-only display of an expense's photos — a single one shown large
+/// and full-width, several shown as a scrollable strip of square
+/// thumbnails. Tapping any of them opens the full-screen zoomable
+/// viewer instead of just a bigger fixed-size crop.
+class _PhotoStrip extends StatelessWidget {
+  const _PhotoStrip({required this.urls});
+
+  final List<String> urls;
+
+  void _openViewer(BuildContext context, int index) {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => _PhotoViewerScreen(
+          images: [for (final url in urls) NetworkImage(url)],
+          initialIndex: index,
+        ),
+        fullscreenDialog: true,
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (urls.length == 1) {
+      return GestureDetector(
+        onTap: () => _openViewer(context, 0),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(14),
+          child: Image.network(
+            urls.first,
+            width: double.infinity,
+            height: 180,
+            fit: BoxFit.cover,
+          ),
+        ),
+      );
+    }
+    return SizedBox(
+      height: 110,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        itemCount: urls.length,
+        separatorBuilder: (context, index) => const SizedBox(width: 10),
+        itemBuilder: (context, i) => GestureDetector(
+          onTap: () => _openViewer(context, i),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(12),
+            child: Image.network(
+              urls[i],
+              width: 110,
+              height: 110,
+              fit: BoxFit.cover,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Full-screen, swipeable, pinch-to-zoom viewer for an expense's
+/// photos — the whole image via [BoxFit.contain], not a center-cropped
+/// preview box, so nothing is ever hidden off-frame. Takes
+/// [ImageProvider]s rather than URLs so it can show a freshly-picked,
+/// not-yet-uploaded photo (in-memory bytes) just as well as a saved one.
+class _PhotoViewerScreen extends StatelessWidget {
+  const _PhotoViewerScreen({required this.images, required this.initialIndex});
+
+  final List<ImageProvider> images;
+  final int initialIndex;
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.black,
+      appBar: AppBar(
+        backgroundColor: Colors.black,
+        foregroundColor: Colors.white,
+        elevation: 0,
+      ),
+      body: PageView.builder(
+        controller: PageController(initialPage: initialIndex),
+        itemCount: images.length,
+        itemBuilder: (context, i) => _ZoomablePhoto(image: images[i]),
+      ),
+    );
+  }
+}
+
+/// One photo's zoom/pan surface — pinch (touch), double-tap (toggles
+/// between fit and zoomed-in, centered on the tap), and mouse-wheel
+/// scroll (desktop/web, centered on the cursor) all zoom in and out,
+/// matching how a phone's photo viewer behaves regardless of input.
+class _ZoomablePhoto extends StatefulWidget {
+  const _ZoomablePhoto({required this.image});
+
+  final ImageProvider image;
+
+  @override
+  State<_ZoomablePhoto> createState() => _ZoomablePhotoState();
+}
+
+class _ZoomablePhotoState extends State<_ZoomablePhoto> {
+  final _controller = TransformationController();
+  TapDownDetails? _doubleTapDetails;
+
+  static const _doubleTapZoom = 3.0;
+  static const _minScale = 1.0;
+  static const _maxScale = 4.0;
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  void _handleDoubleTap() {
+    if (_controller.value != Matrix4.identity()) {
+      _controller.value = Matrix4.identity();
+      return;
+    }
+    final position = _doubleTapDetails?.localPosition;
+    if (position == null) return;
+    _controller.value = Matrix4.identity()
+      ..translateByDouble(
+        -position.dx * (_doubleTapZoom - 1),
+        -position.dy * (_doubleTapZoom - 1),
+        0.0,
+        1.0,
+      )
+      ..scaleByDouble(_doubleTapZoom, _doubleTapZoom, _doubleTapZoom, 1.0);
+  }
+
+  void _handlePointerSignal(PointerSignalEvent event) {
+    if (event is! PointerScrollEvent) return;
+    final currentScale = _controller.value.getMaxScaleOnAxis();
+    final targetScale = (currentScale - event.scrollDelta.dy * 0.0025).clamp(
+      _minScale,
+      _maxScale,
+    );
+    if (targetScale <= _minScale) {
+      _controller.value = Matrix4.identity();
+      return;
+    }
+    final position = event.localPosition;
+    _controller.value = Matrix4.identity()
+      ..translateByDouble(
+        -position.dx * (targetScale - 1),
+        -position.dy * (targetScale - 1),
+        0.0,
+        1.0,
+      )
+      ..scaleByDouble(targetScale, targetScale, targetScale, 1.0);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Listener(
+      onPointerSignal: _handlePointerSignal,
+      child: GestureDetector(
+        onDoubleTapDown: (details) => _doubleTapDetails = details,
+        onDoubleTap: _handleDoubleTap,
+        child: InteractiveViewer(
+          transformationController: _controller,
+          minScale: _minScale,
+          maxScale: _maxScale,
+          child: Center(
+            child: Image(image: widget.image, fit: BoxFit.contain),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// One labeled row in the read-only expense detail sheet — icon, label,
+/// value, all on a line.
+class _DetailRow extends StatelessWidget {
+  const _DetailRow({
+    required this.icon,
+    required this.label,
+    required this.value,
+  });
+
+  final IconData icon;
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Icon(icon, size: 16, color: context.colors.muted),
+        const SizedBox(width: 10),
+        Text(
+          label,
+          style: TextStyle(color: context.colors.muted, fontSize: 12.5),
+        ),
+        const Spacer(),
+        Text(
+          value,
+          style: TextStyle(
+            color: context.colors.ink,
+            fontWeight: FontWeight.w700,
+            fontSize: 12.5,
+          ),
         ),
       ],
     );

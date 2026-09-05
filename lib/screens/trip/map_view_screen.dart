@@ -2,12 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:latlong2/latlong.dart';
 
-import '../../models/transport_location.dart';
-import '../../services/locale_service.dart';
+import '../../models/trip_stop_location.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/detail_header.dart';
+import '../../widgets/location_search_field.dart';
 import '../../widgets/route_map_view.dart';
-import '../../widgets/transport_location_search_field.dart';
 
 /// Home dashboard's general map: a real OpenStreetMap centered on the
 /// traveler's current GPS location with a Photon-backed search bar —
@@ -25,7 +24,7 @@ class _MapViewScreenState extends State<MapViewScreen> {
   LatLng? _currentPosition;
   bool _locatingCurrentPosition = false;
   String? _locationError;
-  TransportLocation? _searchedLocation;
+  TripStopLocation? _searchedLocation;
 
   @override
   void initState() {
@@ -44,7 +43,7 @@ class _MapViewScreenState extends State<MapViewScreen> {
     });
     try {
       if (!await Geolocator.isLocationServiceEnabled()) {
-        _failLocate(tr('trip_location_services_off'));
+        _failLocate('Location services are turned off.');
         return;
       }
       var permission = await Geolocator.checkPermission();
@@ -52,11 +51,13 @@ class _MapViewScreenState extends State<MapViewScreen> {
         permission = await Geolocator.requestPermission();
       }
       if (permission == LocationPermission.deniedForever) {
-        _failLocate(tr('trip_location_permission_denied_forever_settings'));
+        _failLocate(
+          'Location permission is permanently denied. Enable it in Settings.',
+        );
         return;
       }
       if (permission == LocationPermission.denied) {
-        _failLocate(tr('trip_location_permission_denied'));
+        _failLocate('Location permission denied.');
         return;
       }
       final position = await Geolocator.getCurrentPosition(
@@ -68,7 +69,7 @@ class _MapViewScreenState extends State<MapViewScreen> {
         _locatingCurrentPosition = false;
       });
     } catch (_) {
-      _failLocate(tr('trip_location_unable_retrieve'));
+      _failLocate('Unable to retrieve your current location.');
     }
   }
 
@@ -87,9 +88,9 @@ class _MapViewScreenState extends State<MapViewScreen> {
       body: SafeArea(
         child: Column(
           children: [
-            DetailHeader(
-              title: tr('trip_map_view_title'),
-              subtitle: tr('trip_map_view_subtitle_search'),
+            const DetailHeader(
+              title: 'Map View',
+              subtitle: 'Search anywhere in Malaysia',
             ),
             Expanded(
               child: Padding(
@@ -97,11 +98,11 @@ class _MapViewScreenState extends State<MapViewScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    TransportLocationSearchField(
+                    LocationSearchField(
                       value: _searchedLocation,
                       onChanged: (loc) =>
                           setState(() => _searchedLocation = loc),
-                      hintText: tr('trip_search_place_malaysia_hint'),
+                      hintText: 'Search a place in Malaysia…',
                       selectedIcon: Icons.location_on_rounded,
                     ),
                     if (_locatingCurrentPosition) ...[
@@ -115,7 +116,7 @@ class _MapViewScreenState extends State<MapViewScreen> {
                           ),
                           const SizedBox(width: 8),
                           Text(
-                            tr('trip_getting_location'),
+                            'Getting your location…',
                             style: TextStyle(
                               color: context.colors.muted,
                               fontSize: 11.5,
@@ -141,7 +142,7 @@ class _MapViewScreenState extends State<MapViewScreen> {
                           GestureDetector(
                             onTap: _locateCurrentPosition,
                             child: Text(
-                              tr('trip_retry'),
+                              'Retry',
                               style: TextStyle(
                                 color: AppColors.accent,
                                 fontWeight: FontWeight.w700,
