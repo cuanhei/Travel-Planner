@@ -9,6 +9,7 @@ import '../group/group_dashboard_screen.dart';
 import '../transport/transport_routes_screen.dart';
 import '../utilities/utilities_home_screen.dart';
 import '../weather/weather_forecast_screen.dart';
+import 'daily_timeline_screen.dart';
 import 'edit_trip_screen.dart';
 import 'trip_map_screen.dart';
 
@@ -349,6 +350,14 @@ class _ToolsGrid extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final tools = [
+      (
+        label: 'Daily\nTimeline',
+        icon: Icons.view_timeline_rounded,
+        color: Color(0xFF2E9CCA),
+        onTap: () => Navigator.of(context).push(
+          MaterialPageRoute(builder: (_) => DailyTimelineScreen(tripId: tripId)),
+        ),
+      ),
       (
         label: 'Map\nView',
         icon: Icons.map_rounded,

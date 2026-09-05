@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../models/trip.dart';
+import '../models/trip_schedule.dart';
 import '../models/trip_schedule_input.dart';
 import '../models/trip_stop_location.dart';
 import 'supabase_config.dart';
@@ -298,6 +299,73 @@ class TripService {
       'weather_forecast_phrase': stop.weatherForecastPhrase,
       'weather_checked_at': stop.weatherCheckedAt?.toIso8601String(),
     };
+  }
+
+  /// Loads back everything [saveTripSchedule] wrote — every day tab,
+  /// every scheduled stop (already-computed arrival/end time and weather
+  /// flag included, not recomputed here), and every travel leg — for
+  /// [DailyTimelineScreen]'s read-only view. A trip with no saved
+  /// schedule yet (created before this existed, or [saveTripSchedule]
+  /// was never called) comes back with an empty `days` list rather than
+  /// throwing.
+  Future<TripSchedule> getTripSchedule(String tripId) async {
+    final tripRow = await retryOnJwtClockSkew(
+      () => _client
+          .from('trips')
+          .select('transport_mode, start_time, end_time')
+          .eq('id', tripId)
+          .single(),
+    );
+    final dayRows = await retryOnJwtClockSkew(
+      () => _client
+          .from('trip_days')
+          .select()
+          .eq('trip_id', tripId)
+          .order('day_number'),
+    );
+    final stopRows = await retryOnJwtClockSkew(
+      () => _client
+          .from('trip_stops')
+          .select()
+          .eq('trip_id', tripId)
+          .order('day_number')
+          .order('sequence'),
+    );
+    final segmentRows = await retryOnJwtClockSkew(
+      () => _client
+          .from('trip_travel_segments')
+          .select()
+          .eq('trip_id', tripId)
+          .order('day_number')
+          .order('sequence'),
+    );
+
+    final days = <TripScheduleDay>[];
+    for (final dayRow in dayRows) {
+      final dayNumber = dayRow['day_number'] as int;
+      days.add(
+        TripScheduleDay(
+          dayNumber: dayNumber,
+          date: DateTime.parse(dayRow['date'] as String),
+          startTimeOverride: dayRow['start_time_override'] as String?,
+          stops: [
+            for (final row in stopRows)
+              if (row['day_number'] == dayNumber) TripScheduleStop.fromMap(row),
+          ],
+          legs: [
+            for (final row in segmentRows)
+              if (row['day_number'] == dayNumber) TripScheduleLeg.fromMap(row),
+          ],
+        ),
+      );
+    }
+
+    return TripSchedule(
+      transportMode: (tripRow['transport_mode'] as String?) ?? 'driving',
+      tripStartTime: tripRow['start_time'] as String?,
+      tripEndTime: tripRow['end_time'] as String?,
+      days: days,
+    );
   }
 
   /// Updates a trip's core details from the Edit Trip form — everything
