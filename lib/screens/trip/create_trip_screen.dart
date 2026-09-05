@@ -677,16 +677,48 @@ class _CreateTripScreenState extends State<CreateTripScreen> {
     if (dayIndex < _nightAccommodation.length)
       unawaited(_refreshAccommodationTravel(dayIndex));
 
-    if (origin == null) {
+    if (origin != null) {
+      await _fetchTravelSegment(
+        dayIndex: dayIndex,
+        entry: entry,
+        origin: origin,
+        destination: location,
+      );
+    } else {
       unawaited(_recheckWeatherForDay(dayIndex));
-      return;
     }
-    await _fetchTravelSegment(
-      dayIndex: dayIndex,
-      entry: entry,
-      origin: origin,
-      destination: location,
+
+    if (!mounted) return;
+    final index = _dayStops[dayIndex].indexOf(entry);
+    if (index != -1 && _arrivalCrossesMidnight(dayIndex, index)) {
+      _removeStop(dayIndex, index);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          behavior: SnackBarBehavior.floating,
+          content: Text(
+            dayIndex < _dayCount - 1
+                ? '${location.name} can\'t be added here — it would start after midnight (early next morning). Add it to Day ${dayIndex + 2} instead.'
+                : '${location.name} can\'t be added here — it would start after midnight (early next morning). Try shortening an earlier stop or removing one.',
+          ),
+        ),
+      );
+    }
+  }
+
+  /// True if [stopIndex] on [dayIndex] is currently scheduled to arrive at
+  /// or after that day's midnight (i.e. actually the next calendar day) —
+  /// a stop's day tab is fixed to whichever day it was added under, so a
+  /// stop whose computed arrival rolls past 24:00 would otherwise sit
+  /// under the wrong day's label forever (e.g. "Day 2" showing a stop
+  /// that really starts at 3am on what's actually Day 3).
+  bool _arrivalCrossesMidnight(int dayIndex, int stopIndex) {
+    final times = _computeDayTimes(
+      _dayStartMinutesFor(dayIndex),
+      _dayStops[dayIndex],
+      _dayTravel[dayIndex],
     );
+    if (stopIndex >= times.arrivals.length) return false;
+    return times.arrivals[stopIndex] >= 24 * 60;
   }
 
   Future<void> _fetchTravelSegment({

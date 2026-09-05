@@ -157,7 +157,7 @@ class _EditScheduleScreenState extends State<EditScheduleScreen> {
       final pending = widget.pendingStop;
       if (pending != null && !_pendingStopApplied && _isOrganizer) {
         _pendingStopApplied = true;
-        _applyPendingStop(pending);
+        unawaited(_applyPendingStop(pending));
       }
     } catch (e) {
       if (!mounted) return;
@@ -231,10 +231,26 @@ class _EditScheduleScreenState extends State<EditScheduleScreen> {
       builder: (_) => const _AddStopSheet(),
     );
     if (picked == null || !mounted) return;
-    _appendLocation(day, picked);
+    final added = await _appendLocation(day, picked);
+    if (!mounted || added) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        behavior: SnackBarBehavior.floating,
+        content: Text(
+          '${picked.name} can\'t be added here — it would start after midnight (early next morning). Add it to a different day instead.',
+        ),
+      ),
+    );
   }
 
-  void _appendLocation(_EditDay day, TripStopLocation location) {
+  /// Appends [location] to the end of [day]'s stops, refetches its travel
+  /// leg, and — once the real travel time is known — rejects it (removing
+  /// what was just added) if it would arrive at or after that day's own
+  /// midnight. A day's own tab is fixed to whichever calendar day it
+  /// represents, so a stop that actually starts at 1am–3am the *next*
+  /// morning must never sit under the wrong day's label. Returns whether
+  /// the stop was actually kept.
+  Future<bool> _appendLocation(_EditDay day, TripStopLocation location) async {
     final insertIndex = day.stops.length;
     setState(() {
       day.stops.add(_EditStop(location, location.estimatedVisitMinutes));
@@ -255,11 +271,23 @@ class _EditScheduleScreenState extends State<EditScheduleScreen> {
       );
       day.dirty = true;
     });
-    unawaited(_refetchLegsFrom(day, insertIndex));
+    await _refetchLegsFrom(day, insertIndex);
     unawaited(_recheckWeatherForDay(day));
+    if (!mounted) return false;
+
+    final times = _computeTimes(day);
+    if (insertIndex < times.arrivals.length &&
+        times.arrivals[insertIndex] >= 24 * 60) {
+      setState(() {
+        day.stops.removeAt(insertIndex);
+        day.legs.removeAt(insertIndex);
+      });
+      return false;
+    }
+    return true;
   }
 
-  void _applyPendingStop(TripStopLocation location) {
+  Future<void> _applyPendingStop(TripStopLocation location) async {
     final index = _days.indexWhere((d) => !d.isPast);
     if (index == -1) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -273,12 +301,15 @@ class _EditScheduleScreenState extends State<EditScheduleScreen> {
       return;
     }
     setState(() => _selectedDay = index);
-    _appendLocation(_days[index], location);
+    final added = await _appendLocation(_days[index], location);
+    if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         behavior: SnackBarBehavior.floating,
         content: Text(
-          '${location.name} added to Day ${_days[index].dayNumber} — tap Save to confirm.',
+          added
+              ? '${location.name} added to Day ${_days[index].dayNumber} — tap Save to confirm.'
+              : '${location.name} can\'t be added to Day ${_days[index].dayNumber} — it would start after midnight (early next morning).',
         ),
       ),
     );

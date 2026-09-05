@@ -428,6 +428,13 @@ class _TransportRoutesScreenState extends State<TransportRoutesScreen> {
                     quickActionLabel: 'Use current location',
                     onQuickAction: _initDeparture,
                   ),
+                  // Departure locked to live GPS only — selection disabled.
+                  // _LockedDepartureField(
+                  //   departure: _departure,
+                  //   locating: _locatingDeparture,
+                  //   error: _departureError,
+                  //   onRetry: _initDeparture,
+                  // ),
                   const SizedBox(height: 18),
                   const _FieldLabel('Destination'),
                   const SizedBox(height: 8),
@@ -795,6 +802,98 @@ class _EmptyDestinationState extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+class _LockedDepartureField extends StatelessWidget {
+  const _LockedDepartureField({
+    required this.departure,
+    required this.locating,
+    required this.error,
+    required this.onRetry,
+  });
+
+  final TripStopLocation? departure;
+  final bool locating;
+  final String? error;
+  final VoidCallback onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Material(
+          elevation: 3,
+          shadowColor: Colors.black.withValues(alpha: 0.2),
+          borderRadius: BorderRadius.circular(14),
+          child: Container(
+            height: 46,
+            padding: const EdgeInsets.symmetric(horizontal: 14),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: Row(
+              children: [
+                const Icon(
+                  Icons.my_location_rounded,
+                  color: Color(0xFF6E7A93),
+                  size: 20,
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: locating
+                      ? const Text(
+                          'Getting your location…',
+                          style: TextStyle(
+                            color: Color(0xFF6E7A93),
+                            fontSize: 13.5,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        )
+                      : Text(
+                          departure?.name ?? 'Current location unavailable',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            color: Color(0xFF0B1D3A),
+                            fontSize: 13.5,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                ),
+                if (locating)
+                  const SizedBox(
+                    width: 16,
+                    height: 16,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                else if (departure == null)
+                  GestureDetector(
+                    onTap: onRetry,
+                    child: const Icon(
+                      Icons.refresh_rounded,
+                      color: Color(0xFF6E7A93),
+                      size: 20,
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ),
+        if (!locating && error != null) ...[
+          const SizedBox(height: 4),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 4),
+            child: Text(
+              error!,
+              style: const TextStyle(color: Color(0xFFB3541E), fontSize: 11.5),
+            ),
+          ),
+        ],
+      ],
     );
   }
 }

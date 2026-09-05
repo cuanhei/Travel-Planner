@@ -206,13 +206,13 @@ class _GreetingBar extends StatelessWidget {
                 ],
               ),
             ),
-            _IconBadgeButton(
-              icon: Icons.notifications_none_rounded,
-              hasBadge: true,
-              onTap: () => Navigator.of(
-                context,
-              ).push(MaterialPageRoute(builder: (_) => NotificationsScreen())),
-            ),
+            // _IconBadgeButton(
+            //   icon: Icons.notifications_none_rounded,
+            //   hasBadge: true,
+            //   onTap: () => Navigator.of(
+            //     context,
+            //   ).push(MaterialPageRoute(builder: (_) => NotificationsScreen())),
+            // ),
             SizedBox(width: 12),
             MouseRegion(
               cursor: SystemMouseCursors.click,
