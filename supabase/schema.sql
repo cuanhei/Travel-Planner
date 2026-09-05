@@ -80,17 +80,20 @@ create table public.trips (
   name text not null,
   description text,
   destination text not null default '',
-  start_city text,
-  start_state text,
-  end_city text,
-  end_state text,
+  start_location_name text,
+  start_address text,
+  start_latitude double precision,
+  start_longitude double precision,
+  end_location_name text,
+  end_address text,
+  end_latitude double precision,
+  end_longitude double precision,
   start_date date,
   end_date date,
   start_time time,
   end_time time,
   created_by uuid not null references auth.users (id),
   total_budget numeric(12, 2) not null default 0,
-  auto_recommend boolean not null default true,
   created_at timestamptz not null default now()
 );
 
@@ -122,6 +125,48 @@ create trigger on_trip_created
   after insert on public.trips
 
   for each row execute function public.handle_new_trip();
+
+-- Rejects a trip whose dates overlap another trip the creator already
+-- organizes or belongs to (inclusive — a trip ending the day another
+-- starts still counts as a clash, since the traveler can't be in two
+-- places at once). The authoritative version of the same check the
+-- Create Trip date picker already enforces client-side; this is what
+-- actually stops it if that client-side check is ever bypassed, buggy,
+-- or beaten by a race (two trips created back-to-back).
+create function public.check_trip_date_conflict()
+returns trigger
+language plpgsql
+security definer set search_path = public
+as $$
+declare
+  v_conflict record;
+begin
+  if new.start_date is null or new.end_date is null then
+    return new;
+  end if;
+
+  select t.name into v_conflict
+  from public.trips t
+  join public.trip_members tm on tm.trip_id = t.id
+  where tm.user_id = new.created_by
+    and t.id <> new.id
+    and t.start_date is not null
+    and t.end_date is not null
+    and t.start_date <= new.end_date
+    and t.end_date >= new.start_date
+  limit 1;
+
+  if found then
+    raise exception 'Trip dates clash with an existing trip: %', v_conflict.name;
+  end if;
+
+  return new;
+end;
+$$;
+
+create trigger trips_check_date_conflict
+  before insert or update of start_date, end_date on public.trips
+  for each row execute function public.check_trip_date_conflict();
 
 -- Membership check used by every trip-scoped RLS policy below.
 -- security definer + a fixed search_path avoids recursive-RLS lookups.
@@ -183,13 +228,6 @@ create table public.trip_favorite_stops (
   created_at timestamptz not null default now()
 );
 
--- One row per selected "auto-recommend" interest category.
-create table public.trip_interests (
-  trip_id uuid not null references public.trips (id) on delete cascade,
-  category text not null,
-  primary key (trip_id, category)
-);
-
 -- The day-by-day, timed schedule computed from the optimized route. Kept
 -- separate from `trip_stops` because the same physical stop (e.g. one
 -- hotel used as the base for every day) can appear in more than one
@@ -207,6 +245,24 @@ create table public.trip_schedule_stops (
   travel_mode text,
   travel_minutes integer,
   created_at timestamptz not null default now()
+);
+
+-- Where the traveler(s) stay each night of the trip, captured on Create
+-- Trip right after picking travel dates. One row per night — an N-day
+-- trip has nights 1..N-1 (night_number is 1-indexed), so a single-day
+-- trip has none. Deliberately separate from trip_schedule_stops (which
+-- needs a real trip_stops row + a full day-by-day schedule, neither of
+-- which exists yet at trip-creation time).
+create table public.trip_accommodations (
+  id uuid primary key default gen_random_uuid(),
+  trip_id uuid not null references public.trips (id) on delete cascade,
+  night_number integer not null check (night_number > 0),
+  name text not null,
+  address text not null default '',
+  latitude double precision not null,
+  longitude double precision not null,
+  created_at timestamptz not null default now(),
+  unique (trip_id, night_number)
 );
 
 -- ============================================================
@@ -739,8 +795,8 @@ alter table public.trip_balances enable row level security;
 alter table public.trip_settlements enable row level security;
 alter table public.trip_stops enable row level security;
 alter table public.trip_favorite_stops enable row level security;
-alter table public.trip_interests enable row level security;
 alter table public.trip_schedule_stops enable row level security;
+alter table public.trip_accommodations enable row level security;
 alter table public.posts enable row level security;
 alter table public.post_likes enable row level security;
 alter table public.comments enable row level security;
@@ -988,9 +1044,8 @@ create policy "settlements_delete_owner_or_organizer" on public.trip_settlements
   for delete to authenticated
   using (created_by = auth.uid() or public.is_trip_organizer(trip_id));
 
--- trip_stops / trip_interests: any member can read/manage — mirrors
--- budget_categories (anyone planning the trip can add a stop or tweak
--- the interest list, not just the organizer).
+-- trip_stops: any member can read/manage — mirrors budget_categories
+-- (anyone planning the trip can add a stop, not just the organizer).
 create policy "trip_stops_select_members" on public.trip_stops
   for select to authenticated using (public.is_trip_member(trip_id));
 create policy "trip_stops_write_members" on public.trip_stops
@@ -1003,15 +1058,15 @@ create policy "trip_favorite_stops_write_members" on public.trip_favorite_stops
   for all to authenticated using (public.is_trip_member(trip_id))
   with check (public.is_trip_member(trip_id));
 
-create policy "trip_interests_select_members" on public.trip_interests
-  for select to authenticated using (public.is_trip_member(trip_id));
-create policy "trip_interests_write_members" on public.trip_interests
-  for all to authenticated using (public.is_trip_member(trip_id))
-  with check (public.is_trip_member(trip_id));
-
 create policy "trip_schedule_stops_select_members" on public.trip_schedule_stops
   for select to authenticated using (public.is_trip_member(trip_id));
 create policy "trip_schedule_stops_write_members" on public.trip_schedule_stops
+  for all to authenticated using (public.is_trip_member(trip_id))
+  with check (public.is_trip_member(trip_id));
+
+create policy "trip_accommodations_select_members" on public.trip_accommodations
+  for select to authenticated using (public.is_trip_member(trip_id));
+create policy "trip_accommodations_write_members" on public.trip_accommodations
   for all to authenticated using (public.is_trip_member(trip_id))
   with check (public.is_trip_member(trip_id));
 

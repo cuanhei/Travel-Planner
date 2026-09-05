@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../models/trip.dart';
+import '../models/trip_accommodation.dart';
 import '../models/trip_stop_location.dart';
 import 'supabase_config.dart';
 
@@ -94,23 +95,32 @@ class TripService {
   }
 
   /// Inserts a new row into `trips` from the Create Trip form — trip
-  /// details + travel information only. Doesn't touch `trip_stops`,
-  /// `trip_interests`, or `trip_schedule_stops`; those come later once
-  /// day-by-day scheduling is wired up. Returns the new trip's id.
+  /// details + travel information only. Doesn't touch `trip_stops` or
+  /// `trip_schedule_stops`; those come later once day-by-day scheduling
+  /// is wired up. Returns the new trip's id.
   Future<String> createTrip({
     required String name,
     String? description,
     String? destination,
-    String? startCity,
-    String? startState,
-    String? endCity,
-    String? endState,
+    String? startLocationName,
+    String? startAddress,
+    double? startLatitude,
+    double? startLongitude,
+    String? endLocationName,
+    String? endAddress,
+    double? endLatitude,
+    double? endLongitude,
     DateTime? startDate,
     DateTime? endDate,
     String? startTime,
     String? endTime,
     required double totalBudget,
-    required bool autoRecommend,
+    /// One accommodation per night of the trip — index 0 is the first
+    /// night (after day 1), index 1 the second, and so on. A trip
+    /// spanning N days has N-1 nights, so this is empty for a single-day
+    /// trip. Every entry must be non-null; validated by the caller (the
+    /// Create Trip form) before this is called.
+    List<TripStopLocation> accommodations = const [],
   }) async {
     final trimmedName = name.trim();
     if (trimmedName.isEmpty) {
@@ -128,22 +138,56 @@ class TripService {
             'name': trimmedName,
             'description': description,
             'destination': destination ?? '',
-            'start_city': startCity,
-            'start_state': startState,
-            'end_city': endCity,
-            'end_state': endState,
+            'start_location_name': startLocationName,
+            'start_address': startAddress,
+            'start_latitude': startLatitude,
+            'start_longitude': startLongitude,
+            'end_location_name': endLocationName,
+            'end_address': endAddress,
+            'end_latitude': endLatitude,
+            'end_longitude': endLongitude,
             'start_date': startDate?.toIso8601String().split('T').first,
             'end_date': endDate?.toIso8601String().split('T').first,
             'start_time': startTime,
             'end_time': endTime,
             'created_by': _uid,
             'total_budget': totalBudget,
-            'auto_recommend': autoRecommend,
           })
           .select()
           .single(),
     );
-    return row['id'] as String;
+    final tripId = row['id'] as String;
+
+    if (accommodations.isNotEmpty) {
+      await retryOnJwtClockSkew(
+        () => _client.from('trip_accommodations').insert([
+          for (var i = 0; i < accommodations.length; i++)
+            {
+              'trip_id': tripId,
+              'night_number': i + 1,
+              'name': accommodations[i].name,
+              'address': accommodations[i].address,
+              'latitude': accommodations[i].latitude,
+              'longitude': accommodations[i].longitude,
+            },
+        ]),
+      );
+    }
+
+    return tripId;
+  }
+
+  /// Every night's accommodation for a trip, ordered by [night_number] —
+  /// backs Trip Details' itinerary view.
+  Future<List<TripAccommodation>> tripAccommodations(String tripId) async {
+    final rows = await retryOnJwtClockSkew(
+      () => _client
+          .from('trip_accommodations')
+          .select()
+          .eq('trip_id', tripId)
+          .order('night_number'),
+    );
+    return [for (final row in rows) TripAccommodation.fromMap(row)];
   }
 
   /// All trips the signed-in user is a member of (as organizer or plain
@@ -160,7 +204,23 @@ class TripService {
           .eq('trip_members.user_id', _uid)
           .order('created_at', ascending: false),
     );
-    return [for (final row in rows) Trip.fromMap(row)];
+    return _parseTrips(rows);
+  }
+
+  /// Parses each row via [Trip.fromMap], skipping (and logging) any row
+  /// that fails — one malformed/legacy row (e.g. missing a required
+  /// column from before a migration backfilled it) shouldn't take down
+  /// the whole My Trips list.
+  List<Trip> _parseTrips(List<Map<String, dynamic>> rows) {
+    final trips = <Trip>[];
+    for (final row in rows) {
+      try {
+        trips.add(Trip.fromMap(row));
+      } catch (e) {
+        debugPrint('Skipping malformed trip row ${row['id']}: $e\n$row');
+      }
+    }
+    return trips;
   }
 
   /// Current + upcoming trips the signed-in user *organizes* (not just
@@ -179,9 +239,9 @@ class TripService {
           .eq('trip_members.role', 'organizer')
           .order('created_at', ascending: false),
     );
-    final trips = [
-      for (final row in rows) Trip.fromMap(row),
-    ].where((trip) => trip.status != TripStatus.past).toList();
+    final trips = _parseTrips(
+      rows,
+    ).where((trip) => trip.status != TripStatus.past).toList();
     trips.sort((a, b) {
       final aCurrent = a.status == TripStatus.current;
       final bCurrent = b.status == TripStatus.current;

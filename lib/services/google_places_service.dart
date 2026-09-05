@@ -13,9 +13,21 @@ const _textSearchEndpoint = 'https://places.googleapis.com/v1/places:searchText'
 
 const _fieldMask =
     'places.id,places.displayName,places.formattedAddress,'
-    'places.location,places.primaryType,places.photos,places.businessStatus,'
-    'places.editorialSummary,places.priceLevel,places.priceRange,'
-    'places.regularOpeningHours,places.currentOpeningHours';
+    'places.location,places.primaryType,places.types,places.photos,'
+    'places.businessStatus,places.editorialSummary,places.priceLevel,'
+    'places.priceRange,places.regularOpeningHours,places.currentOpeningHours';
+
+const _placeDetailsEndpoint = 'https://places.googleapis.com/v1/places';
+
+/// Field mask for [GooglePlacesService.getPlaceDetails] — just the fields
+/// Create Trip's stop picker persists on the picked [TripStopLocation]
+/// (see [TripStopLocation.fromNearbyPlace]), not the Explore-card extras
+/// ([NearbyPlace.photoUrl]/`editorialSummary`/price) [_fieldMask] also
+/// requests — Place Details is billed per field, so this keeps it to the
+/// "Basic" SKU where possible rather than pulling in fields nothing uses.
+const _placeDetailsFieldMask =
+    'id,displayName,formattedAddress,location,primaryType,types,'
+    'businessStatus,regularOpeningHours,currentOpeningHours';
 
 const _defaultRadiusMeters = 3000.0;
 const _maxResultCount = 20;
@@ -132,6 +144,39 @@ class GooglePlacesService {
       );
     }
     return _parsePlaces(response.body, apiKey);
+  }
+
+  /// Place Details (New) — fetches the authoritative, full record for one
+  /// place by its Places [placeId] (from an earlier search result's
+  /// [NearbyPlace.id]). Used right after the traveler picks a search
+  /// result in Create Trip's stop picker, so the stop is saved with
+  /// fresh, complete data (opening hours, business status, etc.) rather
+  /// than whatever the search endpoint's field mask happened to include.
+  Future<NearbyPlace> getPlaceDetails(String placeId) async {
+    final apiKey = _apiKey;
+    if (apiKey.isEmpty) {
+      throw GooglePlacesRequestException(
+        'Google Places API key is not configured.',
+      );
+    }
+    final response = await http.get(
+      Uri.parse('$_placeDetailsEndpoint/$placeId'),
+      headers: {
+        'X-Goog-Api-Key': apiKey,
+        'X-Goog-FieldMask': _placeDetailsFieldMask,
+      },
+    );
+    if (response.statusCode != 200) {
+      throw GooglePlacesRequestException(
+        'Place details request failed (${response.statusCode})',
+      );
+    }
+    final decoded = jsonDecode(response.body) as Map<String, dynamic>;
+    return NearbyPlace.fromJson(
+      decoded,
+      apiKey: apiKey,
+      photoMaxWidthPx: _photoMaxWidthPx,
+    );
   }
 
   List<NearbyPlace> _parsePlaces(String responseBody, String apiKey) {

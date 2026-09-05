@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart'
     show FilteringTextInputFormatter, TextInputFormatter;
 
+import '../../models/pending_trip_draft.dart';
 import '../../models/trip.dart';
 import '../../models/trip_stop_location.dart';
 import '../../services/locale_service.dart';
@@ -11,37 +12,9 @@ import '../../services/trip_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/detail_header.dart';
 import '../../widgets/gradient_button.dart';
-import '../explore/explore_tab.dart' show Place, places;
+import '../../widgets/location_search_field.dart';
 import 'optimized_itinerary_screen.dart';
 import 'trip_location_picker.dart';
-
-/// A Malaysian city/state pair for the Starting From / Ending At pickers —
-/// a small fixed list standing in for what used to be a live postcode
-/// lookup; the picker UI itself is unchanged.
-class _City {
-  const _City(this.city, this.state);
-  final String city;
-  final String state;
-  String get label => '$city, $state';
-}
-
-const _dummyCities = [
-  _City('George Town', 'Penang'),
-  _City('Butterworth', 'Penang'),
-  _City('Kuala Lumpur', 'Federal Territory'),
-  _City('Petaling Jaya', 'Selangor'),
-  _City('Shah Alam', 'Selangor'),
-  _City('Johor Bahru', 'Johor'),
-  _City('Malacca City', 'Malacca'),
-  _City('Ipoh', 'Perak'),
-  _City('Kota Kinabalu', 'Sabah'),
-  _City('Kuching', 'Sarawak'),
-  _City('Alor Setar', 'Kedah'),
-  _City('Kota Bharu', 'Kelantan'),
-  _City('Kuantan', 'Pahang'),
-  _City('Seremban', 'Negeri Sembilan'),
-  _City('Kangar', 'Perlis'),
-];
 
 const _monthNames = [
   'Jan',
@@ -65,6 +38,9 @@ String _formatDateRange(DateTimeRange range) {
   return '${_monthNames[start.month - 1]} ${start.day} – '
       '${_monthNames[end.month - 1]} ${end.day}, ${end.year}';
 }
+
+/// e.g. "Aug 14".
+String _formatShortDate(DateTime d) => '${_monthNames[d.month - 1]} ${d.day}';
 
 bool _isSameDate(DateTime a, DateTime b) =>
     a.year == b.year && a.month == b.month && a.day == b.day;
@@ -98,30 +74,9 @@ bool _dateRangesOverlap(
   return null;
 }
 
-/// Fixed interest options for "auto-recommend more places" — always the
-/// same list, regardless of which stops the traveler has already picked.
-/// [category] is the [Place.category] value matched against when
-/// generating recommendations; [label] is the more specific,
-/// traveler-facing name shown on the chip.
-const _interestOptions = [
-  (label: 'Hotel', icon: Icons.hotel_rounded, category: 'Hotel'),
-  (label: 'Restaurant', icon: Icons.restaurant_rounded, category: 'Food'),
-  (label: 'Shopping', icon: Icons.shopping_bag_rounded, category: 'Shopping'),
-  (label: 'Museum', icon: Icons.museum_rounded, category: 'Culture'),
-  (label: 'Beach', icon: Icons.beach_access_rounded, category: 'Beach'),
-  (label: 'Nature', icon: Icons.terrain_rounded, category: 'Nature'),
-  (
-    label: 'Attraction',
-    icon: Icons.attractions_rounded,
-    category: 'Attraction',
-  ),
-];
-
-/// Trip creation form: name/description, trip logistics, a real
+/// Trip creation form: name/description, trip logistics, and a real
 /// map/search location picker for picking stops (see
-/// [TripLocationPicker]), interest categories, and an optional
-/// "auto-recommend more places" toggle that supplements the traveler's
-/// picks from Explore's curated catalog — all in one page.
+/// [TripLocationPicker]) — all in one page.
 class CreateTripScreen extends StatefulWidget {
   const CreateTripScreen({super.key});
 
@@ -132,8 +87,9 @@ class CreateTripScreen extends StatefulWidget {
 class _CreateTripScreenState extends State<CreateTripScreen> {
   final _formKey = GlobalKey<FormState>();
   final _nameFieldKey = GlobalKey<FormFieldState<String>>();
-  final _startCityFieldKey = GlobalKey<FormFieldState<_City>>();
-  final _endCityFieldKey = GlobalKey<FormFieldState<_City>>();
+  final _startLocationFieldKey =
+      GlobalKey<FormFieldState<TripStopLocation>>();
+  final _endLocationFieldKey = GlobalKey<FormFieldState<TripStopLocation>>();
   final _dateRangeFieldKey = GlobalKey<FormFieldState<DateTimeRange>>();
   final _budgetFieldKey = GlobalKey<FormFieldState<String>>();
   final _locationsFieldKey = GlobalKey<FormFieldState<bool>>();
@@ -144,14 +100,23 @@ class _CreateTripScreenState extends State<CreateTripScreen> {
   final _budgetController = TextEditingController(text: '1000');
   final _tripService = TripService();
   late final Future<List<Trip>> _myTripsFuture = _tripService.myTrips();
-  _City? _startCity;
-  _City? _endCity;
+  TripStopLocation? _startLocation;
+  TripStopLocation? _endLocation;
   DateTimeRange? _dateRange;
   TimeOfDay _startTime = const TimeOfDay(hour: 9, minute: 0);
   TimeOfDay _endTime = const TimeOfDay(hour: 18, minute: 0);
-  final Set<String> _selectedInterests = {'Shopping', 'Food'};
   final Set<TripStopLocation> _selectedStops = {};
-  bool _autoRecommend = true;
+
+  /// One slot per night of the trip (index 0 = night 1, the night after
+  /// day 1), resized by [_applyDateRange] whenever the date range
+  /// changes. Empty for a trip with no dates yet, or a single-day trip
+  /// (same start/end date — nothing to stay overnight for).
+  List<TripStopLocation?> _accommodations = [];
+
+  /// True once a submit attempt found an unfilled night — shows each
+  /// empty night's inline error until fixed, mirroring [_hasTriedSubmitting]
+  /// for the Trip Name field.
+  bool _accommodationValidationFailed = false;
   bool _isSubmitting = false;
   bool _hasTriedSubmitting = false;
 
@@ -193,38 +158,59 @@ class _CreateTripScreenState extends State<CreateTripScreen> {
     super.dispose();
   }
 
-  Future<void> _pickStartCity() async {
-    final picked = await _pickCity(context);
-    if (picked == null) return;
-    setState(() => _startCity = picked);
-    _startCityFieldKey.currentState?.didChange(picked);
+  void _onStartLocationChanged(TripStopLocation? picked) {
+    setState(() => _startLocation = picked);
+    _startLocationFieldKey.currentState?.didChange(picked);
   }
 
-  Future<void> _pickEndCity() async {
-    final picked = await _pickCity(context);
-    if (picked == null) return;
-    setState(() => _endCity = picked);
-    _endCityFieldKey.currentState?.didChange(picked);
+  void _onEndLocationChanged(TripStopLocation? picked) {
+    setState(() => _endLocation = picked);
+    _endLocationFieldKey.currentState?.didChange(picked);
   }
 
-  Future<_City?> _pickCity(BuildContext context) {
-    return showModalBottomSheet<_City>(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (_) => const _CityPickerSheet(),
+  /// Nights the trip spans — an N-day trip needs accommodation for
+  /// nights 1..N-1, so this is 0 for a same-day trip or when no dates
+  /// are picked yet.
+  int get _nightsNeeded => _dateRange?.duration.inDays ?? 0;
+
+  /// Resizes [_accommodations] to match [_nightsNeeded], preserving
+  /// already-picked nights that still exist (e.g. shortening a 4-night
+  /// trip to 2 nights keeps nights 1-2, dropping 3-4; lengthening it
+  /// back out re-adds empty slots rather than losing what was picked).
+  void _resizeAccommodations() {
+    final needed = _nightsNeeded;
+    if (_accommodations.length == needed) return;
+    _accommodations = List.generate(
+      needed,
+      (i) => i < _accommodations.length ? _accommodations[i] : null,
     );
+  }
+
+  void _onAccommodationChanged(int night, TripStopLocation? picked) {
+    setState(() {
+      _accommodations[night] = picked;
+      if (_accommodationValidationFailed &&
+          !_accommodations.contains(null)) {
+        _accommodationValidationFailed = false;
+      }
+    });
   }
 
   /// Every date range the traveler is already committed to via another
   /// trip they belong to — the new trip's dates must not clash with any
   /// of these. Trips without both a start and end date set don't block
   /// anything.
-  Future<List<({DateTimeRange range, String tripName})>>
-  _blockedDateRanges() async {
+  ///
+  /// [refresh] re-fetches from [TripService.myTrips] instead of reusing
+  /// the cached [_myTripsFuture] from when this screen opened — used
+  /// right before submitting, so a trip created (or joined) after this
+  /// screen was opened still gets caught.
+  Future<List<({DateTimeRange range, String tripName})>> _blockedDateRanges({
+    bool refresh = false,
+  }) async {
     List<Trip> trips;
     try {
-      trips = await _myTripsFuture;
+      trips = await (refresh ? _tripService.myTrips() : _myTripsFuture);
     } catch (_) {
       return const [];
     }
@@ -257,22 +243,19 @@ class _CreateTripScreenState extends State<CreateTripScreen> {
       _dateRange = result.dateRange;
       _startTime = result.startTime;
       _endTime = result.endTime;
+      _resizeAccommodations();
     });
     _dateRangeFieldKey.currentState?.didChange(result.dateRange);
   }
 
   void _addStop(TripStopLocation stop) {
     setState(() => _selectedStops.add(stop));
-    _locationsFieldKey.currentState?.didChange(
-      _selectedStops.isNotEmpty || _autoRecommend,
-    );
+    _locationsFieldKey.currentState?.didChange(_selectedStops.isNotEmpty);
   }
 
   void _removeStop(TripStopLocation stop) {
     setState(() => _selectedStops.remove(stop));
-    _locationsFieldKey.currentState?.didChange(
-      _selectedStops.isNotEmpty || _autoRecommend,
-    );
+    _locationsFieldKey.currentState?.didChange(_selectedStops.isNotEmpty);
   }
 
   Future<void> _confirmClearAllStops() async {
@@ -309,26 +292,8 @@ class _CreateTripScreenState extends State<CreateTripScreen> {
     );
     if (confirmed != true || !mounted) return;
     setState(() => _selectedStops.clear());
-    _locationsFieldKey.currentState?.didChange(
-      _selectedStops.isNotEmpty || _autoRecommend,
-    );
+    _locationsFieldKey.currentState?.didChange(_selectedStops.isNotEmpty);
   }
-
-  /// A catalog-flavored [Place] standing in for a real, geocoded stop —
-  /// lets picked stops flow through the existing (catalog-only)
-  /// itinerary-generation screens without those screens needing to know
-  /// about real coordinates.
-  Place _placeFromStop(TripStopLocation stop) => Place(
-    name: stop.name,
-    area: stop.address,
-    category: stop.category,
-    rating: 0,
-    reviews: 0,
-    gradient: AppColors.dusk,
-    icon: stop.categoryIcon,
-    description: '',
-    avgBudget: 'Varies',
-  );
 
   bool get _canSubmit => !_isSubmitting;
 
@@ -337,9 +302,6 @@ class _CreateTripScreenState extends State<CreateTripScreen> {
   /// point (the field itself is digits-only, but this stays defensive).
   double _parseBudget(String text) =>
       double.tryParse(text.replaceAll(RegExp(r'[^0-9.]'), '')) ?? 0;
-
-  String _formatTimeOfDay(TimeOfDay t) =>
-      '${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}:00';
 
   void _showRequiredMessage(String message) {
     ScaffoldMessenger.of(context).showSnackBar(
@@ -368,12 +330,12 @@ class _CreateTripScreenState extends State<CreateTripScreen> {
         hasError: () => _nameFieldKey.currentState?.hasError ?? false,
       ),
       (
-        context: () => _startCityFieldKey.currentContext,
-        hasError: () => _startCityFieldKey.currentState?.hasError ?? false,
+        context: () => _startLocationFieldKey.currentContext,
+        hasError: () => _startLocationFieldKey.currentState?.hasError ?? false,
       ),
       (
-        context: () => _endCityFieldKey.currentContext,
-        hasError: () => _endCityFieldKey.currentState?.hasError ?? false,
+        context: () => _endLocationFieldKey.currentContext,
+        hasError: () => _endLocationFieldKey.currentState?.hasError ?? false,
       ),
       (
         context: () => _dateRangeFieldKey.currentContext,
@@ -468,74 +430,68 @@ class _CreateTripScreenState extends State<CreateTripScreen> {
       return;
     }
 
-    final recommended = _autoRecommend
-        ? places
-              .where(
-                (p) =>
-                    _selectedInterests.contains(p.category) &&
-                    !_selectedStops.any(
-                      (s) => s.name.toLowerCase() == p.name.toLowerCase(),
-                    ),
-              )
-              .take(2)
-              .toList()
-        : <Place>[];
-
-    final finalPlaces = [..._selectedStops.map(_placeFromStop), ...recommended];
-    if (finalPlaces.isEmpty) {
+    if (_selectedStops.isEmpty) {
       _showRequiredMessage(
-        'No matching places found for your interests — try different '
-        'interests, or pick locations manually.',
+        'No locations selected — pick at least one location.',
       );
       return;
+    }
+
+    final missingNight = _accommodations.indexWhere((a) => a == null);
+    if (missingNight != -1) {
+      setState(() => _accommodationValidationFailed = true);
+      _showRequiredMessage(
+        'Choose where you\'re staying on night ${missingNight + 1}.',
+      );
+      return;
+    }
+
+    // Re-check against the traveler's other trips right before submitting
+    // — not just at date-picker time. The picker already refuses to let
+    // them select a clashing range in the first place, but this closes
+    // the gap where a conflicting trip was created (by them, or one they
+    // were invited into) in the time between opening the picker and
+    // hitting "Plan My Trip".
+    final range = _dateRange;
+    if (range != null) {
+      setState(() => _isSubmitting = true);
+      final blockedRanges = await _blockedDateRanges(refresh: true);
+      if (!mounted) return;
+      setState(() => _isSubmitting = false);
+      final conflict = _blockingConflict(range.start, range.end, blockedRanges);
+      if (conflict != null) {
+        setState(() => _dateRange = null);
+        _dateRangeFieldKey.currentState?.didChange(null);
+        _showRequiredMessage(
+          'These dates now clash with "${conflict.tripName}" '
+          '(${_formatDateRange(conflict.range)}) — pick different dates.',
+        );
+        return;
+      }
     }
 
     final budget = _parseBudget(_budgetController.text);
-    setState(() => _isSubmitting = true);
-    try {
-      // Trip details + travel information only, for now — no stops,
-      // interests, or day-by-day schedule yet.
-      await _tripService.createTrip(
-        name: name,
-        description: _descriptionController.text.trim(),
-        destination: _endCity?.label ?? _startCity?.label,
-        startCity: _startCity?.city,
-        startState: _startCity?.state,
-        endCity: _endCity?.city,
-        endState: _endCity?.state,
-        startDate: _dateRange?.start,
-        endDate: _dateRange?.end,
-        startTime: _formatTimeOfDay(_startTime),
-        endTime: _formatTimeOfDay(_endTime),
-        totalBudget: budget,
-        autoRecommend: _autoRecommend,
-      );
-    } catch (e) {
-      // Full exception (PostgrestException's message/code/details/hint)
-      // printed to the console — the SnackBar alone can truncate or get
-      // dismissed before it's readable.
-      debugPrint('Create trip failed: $e');
-      if (!mounted) return;
-      setState(() => _isSubmitting = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          behavior: SnackBarBehavior.floating,
-          duration: const Duration(seconds: 8),
-          content: Text('Could not create trip: $e'),
-        ),
-      );
-      return;
-    }
-    if (!mounted) return;
-    setState(() => _isSubmitting = false);
 
+    // Nothing is written to the database here — "Plan My Trip" only
+    // stages the draft and moves on to the itinerary review screen.
+    // The trip is actually created from there, via its own "Save Trip"
+    // button, once the traveler has seen and confirmed the generated
+    // plan.
     Navigator.of(context).push(
       MaterialPageRoute(
         builder: (_) => OptimizedItineraryScreen(
           tripName: name,
           description: _descriptionController.text.trim(),
-          places: finalPlaces,
-          recommendedNames: recommended.map((p) => p.name).toSet(),
+          draft: PendingTripDraft(
+            startLocation: _startLocation,
+            endLocation: _endLocation,
+            accommodations: [for (final a in _accommodations) a!],
+            stops: _selectedStops.toList(),
+            dateRange: _dateRange,
+            startTime: _startTime,
+            endTime: _endTime,
+            totalBudget: budget,
+          ),
         ),
       ),
     );
@@ -547,8 +503,9 @@ class _CreateTripScreenState extends State<CreateTripScreen> {
   bool get _hasUnsavedInput =>
       _nameController.text.trim().isNotEmpty ||
       _descriptionController.text.trim().isNotEmpty ||
-      _startCity != null ||
-      _endCity != null ||
+      _startLocation != null ||
+      _endLocation != null ||
+      _accommodations.any((a) => a != null) ||
       _dateRange != null ||
       _budgetController.text.trim() != '1000' ||
       _selectedStops.isNotEmpty;
@@ -646,19 +603,24 @@ class _CreateTripScreenState extends State<CreateTripScreen> {
                         title: 'Travel Information',
                         children: [
                           _FieldLabel('Starting From *'),
-                          FormField<_City>(
-                            key: _startCityFieldKey,
-                            initialValue: _startCity,
+                          FormField<TripStopLocation>(
+                            key: _startLocationFieldKey,
+                            initialValue: _startLocation,
                             autovalidateMode:
                                 AutovalidateMode.onUserInteraction,
-                            validator: (value) =>
-                                value == null ? 'Choose a starting city' : null,
+                            validator: (value) => value == null
+                                ? 'Choose a starting location'
+                                : null,
                             builder: (field) => Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                _CityField(
-                                  city: _startCity,
-                                  onTap: _pickStartCity,
+                                LocationSearchField(
+                                  value: _startLocation,
+                                  onChanged: _onStartLocationChanged,
+                                  hintText: 'Search for a starting location…',
+                                  isResultDisabled: (loc) =>
+                                      _endLocation != null &&
+                                      loc == _endLocation,
                                 ),
                                 _FieldError(field.errorText),
                               ],
@@ -666,17 +628,24 @@ class _CreateTripScreenState extends State<CreateTripScreen> {
                           ),
                           const SizedBox(height: 18),
                           _FieldLabel('Ending At *'),
-                          FormField<_City>(
-                            key: _endCityFieldKey,
-                            initialValue: _endCity,
+                          FormField<TripStopLocation>(
+                            key: _endLocationFieldKey,
+                            initialValue: _endLocation,
                             autovalidateMode:
                                 AutovalidateMode.onUserInteraction,
                             validator: (value) =>
-                                value == null ? 'Choose an ending city' : null,
+                                value == null ? 'Choose an ending location' : null,
                             builder: (field) => Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                _CityField(city: _endCity, onTap: _pickEndCity),
+                                LocationSearchField(
+                                  value: _endLocation,
+                                  onChanged: _onEndLocationChanged,
+                                  hintText: 'Search for an ending location…',
+                                  isResultDisabled: (loc) =>
+                                      _startLocation != null &&
+                                      loc == _startLocation,
+                                ),
                                 _FieldError(field.errorText),
                               ],
                             ),
@@ -704,6 +673,26 @@ class _CreateTripScreenState extends State<CreateTripScreen> {
                               ],
                             ),
                           ),
+                          if (_nightsNeeded > 0) ...[
+                            for (var night = 0; night < _nightsNeeded; night++) ...[
+                              const SizedBox(height: 18),
+                              _FieldLabel(
+                                'Accommodation — Night ${night + 1} '
+                                '(${_formatShortDate(_dateRange!.start.add(Duration(days: night)))}) *',
+                              ),
+                              LocationSearchField(
+                                value: _accommodations[night],
+                                onChanged: (picked) =>
+                                    _onAccommodationChanged(night, picked),
+                                hintText: 'Search for a hotel or place to stay…',
+                              ),
+                              if (_accommodationValidationFailed &&
+                                  _accommodations[night] == null)
+                                _FieldError(
+                                  'Choose where you\'re staying this night.',
+                                ),
+                            ],
+                          ],
                           const SizedBox(height: 18),
                           _FieldLabel('Budget *'),
                           _InputBox(
@@ -853,162 +842,14 @@ class _CreateTripScreenState extends State<CreateTripScreen> {
                             ),
                           FormField<bool>(
                             key: _locationsFieldKey,
-                            initialValue:
-                                _selectedStops.isNotEmpty || _autoRecommend,
+                            initialValue: _selectedStops.isNotEmpty,
                             autovalidateMode:
                                 AutovalidateMode.onUserInteraction,
                             validator: (ok) => ok == true
                                 ? null
-                                : 'No locations selected — enable '
-                                      '"Auto-recommend more places", or pick at '
-                                      'least one location.',
+                                : 'No locations selected — pick at least '
+                                      'one location.',
                             builder: (field) => _FieldError(field.errorText),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 16),
-                      _SectionCard(
-                        icon: Icons.tune_rounded,
-                        title: 'Preferences',
-                        children: [
-                          Row(
-                            children: [
-                              Container(
-                                width: 40,
-                                height: 40,
-                                decoration: BoxDecoration(
-                                  color: AppColors.accent.withValues(
-                                    alpha: 0.12,
-                                  ),
-                                  shape: BoxShape.circle,
-                                ),
-                                alignment: Alignment.center,
-                                child: const Icon(
-                                  Icons.auto_awesome_rounded,
-                                  color: AppColors.accent,
-                                  size: 19,
-                                ),
-                              ),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      'Auto-recommend more places',
-                                      style: TextStyle(
-                                        color: context.colors.ink,
-                                        fontWeight: FontWeight.w700,
-                                        fontSize: 13,
-                                      ),
-                                    ),
-                                    const SizedBox(height: 2),
-                                    Text(
-                                      'Add AI-suggested spots that match your interests',
-                                      style: TextStyle(
-                                        color: context.colors.muted,
-                                        fontSize: 11.5,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                              Switch(
-                                value: _autoRecommend,
-                                onChanged: (v) {
-                                  setState(() => _autoRecommend = v);
-                                  _locationsFieldKey.currentState?.didChange(
-                                    _selectedStops.isNotEmpty || v,
-                                  );
-                                },
-                                activeThumbColor: Colors.white,
-                                activeTrackColor: context.colors.ink,
-                              ),
-                            ],
-                          ),
-                          AnimatedSize(
-                            duration: const Duration(milliseconds: 220),
-                            curve: Curves.easeOut,
-                            alignment: Alignment.topCenter,
-                            child: _autoRecommend
-                                ? Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      const SizedBox(height: 18),
-                                      _FieldLabel('Interests'),
-                                      const SizedBox(height: 4),
-                                      Wrap(
-                                        spacing: 10,
-                                        runSpacing: 10,
-                                        children: _interestOptions.map((opt) {
-                                          final isSelected = _selectedInterests
-                                              .contains(opt.category);
-                                          return GestureDetector(
-                                            onTap: () => setState(() {
-                                              isSelected
-                                                  ? _selectedInterests.remove(
-                                                      opt.category,
-                                                    )
-                                                  : _selectedInterests.add(
-                                                      opt.category,
-                                                    );
-                                            }),
-                                            child: AnimatedContainer(
-                                              duration: const Duration(
-                                                milliseconds: 200,
-                                              ),
-                                              padding:
-                                                  const EdgeInsets.symmetric(
-                                                    horizontal: 16,
-                                                    vertical: 10,
-                                                  ),
-                                              decoration: BoxDecoration(
-                                                color: isSelected
-                                                    ? context.colors.ink
-                                                    : context.colors.surface,
-                                                borderRadius:
-                                                    BorderRadius.circular(20),
-                                                border: Border.all(
-                                                  color: isSelected
-                                                      ? context.colors.ink
-                                                      : context.colors.muted
-                                                            .withValues(
-                                                              alpha: 0.25,
-                                                            ),
-                                                ),
-                                              ),
-                                              child: Row(
-                                                mainAxisSize: MainAxisSize.min,
-                                                children: [
-                                                  Icon(
-                                                    opt.icon,
-                                                    size: 14,
-                                                    color: isSelected
-                                                        ? Colors.white
-                                                        : context.colors.muted,
-                                                  ),
-                                                  const SizedBox(width: 6),
-                                                  Text(
-                                                    opt.label,
-                                                    style: TextStyle(
-                                                      color: isSelected
-                                                          ? Colors.white
-                                                          : context.colors.ink,
-                                                      fontWeight:
-                                                          FontWeight.w600,
-                                                      fontSize: 13,
-                                                    ),
-                                                  ),
-                                                ],
-                                              ),
-                                            ),
-                                          );
-                                        }).toList(),
-                                      ),
-                                    ],
-                                  )
-                                : const SizedBox(width: double.infinity),
                           ),
                         ],
                       ),
@@ -1221,180 +1062,6 @@ class _InputBox extends StatelessWidget {
   }
 }
 
-/// Tappable field showing the selected Malaysian city, or a placeholder
-/// until one is picked. Opens [_CityPickerSheet] on tap.
-class _CityField extends StatelessWidget {
-  const _CityField({required this.city, required this.onTap});
-
-  final _City? city;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return InkWell(
-      borderRadius: BorderRadius.circular(16),
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-        decoration: BoxDecoration(
-          color: context.colors.surface,
-          borderRadius: BorderRadius.circular(16),
-        ),
-        child: Row(
-          children: [
-            Icon(
-              Icons.location_on_rounded,
-              color: context.colors.muted,
-              size: 18,
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Text(
-                city?.label ?? 'Select a city',
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  color: city == null
-                      ? context.colors.muted
-                      : context.colors.ink,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ),
-            const Spacer(),
-            Icon(Icons.expand_more_rounded, color: context.colors.muted),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-/// Searchable bottom sheet listing Malaysian cities from [_dummyCities],
-/// filtered as the user types. Returns the tapped [_City] via
-/// `Navigator.pop`.
-class _CityPickerSheet extends StatefulWidget {
-  const _CityPickerSheet();
-
-  @override
-  State<_CityPickerSheet> createState() => _CityPickerSheetState();
-}
-
-class _CityPickerSheetState extends State<_CityPickerSheet> {
-  final _searchController = TextEditingController();
-  String _query = '';
-
-  @override
-  void dispose() {
-    _searchController.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return DraggableScrollableSheet(
-      initialChildSize: 0.75,
-      minChildSize: 0.5,
-      maxChildSize: 0.92,
-      expand: false,
-      builder: (context, scrollController) {
-        return Material(
-          color: context.colors.card,
-          clipBehavior: Clip.antiAlias,
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
-          child: Column(
-            children: [
-              const SizedBox(height: 12),
-              Container(
-                width: 40,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: context.colors.muted.withValues(alpha: 0.3),
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
-              Padding(
-                padding: const EdgeInsets.fromLTRB(20, 16, 20, 12),
-                child: TextField(
-                  controller: _searchController,
-                  autofocus: true,
-                  onChanged: (v) => setState(() => _query = v),
-                  style: TextStyle(color: context.colors.ink),
-                  decoration: InputDecoration(
-                    hintText: 'Search city or state…',
-                    hintStyle: TextStyle(color: context.colors.muted),
-                    prefixIcon: Icon(
-                      Icons.search_rounded,
-                      color: context.colors.muted,
-                    ),
-                    filled: true,
-                    fillColor: context.colors.surface,
-                    isDense: true,
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(14),
-                      borderSide: BorderSide.none,
-                    ),
-                  ),
-                ),
-              ),
-              Expanded(
-                child: Builder(
-                  builder: (context) {
-                    final q = _query.trim().toLowerCase();
-                    final filtered = q.isEmpty
-                        ? _dummyCities
-                        : _dummyCities
-                              .where(
-                                (c) =>
-                                    c.city.toLowerCase().contains(q) ||
-                                    c.state.toLowerCase().contains(q),
-                              )
-                              .toList();
-
-                    if (filtered.isEmpty) {
-                      return Center(
-                        child: Text(
-                          'No matching city',
-                          style: TextStyle(color: context.colors.muted),
-                        ),
-                      );
-                    }
-
-                    return ListView.builder(
-                      controller: scrollController,
-                      padding: const EdgeInsets.only(bottom: 16),
-                      itemCount: filtered.length,
-                      itemBuilder: (context, i) {
-                        final c = filtered[i];
-                        return ListTile(
-                          title: Text(
-                            c.city,
-                            style: TextStyle(
-                              color: context.colors.ink,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                          subtitle: Text(
-                            c.state,
-                            style: TextStyle(
-                              color: context.colors.muted,
-                              fontSize: 12,
-                            ),
-                          ),
-                          onTap: () => Navigator.of(context).pop(c),
-                        );
-                      },
-                    );
-                  },
-                ),
-              ),
-            ],
-          ),
-        );
-      },
-    );
-  }
-}
-
 /// Tappable field showing the trip's date range + start/end time on two
 /// lines, or a placeholder until picked. Opens [_DatesPickerSheet].
 class _ScheduleField extends StatelessWidget {
@@ -1480,10 +1147,10 @@ class _TripSchedule {
   final TimeOfDay endTime;
 }
 
-/// Bottom-sheet date + time picker, in the same visual style as
-/// [_CityPickerSheet] — everything happens in one popup on the same page,
-/// no separate dialog/screen. Two calendars (start/end date) plus two
-/// scrollable time wheels (start/end time), with a "Done" button to confirm.
+/// Bottom-sheet date + time picker — everything happens in one popup on
+/// the same page, no separate dialog/screen. Two calendars (start/end
+/// date) plus two scrollable time wheels (start/end time), with a "Done"
+/// button to confirm.
 class _DatesPickerSheet extends StatefulWidget {
   const _DatesPickerSheet({
     required this.initialRange,

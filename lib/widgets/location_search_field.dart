@@ -239,6 +239,21 @@ class _LocationSearchFieldState extends State<LocationSearchField> {
             ),
           ),
         ),
+        if (selected && widget.value!.address.isNotEmpty) ...[
+          const SizedBox(height: 4),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 4),
+            child: Text(
+              widget.value!.address,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                color: Color(0xFF6E7A93),
+                fontSize: 11.5,
+              ),
+            ),
+          ),
+        ],
         if (_showDropdown) ...[
           const SizedBox(height: 8),
           LocationResultsDropdown(
