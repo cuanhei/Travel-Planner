@@ -49,7 +49,7 @@ class TripService {
           .from('trip_members')
           .select('trip_id')
           .eq('user_id', _uid)
-          .order('joined_at')
+          .order('joined_at', ascending: true)
           .limit(1)
           .maybeSingle(),
     );

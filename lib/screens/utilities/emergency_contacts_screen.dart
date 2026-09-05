@@ -26,7 +26,6 @@ class _EmergencyContactsScreenState extends State<EmergencyContactsScreen> {
   final _tripService = TripService();
   final _emergencyService = EmergencyContactsService();
 
-  String? _tripId;
   int _selectedIndex = 0;
 
   /// State label per stop, keyed by [TripStopLocation]'s own value
@@ -35,11 +34,24 @@ class _EmergencyContactsScreenState extends State<EmergencyContactsScreen> {
   final _stateByStop = <TripStopLocation, String?>{};
   final _resolving = <TripStopLocation>{};
 
+  /// Created once the demo trip's id resolves, not inline in [build] — a fresh
+  /// `Stream` instance on every build would give `StreamBuilder` a
+  /// changed `stream` identity each time, forcing it to tear down and
+  /// resubscribe from scratch. Since [_resolveState] calls `setState` as
+  /// each stop's geocode result lands, an inline stream would restart the
+  /// whole fetch on every single one of those — which can keep resetting
+  /// to "loading" indefinitely instead of ever settling.
+  Stream<List<TripStopLocation>>? _stopsStream;
+
   @override
   void initState() {
     super.initState();
     _tripService.ensureDemoTrip().then((id) {
-      if (mounted) setState(() => _tripId = id);
+      if (mounted) {
+        setState(() {
+          _stopsStream = _tripService.watchTripStops(id);
+        });
+      }
     });
   }
 
@@ -54,7 +66,7 @@ class _EmergencyContactsScreenState extends State<EmergencyContactsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final tripId = _tripId;
+    final stopsStream = _stopsStream;
     return Scaffold(
       backgroundColor: context.colors.surface,
       body: SafeArea(
@@ -65,11 +77,14 @@ class _EmergencyContactsScreenState extends State<EmergencyContactsScreen> {
               subtitle: "Numbers for your trip's current stop",
             ),
             Expanded(
-              child: tripId == null
+              child: stopsStream == null
                   ? const Center(child: CircularProgressIndicator())
                   : StreamBuilder<List<TripStopLocation>>(
-                      stream: _tripService.watchTripStops(tripId),
+                      stream: stopsStream,
                       builder: (context, snapshot) {
+                        if (snapshot.hasError) {
+                          return _ErrorState(colors: context.colors);
+                        }
                         if (!snapshot.hasData) {
                           return const Center(
                             child: CircularProgressIndicator(),
@@ -110,12 +125,17 @@ class _EmergencyContactsScreenState extends State<EmergencyContactsScreen> {
     // Stops sharing a state (e.g. Penang Hill, Chew Jetty, and Batu
     // Ferringhi all resolving to "Penang") collapse into one chip/tab
     // showing that state's numbers once, instead of repeating them per
-    // stop — a `null` key (state lookup failed) is its own group too,
-    // since [contactsForState] treats it identically regardless of which
-    // stop it came from.
-    final groups = <String?, List<TripStopLocation>>{};
+    // stop. A stop whose state couldn't be resolved is dropped entirely
+    // rather than lumped into a catch-all "Other" tab — nothing useful to
+    // show for it beyond the national numbers every other tab already has.
+    final groups = <String, List<TripStopLocation>>{};
     for (final stop in stops) {
-      (groups[_stateByStop[stop]] ??= []).add(stop);
+      final state = _stateByStop[stop];
+      if (state == null) continue;
+      (groups[state] ??= []).add(stop);
+    }
+    if (groups.isEmpty) {
+      return _EmptyState(colors: context.colors);
     }
     final groupKeys = groups.keys.toList();
     if (_selectedIndex >= groupKeys.length) _selectedIndex = 0;
@@ -148,7 +168,7 @@ class _EmergencyContactsScreenState extends State<EmergencyContactsScreen> {
                   ),
                   alignment: Alignment.center,
                   child: Text(
-                    groupKeys[index] ?? 'Other',
+                    groupKeys[index],
                     style: TextStyle(
                       color: isSelected ? Colors.white : context.colors.ink,
                       fontWeight: FontWeight.w600,
@@ -281,6 +301,37 @@ class _EmergencyContactsScreenState extends State<EmergencyContactsScreen> {
         ),
       );
     }
+  }
+}
+
+/// Shown when [TripService.watchTripStops]'s stream errors — e.g. a
+/// Realtime subscribe failure — instead of leaving the loading spinner
+/// running forever, which is indistinguishable from "still loading" to
+/// the traveler.
+class _ErrorState extends StatelessWidget {
+  const _ErrorState({required this.colors});
+
+  final AppColors colors;
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(32),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.error_outline_rounded, color: colors.muted, size: 40),
+            const SizedBox(height: 12),
+            Text(
+              "Couldn't load your trip's stops. Pull back and try again.",
+              textAlign: TextAlign.center,
+              style: TextStyle(color: colors.muted, fontSize: 13.5),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }
 

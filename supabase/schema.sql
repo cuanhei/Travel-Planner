@@ -1179,6 +1179,7 @@ alter publication supabase_realtime add table
   public.expenses,
   public.budget_categories,
   public.trip_settlements,
+  public.trip_stops,
   public.posts,
   public.comments,
   public.reviews;
