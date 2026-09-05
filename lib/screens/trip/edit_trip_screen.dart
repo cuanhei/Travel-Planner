@@ -1,31 +1,15 @@
 import 'package:flutter/material.dart';
 
 import '../../models/trip.dart';
-import '../../models/trip_stop_location.dart';
 import '../../services/trip_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/detail_header.dart';
 import '../../widgets/gradient_button.dart';
-import '../../widgets/location_search_field.dart';
 
-/// e.g. "Aug 14 – Aug 16, 2026".
-String _formatDateRange(DateTimeRange range) {
-  const months = [
-    'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-    'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
-  ];
-  final start = range.start;
-  final end = range.end;
-  return '${months[start.month - 1]} ${start.day} – '
-      '${months[end.month - 1]} ${end.day}, ${end.year}';
-}
-
-/// Trip editor for a trip's core details — name, description,
-/// starting/ending location, and travel dates. Wired live to
-/// [TripService.updateTrip]/[TripService.deleteTrip]; day-by-day stops
-/// and timing are handled separately by Edit Schedule, and
-/// budget/group-size tracking live in their own dedicated modules, so
-/// none of that is duplicated here.
+/// Trip editor for a trip's name and description only — starting/ending
+/// location, dates, and day-by-day stops/timing are all set once at
+/// Create Trip and aren't editable here; budget/group-size tracking live
+/// in their own dedicated modules.
 class EditTripScreen extends StatefulWidget {
   const EditTripScreen({super.key, required this.trip});
 
@@ -41,55 +25,13 @@ class _EditTripScreenState extends State<EditTripScreen> {
   late final _descriptionController = TextEditingController(
     text: widget.trip.description ?? '',
   );
-  late TripStopLocation? _startLocation = _locationFrom(
-    name: widget.trip.startLocationName,
-    address: widget.trip.startAddress,
-    latitude: widget.trip.startLatitude,
-    longitude: widget.trip.startLongitude,
-  );
-  late TripStopLocation? _endLocation = _locationFrom(
-    name: widget.trip.endLocationName,
-    address: widget.trip.endAddress,
-    latitude: widget.trip.endLatitude,
-    longitude: widget.trip.endLongitude,
-  );
-  late DateTimeRange? _dateRange =
-      widget.trip.startDate != null && widget.trip.endDate != null
-      ? DateTimeRange(start: widget.trip.startDate!, end: widget.trip.endDate!)
-      : null;
   bool _saving = false;
-
-  TripStopLocation? _locationFrom({
-    required String? name,
-    required String? address,
-    required double? latitude,
-    required double? longitude,
-  }) {
-    if (name == null || latitude == null || longitude == null) return null;
-    return TripStopLocation(
-      name: name,
-      address: address ?? '',
-      latitude: latitude,
-      longitude: longitude,
-    );
-  }
 
   @override
   void dispose() {
     _nameController.dispose();
     _descriptionController.dispose();
     super.dispose();
-  }
-
-  Future<void> _pickDateRange() async {
-    final now = DateTime.now();
-    final picked = await showDateRangePicker(
-      context: context,
-      firstDate: DateTime(now.year - 1),
-      lastDate: DateTime(now.year + 3),
-      initialDateRange: _dateRange,
-    );
-    if (picked != null) setState(() => _dateRange = picked);
   }
 
   void _showMessage(String message, {bool isError = false}) {
@@ -111,22 +53,25 @@ class _EditTripScreenState extends State<EditTripScreen> {
 
     setState(() => _saving = true);
     try {
+      final trip = widget.trip;
+      // updateTrip sets every field it's given, rather than merging — so
+      // everything set once at Create Trip and not editable here
+      // (location/dates) is passed straight through unchanged.
       await _tripService.updateTrip(
-        tripId: widget.trip.id,
+        tripId: trip.id,
         name: name,
         description: _descriptionController.text.trim(),
-        destination:
-            _endLocation?.name ?? _startLocation?.name ?? widget.trip.destination,
-        startLocationName: _startLocation?.name,
-        startAddress: _startLocation?.address,
-        startLatitude: _startLocation?.latitude,
-        startLongitude: _startLocation?.longitude,
-        endLocationName: _endLocation?.name,
-        endAddress: _endLocation?.address,
-        endLatitude: _endLocation?.latitude,
-        endLongitude: _endLocation?.longitude,
-        startDate: _dateRange?.start,
-        endDate: _dateRange?.end,
+        destination: trip.destination,
+        startLocationName: trip.startLocationName,
+        startAddress: trip.startAddress,
+        startLatitude: trip.startLatitude,
+        startLongitude: trip.startLongitude,
+        endLocationName: trip.endLocationName,
+        endAddress: trip.endAddress,
+        endLatitude: trip.endLatitude,
+        endLongitude: trip.endLongitude,
+        startDate: trip.startDate,
+        endDate: trip.endDate,
       );
     } catch (e) {
       debugPrint('Update trip failed: $e');
@@ -195,7 +140,7 @@ class _EditTripScreenState extends State<EditTripScreen> {
           children: [
             const DetailHeader(
               title: 'Edit Trip',
-              subtitle: "Update this trip's details",
+              subtitle: 'Update the name and description',
             ),
             Expanded(
               child: ListView(
@@ -216,33 +161,6 @@ class _EditTripScreenState extends State<EditTripScreen> {
                         controller: _descriptionController,
                         icon: Icons.notes_rounded,
                         maxLines: 3,
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
-                  _SectionCard(
-                    icon: Icons.flight_takeoff_rounded,
-                    title: 'Travel Information',
-                    children: [
-                      _FieldLabel('Starting From'),
-                      LocationSearchField(
-                        value: _startLocation,
-                        onChanged: (loc) =>
-                            setState(() => _startLocation = loc),
-                        hintText: 'Search for a starting location…',
-                      ),
-                      const SizedBox(height: 18),
-                      _FieldLabel('Ending At'),
-                      LocationSearchField(
-                        value: _endLocation,
-                        onChanged: (loc) => setState(() => _endLocation = loc),
-                        hintText: 'Search for an ending location…',
-                      ),
-                      const SizedBox(height: 18),
-                      _FieldLabel('Travel Dates'),
-                      _DatePickerRow(
-                        range: _dateRange,
-                        onTap: _pickDateRange,
                       ),
                     ],
                   ),
@@ -387,50 +305,6 @@ class _InputBox extends StatelessWidget {
         contentPadding: const EdgeInsets.symmetric(
           vertical: 16,
           horizontal: 16,
-        ),
-      ),
-    );
-  }
-}
-
-class _DatePickerRow extends StatelessWidget {
-  const _DatePickerRow({required this.range, required this.onTap});
-
-  final DateTimeRange? range;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final range = this.range;
-    return InkWell(
-      borderRadius: BorderRadius.circular(16),
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-        decoration: BoxDecoration(
-          color: context.colors.surface,
-          borderRadius: BorderRadius.circular(16),
-        ),
-        child: Row(
-          children: [
-            Icon(
-              Icons.calendar_today_rounded,
-              color: context.colors.muted,
-              size: 18,
-            ),
-            const SizedBox(width: 12),
-            Text(
-              range == null ? 'Select travel dates' : _formatDateRange(range),
-              style: TextStyle(
-                color: range == null
-                    ? context.colors.muted
-                    : context.colors.ink,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-            const Spacer(),
-            Icon(Icons.expand_more_rounded, color: context.colors.muted),
-          ],
         ),
       ),
     );
