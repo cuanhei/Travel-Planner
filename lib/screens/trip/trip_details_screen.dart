@@ -9,8 +9,6 @@ import '../group/group_dashboard_screen.dart';
 import '../transport/transport_routes_screen.dart';
 import '../utilities/utilities_home_screen.dart';
 import '../weather/weather_forecast_screen.dart';
-import 'daily_timeline_screen.dart';
-import 'edit_schedule_screen.dart';
 import 'edit_trip_screen.dart';
 import 'trip_map_screen.dart';
 
@@ -240,14 +238,7 @@ class _TripDetailsScreenState extends State<TripDetailsScreen> {
                         SizedBox(height: 14),
                         _ToolsGrid(trip: _trip),
                         SizedBox(height: 28),
-                        SectionHeader(
-                          title: 'Activity',
-                          onAction: () => Navigator.of(context).push(
-                            MaterialPageRoute(
-                              builder: (_) => DailyTimelineScreen(trip: _trip),
-                            ),
-                          ),
-                        ),
+                        SectionHeader(title: 'Activity'),
                         SizedBox(height: 14),
                         _ActivityTile(
                           stop: _upcomingStop,
@@ -358,22 +349,6 @@ class _ToolsGrid extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final tools = [
-      (
-        label: 'Daily\nTimeline',
-        icon: Icons.timeline_rounded,
-        color: Color(0xFF5C6BC0),
-        onTap: () => Navigator.of(context).push(
-          MaterialPageRoute(builder: (_) => DailyTimelineScreen(trip: trip)),
-        ),
-      ),
-      (
-        label: 'Edit\nSchedule',
-        icon: Icons.edit_calendar_rounded,
-        color: Color(0xFF11998E),
-        onTap: () => Navigator.of(
-          context,
-        ).push(MaterialPageRoute(builder: (_) => EditScheduleScreen())),
-      ),
       (
         label: 'Map\nView',
         icon: Icons.map_rounded,

@@ -1,11 +1,7 @@
 import 'package:flutter/foundation.dart';
-import 'package:flutter/material.dart' show TimeOfDay;
 import 'package:supabase_flutter/supabase_flutter.dart';
 
-import '../models/day_schedule.dart';
 import '../models/trip.dart';
-import '../models/trip_accommodation.dart';
-import '../models/trip_schedule_entry.dart';
 import '../models/trip_stop_location.dart';
 import 'supabase_config.dart';
 
@@ -193,177 +189,6 @@ class TripService {
     return tripId;
   }
 
-  /// Persists the generated itinerary — every real location involved
-  /// (day anchors and scheduled stops) into `trip_stops`, then the
-  /// timed day-by-day route into `trip_schedule_stops` — after
-  /// [createTrip] has already inserted the `trips` row. [dayStart] is
-  /// the trip's daily start clock time, needed to record a departure
-  /// time for a day's start anchor (which [ScheduledStop] itself has no
-  /// slot for, since it isn't a visited stop).
-  ///
-  /// Doesn't persist [DaySchedule.unscheduledStops] — those never made
-  /// it onto the timeline, so there's nothing to schedule a row for.
-  /// Each distinct location (by [TripStopLocation]'s own equality — see
-  /// that class) is inserted into `trip_stops` once even if it's reused
-  /// across days (a hotel is typically both one day's end anchor and the
-  /// next day's start anchor).
-  Future<void> saveTripSchedule({
-    required String tripId,
-    required List<DaySchedule> schedules,
-    required TimeOfDay dayStart,
-  }) async {
-    if (schedules.isEmpty) return;
-
-    final locations = <TripStopLocation>[];
-    for (final schedule in schedules) {
-      final day = schedule.day;
-      if (!locations.contains(day.startAnchor)) {
-        locations.add(day.startAnchor);
-      }
-      for (final scheduled in schedule.scheduledStops) {
-        if (!locations.contains(scheduled.stop)) locations.add(scheduled.stop);
-      }
-      if (!locations.contains(day.endAnchor)) locations.add(day.endAnchor);
-    }
-
-    debugPrint(
-      '[saveTripSchedule] Inserting ${locations.length} distinct '
-      'location(s) into trip_stops for trip $tripId…',
-    );
-    final stopIds = <TripStopLocation, String>{};
-    for (final location in locations) {
-      try {
-        final row = await retryOnJwtClockSkew(
-          () => _client
-              .from('trip_stops')
-              .insert({
-                'trip_id': tripId,
-                'name': location.name,
-                'address': location.address,
-                'latitude': location.latitude,
-                'longitude': location.longitude,
-                'osm_id': location.osmId,
-                'category': location.category,
-              })
-              .select()
-              .single(),
-        );
-        stopIds[location] = row['id'] as String;
-      } catch (e) {
-        debugPrint(
-          '[saveTripSchedule] FAILED inserting trip_stops row for '
-          '"${location.name}" (lat=${location.latitude}, '
-          'lng=${location.longitude}, category=${location.category}): $e',
-        );
-        rethrow;
-      }
-    }
-    debugPrint('[saveTripSchedule] trip_stops insert done: $stopIds');
-
-    String stopId(TripStopLocation location) {
-      final id = stopIds[location];
-      if (id == null) {
-        throw StateError(
-          'saveTripSchedule: no trip_stops id was recorded for '
-          '"${location.name}" (lat=${location.latitude}, '
-          'lng=${location.longitude}) — this is a bug in how locations '
-          'were collected, not a database error.',
-        );
-      }
-      return id;
-    }
-
-    final scheduleRows = <Map<String, dynamic>>[];
-    for (final schedule in schedules) {
-      final day = schedule.day;
-      var sequence = 0;
-      final dayStartTime = DateTime(
-        day.date.year,
-        day.date.month,
-        day.date.day,
-        dayStart.hour,
-        dayStart.minute,
-      );
-
-      scheduleRows.add({
-        'trip_id': tripId,
-        'stop_id': stopId(day.startAnchor),
-        'day_number': day.dayNumber,
-        'sequence': sequence++,
-        'is_hotel': !day.startIsOverallStart,
-        'scheduled_departure': _formatScheduleTime(dayStartTime),
-      });
-
-      var previousLocation = day.startAnchor;
-      var previousDeparture = dayStartTime;
-      for (final scheduled in schedule.scheduledStops) {
-        scheduleRows.add({
-          'trip_id': tripId,
-          'stop_id': stopId(scheduled.stop),
-          'day_number': day.dayNumber,
-          'sequence': sequence++,
-          'is_hotel': false,
-          'scheduled_arrival': _formatScheduleTime(scheduled.arrival),
-          'scheduled_departure': _formatScheduleTime(scheduled.visitEnd),
-          'travel_mode': 'drive',
-          'travel_minutes': scheduled.travelMinutesFromPrevious,
-        });
-        previousLocation = scheduled.stop;
-        previousDeparture = scheduled.visitEnd;
-      }
-
-      final reachedEndDirectly = previousLocation == day.endAnchor;
-      scheduleRows.add({
-        'trip_id': tripId,
-        'stop_id': stopId(day.endAnchor),
-        'day_number': day.dayNumber,
-        'sequence': sequence++,
-        'is_hotel': !day.endIsOverallEnd,
-        'scheduled_arrival': _formatScheduleTime(schedule.endArrival),
-        if (!reachedEndDirectly) 'travel_mode': 'drive',
-        if (!reachedEndDirectly)
-          'travel_minutes': schedule.endArrival
-              .difference(previousDeparture)
-              .inMinutes,
-      });
-    }
-
-    debugPrint(
-      '[saveTripSchedule] Inserting ${scheduleRows.length} '
-      'trip_schedule_stops row(s) for trip $tripId…',
-    );
-    if (scheduleRows.isNotEmpty) {
-      try {
-        await retryOnJwtClockSkew(
-          () => _client.from('trip_schedule_stops').insert(scheduleRows),
-        );
-      } catch (e) {
-        debugPrint(
-          '[saveTripSchedule] FAILED inserting trip_schedule_stops. '
-          'First row as a sample: ${scheduleRows.first}\nError: $e',
-        );
-        rethrow;
-      }
-    }
-    debugPrint('[saveTripSchedule] Done.');
-  }
-
-  String _formatScheduleTime(DateTime t) =>
-      '${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}:00';
-
-  /// Every night's accommodation for a trip, ordered by [night_number] —
-  /// backs Trip Details' itinerary view.
-  Future<List<TripAccommodation>> tripAccommodations(String tripId) async {
-    final rows = await retryOnJwtClockSkew(
-      () => _client
-          .from('trip_accommodations')
-          .select()
-          .eq('trip_id', tripId)
-          .order('night_number'),
-    );
-    return [for (final row in rows) TripAccommodation.fromMap(row)];
-  }
-
   /// Updates a trip's core details from the Edit Trip form — everything
   /// [createTrip] accepts except accommodations/times, which Edit Trip
   /// doesn't touch. Only the organizer can call this successfully; the
@@ -495,29 +320,6 @@ class TripService {
       () => _client.from('trip_members').select('user_id').eq('trip_id', tripId),
     );
     return rows.length;
-  }
-
-  /// The full saved day-by-day schedule for a trip — every
-  /// `trip_schedule_stops` row (day anchors, hotels, and visited stops
-  /// alike), each joined with its `trip_stops` place details, ordered by
-  /// day then position. Backs [DailyTimelineScreen]. Empty for a trip
-  /// that was never run through the full Create Trip → Save Trip flow
-  /// (e.g. the auto-seeded demo trip), since nothing populates this
-  /// table otherwise.
-  Future<List<TripScheduleEntry>> getTripSchedule(String tripId) async {
-    final rows = await retryOnJwtClockSkew(
-      () => _client
-          .from('trip_schedule_stops')
-          .select(
-            'day_number, sequence, is_hotel, scheduled_arrival, '
-            'scheduled_departure, travel_mode, travel_minutes, '
-            'trip_stops(name, address, category)',
-          )
-          .eq('trip_id', tripId)
-          .order('day_number')
-          .order('sequence'),
-    );
-    return [for (final row in rows) TripScheduleEntry.fromMap(row)];
   }
 
   /// Every stop saved to a trip, for [TripMapScreen] — was hardcoded
