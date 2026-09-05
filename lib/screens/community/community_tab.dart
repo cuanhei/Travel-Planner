@@ -174,6 +174,15 @@ class _CommunityTabState extends State<CommunityTab> {
     _loadInitial();
   }
 
+  Future<void> _editPost(CommunityPost post) async {
+    await Navigator.of(context).push<bool>(
+      MaterialPageRoute(
+        builder: (_) => AddPostScreen(existingPost: post),
+      ),
+    );
+    _loadInitial();
+  }
+
   /// Applies a reaction change to the local list immediately — the feed no
   /// longer has a live subscription to fall back on for this — then sends
   /// it to the backend.
@@ -377,6 +386,7 @@ class _CommunityTabState extends State<CommunityTab> {
                     ),
                   ),
                   onShare: () => showSharePostSheet(context, p),
+                  onEdit: () => _editPost(p),
                 ),
               ),
               if (_loadingMore)

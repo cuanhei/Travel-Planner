@@ -4,11 +4,13 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 
+import '../../models/community_post.dart';
 import '../../services/community_service.dart';
 import '../../theme/app_theme.dart';
 import '../../utils/camera_support.dart';
 import '../../widgets/detail_header.dart';
 import '../../widgets/gradient_button.dart';
+import '../../widgets/user_avatar.dart';
 import '../explore/explore_tab.dart' show categories;
 import 'crop_image_screen.dart';
 import 'post_card.dart' show communityGradients;
@@ -43,8 +45,15 @@ typedef _PickedMedia = ({
 /// category (sets the icon), with a live preview of the resulting post
 /// card. Posts to `posts` on submit; a post with no photo/video falls back
 /// to a gradient cover (see [communityGradients]).
+///
+/// Doubles as the editor when [existingPost] is passed (only ever by the
+/// post's own author — [PostCard] only shows the edit affordance when
+/// `post.authorId` matches the signed-in user): fields are pre-filled and
+/// [CommunityService.updatePost] is called instead of [addPost] on submit.
 class AddPostScreen extends StatefulWidget {
-  const AddPostScreen({super.key});
+  const AddPostScreen({super.key, this.existingPost});
+
+  final CommunityPost? existingPost;
 
   @override
   State<AddPostScreen> createState() => _AddPostScreenState();
@@ -58,6 +67,64 @@ class _AddPostScreenState extends State<AddPostScreen> {
   final _gradientIndex = 0;
   bool _posting = false;
 
+  bool get _isEditing => widget.existingPost != null;
+
+  /// Whether leaving now would lose something — an untouched "New Post"
+  /// (or an edit where nothing was actually changed) can close silently,
+  /// anything else prompts via [_confirmDiscard].
+  bool get _hasUnsavedChanges {
+    final existing = widget.existingPost;
+    if (existing == null) {
+      return _placeController.text.trim().isNotEmpty ||
+          _captionController.text.trim().isNotEmpty ||
+          _mediaBytes != null;
+    }
+    return _placeController.text.trim() != existing.placeName ||
+        _captionController.text.trim() != existing.caption ||
+        categories[_categoryIndex].label != existing.category ||
+        _mediaBytes != null ||
+        _existingMediaUrl != existing.mediaUrl;
+  }
+
+  /// "Discard changes?" prompt shown when the back button/gesture fires
+  /// while [_hasUnsavedChanges] — doesn't gate [_submit]'s own
+  /// `Navigator.pop`, since that's an imperative pop (bypasses `PopScope`
+  /// entirely, unlike the back button's `maybePop`).
+  Future<bool> _confirmDiscard() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        backgroundColor: dialogContext.colors.card,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Text(
+          'Discard changes?',
+          style: TextStyle(
+            color: dialogContext.colors.ink,
+            fontWeight: FontWeight.w800,
+          ),
+        ),
+        content: Text(
+          _isEditing
+              ? "Your edits to this post haven't been saved."
+              : "Your post hasn't been saved.",
+          style: TextStyle(color: dialogContext.colors.muted),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: const Text('Keep Editing'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            style: FilledButton.styleFrom(backgroundColor: Colors.redAccent),
+            child: const Text('Discard'),
+          ),
+        ],
+      ),
+    );
+    return confirmed ?? false;
+  }
+
   late final _gradientKeys = communityGradients.keys.toList();
 
   Map<String, dynamic>? _myProfile;
@@ -68,6 +135,12 @@ class _AddPostScreenState extends State<AddPostScreen> {
   String? _mediaFileName;
   bool _pickingMedia = false;
   String? _mediaError;
+
+  /// The post's media at load time, in edit mode — shown until [_mediaBytes]
+  /// (a fresh pick) or a remove tap (see [_removeMedia]) replaces it. `null`
+  /// in create mode, where there's nothing to start from.
+  String? _existingMediaUrl;
+  String? _existingMediaType;
 
   /// Picks a source (camera photo/video, or gallery — or straight to
   /// gallery where there's no camera to offer), normalizes whatever comes
@@ -200,12 +273,25 @@ class _AddPostScreenState extends State<AddPostScreen> {
       _mediaType = null;
       _mediaFileName = null;
       _mediaError = null;
+      _existingMediaUrl = null;
+      _existingMediaType = null;
     });
   }
 
   @override
   void initState() {
     super.initState();
+    final existing = widget.existingPost;
+    if (existing != null) {
+      _placeController.text = existing.placeName;
+      _captionController.text = existing.caption;
+      _categoryIndex = categories.indexWhere(
+        (c) => c.label == existing.category,
+      );
+      if (_categoryIndex == -1) _categoryIndex = 0;
+      _existingMediaUrl = existing.mediaUrl;
+      _existingMediaType = existing.mediaType;
+    }
     _service.getMyProfile().then((profile) {
       if (mounted) setState(() => _myProfile = profile);
     });
@@ -220,9 +306,8 @@ class _AddPostScreenState extends State<AddPostScreen> {
 
   bool _showErrors = false;
 
-  String? get _placeError => _placeController.text.trim().isEmpty
-      ? 'Tell us where this was'
-      : null;
+  String? get _placeError =>
+      _placeController.text.trim().isEmpty ? 'Tell us where this was' : null;
 
   String? get _captionError => _captionController.text.trim().isEmpty
       ? 'Add a caption for your post'
@@ -236,15 +321,28 @@ class _AddPostScreenState extends State<AddPostScreen> {
     if (!_canPost) return;
     setState(() => _posting = true);
     try {
-      await _service.addPost(
-        placeName: _placeController.text.trim(),
-        caption: _captionController.text.trim(),
-        category: categories[_categoryIndex].label,
-        coverGradient: _gradientKeys[_gradientIndex],
-        mediaBytes: _mediaBytes,
-        mediaExtension: _mediaExtension,
-        mediaType: _mediaType,
-      );
+      if (_isEditing) {
+        await _service.updatePost(
+          postId: widget.existingPost!.id,
+          placeName: _placeController.text.trim(),
+          caption: _captionController.text.trim(),
+          category: categories[_categoryIndex].label,
+          mediaBytes: _mediaBytes,
+          mediaExtension: _mediaExtension,
+          mediaType: _mediaType,
+          removeMedia: _mediaBytes == null && _existingMediaUrl == null,
+        );
+      } else {
+        await _service.addPost(
+          placeName: _placeController.text.trim(),
+          caption: _captionController.text.trim(),
+          category: categories[_categoryIndex].label,
+          coverGradient: _gradientKeys[_gradientIndex],
+          mediaBytes: _mediaBytes,
+          mediaExtension: _mediaExtension,
+          mediaType: _mediaType,
+        );
+      }
       if (mounted) Navigator.of(context).pop(true);
     } catch (e) {
       if (mounted) {
@@ -253,7 +351,9 @@ class _AddPostScreenState extends State<AddPostScreen> {
           SnackBar(
             behavior: SnackBarBehavior.floating,
             backgroundColor: context.colors.ink,
-            content: Text('Could not post: $e'),
+            content: Text(
+              _isEditing ? 'Could not save: $e' : 'Could not post: $e',
+            ),
           ),
         );
       }
@@ -263,160 +363,174 @@ class _AddPostScreenState extends State<AddPostScreen> {
   @override
   Widget build(BuildContext context) {
     final myName = _myProfile?['display_name'] as String? ?? 'You';
-    final myColor = _myProfile?['avatar_color'] != null
-        ? Color(_myProfile!['avatar_color'] as int)
-        : AppColors.accent;
+    final myAvatarUrl = _myProfile?['avatar_url'] as String?;
 
-    return Scaffold(
-      backgroundColor: context.colors.surface,
-      body: SafeArea(
-        child: Column(
-          children: [
-            const DetailHeader(
-              title: 'New Post',
-              subtitle: 'Share a travel moment',
-            ),
-            Expanded(
-              child: ListView(
-                padding: const EdgeInsets.fromLTRB(24, 8, 24, 24),
-                children: [
-                  Row(
-                    children: [
-                      CircleAvatar(
-                        radius: 20,
-                        backgroundColor: myColor,
-                        child: Text(
-                          myName.isNotEmpty ? myName[0].toUpperCase() : '?',
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.w800,
+    return PopScope(
+      canPop: !_hasUnsavedChanges,
+      onPopInvokedWithResult: (didPop, result) async {
+        if (didPop) return;
+        if (await _confirmDiscard() && context.mounted) {
+          Navigator.of(context).pop();
+        }
+      },
+      child: Scaffold(
+        backgroundColor: context.colors.surface,
+        body: SafeArea(
+          child: Column(
+            children: [
+              DetailHeader(
+                title: _isEditing ? 'Edit Post' : 'New Post',
+                subtitle: _isEditing
+                    ? 'Update your travel moment'
+                    : 'Share a travel moment',
+              ),
+              Expanded(
+                child: ListView(
+                  padding: const EdgeInsets.fromLTRB(24, 8, 24, 24),
+                  children: [
+                    Row(
+                      children: [
+                        UserAvatar(
+                          name: myName,
+                          avatarUrl: myAvatarUrl,
+                          size: 40,
+                          borderWidth: 0,
+                        ),
+                        const SizedBox(width: 12),
+                        Text(
+                          'Posting as $myName',
+                          style: TextStyle(
+                            color: context.colors.ink,
+                            fontWeight: FontWeight.w700,
+                            fontSize: 14,
                           ),
                         ),
-                      ),
-                      const SizedBox(width: 12),
-                      Text(
-                        'Posting as $myName',
-                        style: TextStyle(
-                          color: context.colors.ink,
-                          fontWeight: FontWeight.w700,
-                          fontSize: 14,
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 24),
-                  _FieldLabel('Where was this?'),
-                  _InputBox(
-                    controller: _placeController,
-                    icon: Icons.location_on_rounded,
-                    hint: 'e.g. Chew Jetty, George Town',
-                    errorText: _showErrors ? _placeError : null,
-                    onChanged: (_) => setState(() {}),
-                  ),
-                  const SizedBox(height: 20),
-                  _FieldLabel('Caption'),
-                  _InputBox(
-                    controller: _captionController,
-                    icon: Icons.edit_rounded,
-                    hint: 'Share your experience…',
-                    maxLines: 5,
-                    errorText: _showErrors ? _captionError : null,
-                    onChanged: (_) => setState(() {}),
-                  ),
-                  const SizedBox(height: 24),
-                  _FieldLabel('Photo or video'),
-                  _MediaPicker(
-                    bytes: _mediaBytes,
-                    mediaType: _mediaType,
-                    fileName: _mediaFileName,
-                    loading: _pickingMedia,
-                    errorText: _mediaError,
-                    onPick: _pickMedia,
-                    onRemove: _removeMedia,
-                    onRecrop: _mediaType == 'image' ? _recropMedia : null,
-                  ),
-                  const SizedBox(height: 24),
-                  _FieldLabel('Category'),
-                  const SizedBox(height: 4),
-                  Wrap(
-                    spacing: 10,
-                    runSpacing: 10,
-                    children: List.generate(categories.length, (i) {
-                      final c = categories[i];
-                      final selected = _categoryIndex == i;
-                      return GestureDetector(
-                        onTap: () => setState(() => _categoryIndex = i),
-                        child: AnimatedContainer(
-                          duration: const Duration(milliseconds: 200),
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 16,
-                            vertical: 10,
-                          ),
-                          decoration: BoxDecoration(
-                            color: selected
-                                ? context.colors.ink
-                                : context.colors.card,
-                            borderRadius: BorderRadius.circular(20),
-                            border: Border.all(
+                      ],
+                    ),
+                    const SizedBox(height: 24),
+                    _FieldLabel('Where was this?'),
+                    _InputBox(
+                      controller: _placeController,
+                      icon: Icons.location_on_rounded,
+                      hint: 'e.g. Chew Jetty, George Town',
+                      errorText: _showErrors ? _placeError : null,
+                      onChanged: (_) => setState(() {}),
+                    ),
+                    const SizedBox(height: 20),
+                    _FieldLabel('Caption'),
+                    _InputBox(
+                      controller: _captionController,
+                      icon: Icons.edit_rounded,
+                      hint: 'Share your experience…',
+                      maxLines: 5,
+                      errorText: _showErrors ? _captionError : null,
+                      onChanged: (_) => setState(() {}),
+                    ),
+                    const SizedBox(height: 24),
+                    _FieldLabel('Photo or video'),
+                    _MediaPicker(
+                      bytes: _mediaBytes,
+                      existingUrl: _mediaBytes == null
+                          ? _existingMediaUrl
+                          : null,
+                      mediaType: _mediaType ?? _existingMediaType,
+                      fileName: _mediaFileName,
+                      loading: _pickingMedia,
+                      errorText: _mediaError,
+                      onPick: _pickMedia,
+                      onRemove: _removeMedia,
+                      onRecrop: _mediaBytes != null && _mediaType == 'image'
+                          ? _recropMedia
+                          : null,
+                    ),
+                    const SizedBox(height: 24),
+                    _FieldLabel('Category'),
+                    const SizedBox(height: 4),
+                    Wrap(
+                      spacing: 10,
+                      runSpacing: 10,
+                      children: List.generate(categories.length, (i) {
+                        final c = categories[i];
+                        final selected = _categoryIndex == i;
+                        return GestureDetector(
+                          onTap: () => setState(() => _categoryIndex = i),
+                          child: AnimatedContainer(
+                            duration: const Duration(milliseconds: 200),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 10,
+                            ),
+                            decoration: BoxDecoration(
                               color: selected
                                   ? context.colors.ink
-                                  : context.colors.muted.withValues(
-                                      alpha: 0.25,
-                                    ),
-                            ),
-                          ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(
-                                c.icon,
-                                size: 14,
+                                  : context.colors.card,
+                              borderRadius: BorderRadius.circular(20),
+                              border: Border.all(
                                 color: selected
-                                    ? Colors.white
-                                    : context.colors.muted,
+                                    ? context.colors.ink
+                                    : context.colors.muted.withValues(
+                                        alpha: 0.25,
+                                      ),
                               ),
-                              const SizedBox(width: 6),
-                              Text(
-                                c.label,
-                                style: TextStyle(
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  c.icon,
+                                  size: 14,
                                   color: selected
                                       ? Colors.white
-                                      : context.colors.ink,
-                                  fontWeight: FontWeight.w600,
-                                  fontSize: 13,
+                                      : context.colors.muted,
                                 ),
-                              ),
-                            ],
+                                const SizedBox(width: 6),
+                                Text(
+                                  c.label,
+                                  style: TextStyle(
+                                    color: selected
+                                        ? Colors.white
+                                        : context.colors.ink,
+                                    fontWeight: FontWeight.w600,
+                                    fontSize: 13,
+                                  ),
+                                ),
+                              ],
+                            ),
                           ),
-                        ),
-                      );
-                    }),
-                  ),
-                  const SizedBox(height: 28),
-                  _FieldLabel('Preview'),
-                  const SizedBox(height: 8),
-                  _PostPreview(
-                    authorName: myName,
-                    authorColor: myColor,
-                    caption: _captionController.text.trim().isEmpty
-                        ? 'Your caption will appear here…'
-                        : _captionController.text.trim(),
-                    place: _placeController.text.trim().isEmpty
-                        ? 'Location'
-                        : _placeController.text.trim(),
-                    mediaBytes: _mediaBytes,
-                    mediaType: _mediaType,
-                  ),
-                  const SizedBox(height: 32),
-                  GradientButton(
-                    label: _posting ? 'Posting…' : 'Post',
-                    icon: Icons.send_rounded,
-                    onPressed: _posting ? () {} : _submit,
-                  ),
-                ],
+                        );
+                      }),
+                    ),
+                    const SizedBox(height: 28),
+                    _FieldLabel('Preview'),
+                    const SizedBox(height: 8),
+                    _PostPreview(
+                      authorName: myName,
+                      authorAvatarUrl: myAvatarUrl,
+                      caption: _captionController.text.trim().isEmpty
+                          ? 'Your caption will appear here…'
+                          : _captionController.text.trim(),
+                      place: _placeController.text.trim().isEmpty
+                          ? 'Location'
+                          : _placeController.text.trim(),
+                      mediaBytes: _mediaBytes,
+                      existingMediaUrl: _mediaBytes == null
+                          ? _existingMediaUrl
+                          : null,
+                      mediaType: _mediaType ?? _existingMediaType,
+                    ),
+                    const SizedBox(height: 32),
+                    GradientButton(
+                      label: _posting
+                          ? (_isEditing ? 'Saving…' : 'Posting…')
+                          : (_isEditing ? 'Save Changes' : 'Post'),
+                      icon: Icons.send_rounded,
+                      onPressed: _posting ? () {} : _submit,
+                    ),
+                  ],
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -426,18 +540,20 @@ class _AddPostScreenState extends State<AddPostScreen> {
 class _PostPreview extends StatelessWidget {
   const _PostPreview({
     required this.authorName,
-    required this.authorColor,
+    this.authorAvatarUrl,
     required this.caption,
     required this.place,
     this.mediaBytes,
+    this.existingMediaUrl,
     this.mediaType,
   });
 
   final String authorName;
-  final Color authorColor;
+  final String? authorAvatarUrl;
   final String caption;
   final String place;
   final Uint8List? mediaBytes;
+  final String? existingMediaUrl;
   final String? mediaType;
 
   @override
@@ -460,17 +576,11 @@ class _PostPreview extends StatelessWidget {
         children: [
           Row(
             children: [
-              CircleAvatar(
-                radius: 16,
-                backgroundColor: authorColor,
-                child: Text(
-                  authorName.isNotEmpty ? authorName[0].toUpperCase() : '?',
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.w800,
-                    fontSize: 12,
-                  ),
-                ),
+              UserAvatar(
+                name: authorName,
+                avatarUrl: authorAvatarUrl,
+                size: 32,
+                borderWidth: 0,
               ),
               const SizedBox(width: 10),
               Expanded(
@@ -507,7 +617,7 @@ class _PostPreview extends StatelessWidget {
               height: 1.4,
             ),
           ),
-          if (mediaBytes != null) ...[
+          if (mediaBytes != null || existingMediaUrl != null) ...[
             const SizedBox(height: 10),
             ClipRRect(
               borderRadius: BorderRadius.circular(14),
@@ -527,8 +637,14 @@ class _PostPreview extends StatelessWidget {
                         size: 32,
                       ),
                     )
-                  : Image.memory(
+                  : mediaBytes != null
+                  ? Image.memory(
                       mediaBytes!,
+                      width: double.infinity,
+                      fit: BoxFit.fitWidth,
+                    )
+                  : Image.network(
+                      existingMediaUrl!,
                       width: double.infinity,
                       fit: BoxFit.fitWidth,
                     ),
@@ -547,6 +663,7 @@ class _PostPreview extends StatelessWidget {
 class _MediaPicker extends StatelessWidget {
   const _MediaPicker({
     required this.bytes,
+    this.existingUrl,
     required this.mediaType,
     required this.fileName,
     required this.loading,
@@ -557,6 +674,10 @@ class _MediaPicker extends StatelessWidget {
   });
 
   final Uint8List? bytes;
+
+  /// The post's media at load time, in edit mode — shown when there's no
+  /// fresh [bytes] pick yet. See `AddPostScreen._existingMediaUrl`.
+  final String? existingUrl;
   final String? mediaType;
   final String? fileName;
   final bool loading;
@@ -568,7 +689,8 @@ class _MediaPicker extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final hasError = errorText != null;
-    final picker = bytes == null
+    final hasContent = bytes != null || existingUrl != null;
+    final picker = !hasContent
         ? GestureDetector(
             onTap: loading ? null : onPick,
             child: Container(
@@ -634,7 +756,7 @@ class _MediaPicker extends StatelessWidget {
                             ),
                             const SizedBox(height: 6),
                             Text(
-                              fileName ?? 'Video selected',
+                              fileName ?? 'Video attached',
                               style: const TextStyle(
                                 color: Colors.white70,
                                 fontSize: 12,
@@ -644,8 +766,14 @@ class _MediaPicker extends StatelessWidget {
                           ],
                         ),
                       )
-                    : Image.memory(
+                    : bytes != null
+                    ? Image.memory(
                         bytes!,
+                        width: double.infinity,
+                        fit: BoxFit.fitWidth,
+                      )
+                    : Image.network(
+                        existingUrl!,
                         width: double.infinity,
                         fit: BoxFit.fitWidth,
                       ),
@@ -831,7 +959,10 @@ class _MediaSourceSheet extends StatelessWidget {
             ),
           ),
           ListTile(
-            leading: Icon(Icons.photo_camera_rounded, color: context.colors.ink),
+            leading: Icon(
+              Icons.photo_camera_rounded,
+              color: context.colors.ink,
+            ),
             title: Text(
               'Take Photo',
               style: TextStyle(
@@ -853,7 +984,10 @@ class _MediaSourceSheet extends StatelessWidget {
             onTap: () => Navigator.of(context).pop(_MediaSource.cameraVideo),
           ),
           ListTile(
-            leading: Icon(Icons.photo_library_rounded, color: context.colors.ink),
+            leading: Icon(
+              Icons.photo_library_rounded,
+              color: context.colors.ink,
+            ),
             title: Text(
               'Choose from Gallery',
               style: TextStyle(

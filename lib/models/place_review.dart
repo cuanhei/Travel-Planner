@@ -6,6 +6,7 @@ class PlaceReview {
     required this.authorId,
     required this.authorName,
     required this.authorColor,
+    this.authorAvatarUrl,
     required this.rating,
     required this.body,
     required this.createdAt,
@@ -17,6 +18,7 @@ class PlaceReview {
   final String authorId;
   final String authorName;
   final int authorColor;
+  final String? authorAvatarUrl;
   final int rating;
   final String body;
   final DateTime createdAt;
@@ -30,6 +32,7 @@ class PlaceReview {
       authorId: map['author_id'] as String,
       authorName: profile['display_name'] as String,
       authorColor: profile['avatar_color'] as int,
+      authorAvatarUrl: profile['avatar_url'] as String?,
       rating: map['rating'] as int,
       body: map['body'] as String,
       createdAt: DateTime.parse(map['created_at'] as String),

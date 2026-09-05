@@ -4,6 +4,7 @@ import '../../models/community_post.dart';
 import '../../services/community_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/detail_header.dart';
+import 'add_post_screen.dart';
 import 'comments_screen.dart';
 import 'post_card.dart';
 import 'share_post_sheet.dart';
@@ -68,6 +69,11 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
                       ),
                       onComment: () {},
                       onShare: () => showSharePostSheet(context, post),
+                      onEdit: () => Navigator.of(context).push(
+                        MaterialPageRoute(
+                          builder: (_) => AddPostScreen(existingPost: post),
+                        ),
+                      ),
                     ),
                   ),
                   Expanded(child: CommentsSection(postId: post.id)),

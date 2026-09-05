@@ -31,12 +31,12 @@ class CommunityService {
 
   String get _uid => _client.auth.currentUser!.id;
 
-  /// The signed-in user's own profile (display name + avatar color), for
-  /// "Posting as …" headers.
+  /// The signed-in user's own profile (display name, avatar color, and
+  /// avatar photo/design), for "Posting as …" headers.
   Future<Map<String, dynamic>?> getMyProfile() async {
     return _client
         .from('profiles')
-        .select('display_name, avatar_color')
+        .select('display_name, avatar_color, avatar_url')
         .eq('id', _uid)
         .maybeSingle();
   }
@@ -57,7 +57,7 @@ class CommunityService {
 
     final profiles = await _client
         .from('profiles')
-        .select('id, display_name, avatar_color')
+        .select('id, display_name, avatar_color, avatar_url')
         .inFilter('id', userIds);
     final profileById = {
       for (final p in profiles as List) p['id'] as String: p,
@@ -241,6 +241,55 @@ class CommunityService {
       'cover_gradient': coverGradient,
       if (mediaUrl != null) ...{'media_url': mediaUrl, 'media_type': mediaType},
     });
+  }
+
+  /// Edits [postId] in place — only the author can, per the
+  /// `posts_update_own` RLS policy, so a caller that isn't the author gets
+  /// [StateError] rather than a silent no-op.
+  ///
+  /// Media is left untouched unless [mediaBytes] (a fresh pick, uploaded and
+  /// swapped in) or [removeMedia] (clears it entirely) says otherwise —
+  /// distinct from [addPost], which never needs to represent "leave what's
+  /// already there alone".
+  Future<void> updatePost({
+    required String postId,
+    required String placeName,
+    required String caption,
+    required String category,
+    Uint8List? mediaBytes,
+    String? mediaExtension,
+    String? mediaType,
+    bool removeMedia = false,
+  }) async {
+    final updates = <String, dynamic>{
+      'place_name': placeName.trim(),
+      'caption': caption.trim(),
+      'category': category,
+    };
+    if (mediaBytes != null && mediaExtension != null && mediaType != null) {
+      final mediaUrl = await _uploadPostMedia(
+        bytes: mediaBytes,
+        extension: mediaExtension,
+        mediaType: mediaType,
+      );
+      updates['media_url'] = mediaUrl;
+      updates['media_type'] = mediaType;
+    } else if (removeMedia) {
+      updates['media_url'] = null;
+      updates['media_type'] = null;
+    }
+
+    final updated = await _client
+        .from('posts')
+        .update(updates)
+        .eq('id', postId)
+        .select('id');
+    if (updated.isEmpty) {
+      throw StateError(
+        'Post update for "$postId" matched no row — it may not exist, or '
+        'an RLS policy is blocking the write.',
+      );
+    }
   }
 
   /// Uploads a post's photo/video to the `post-media` bucket under
@@ -460,7 +509,7 @@ class CommunityService {
               .toList();
           final profiles = await _client
               .from('profiles')
-              .select('id, display_name, avatar_color')
+              .select('id, display_name, avatar_color, avatar_url')
               .inFilter('id', userIds);
           final profileById = {
             for (final p in profiles as List) p['id'] as String: p,
@@ -515,6 +564,40 @@ class CommunityService {
       'body': body.trim(),
       if (photoUrls.isNotEmpty) 'photo_urls': photoUrls,
     });
+  }
+
+  /// Edits [reviewId] in place — only the author can, per the
+  /// `reviews_update_own` RLS policy. [keepPhotoUrls] are photos already on
+  /// the review the user chose not to remove; [newPhotos] are fresh picks
+  /// to upload, appended after them — together they replace `photo_urls`
+  /// outright, since there's no way to patch an array column in place.
+  Future<void> updateReview({
+    required String reviewId,
+    required int rating,
+    required String body,
+    List<String> keepPhotoUrls = const [],
+    List<(Uint8List bytes, String extension)> newPhotos = const [],
+  }) async {
+    final newUrls = await Future.wait(
+      newPhotos.map((p) => _uploadReviewPhoto(bytes: p.$1, extension: p.$2)),
+    );
+    final photoUrls = [...keepPhotoUrls, ...newUrls];
+
+    final updated = await _client
+        .from('reviews')
+        .update({
+          'rating': rating,
+          'body': body.trim(),
+          'photo_urls': photoUrls.isEmpty ? null : photoUrls,
+        })
+        .eq('id', reviewId)
+        .select('id');
+    if (updated.isEmpty) {
+      throw StateError(
+        'Review update for "$reviewId" matched no row — it may not exist, '
+        'or an RLS policy is blocking the write.',
+      );
+    }
   }
 
   /// Uploads one review photo to the `review-media` bucket under

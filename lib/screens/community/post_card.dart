@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../models/community_post.dart';
 import '../../theme/app_theme.dart';
 import '../../utils/time_ago.dart';
+import '../../widgets/user_avatar.dart';
 import 'post_media_view.dart';
 
 /// Cover-gradient key options a post can be tagged with, keyed by the text
@@ -55,6 +57,7 @@ class PostCard extends StatelessWidget {
     required this.onReact,
     required this.onComment,
     required this.onShare,
+    this.onEdit,
   });
 
   final CommunityPost post;
@@ -65,9 +68,17 @@ class PostCard extends StatelessWidget {
   final VoidCallback onComment;
   final VoidCallback onShare;
 
+  /// Opens the post for editing. Only ever passed by callers that also
+  /// checked `post.authorId` against the signed-in user — this widget does
+  /// the same check itself below to decide whether to show the edit icon
+  /// at all, so a `null` [onEdit] on someone else's post never matters.
+  final VoidCallback? onEdit;
+
   @override
   Widget build(BuildContext context) {
     final hasReactions = post.reactionCounts.values.any((c) => c > 0);
+    final isOwnPost =
+        post.authorId == Supabase.instance.client.auth.currentUser?.id;
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
       padding: const EdgeInsets.all(16),
@@ -87,16 +98,11 @@ class PostCard extends StatelessWidget {
         children: [
           Row(
             children: [
-              CircleAvatar(
-                radius: 18,
-                backgroundColor: Color(post.authorColor),
-                child: Text(
-                  post.authorName[0].toUpperCase(),
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
+              UserAvatar(
+                name: post.authorName,
+                avatarUrl: post.authorAvatarUrl,
+                size: 36,
+                borderWidth: 0,
               ),
               const SizedBox(width: 10),
               Expanded(
@@ -112,7 +118,9 @@ class PostCard extends StatelessWidget {
                       ),
                     ),
                     Text(
-                      '${post.placeName} · ${post.category} · ${timeAgo(post.createdAt)}',
+                      '${post.placeName} · ${post.category} · '
+                      '${timeAgo(post.createdAt)}'
+                      '${post.isEdited ? ' · Edited' : ''}',
                       style: TextStyle(
                         color: context.colors.muted,
                         fontSize: 11.5,
@@ -121,6 +129,15 @@ class PostCard extends StatelessWidget {
                   ],
                 ),
               ),
+              if (isOwnPost && onEdit != null)
+                GestureDetector(
+                  onTap: onEdit,
+                  child: Icon(
+                    Icons.edit_outlined,
+                    color: context.colors.muted,
+                    size: 18,
+                  ),
+                ),
             ],
           ),
           const SizedBox(height: 12),

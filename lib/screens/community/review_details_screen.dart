@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../models/place_review.dart';
 import '../../services/community_service.dart';
@@ -6,6 +7,7 @@ import '../../services/trip_service.dart';
 import '../../theme/app_theme.dart';
 import '../../utils/time_ago.dart';
 import '../../widgets/detail_header.dart';
+import '../../widgets/user_avatar.dart';
 import 'add_review_screen.dart';
 
 /// Full review list for a place, with a rating breakdown and an entry
@@ -228,7 +230,18 @@ class _ReviewDetailsScreenState extends State<ReviewDetailsScreen> {
                           padding: const EdgeInsets.fromLTRB(24, 8, 24, 8),
                           itemCount: filteredReviews.length,
                           itemBuilder: (context, index) {
-                            return _ReviewTile(review: filteredReviews[index]);
+                            final review = filteredReviews[index];
+                            return _ReviewTile(
+                              review: review,
+                              onEdit: () => Navigator.of(context).push(
+                                MaterialPageRoute(
+                                  builder: (_) => AddReviewScreen(
+                                    placeName: widget.placeName,
+                                    existingReview: review,
+                                  ),
+                                ),
+                              ),
+                            );
                           },
                         ),
                 ),
@@ -340,12 +353,18 @@ class _RatingChip extends StatelessWidget {
 }
 
 class _ReviewTile extends StatelessWidget {
-  const _ReviewTile({required this.review});
+  const _ReviewTile({required this.review, required this.onEdit});
 
   final PlaceReview review;
 
+  /// Opens the review for editing — only shown when [review.authorId]
+  /// matches the signed-in user, checked below.
+  final VoidCallback onEdit;
+
   @override
   Widget build(BuildContext context) {
+    final isOwnReview =
+        review.authorId == Supabase.instance.client.auth.currentUser?.id;
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(14),
@@ -365,17 +384,11 @@ class _ReviewTile extends StatelessWidget {
         children: [
           Row(
             children: [
-              CircleAvatar(
-                radius: 16,
-                backgroundColor: Color(review.authorColor),
-                child: Text(
-                  review.authorName[0].toUpperCase(),
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.w800,
-                    fontSize: 12,
-                  ),
-                ),
+              UserAvatar(
+                name: review.authorName,
+                avatarUrl: review.authorAvatarUrl,
+                size: 32,
+                borderWidth: 0,
               ),
               const SizedBox(width: 10),
               Expanded(
@@ -400,6 +413,17 @@ class _ReviewTile extends StatelessWidget {
                   ],
                 ),
               ),
+              if (isOwnReview) ...[
+                GestureDetector(
+                  onTap: onEdit,
+                  child: Icon(
+                    Icons.edit_outlined,
+                    color: context.colors.muted,
+                    size: 16,
+                  ),
+                ),
+                const SizedBox(width: 10),
+              ],
               Row(
                 children: List.generate(
                   5,

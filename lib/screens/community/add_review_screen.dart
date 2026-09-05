@@ -4,6 +4,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 
+import '../../models/place_review.dart';
 import '../../services/community_service.dart';
 import '../../services/trip_service.dart';
 import '../../theme/app_theme.dart';
@@ -25,8 +26,8 @@ const _croppableExtensions = {'jpg', 'jpeg', 'png', 'gif', 'webp'};
 enum _PhotoSource { camera, gallery }
 
 /// Star rating plus a written review submission form. Backed by
-/// `reviews` — one review per *visit*, so submitting always adds a new
-/// review rather than editing a previous one (see
+/// `reviews` — one review per *visit*, so submitting a *new* review always
+/// inserts a fresh row rather than editing a previous one (see
 /// [CommunityService.addReview]).
 ///
 /// Only reachable from `ReviewDetailsScreen` once the user has got an
@@ -34,10 +35,18 @@ enum _PhotoSource { camera, gallery }
 /// something ever routes here directly. (The old `PlaceDetailsScreen` also
 /// linked here before it was replaced by `ExplorePlaceDetailsScreen`, which
 /// doesn't wire up reviews yet — see that class's doc comment.)
+///
+/// Doubles as the editor when [existingReview] is passed (only ever by the
+/// review's own author — the review list only shows the edit affordance
+/// when `review.authorId` matches the signed-in user): fields are
+/// pre-filled, the visit-gate above is skipped entirely (editing doesn't
+/// spend a visit), and [CommunityService.updateReview] is called instead of
+/// [addReview] on submit.
 class AddReviewScreen extends StatefulWidget {
-  const AddReviewScreen({super.key, required this.placeName});
+  const AddReviewScreen({super.key, required this.placeName, this.existingReview});
 
   final String placeName;
+  final PlaceReview? existingReview;
 
   @override
   State<AddReviewScreen> createState() => _AddReviewScreenState();
@@ -52,8 +61,19 @@ class _AddReviewScreenState extends State<AddReviewScreen> {
   final _controller = TextEditingController();
   bool _submitting = false;
 
+  bool get _isEditing => widget.existingReview != null;
+
   final List<Uint8List> _photoBytes = [];
   final List<String> _photoExtensions = [];
+
+  /// The review's photos at load time, in edit mode — removable
+  /// individually via [_removeExistingPhoto], separately from freshly
+  /// picked [_photoBytes]. Empty in create mode, where there's nothing to
+  /// start from.
+  late final List<String> _existingPhotoUrls = List.of(
+    widget.existingReview?.photoUrls ?? const [],
+  );
+
   bool _pickingPhotos = false;
   String? _photoError;
 
@@ -74,6 +94,16 @@ class _AddReviewScreenState extends State<AddReviewScreen> {
   @override
   void initState() {
     super.initState();
+    final existing = widget.existingReview;
+    if (existing != null) {
+      _rating = existing.rating;
+      _controller.text = existing.body;
+      // Editing doesn't spend a visit, so the gate below is irrelevant —
+      // skip straight past it rather than re-running the visit/review-count
+      // check this screen normally opens with.
+      _canReview = true;
+      return;
+    }
     Future.wait([
       TripService().visitCount(widget.placeName),
       _service.myReviewCount(widget.placeName),
@@ -114,8 +144,10 @@ class _AddReviewScreenState extends State<AddReviewScreen> {
   /// through [CropImageScreen] before appending it — unlike the old
   /// multi-select picker, this only ever adds one photo per call so each
   /// one gets its own crop pass.
+  int get _totalPhotoCount => _existingPhotoUrls.length + _photoBytes.length;
+
   Future<void> _addPhoto() async {
-    if (_photoBytes.length >= _maxPhotos) return;
+    if (_totalPhotoCount >= _maxPhotos) return;
 
     final source = cameraAvailable
         ? await showModalBottomSheet<_PhotoSource>(
@@ -184,27 +216,49 @@ class _AddReviewScreenState extends State<AddReviewScreen> {
     });
   }
 
+  void _removeExistingPhoto(int index) {
+    setState(() {
+      _existingPhotoUrls.removeAt(index);
+      _photoError = null;
+    });
+  }
+
   Future<void> _submit() async {
     setState(() => _showErrors = true);
     if (!_canSubmit) return;
     setState(() => _submitting = true);
     try {
-      await _service.addReview(
-        placeName: widget.placeName,
-        rating: _rating,
-        body: _controller.text.trim(),
-        photos: [
-          for (var i = 0; i < _photoBytes.length; i++)
-            (_photoBytes[i], _photoExtensions[i]),
-        ],
-      );
+      final newPhotos = [
+        for (var i = 0; i < _photoBytes.length; i++)
+          (_photoBytes[i], _photoExtensions[i]),
+      ];
+      if (_isEditing) {
+        await _service.updateReview(
+          reviewId: widget.existingReview!.id,
+          rating: _rating,
+          body: _controller.text.trim(),
+          keepPhotoUrls: _existingPhotoUrls,
+          newPhotos: newPhotos,
+        );
+      } else {
+        await _service.addReview(
+          placeName: widget.placeName,
+          rating: _rating,
+          body: _controller.text.trim(),
+          photos: newPhotos,
+        );
+      }
       if (!mounted) return;
       Navigator.of(context).pop();
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           behavior: SnackBarBehavior.floating,
           backgroundColor: context.colors.ink,
-          content: Text('Review for ${widget.placeName} posted!'),
+          content: Text(
+            _isEditing
+                ? 'Review updated!'
+                : 'Review for ${widget.placeName} posted!',
+          ),
         ),
       );
     } catch (e) {
@@ -214,7 +268,11 @@ class _AddReviewScreenState extends State<AddReviewScreen> {
         SnackBar(
           behavior: SnackBarBehavior.floating,
           backgroundColor: context.colors.ink,
-          content: Text('Could not post review: $e'),
+          content: Text(
+            _isEditing
+                ? 'Could not save review: $e'
+                : 'Could not post review: $e',
+          ),
         ),
       );
     }
@@ -289,7 +347,10 @@ class _AddReviewScreenState extends State<AddReviewScreen> {
       body: SafeArea(
         child: Column(
           children: [
-            DetailHeader(title: 'Write a Review', subtitle: widget.placeName),
+            DetailHeader(
+              title: _isEditing ? 'Edit Review' : 'Write a Review',
+              subtitle: widget.placeName,
+            ),
             Expanded(
               child: ListView(
                 padding: const EdgeInsets.fromLTRB(24, 8, 24, 24),
@@ -381,11 +442,13 @@ class _AddReviewScreenState extends State<AddReviewScreen> {
                   ),
                   const SizedBox(height: 10),
                   _PhotoPicker(
-                    photos: _photoBytes,
+                    existingUrls: _existingPhotoUrls,
+                    newPhotos: _photoBytes,
                     picking: _pickingPhotos,
-                    canAddMore: _photoBytes.length < _maxPhotos,
+                    canAddMore: _totalPhotoCount < _maxPhotos,
                     onPick: _addPhoto,
-                    onRemove: _removePhoto,
+                    onRemoveExisting: _removeExistingPhoto,
+                    onRemoveNew: _removePhoto,
                   ),
                   if (_photoError != null) ...[
                     const SizedBox(height: 6),
@@ -400,7 +463,9 @@ class _AddReviewScreenState extends State<AddReviewScreen> {
                   ],
                   const SizedBox(height: 28),
                   GradientButton(
-                    label: _submitting ? 'Posting…' : 'Post Review',
+                    label: _submitting
+                        ? (_isEditing ? 'Saving…' : 'Posting…')
+                        : (_isEditing ? 'Save Changes' : 'Post Review'),
                     onPressed: _submit,
                   ),
                 ],
@@ -415,22 +480,62 @@ class _AddReviewScreenState extends State<AddReviewScreen> {
 
 /// Horizontal row of picked-photo thumbnails (each removable) plus a
 /// trailing "add" tile, for [AddReviewScreen]'s optional photo attachments.
+/// [existingUrls] (network, edit mode only) come first, then [newPhotos]
+/// (freshly picked, local) — each with its own remove callback since
+/// they're removed from different lists.
 class _PhotoPicker extends StatelessWidget {
   const _PhotoPicker({
-    required this.photos,
+    required this.existingUrls,
+    required this.newPhotos,
     required this.picking,
     required this.canAddMore,
     required this.onPick,
-    required this.onRemove,
+    required this.onRemoveExisting,
+    required this.onRemoveNew,
   });
 
-  final List<Uint8List> photos;
+  final List<String> existingUrls;
+  final List<Uint8List> newPhotos;
   final bool picking;
   final bool canAddMore;
   final VoidCallback onPick;
-  final ValueChanged<int> onRemove;
+  final ValueChanged<int> onRemoveExisting;
+  final ValueChanged<int> onRemoveNew;
 
   static const _size = 84.0;
+
+  Widget _thumb(Widget image, VoidCallback onRemove) {
+    return Padding(
+      padding: const EdgeInsets.only(right: 10),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(14),
+        child: Stack(
+          children: [
+            SizedBox(width: _size, height: _size, child: image),
+            Positioned(
+              top: 4,
+              right: 4,
+              child: GestureDetector(
+                onTap: onRemove,
+                child: Container(
+                  padding: const EdgeInsets.all(4),
+                  decoration: const BoxDecoration(
+                    color: Colors.black54,
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(
+                    Icons.close_rounded,
+                    color: Colors.white,
+                    size: 14,
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -439,40 +544,15 @@ class _PhotoPicker extends StatelessWidget {
       child: ListView(
         scrollDirection: Axis.horizontal,
         children: [
-          for (var i = 0; i < photos.length; i++)
-            Padding(
-              padding: const EdgeInsets.only(right: 10),
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(14),
-                child: Stack(
-                  children: [
-                    SizedBox(
-                      width: _size,
-                      height: _size,
-                      child: Image.memory(photos[i], fit: BoxFit.cover),
-                    ),
-                    Positioned(
-                      top: 4,
-                      right: 4,
-                      child: GestureDetector(
-                        onTap: () => onRemove(i),
-                        child: Container(
-                          padding: const EdgeInsets.all(4),
-                          decoration: const BoxDecoration(
-                            color: Colors.black54,
-                            shape: BoxShape.circle,
-                          ),
-                          child: const Icon(
-                            Icons.close_rounded,
-                            color: Colors.white,
-                            size: 14,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
+          for (var i = 0; i < existingUrls.length; i++)
+            _thumb(
+              Image.network(existingUrls[i], fit: BoxFit.cover),
+              () => onRemoveExisting(i),
+            ),
+          for (var i = 0; i < newPhotos.length; i++)
+            _thumb(
+              Image.memory(newPhotos[i], fit: BoxFit.cover),
+              () => onRemoveNew(i),
             ),
           if (canAddMore)
             GestureDetector(
